@@ -17,12 +17,14 @@ export interface User {
 
 // Available departments for AMY
 export const DEPARTMENTS = [
-  'Administration',
   'Accounting',
-  'Finance',
-  'Billing',
-  'Payroll',
-  'Operations',
+  'Administration',
+  'Customer Service',
+  'Data Entry',
+  'Lab',
+  'Marketing',
+  'Pharmacist',
+  'R&D',
 ] as const;
 
 export type Department = typeof DEPARTMENTS[number];
