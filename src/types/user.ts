@@ -8,11 +8,24 @@ export interface User {
   full_name: string | null;
   phone: string | null;
   role: 'user' | 'admin' | 'super_admin';
+  departments: string[];
   is_active: boolean;
   must_change_password: boolean;
   created_at: string;
   updated_at: string;
 }
+
+// Available departments for AMY
+export const DEPARTMENTS = [
+  'Administration',
+  'Accounting',
+  'Finance',
+  'Billing',
+  'Payroll',
+  'Operations',
+] as const;
+
+export type Department = typeof DEPARTMENTS[number];
 
 export interface CreateUserData {
   email: string;

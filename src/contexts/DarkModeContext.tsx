@@ -12,13 +12,22 @@ const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined
 export function DarkModeProvider({ children }: { children: ReactNode }) {
   const [darkMode, setDarkMode] = useState(false);
 
-  // Persist preference in localStorage
+  // Persist preference in localStorage and apply dark class to html element
   useEffect(() => {
     const saved = localStorage.getItem('amy-dark-mode');
     if (saved !== null) {
       setDarkMode(saved === 'true');
     }
   }, []);
+
+  // Apply dark class to html element when darkMode changes
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   const toggleDarkMode = () => {
     setDarkMode(prev => {

@@ -34,6 +34,7 @@ export async function getUsers(): Promise<User[]> {
     full_name: user.full_name,
     phone: user.phone || null,
     role: user.role,
+    departments: user.departments || [],
     is_active: user.is_active ?? true,
     must_change_password: user.must_change_password ?? false,
     created_at: user.created_at,
@@ -71,6 +72,7 @@ export async function getUserById(userId: string): Promise<User | null> {
     full_name: data.full_name,
     phone: data.phone || null,
     role: data.role,
+    departments: data.departments || [],
     is_active: data.is_active ?? true,
     must_change_password: data.must_change_password ?? false,
     created_at: data.created_at,
@@ -94,6 +96,8 @@ export async function createUser(formData: FormData) {
   const phone = formData.get('phone') as string | null;
   const role = formData.get('role') as 'admin' | 'user' | 'super_admin';
   const password = formData.get('password') as string;
+  const departmentsJson = formData.get('departments') as string;
+  const departments = departmentsJson ? JSON.parse(departmentsJson) : [];
 
   if (!email || !fullName || !role || !password) {
     throw new Error('All required fields must be provided');
@@ -156,6 +160,7 @@ export async function createUser(formData: FormData) {
           full_name: fullName,
           phone: phone || null,
           role,
+          departments,
         });
 
         if (profileError) {
@@ -181,6 +186,7 @@ export async function createUser(formData: FormData) {
     full_name: fullName,
     phone: phone || null,
     role,
+    departments,
   });
 
   if (profileError) {
@@ -206,6 +212,8 @@ export async function updateUser(userId: string, formData: FormData) {
   const fullName = formData.get('fullName') as string;
   const phone = formData.get('phone') as string | null;
   const role = formData.get('role') as 'admin' | 'user' | 'super_admin';
+  const departmentsJson = formData.get('departments') as string;
+  const departments = departmentsJson ? JSON.parse(departmentsJson) : [];
 
   // Only super admins can set super_admin role
   if (role === 'super_admin' && currentUser.role !== 'super_admin') {
@@ -220,6 +228,7 @@ export async function updateUser(userId: string, formData: FormData) {
       full_name: fullName,
       phone: phone || null,
       role,
+      departments,
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId);

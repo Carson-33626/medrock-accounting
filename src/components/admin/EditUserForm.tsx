@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateUser } from '@/lib/user-actions';
-import { UserCog, Loader2, Phone, ArrowLeft, Save } from 'lucide-react';
+import { UserCog, Loader2, Phone, ArrowLeft, Save, Building2, Check } from 'lucide-react';
 import type { User } from '@/types/user';
+import { DEPARTMENTS } from '@/types/user';
 
 interface EditUserFormProps {
   user: User;
@@ -32,7 +33,16 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
   const [fullName, setFullName] = useState(user.full_name || '');
   const [role, setRole] = useState<string>(user.role);
   const [phone, setPhone] = useState<string>(user.phone ? formatPhoneDisplay(user.phone) : '');
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>(user.departments || []);
   const router = useRouter();
+
+  const toggleDepartment = (dept: string) => {
+    setSelectedDepartments(prev =>
+      prev.includes(dept)
+        ? prev.filter(d => d !== dept)
+        : [...prev, dept]
+    );
+  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneDisplay(e.target.value);
@@ -56,6 +66,7 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
     formData.set('fullName', fullName);
     formData.set('phone', phone);
     formData.set('role', role);
+    formData.set('departments', JSON.stringify(selectedDepartments));
 
     try {
       await updateUser(user.id, formData);
@@ -187,6 +198,49 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
                 <option value="super_admin">Super Administrator</option>
               )}
             </select>
+          </div>
+
+          {/* Departments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="h-4 w-4" />
+                Departments
+              </span>
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {DEPARTMENTS.map((dept) => (
+                <label
+                  key={dept}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                    selectedDepartments.includes(dept)
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                      : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 text-gray-700 dark:text-slate-300'
+                  } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDepartments.includes(dept)}
+                    onChange={() => toggleDepartment(dept)}
+                    disabled={isSubmitting}
+                    className="sr-only"
+                  />
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                    selectedDepartments.includes(dept)
+                      ? 'border-purple-500 bg-purple-500'
+                      : 'border-gray-300 dark:border-slate-500'
+                  }`}>
+                    {selectedDepartments.includes(dept) && (
+                      <Check className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <span className="text-sm">{dept}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+              Select the departments this user belongs to
+            </p>
           </div>
 
           {/* Actions */}

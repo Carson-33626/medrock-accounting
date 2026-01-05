@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUser } from '@/lib/user-actions';
-import { UserPlus, Loader2, Eye, EyeOff, RefreshCw, Copy, Check, Phone, ArrowLeft } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, RefreshCw, Copy, Check, Phone, ArrowLeft, Building2 } from 'lucide-react';
+import { DEPARTMENTS } from '@/types/user';
 
 interface CreateUserFormProps {
   currentUserRole: 'user' | 'admin' | 'super_admin';
@@ -53,7 +54,16 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [phone, setPhone] = useState<string>('');
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const router = useRouter();
+
+  const toggleDepartment = (dept: string) => {
+    setSelectedDepartments(prev =>
+      prev.includes(dept)
+        ? prev.filter(d => d !== dept)
+        : [...prev, dept]
+    );
+  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneDisplay(e.target.value);
@@ -87,6 +97,7 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    formData.set('departments', JSON.stringify(selectedDepartments));
 
     try {
       await createUser(formData);
@@ -217,6 +228,49 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
                 <option value="super_admin">Super Administrator</option>
               )}
             </select>
+          </div>
+
+          {/* Departments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="h-4 w-4" />
+                Departments
+              </span>
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {DEPARTMENTS.map((dept) => (
+                <label
+                  key={dept}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                    selectedDepartments.includes(dept)
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                      : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 text-gray-700 dark:text-slate-300'
+                  } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDepartments.includes(dept)}
+                    onChange={() => toggleDepartment(dept)}
+                    disabled={isSubmitting}
+                    className="sr-only"
+                  />
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                    selectedDepartments.includes(dept)
+                      ? 'border-purple-500 bg-purple-500'
+                      : 'border-gray-300 dark:border-slate-500'
+                  }`}>
+                    {selectedDepartments.includes(dept) && (
+                      <Check className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <span className="text-sm">{dept}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+              Select the departments this user belongs to
+            </p>
           </div>
 
           {/* Password */}
