@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { revalidatePath } from 'next/cache';
 import type { User } from '@/types/user';
+import { sendWelcomeEmail } from '@/lib/email';
 
 /**
  * Get all users (admin only)
@@ -98,6 +99,7 @@ export async function createUser(formData: FormData) {
   const password = formData.get('password') as string;
   const departmentsJson = formData.get('departments') as string;
   const departments = departmentsJson ? JSON.parse(departmentsJson) : [];
+  const shouldSendWelcomeEmail = formData.get('sendWelcomeEmail') === 'true';
 
   if (!email || !fullName || !role || !password) {
     throw new Error('All required fields must be provided');
@@ -168,8 +170,18 @@ export async function createUser(formData: FormData) {
           throw new Error(`Failed to create user profile: ${profileError.message}`);
         }
 
+        // Send welcome email if requested (retry case)
+        let emailSent = false;
+        if (shouldSendWelcomeEmail) {
+          try {
+            emailSent = await sendWelcomeEmail(email, fullName, password);
+          } catch (error) {
+            console.error('Failed to send welcome email:', error);
+          }
+        }
+
         revalidatePath('/admin/users');
-        return { success: true, userId: retryUser.user.id };
+        return { success: true, userId: retryUser.user.id, emailSent };
       }
     }
     throw new Error(`Failed to create user: ${authError.message}`);
@@ -194,8 +206,22 @@ export async function createUser(formData: FormData) {
     throw new Error(`Failed to create user profile: ${profileError.message}`);
   }
 
+  // Send welcome email if requested
+  let emailSent = false;
+  if (shouldSendWelcomeEmail) {
+    try {
+      emailSent = await sendWelcomeEmail(email, fullName, password);
+      if (!emailSent) {
+        console.warn('Welcome email was not sent (no email provider configured)');
+      }
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      // Don't throw - user creation succeeded, email is optional
+    }
+  }
+
   revalidatePath('/admin/users');
-  return { success: true, userId: authUser.user.id };
+  return { success: true, userId: authUser.user.id, emailSent };
 }
 
 /**

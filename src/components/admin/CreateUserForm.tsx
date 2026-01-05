@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUser } from '@/lib/user-actions';
-import { UserPlus, Loader2, Eye, EyeOff, RefreshCw, Copy, Check, Phone, ArrowLeft, Building2 } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, RefreshCw, Copy, Check, Phone, ArrowLeft, Building2, Mail } from 'lucide-react';
 import { DEPARTMENTS } from '@/types/user';
 
 interface CreateUserFormProps {
@@ -55,6 +55,7 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
   const [copied, setCopied] = useState(false);
   const [phone, setPhone] = useState<string>('');
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const router = useRouter();
 
   const toggleDepartment = (dept: string) => {
@@ -98,6 +99,7 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
 
     const formData = new FormData(e.currentTarget);
     formData.set('departments', JSON.stringify(selectedDepartments));
+    formData.set('sendWelcomeEmail', sendWelcomeEmail ? 'true' : 'false');
 
     try {
       await createUser(formData);
@@ -338,6 +340,43 @@ export function CreateUserForm({ currentUserRole }: CreateUserFormProps) {
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
               Click &quot;Generate&quot; to create a secure temporary password. The user will be required to change this password after their first login.
             </p>
+          </div>
+
+          {/* Send Welcome Email */}
+          <div className="pt-2">
+            <label
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
+                sendWelcomeEmail
+                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+              } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={sendWelcomeEmail}
+                onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                disabled={isSubmitting}
+                className="sr-only"
+              />
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                sendWelcomeEmail
+                  ? 'border-purple-500 bg-purple-500'
+                  : 'border-gray-300 dark:border-slate-500'
+              }`}>
+                {sendWelcomeEmail && (
+                  <Check className="h-3.5 w-3.5 text-white" />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  <span className="font-medium text-gray-900 dark:text-white">Send welcome email</span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  Email the user their login credentials with instructions to get started
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* Actions */}
