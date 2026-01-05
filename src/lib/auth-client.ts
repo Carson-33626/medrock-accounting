@@ -120,6 +120,34 @@ class MedRockAuthClient {
   }
 
   /**
+   * Redirect to the admin dashboard (super_admin only)
+   */
+  admin(): void {
+    window.location.href = `${this.baseUrl}/admin`;
+  }
+
+  /**
+   * Get the admin dashboard URL (for links)
+   */
+  getAdminUrl(): string {
+    return `${this.baseUrl}/admin`;
+  }
+
+  /**
+   * Check if user is a super admin
+   */
+  isSuperAdmin(user: User | null): boolean {
+    return user?.role === 'super_admin';
+  }
+
+  /**
+   * Check if user is an admin (admin or super_admin)
+   */
+  isAdmin(user: User | null): boolean {
+    return user?.role === 'admin' || user?.role === 'super_admin';
+  }
+
+  /**
    * Fetch with automatic failover to backup auth service
    */
   private async fetchWithFallback(
