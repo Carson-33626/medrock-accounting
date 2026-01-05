@@ -11,9 +11,11 @@ import { authClient } from '@/lib/auth-client';
 // Navigation items for AMY
 const navigation = [
   { name: 'Coupons', href: '/', icon: CouponIcon },
-  // Future pages can be added here
-  // { name: 'Reports', href: '/reports', icon: ReportsIcon },
-  // { name: 'Schedules', href: '/schedules', icon: ScheduleIcon },
+];
+
+// Admin-only navigation items
+const adminNavigation = [
+  { name: 'Users', href: '/admin/users', icon: UsersIcon },
 ];
 
 export function Sidebar() {
@@ -27,6 +29,7 @@ export function Sidebar() {
   const userName = user?.first_name
     ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
     : user?.email?.split('@')[0] || null;
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   // Hide sidebar on auth pages
   if (pathname?.startsWith('/auth')) {
@@ -108,6 +111,36 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Admin Navigation */}
+          {isAdmin && (
+            <>
+              <div className="pt-4 mt-4 border-t border-slate-700">
+                <p className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Admin
+                </p>
+              </div>
+              {adminNavigation.map((item) => {
+                const isActive = pathname?.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors min-h-[44px] ${
+                      isActive
+                        ? 'text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                    }`}
+                    style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {/* Dark mode toggle */}
@@ -223,6 +256,14 @@ function SignOutIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+  );
+}
+
+function UsersIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   );
 }
