@@ -11,14 +11,13 @@ interface UsersTableProps {
   currentUserRole: 'user' | 'admin' | 'super_admin';
 }
 
-type SortField = 'name' | 'email' | 'role' | 'status' | 'created';
+type SortField = 'name' | 'email' | 'role' | 'created';
 type SortDirection = 'asc' | 'desc';
 
 export function UsersTable({ users, currentUserRole }: UsersTableProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('created');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -132,11 +131,8 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
         user.email.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      const matchesStatus = statusFilter === 'all' ||
-        (statusFilter === 'active' && user.is_active) ||
-        (statusFilter === 'inactive' && !user.is_active);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      return matchesSearch && matchesRole;
     });
 
     // Sort
@@ -153,9 +149,6 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
         case 'role':
           comparison = a.role.localeCompare(b.role);
           break;
-        case 'status':
-          comparison = (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
-          break;
         case 'created':
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
@@ -165,7 +158,7 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
     });
 
     return filtered;
-  }, [users, searchTerm, roleFilter, statusFilter, sortField, sortDirection]);
+  }, [users, searchTerm, roleFilter, sortField, sortDirection]);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-visible">
@@ -207,17 +200,6 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
             <option value="admin">Admin</option>
             <option value="super_admin">Super Admin</option>
           </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
         </div>
       </div>
 
@@ -246,19 +228,6 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
                 <div className="flex items-center gap-1">
                   Role
                   {sortField === 'role' && (
-                    sortDirection === 'asc' ?
-                      <ChevronUp className="h-4 w-4" /> :
-                      <ChevronDown className="h-4 w-4" />
-                  )}
-                </div>
-              </th>
-              <th
-                onClick={() => handleSort('status')}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 select-none"
-              >
-                <div className="flex items-center gap-1">
-                  Status
-                  {sortField === 'status' && (
                     sortDirection === 'asc' ?
                       <ChevronUp className="h-4 w-4" /> :
                       <ChevronDown className="h-4 w-4" />
@@ -305,17 +274,6 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
                     }`}
                   >
                     {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'User'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.is_active
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                    }`}
-                  >
-                    {user.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
@@ -400,7 +358,7 @@ export function UsersTable({ users, currentUserRole }: UsersTableProps) {
               No users found
             </h3>
             <p className="text-gray-500 dark:text-slate-400">
-              {searchTerm || roleFilter !== 'all' || statusFilter !== 'all'
+              {searchTerm || roleFilter !== 'all'
                 ? 'Try adjusting your search or filters.'
                 : 'No users have been created yet.'}
             </p>

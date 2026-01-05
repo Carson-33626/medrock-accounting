@@ -20,7 +20,7 @@ export async function getUsers(): Promise<User[]> {
 
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, email, full_name, phone, role, is_active, must_change_password, created_at, updated_at')
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -29,9 +29,15 @@ export async function getUsers(): Promise<User[]> {
   }
 
   return (data || []).map(user => ({
-    ...user,
+    id: user.id,
+    email: user.email,
+    full_name: user.full_name,
+    phone: user.phone || null,
+    role: user.role,
     is_active: user.is_active ?? true,
     must_change_password: user.must_change_password ?? false,
+    created_at: user.created_at,
+    updated_at: user.updated_at,
   }));
 }
 
@@ -50,7 +56,7 @@ export async function getUserById(userId: string): Promise<User | null> {
 
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, email, full_name, phone, role, is_active, must_change_password, created_at, updated_at')
+    .select('*')
     .eq('id', userId)
     .single();
 
@@ -60,9 +66,15 @@ export async function getUserById(userId: string): Promise<User | null> {
   }
 
   return {
-    ...data,
+    id: data.id,
+    email: data.email,
+    full_name: data.full_name,
+    phone: data.phone || null,
+    role: data.role,
     is_active: data.is_active ?? true,
     must_change_password: data.must_change_password ?? false,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
   };
 }
 
@@ -144,8 +156,6 @@ export async function createUser(formData: FormData) {
           full_name: fullName,
           phone: phone || null,
           role,
-          must_change_password: true,
-          is_active: true,
         });
 
         if (profileError) {
@@ -171,8 +181,6 @@ export async function createUser(formData: FormData) {
     full_name: fullName,
     phone: phone || null,
     role,
-    must_change_password: true,
-    is_active: true,
   });
 
   if (profileError) {
@@ -198,7 +206,6 @@ export async function updateUser(userId: string, formData: FormData) {
   const fullName = formData.get('fullName') as string;
   const phone = formData.get('phone') as string | null;
   const role = formData.get('role') as 'admin' | 'user' | 'super_admin';
-  const isActive = formData.get('isActive') === 'true';
 
   // Only super admins can set super_admin role
   if (role === 'super_admin' && currentUser.role !== 'super_admin') {
@@ -213,7 +220,6 @@ export async function updateUser(userId: string, formData: FormData) {
       full_name: fullName,
       phone: phone || null,
       role,
-      is_active: isActive,
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId);

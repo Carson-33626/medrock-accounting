@@ -32,7 +32,6 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
   const [fullName, setFullName] = useState(user.full_name || '');
   const [role, setRole] = useState<string>(user.role);
   const [phone, setPhone] = useState<string>(user.phone ? formatPhoneDisplay(user.phone) : '');
-  const [isActive, setIsActive] = useState(user.is_active);
   const router = useRouter();
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +56,6 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
     formData.set('fullName', fullName);
     formData.set('phone', phone);
     formData.set('role', role);
-    formData.set('isActive', isActive.toString());
 
     try {
       await updateUser(user.id, formData);
@@ -189,29 +187,6 @@ export function EditUserForm({ user, currentUserRole }: EditUserFormProps) {
                 <option value="super_admin">Super Administrator</option>
               )}
             </select>
-          </div>
-
-          {/* Active Status */}
-          <div className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600">
-            <input
-              id="isActive"
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              disabled={isSubmitting}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-            />
-            <div className="flex-1">
-              <label
-                htmlFor="isActive"
-                className="text-sm font-medium text-gray-700 dark:text-slate-200 cursor-pointer"
-              >
-                Account Active
-              </label>
-              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                Inactive users cannot log in to the system.
-              </p>
-            </div>
           </div>
 
           {/* Actions */}
