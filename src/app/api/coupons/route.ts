@@ -24,6 +24,8 @@ interface LiveCoupon {
   lastName?: string;
   email?: string;
   source: string;
+  prescriptionNumber?: string;
+  transactionId?: string;
 }
 
 interface CouponRedemption {
@@ -35,6 +37,7 @@ interface CouponRedemption {
   lastName?: string;
   email?: string;
   source: 'historical' | 'live';
+  referenceNumber?: string; // Rx number for live, entry ID for historical
 }
 
 // Transform historical data to common format
@@ -49,7 +52,8 @@ function transformHistorical(data: HistoricalCoupon[]): CouponRedemption[] {
       firstName: item.firstName,
       lastName: item.lastName,
       email: item.email,
-      source: 'historical' as const
+      source: 'historical' as const,
+      referenceNumber: item.entryId // WordPress form entry ID
     }));
 }
 
@@ -63,7 +67,8 @@ function transformLive(data: LiveCoupon[]): CouponRedemption[] {
     firstName: item.firstName,
     lastName: item.lastName,
     email: item.email,
-    source: 'live' as const
+    source: 'live' as const,
+    referenceNumber: item.prescriptionNumber || item.transactionId // Rx number or transaction ID
   }));
 }
 
@@ -166,6 +171,15 @@ function getPeriodKey(dateStr: string, granularity: string): string {
       const quarter = Math.ceil(month / 3);
       return `${year}-Q${quarter}`;
     }
+    case 'weekly': {
+      // Get ISO week number (YYYY-W##)
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+      return `${d.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`;
+    }
     case 'daily':
       return date; // YYYY-MM-DD
     case 'monthly':
@@ -194,6 +208,37 @@ function aggregateByPeriod(data: CouponRedemption[], granularity: string) {
       redemptions: data.count,
       discountValue: Math.round(data.discount * 100) / 100
     }));
+}
+
+// Aggregate data by coupon and period for multi-line chart
+function aggregateByCouponAndPeriod(data: CouponRedemption[], granularity: string, topCouponCodes: string[]) {
+  // Structure: { period: string, [couponCode]: number }[]
+  const byPeriodAndCoupon = new Map<string, Map<string, number>>();
+
+  data.forEach(item => {
+    if (!item.redeemedAt) return;
+    const code = item.couponCode.toUpperCase();
+    // Only track top coupons to keep the chart readable
+    if (!topCouponCodes.includes(code)) return;
+
+    const periodKey = getPeriodKey(item.redeemedAt, granularity);
+    if (!byPeriodAndCoupon.has(periodKey)) {
+      byPeriodAndCoupon.set(periodKey, new Map());
+    }
+    const periodMap = byPeriodAndCoupon.get(periodKey)!;
+    periodMap.set(code, (periodMap.get(code) || 0) + 1);
+  });
+
+  // Convert to array format suitable for Recharts
+  const periods = [...byPeriodAndCoupon.keys()].sort();
+  return periods.map(period => {
+    const couponData = byPeriodAndCoupon.get(period)!;
+    const row: Record<string, string | number> = { period };
+    topCouponCodes.forEach(code => {
+      row[code] = couponData.get(code) || 0;
+    });
+    return row;
+  });
 }
 
 // Get top coupons
@@ -261,6 +306,10 @@ export async function GET(request: NextRequest) {
     // Get top coupons
     const topCoupons = getTopCoupons(allRedemptions);
 
+    // Get per-coupon period data for multi-line chart (top 10 coupons)
+    const topCouponCodes = topCoupons.slice(0, 10).map(c => c.code);
+    const couponPeriodData = aggregateByCouponAndPeriod(allRedemptions, granularity, topCouponCodes);
+
     // Date range from filtered data
     const sortedByDate = [...allRedemptions].sort((a, b) =>
       (a.redeemedAt || '').localeCompare(b.redeemedAt || '')
@@ -299,6 +348,8 @@ export async function GET(request: NextRequest) {
       sourceBreakdown: filteredSourceBreakdown,
       originalSourceBreakdown,
       periodData,
+      couponPeriodData,
+      topCouponCodes,
       granularity,
       topCoupons,
       allCouponCodes,

@@ -28,7 +28,7 @@ interface PeriodData {
   discountValue: number;
 }
 
-type Granularity = 'daily' | 'monthly' | 'quarterly' | 'yearly';
+type Granularity = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 interface TopCoupon {
   code: string;
@@ -45,6 +45,7 @@ interface Redemption {
   lastName?: string;
   email?: string;
   source: 'historical' | 'live';
+  referenceNumber?: string;
 }
 
 interface CouponData {
@@ -52,6 +53,8 @@ interface CouponData {
   dateRange: { earliest: string; latest: string };
   sourceBreakdown?: { historical: number; live: number };
   periodData: PeriodData[];
+  couponPeriodData: Record<string, string | number>[];
+  topCouponCodes: string[];
   granularity: Granularity;
   topCoupons: TopCoupon[];
   redemptions: Redemption[];
@@ -69,7 +72,7 @@ export default function CouponDashboard() {
   const [data, setData] = useState<CouponData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chartType, setChartType] = useState<'redemptions' | 'discount'>('redemptions');
+  const [chartType, setChartType] = useState<'redemptions' | 'discount' | 'coupons'>('redemptions');
   const [granularity, setGranularity] = useState<Granularity>('monthly');
   const { darkMode } = useDarkMode();
   const [filters, setFilters] = useState<Filters>({
@@ -157,15 +160,13 @@ export default function CouponDashboard() {
       const res = await fetch(url);
       const exportData = await res.json();
 
-      const headers = ['Date', 'Coupon Code', 'Discount Amount', 'First Name', 'Last Name', 'Email', 'Source'];
+      // HIPAA compliant export - no patient names or emails
+      const headers = ['Date', 'Coupon Code', 'Discount Amount', 'Reference #'];
       const rows = exportData.redemptions.map((r: Redemption) => [
         r.redeemedAt?.substring(0, 10) || '',
         r.couponCode,
         r.discountAmount.toFixed(2),
-        r.firstName || '',
-        r.lastName || '',
-        r.email || '',
-        r.source
+        r.referenceNumber || ''
       ]);
 
       const csv = [headers.join(','), ...rows.map((row: string[]) => row.map(cell => `"${cell}"`).join(','))].join('\n');
@@ -195,13 +196,6 @@ export default function CouponDashboard() {
       `Average Discount,$${data.stats.avgDiscount.toFixed(2)}`,
       ''
     ];
-
-    if (data.sourceBreakdown) {
-      summaryLines.push('SOURCE BREAKDOWN');
-      summaryLines.push(`Historical (WordPress),${data.sourceBreakdown.historical}`);
-      summaryLines.push(`Live (MongoDB),${data.sourceBreakdown.live}`);
-      summaryLines.push('');
-    }
 
     // Period data
     const periodLabel = granularity.charAt(0).toUpperCase() + granularity.slice(1);
@@ -249,6 +243,8 @@ export default function CouponDashboard() {
         return period; // Just the year
       case 'quarterly':
         return period; // YYYY-Q1 format
+      case 'weekly':
+        return period; // YYYY-W## format
       case 'daily': {
         const [, month, day] = period.split('-');
         return `${months[parseInt(month) - 1]} ${day}`;
@@ -265,6 +261,18 @@ export default function CouponDashboard() {
     ...d,
     periodLabel: formatPeriod(d.period, granularity)
   }));
+
+  // Prepare coupon comparison chart data
+  const couponChartData = data.couponPeriodData?.map(d => ({
+    ...d,
+    periodLabel: formatPeriod(d.period as string, granularity)
+  })) || [];
+
+  // Colors for multi-line coupon chart
+  const couponColors = [
+    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ];
 
   return (
     <div className={`min-h-screen p-8 transition-colors ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -431,7 +439,7 @@ export default function CouponDashboard() {
             <div className="flex gap-4">
               {/* Granularity selector */}
               <div className={`flex gap-1 rounded-lg p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                {(['daily', 'monthly', 'quarterly', 'yearly'] as Granularity[]).map((g) => (
+                {(['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as Granularity[]).map((g) => (
                   <button
                     key={g}
                     onClick={() => handleGranularityChange(g)}
@@ -467,62 +475,119 @@ export default function CouponDashboard() {
                 >
                   Discount Value
                 </button>
+                <button
+                  onClick={() => setChartType('coupons')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    chartType === 'coupons'
+                      ? 'bg-blue-600 text-white'
+                      : darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Coupons
+                </button>
               </div>
             </div>
           </div>
           <div className="h-80">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
-                  <XAxis
-                    dataKey="periodLabel"
-                    tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
-                    interval={granularity === 'daily' ? Math.max(0, Math.floor(chartData.length / 15) - 1) : 0}
-                    angle={-45}
-                    textAnchor="end"
-                    height={60}
-                    stroke={darkMode ? '#4b5563' : '#d1d5db'}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#374151' }} stroke={darkMode ? '#4b5563' : '#d1d5db'} />
-                  <Tooltip
-                    formatter={(value) =>
-                      chartType === 'discount' ? `$${Number(value).toFixed(2)}` : value
-                    }
-                    labelFormatter={(label) => `Period: ${label}`}
-                    contentStyle={{
-                      backgroundColor: darkMode ? '#1f2937' : '#ffffff',
-                      border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
-                      borderRadius: '8px',
-                      color: darkMode ? '#f3f4f6' : '#111827'
-                    }}
-                  />
-                  <Legend wrapperStyle={{ color: darkMode ? '#9ca3af' : '#374151' }} />
-                  {chartType === 'redemptions' ? (
-                    <Line
-                      type="monotone"
-                      dataKey="redemptions"
-                      stroke="#3B82F6"
-                      strokeWidth={2}
-                      dot={chartData.length <= 31 ? { fill: '#3B82F6', strokeWidth: 2, r: 4 } : false}
-                      name="Redemptions"
+            {chartType === 'coupons' ? (
+              // Multi-line chart for coupon comparison
+              couponChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={couponChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
+                    <XAxis
+                      dataKey="periodLabel"
+                      tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
+                      interval={granularity === 'daily' || granularity === 'weekly' ? Math.max(0, Math.floor(couponChartData.length / 15) - 1) : 0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      stroke={darkMode ? '#4b5563' : '#d1d5db'}
                     />
-                  ) : (
-                    <Line
-                      type="monotone"
-                      dataKey="discountValue"
-                      stroke="#10B981"
-                      strokeWidth={2}
-                      dot={chartData.length <= 31 ? { fill: '#10B981', strokeWidth: 2, r: 4 } : false}
-                      name="Discount Value ($)"
+                    <YAxis tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#374151' }} stroke={darkMode ? '#4b5563' : '#d1d5db'} />
+                    <Tooltip
+                      labelFormatter={(label) => `Period: ${label}`}
+                      contentStyle={{
+                        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                        border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                        borderRadius: '8px',
+                        color: darkMode ? '#f3f4f6' : '#111827'
+                      }}
                     />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
+                    <Legend wrapperStyle={{ color: darkMode ? '#9ca3af' : '#374151' }} />
+                    {data.topCouponCodes?.map((code, index) => (
+                      <Line
+                        key={code}
+                        type="monotone"
+                        dataKey={code}
+                        stroke={couponColors[index % couponColors.length]}
+                        strokeWidth={2}
+                        dot={couponChartData.length <= 31 ? { fill: couponColors[index % couponColors.length], strokeWidth: 2, r: 3 } : false}
+                        name={code}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={`flex items-center justify-center h-full ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No coupon data available for the selected filters
+                </div>
+              )
             ) : (
-              <div className={`flex items-center justify-center h-full ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                No data available for the selected filters
-              </div>
+              // Single line chart for redemptions or discount value
+              chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
+                    <XAxis
+                      dataKey="periodLabel"
+                      tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
+                      interval={granularity === 'daily' || granularity === 'weekly' ? Math.max(0, Math.floor(chartData.length / 15) - 1) : 0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      stroke={darkMode ? '#4b5563' : '#d1d5db'}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#374151' }} stroke={darkMode ? '#4b5563' : '#d1d5db'} />
+                    <Tooltip
+                      formatter={(value) =>
+                        chartType === 'discount' ? `$${Number(value).toFixed(2)}` : value
+                      }
+                      labelFormatter={(label) => `Period: ${label}`}
+                      contentStyle={{
+                        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                        border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                        borderRadius: '8px',
+                        color: darkMode ? '#f3f4f6' : '#111827'
+                      }}
+                    />
+                    <Legend wrapperStyle={{ color: darkMode ? '#9ca3af' : '#374151' }} />
+                    {chartType === 'redemptions' ? (
+                      <Line
+                        type="monotone"
+                        dataKey="redemptions"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        dot={chartData.length <= 31 ? { fill: '#3B82F6', strokeWidth: 2, r: 4 } : false}
+                        name="Redemptions"
+                      />
+                    ) : (
+                      <Line
+                        type="monotone"
+                        dataKey="discountValue"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                        dot={chartData.length <= 31 ? { fill: '#10B981', strokeWidth: 2, r: 4 } : false}
+                        name="Discount Value ($)"
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={`flex items-center justify-center h-full ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No data available for the selected filters
+                </div>
+              )
             )}
           </div>
         </div>
