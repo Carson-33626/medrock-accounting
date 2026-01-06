@@ -24,12 +24,38 @@ interface CookiePayload {
  * Supports both old format (raw JWT) and new format (URL-safe base64 JSON)
  */
 function decodeTokens(cookieValue: string): { accessToken: string; refreshToken?: string; expiresAt?: number } | null {
-  if (!cookieValue) return null;
+  if (!cookieValue) {
+    console.log('[decodeTokens] No cookie value');
+    return null;
+  }
+
+  // Clean up the cookie value
+  let value = cookieValue.trim();
+
+  // Remove surrounding quotes if present
+  if ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1);
+    console.log('[decodeTokens] Stripped quotes from cookie');
+  }
+
+  // URL-decode the cookie value (handles %3D -> = etc)
+  try {
+    if (value.includes('%')) {
+      value = decodeURIComponent(value);
+      console.log('[decodeTokens] URL-decoded cookie');
+    }
+  } catch {
+    // Not URL-encoded, use as-is
+  }
+
+  console.log('[decodeTokens] Cookie length:', value.length);
+  console.log('[decodeTokens] Cookie starts with:', value.substring(0, 30));
 
   try {
     // Try new format first (URL-safe base64 encoded JSON)
     // Convert URL-safe base64 back to standard base64
-    let base64 = cookieValue
+    let base64 = value
       .replace(/-/g, '+')
       .replace(/_/g, '/');
     // Add padding if needed
@@ -38,24 +64,31 @@ function decodeTokens(cookieValue: string): { accessToken: string; refreshToken?
     }
 
     const decoded = Buffer.from(base64, 'base64').toString('utf-8');
+    console.log('[decodeTokens] Decoded JSON starts with:', decoded.substring(0, 50));
+
     const payload = JSON.parse(decoded) as CookiePayload;
 
     if (payload.at && payload.rt) {
+      console.log('[decodeTokens] Successfully decoded new format, token starts with:', payload.at.substring(0, 20));
       return {
         accessToken: payload.at,
         refreshToken: payload.rt,
         expiresAt: payload.exp,
       };
     }
-  } catch {
+    console.log('[decodeTokens] Decoded but missing at/rt fields');
+  } catch (e) {
+    console.log('[decodeTokens] Failed to decode as base64 JSON:', e);
     // Not base64 JSON, fall through to old format
   }
 
   // Old format: raw access token (JWT has dots)
-  if (cookieValue.includes('.')) {
-    return { accessToken: cookieValue };
+  if (value.includes('.')) {
+    console.log('[decodeTokens] Using old JWT format');
+    return { accessToken: value };
   }
 
+  console.log('[decodeTokens] Could not decode cookie');
   return null;
 }
 
@@ -108,11 +141,20 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
     // Validate token with Supabase
     const supabase = getSupabase();
+    console.log('[getCurrentUser] Validating token with Supabase...');
     const { data: authData, error: authError } = await supabase.auth.getUser(decoded.accessToken);
 
-    if (authError || !authData.user) {
+    if (authError) {
+      console.log('[getCurrentUser] Supabase auth error:', authError.message);
       return null;
     }
+
+    if (!authData.user) {
+      console.log('[getCurrentUser] No user returned from Supabase');
+      return null;
+    }
+
+    console.log('[getCurrentUser] Token valid, user id:', authData.user.id);
 
     // Get user profile from database
     const { data: profile, error: profileError } = await supabase
