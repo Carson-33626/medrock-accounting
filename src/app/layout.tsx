@@ -34,7 +34,7 @@ export default function RootLayout({
           <DarkModeProvider>
             <div className="flex min-h-screen">
               <Sidebar />
-              <main className="flex-1 overflow-auto">
+              <main className="flex-1 overflow-x-hidden">
                 {children}
               </main>
             </div>
