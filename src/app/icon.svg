@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- MedRock hexagon pattern favicon -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5e3b8d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b4b6b;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Main hexagon -->
+  <path d="M16 2 L28 9 L28 23 L16 30 L4 23 L4 9 Z" fill="url(#grad)"/>
+  <!-- Inner detail - mortar and pestle hint -->
+  <ellipse cx="16" cy="18" rx="6" ry="4" fill="white" opacity="0.9"/>
+  <path d="M12 14 Q16 10 20 14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.9"/>
+</svg>
