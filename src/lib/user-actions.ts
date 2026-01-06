@@ -131,58 +131,9 @@ export async function createUser(formData: FormData) {
   });
 
   if (authError) {
-    // Handle orphaned auth users
-    if (authError.message.includes('already been registered')) {
-      // Find and delete orphaned user
-      const { data: listData } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      const orphanedUser = listData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-
-      if (orphanedUser) {
-        await supabase.auth.admin.deleteUser(orphanedUser.id);
-
-        // Retry creation
-        const { data: retryUser, error: retryError } = await supabase.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-        });
-
-        if (retryError) {
-          throw new Error(`Failed to create user: ${retryError.message}`);
-        }
-
-        if (!retryUser.user) {
-          throw new Error('Failed to create user account');
-        }
-
-        // Create profile for retried user
-        const { error: profileError } = await supabase.from('user_profiles').insert({
-          id: retryUser.user.id,
-          email,
-          full_name: fullName,
-          phone: phone || null,
-          role,
-          departments,
-        });
-
-        if (profileError) {
-          await supabase.auth.admin.deleteUser(retryUser.user.id);
-          throw new Error(`Failed to create user profile: ${profileError.message}`);
-        }
-
-        // Send welcome email if requested (retry case)
-        let emailSent = false;
-        if (shouldSendWelcomeEmail) {
-          try {
-            emailSent = await sendWelcomeEmail(email, fullName, password);
-          } catch (error) {
-            console.error('Failed to send welcome email:', error);
-          }
-        }
-
-        revalidatePath('/admin/users');
-        return { success: true, userId: retryUser.user.id, emailSent };
-      }
+    // User-friendly error for duplicate email
+    if (authError.message.includes('already been registered') || authError.message.includes('already exists')) {
+      throw new Error('A user with this email already exists');
     }
     throw new Error(`Failed to create user: ${authError.message}`);
   }
