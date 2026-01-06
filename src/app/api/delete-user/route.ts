@@ -6,6 +6,8 @@ import { getAdminClient } from '@/lib/supabase-admin';
  * DELETE /api/delete-user
  *
  * Deletes a user from both Supabase Auth and user_profiles table.
+ * Uses a database function with SECURITY DEFINER to bypass RLS
+ * and handle all FK constraints in a single transaction.
  */
 export async function DELETE(request: Request) {
   try {
@@ -52,28 +54,29 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Only super admins can delete admin accounts' }, { status: 403 });
     }
 
-    // Delete profile first
-    const { error: profileError } = await supabase
-      .from('user_profiles')
-      .delete()
-      .eq('id', userId);
+    // Call the database function that handles everything including FK constraints
+    const { data, error } = await supabase.rpc('delete_user_completely', {
+      target_user_id: userId
+    });
 
-    if (profileError) {
-      console.error('Failed to delete user profile:', profileError);
-      return NextResponse.json({ error: `Failed to delete user profile: ${profileError.message}` }, { status: 500 });
+    if (error) {
+      console.error('Delete user RPC error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Delete auth user
-    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-
-    if (authError) {
-      console.error('Failed to delete auth user:', authError);
-      // Profile already deleted, log error but return success
+    // The function returns a JSON object with success/error
+    if (!data?.success) {
+      console.error('Delete user failed:', data?.error);
+      return NextResponse.json({
+        error: data?.error || 'Failed to delete user',
+        detail: data?.detail
+      }, { status: data?.error === 'User not found' ? 404 : 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: `User ${targetUser.full_name || targetUser.email} has been deleted`
+      message: `User ${targetUser.full_name || targetUser.email} has been deleted`,
+      cleared_tables: data.cleared_tables
     });
 
   } catch (error) {
