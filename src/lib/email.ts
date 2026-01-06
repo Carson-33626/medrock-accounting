@@ -107,8 +107,7 @@ async function sendViaSendGrid(data: EmailData): Promise<boolean> {
   return true;
 }
 
-// MedRock logo embedded as base64 to avoid email client blocking
-const MEDROCK_LOGO_BASE64 = 'data:image/png;base64,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';
+// Text-based logo for maximum email client compatibility
 
 /**
  * Email wrapper/layout template for AMY
@@ -129,7 +128,10 @@ function emailLayout(title: string, subtitle: string, content: string): string {
           <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #5e3b8d 0%, #7b5ba8 100%); padding: 30px 50px 35px 50px; border-radius: 16px 16px 0 0; text-align: center;">
-              <img src="${MEDROCK_LOGO_BASE64}" alt="MedRock Pharmacy" width="180" height="58" style="display: block; margin: 0 auto 16px auto;">
+              <div style="margin: 0 auto 16px auto;">
+                <span style="font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">MedRock</span>
+                <span style="font-size: 14px; color: #d4c4e8; display: block; margin-top: 2px; letter-spacing: 2px; text-transform: uppercase;">Pharmacy</span>
+              </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 600;">${title}</h1>
               <p style="margin: 12px 0 0 0; color: #d4c4e8; font-size: 15px;">${subtitle}</p>
             </td>
@@ -305,7 +307,7 @@ export async function sendWelcomeEmail(
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 30px 0;">
       <tr>
         <td align="center">
-          <a href="${authUrl}/login?redirect=${encodeURIComponent(appUrl)}" style="display: inline-block; background: linear-gradient(135deg, #5e3b8d 0%, #7b5ba8 100%); color: #ffffff; text-decoration: none; padding: 16px 44px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(94, 59, 141, 0.35);">
+          <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #5e3b8d 0%, #7b5ba8 100%); color: #ffffff; text-decoration: none; padding: 16px 44px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(94, 59, 141, 0.35);">
             Log In to AMY
           </a>
         </td>
