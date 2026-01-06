@@ -68,12 +68,11 @@ export function AuthProvider({
   // Track if we've already shown the warning for this session check
   const warningShownRef = useRef(false);
 
-  // Check session by calling /api/me
+  // Check session by calling local API (avoids cross-origin cookie issues)
   const checkSession = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
-        credentials: 'include',
-      });
+      // Use local API endpoint which reads the cookie server-side
+      const response = await fetch('/api/auth/me');
 
       if (response.ok) {
         const data = await response.json();
@@ -110,13 +109,11 @@ export function AuthProvider({
     }
   }, [checkSession]);
 
-  // Initial user fetch
+  // Initial user fetch (uses local API to read cookie server-side)
   const fetchUser = useCallback(async () => {
     try {
       setError(null);
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
-        credentials: 'include',
-      });
+      const response = await fetch('/api/auth/me');
 
       if (response.ok) {
         const data = await response.json();
