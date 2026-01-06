@@ -22,8 +22,19 @@ interface CookiePayload {
 /**
  * Decode tokens from cookie value
  * Supports both old format (raw JWT) and new format (URL-safe base64 JSON)
+ *
+ * IMPORTANT: If your app has custom API routes that read the medrock_session cookie,
+ * you MUST use this function to decode the cookie value before passing to Supabase.
+ *
+ * @example
+ * // In your custom API route
+ * import { decodeTokens } from '@/lib/auth';
+ *
+ * const cookieValue = cookies.get('medrock_session')?.value;
+ * const decoded = decodeTokens(cookieValue);
+ * const { data } = await supabase.auth.getUser(decoded?.accessToken);
  */
-function decodeTokens(cookieValue: string): { accessToken: string; refreshToken?: string; expiresAt?: number } | null {
+export function decodeTokens(cookieValue: string): { accessToken: string; refreshToken?: string; expiresAt?: number } | null {
   if (!cookieValue) {
     console.log('[decodeTokens] No cookie value');
     return null;
