@@ -56,7 +56,10 @@ export async function middleware(request: NextRequest) {
 
   // Session exists - allow request to proceed
   // Token validation happens in server components/API routes
-  return NextResponse.next();
+  // Pass the current URL as a header for redirect support in server components
+  const response = NextResponse.next();
+  response.headers.set('x-url', request.url);
+  return response;
 }
 
 export const config = {

@@ -4,11 +4,12 @@
  * Use these in Server Components and API routes to get/validate the current user.
  */
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://amy.medrockpharmacy.com';
 const SESSION_COOKIE_NAME = 'medrock_session';
 
 // Supabase client for token validation
@@ -101,6 +102,29 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 }
 
 /**
+ * Get the current request URL from headers (for redirect after login)
+ */
+async function getCurrentUrl(): Promise<string> {
+  const headersList = await headers();
+
+  // Try to get the full URL from middleware-set header
+  const xUrl = headersList.get('x-url');
+  if (xUrl) return xUrl;
+
+  // Reconstruct from forwarded headers
+  const proto = headersList.get('x-forwarded-proto') || 'https';
+  const host = headersList.get('x-forwarded-host') || headersList.get('host') || '';
+  const path = headersList.get('x-invoke-path') || '/';
+
+  if (host) {
+    return `${proto}://${host}${path}`;
+  }
+
+  // Fallback - use APP_URL
+  return APP_URL;
+}
+
+/**
  * Require authentication - redirects to login if not authenticated
  * Use in Server Components that require a logged-in user
  */
@@ -108,7 +132,8 @@ export async function requireAuth(): Promise<AuthUser> {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect(`${AUTH_SERVICE_URL}/login`);
+    const currentUrl = await getCurrentUrl();
+    redirect(`${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}`);
   }
 
   return user;
