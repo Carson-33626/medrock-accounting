@@ -12,6 +12,53 @@ const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://au
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://amy.medrockpharmacy.com';
 const SESSION_COOKIE_NAME = 'medrock_session';
 
+// Cookie payload structure (matches auth service format)
+interface CookiePayload {
+  at: string;  // access token
+  rt: string;  // refresh token
+  exp: number; // expires at (unix timestamp)
+}
+
+/**
+ * Decode tokens from cookie value
+ * Supports both old format (raw JWT) and new format (URL-safe base64 JSON)
+ */
+function decodeTokens(cookieValue: string): { accessToken: string; refreshToken?: string; expiresAt?: number } | null {
+  if (!cookieValue) return null;
+
+  try {
+    // Try new format first (URL-safe base64 encoded JSON)
+    // Convert URL-safe base64 back to standard base64
+    let base64 = cookieValue
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    // Add padding if needed
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+
+    const decoded = Buffer.from(base64, 'base64').toString('utf-8');
+    const payload = JSON.parse(decoded) as CookiePayload;
+
+    if (payload.at && payload.rt) {
+      return {
+        accessToken: payload.at,
+        refreshToken: payload.rt,
+        expiresAt: payload.exp,
+      };
+    }
+  } catch {
+    // Not base64 JSON, fall through to old format
+  }
+
+  // Old format: raw access token (JWT has dots)
+  if (cookieValue.includes('.')) {
+    return { accessToken: cookieValue };
+  }
+
+  return null;
+}
+
 // Supabase client for token validation
 function getSupabase() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,15 +94,21 @@ export interface AuthUser {
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-    if (!token) {
+    if (!cookieValue) {
+      return null;
+    }
+
+    // Decode token from cookie (supports both old JWT and new encoded format)
+    const decoded = decodeTokens(cookieValue);
+    if (!decoded) {
       return null;
     }
 
     // Validate token with Supabase
     const supabase = getSupabase();
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    const { data: authData, error: authError } = await supabase.auth.getUser(decoded.accessToken);
 
     if (authError || !authData.user) {
       return null;
@@ -174,8 +227,16 @@ export function hasRole(user: AuthUser, allowedRoles: string[]): boolean {
 
 /**
  * Get auth token for API calls (if needed)
+ * Returns the decoded access token from the session cookie
  */
 export async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE_NAME)?.value || null;
+  const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
+  if (!cookieValue) {
+    return null;
+  }
+
+  const decoded = decodeTokens(cookieValue);
+  return decoded?.accessToken || null;
 }
