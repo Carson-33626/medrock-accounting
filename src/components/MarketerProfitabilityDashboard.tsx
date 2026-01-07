@@ -71,7 +71,8 @@ interface ApiResponse {
 interface Filters {
   location: string;
   marketer: string;
-  year: string;
+  startDate: string;
+  endDate: string;
 }
 
 export default function MarketerProfitabilityDashboard() {
@@ -83,7 +84,8 @@ export default function MarketerProfitabilityDashboard() {
   const [filters, setFilters] = useState<Filters>({
     location: 'all',
     marketer: '',
-    year: '',
+    startDate: '',
+    endDate: '',
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters>(filters);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
@@ -96,7 +98,8 @@ export default function MarketerProfitabilityDashboard() {
       const params = new URLSearchParams();
       if (currentFilters.location !== 'all') params.set('location', currentFilters.location);
       if (currentFilters.marketer) params.set('marketer', currentFilters.marketer);
-      if (currentFilters.year) params.set('year', currentFilters.year);
+      if (currentFilters.startDate) params.set('startDate', currentFilters.startDate);
+      if (currentFilters.endDate) params.set('endDate', currentFilters.endDate);
       params.set('granularity', currentGranularity);
 
       const url = `/api/marketer-profitability${params.toString() ? `?${params.toString()}` : ''}`;
@@ -125,9 +128,13 @@ export default function MarketerProfitabilityDashboard() {
   };
 
   const handleResetFilters = () => {
-    const defaultFilters: Filters = { location: 'all', marketer: '', year: '' };
+    const defaultFilters: Filters = { location: 'all', marketer: '', startDate: '', endDate: '' };
     setFilters(defaultFilters);
     setAppliedFilters(defaultFilters);
+  };
+
+  const handleGranularityChange = (newGranularity: Granularity) => {
+    setGranularity(newGranularity);
   };
 
   const togglePeriod = (period: string) => {
@@ -244,7 +251,7 @@ export default function MarketerProfitabilityDashboard() {
     return `${months[parseInt(month) - 1]} ${year}`;
   };
 
-  const hasActiveFilters = appliedFilters.location !== 'all' || appliedFilters.marketer || appliedFilters.year;
+  const hasActiveFilters = appliedFilters.location !== 'all' || appliedFilters.marketer || appliedFilters.startDate || appliedFilters.endDate;
 
   if (loading && !data) {
     return (
@@ -323,6 +330,32 @@ export default function MarketerProfitabilityDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                 Location
               </label>
               <select
@@ -353,39 +386,6 @@ export default function MarketerProfitabilityDashboard() {
                 {data.marketers.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                Year
-              </label>
-              <select
-                value={filters.year}
-                onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                }`}
-              >
-                <option value="">All Years</option>
-                {Array.from({ length: data.dateRange.maxYear - data.dateRange.minYear + 1 }, (_, i) => data.dateRange.maxYear - i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                Granularity
-              </label>
-              <select
-                value={granularity}
-                onChange={(e) => setGranularity(e.target.value as Granularity)}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
-                }`}
-              >
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
               </select>
             </div>
             <div className="flex items-end gap-2">
@@ -434,9 +434,27 @@ export default function MarketerProfitabilityDashboard() {
 
         {/* Chart */}
         <div className={`rounded-lg shadow p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Profitability Trend
-          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {granularity.charAt(0).toUpperCase() + granularity.slice(1)} Trends
+            </h3>
+            {/* Granularity selector */}
+            <div className={`flex gap-1 rounded-lg p-1 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+              {(['monthly', 'quarterly', 'yearly'] as Granularity[]).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => handleGranularityChange(g)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    granularity === g
+                      ? darkMode ? 'bg-gray-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                      : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {g.charAt(0).toUpperCase() + g.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="h-80">
             {data.chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -447,11 +465,16 @@ export default function MarketerProfitabilityDashboard() {
                     tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
                     tickFormatter={(p) => formatPeriodLabel(p)}
                     stroke={darkMode ? '#4b5563' : '#d1d5db'}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    interval={Math.max(0, Math.floor(data.chartData.length / 15) - 1)}
                   />
                   <YAxis
-                    tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#374151' }}
-                    tickFormatter={(v) => formatCurrency(v)}
+                    tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
+                    tickFormatter={(v) => `$${(v / 1000).toLocaleString()}k`}
                     stroke={darkMode ? '#4b5563' : '#d1d5db'}
+                    width={80}
                   />
                   <Tooltip
                     formatter={(value) => formatCurrency(Number(value) || 0)}
