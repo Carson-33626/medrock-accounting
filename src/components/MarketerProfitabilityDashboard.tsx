@@ -1,0 +1,654 @@
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { useDarkMode } from '@/contexts/DarkModeContext';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+
+type Granularity = 'monthly' | 'quarterly' | 'yearly';
+
+interface Stats {
+  totalTransactions: number;
+  totalNetProfit: number;
+  totalRevenue: number;
+  totalAcquisitionCost: number;
+  uniqueMarketers: number;
+}
+
+interface MarketerData {
+  period: string;
+  marketer_name: string;
+  patient_state?: string;
+  transaction_count: number;
+  acquisition_cost: number;
+  shipping_charged_to_pt: number;
+  shipping_cost_actual: number;
+  total_pt_paid: number;
+  profit_after_product: number;
+  net_profit: number;
+}
+
+interface PeriodGroup {
+  period: string;
+  marketers: MarketerData[];
+  totals: {
+    transaction_count: number;
+    acquisition_cost: number;
+    shipping_charged_to_pt: number;
+    shipping_cost_actual: number;
+    total_pt_paid: number;
+    profit_after_product: number;
+    net_profit: number;
+  };
+}
+
+interface ChartDataPoint {
+  period: string;
+  transaction_count: number;
+  net_profit: number;
+  total_pt_paid: number;
+}
+
+interface ApiResponse {
+  stats: Stats;
+  dateRange: { minYear: number; maxYear: number };
+  marketers: string[];
+  locations: string[];
+  periodGroups: PeriodGroup[];
+  stateBreakdown: Record<string, MarketerData[]>;
+  chartData: ChartDataPoint[];
+  granularity: Granularity;
+}
+
+interface Filters {
+  location: string;
+  marketer: string;
+  year: string;
+}
+
+export default function MarketerProfitabilityDashboard() {
+  const [data, setData] = useState<ApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [granularity, setGranularity] = useState<Granularity>('monthly');
+  const { darkMode } = useDarkMode();
+  const [filters, setFilters] = useState<Filters>({
+    location: 'all',
+    marketer: '',
+    year: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState<Filters>(filters);
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
+  const [expandedMarketers, setExpandedMarketers] = useState<Set<string>>(new Set());
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+
+  const fetchData = useCallback(async (currentFilters: Filters, currentGranularity: Granularity) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (currentFilters.location !== 'all') params.set('location', currentFilters.location);
+      if (currentFilters.marketer) params.set('marketer', currentFilters.marketer);
+      if (currentFilters.year) params.set('year', currentFilters.year);
+      params.set('granularity', currentGranularity);
+
+      const url = `/api/marketer-profitability${params.toString() ? `?${params.toString()}` : ''}`;
+      const res = await fetch(url);
+      const result = await res.json();
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setData(result);
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData(appliedFilters, granularity);
+  }, [appliedFilters, granularity, fetchData]);
+
+  const handleApplyFilters = () => {
+    setAppliedFilters({ ...filters });
+  };
+
+  const handleResetFilters = () => {
+    const defaultFilters: Filters = { location: 'all', marketer: '', year: '' };
+    setFilters(defaultFilters);
+    setAppliedFilters(defaultFilters);
+  };
+
+  const togglePeriod = (period: string) => {
+    const newExpanded = new Set(expandedPeriods);
+    if (newExpanded.has(period)) {
+      newExpanded.delete(period);
+    } else {
+      newExpanded.add(period);
+    }
+    setExpandedPeriods(newExpanded);
+  };
+
+  const toggleMarketer = (key: string) => {
+    const newExpanded = new Set(expandedMarketers);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedMarketers(newExpanded);
+  };
+
+  const formatCurrency = (value: number) => {
+    if (Math.abs(value) >= 1000000) {
+      return `$${(value / 1000000).toFixed(2)}M`;
+    } else if (Math.abs(value) >= 1000) {
+      return `$${(value / 1000).toFixed(1)}K`;
+    }
+    return `$${value.toFixed(2)}`;
+  };
+
+  const formatNumber = (value: number) => value.toLocaleString();
+
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const exportSummary = () => {
+    if (!data) return;
+    setExportDropdownOpen(false);
+
+    const lines = [
+      'MARKETER PROFITABILITY SUMMARY',
+      `Generated: ${new Date().toLocaleString()}`,
+      `Granularity: ${granularity}`,
+      '',
+      'OVERVIEW',
+      `Total Transactions,${data.stats.totalTransactions}`,
+      `Total Revenue,$${data.stats.totalRevenue.toFixed(2)}`,
+      `Total Net Profit,$${data.stats.totalNetProfit.toFixed(2)}`,
+      `Unique Marketers,${data.stats.uniqueMarketers}`,
+      '',
+      'BY PERIOD AND MARKETER',
+      'Period,Marketer,Transactions,Acquisition Cost,Ship Charged,Ship Cost,Total Paid,Profit After Product,Net Profit',
+    ];
+
+    data.periodGroups.forEach(group => {
+      group.marketers.forEach(m => {
+        lines.push([
+          m.period,
+          `"${m.marketer_name}"`,
+          m.transaction_count,
+          m.acquisition_cost.toFixed(2),
+          m.shipping_charged_to_pt.toFixed(2),
+          m.shipping_cost_actual.toFixed(2),
+          m.total_pt_paid.toFixed(2),
+          m.profit_after_product.toFixed(2),
+          m.net_profit.toFixed(2),
+        ].join(','));
+      });
+    });
+
+    const csv = lines.join('\n');
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadCSV(csv, `marketer-profitability-${dateStr}.csv`);
+  };
+
+  const exportDetailed = () => {
+    if (!data) return;
+    setExportDropdownOpen(false);
+
+    const lines = [
+      'Period,Marketer,State,Transactions,Acquisition Cost,Ship Charged,Ship Cost,Total Paid,Profit After Product,Net Profit',
+    ];
+
+    Object.entries(data.stateBreakdown).forEach(([, states]) => {
+      states.forEach(s => {
+        lines.push([
+          s.period,
+          `"${s.marketer_name}"`,
+          s.patient_state || '',
+          s.transaction_count,
+          s.acquisition_cost.toFixed(2),
+          s.shipping_charged_to_pt.toFixed(2),
+          s.shipping_cost_actual.toFixed(2),
+          s.total_pt_paid.toFixed(2),
+          s.profit_after_product.toFixed(2),
+          s.net_profit.toFixed(2),
+        ].join(','));
+      });
+    });
+
+    const csv = lines.join('\n');
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadCSV(csv, `marketer-profitability-detailed-${dateStr}.csv`);
+  };
+
+  const formatPeriodLabel = (period: string) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (granularity === 'yearly') return period;
+    if (granularity === 'quarterly') return period;
+    // Monthly: YYYY-MM
+    const [year, month] = period.split('-');
+    return `${months[parseInt(month) - 1]} ${year}`;
+  };
+
+  const hasActiveFilters = appliedFilters.location !== 'all' || appliedFilters.marketer || appliedFilters.year;
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl">Loading marketer profitability data...</div>
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl text-red-600">Error: {error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className={`min-h-screen p-8 transition-colors ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>AMY</h1>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Accounting Metrics & Yields</p>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              Export
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {exportDropdownOpen && (
+              <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border py-1 z-10 ${
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
+                <button
+                  onClick={exportSummary}
+                  className={`w-full text-left px-4 py-2 text-sm ${
+                    darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  CSV - Summary
+                </button>
+                <button
+                  onClick={exportDetailed}
+                  className={`w-full text-left px-4 py-2 text-sm ${
+                    darkMode ? 'text-gray-200 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  CSV - With State Breakdown
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+          Marketer Profitability
+        </h2>
+
+        {/* Filters */}
+        <div className={`rounded-lg shadow p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Filters</h3>
+            {hasActiveFilters && (
+              <span className="text-sm text-blue-500 font-medium">Filters applied</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Location
+              </label>
+              <select
+                value={filters.location}
+                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="all">All Locations</option>
+                {data.locations.map(loc => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Marketer
+              </label>
+              <select
+                value={filters.marketer}
+                onChange={(e) => setFilters({ ...filters, marketer: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="">All Marketers</option>
+                {data.marketers.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Year
+              </label>
+              <select
+                value={filters.year}
+                onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="">All Years</option>
+                {Array.from({ length: data.dateRange.maxYear - data.dateRange.minYear + 1 }, (_, i) => data.dateRange.maxYear - i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Granularity
+              </label>
+              <select
+                value={granularity}
+                onChange={(e) => setGranularity(e.target.value as Granularity)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={handleApplyFilters}
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Loading...' : 'Apply'}
+              </button>
+              <button
+                onClick={handleResetFilters}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  darkMode ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className={`rounded-lg shadow p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Transactions</div>
+            <div className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {formatNumber(data.stats.totalTransactions)}
+            </div>
+          </div>
+          <div className={`rounded-lg shadow p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Revenue</div>
+            <div className="text-3xl font-bold text-blue-500">{formatCurrency(data.stats.totalRevenue)}</div>
+          </div>
+          <div className={`rounded-lg shadow p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Net Profit</div>
+            <div className="text-3xl font-bold text-green-500">{formatCurrency(data.stats.totalNetProfit)}</div>
+          </div>
+          <div className={`rounded-lg shadow p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Unique Marketers</div>
+            <div className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {data.stats.uniqueMarketers}
+            </div>
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div className={`rounded-lg shadow p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Profitability Trend
+          </h3>
+          <div className="h-80">
+            {data.chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
+                  <XAxis
+                    dataKey="period"
+                    tick={{ fontSize: 11, fill: darkMode ? '#9ca3af' : '#374151' }}
+                    tickFormatter={(p) => formatPeriodLabel(p)}
+                    stroke={darkMode ? '#4b5563' : '#d1d5db'}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#374151' }}
+                    tickFormatter={(v) => formatCurrency(v)}
+                    stroke={darkMode ? '#4b5563' : '#d1d5db'}
+                  />
+                  <Tooltip
+                    formatter={(value) => formatCurrency(Number(value) || 0)}
+                    labelFormatter={(label) => formatPeriodLabel(String(label))}
+                    contentStyle={{
+                      backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                      border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      color: darkMode ? '#f3f4f6' : '#111827',
+                    }}
+                  />
+                  <Legend wrapperStyle={{ color: darkMode ? '#9ca3af' : '#374151' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="net_profit"
+                    stroke="#10B981"
+                    strokeWidth={2}
+                    dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                    name="Net Profit"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="total_pt_paid"
+                    stroke="#3B82F6"
+                    strokeWidth={2}
+                    dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                    name="Total Revenue"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className={`flex items-center justify-center h-full ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                No data available for the selected filters
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Data Table */}
+        <div className={`rounded-lg shadow ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="p-6 border-b border-gray-700">
+            <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Marketer Breakdown by {granularity.charAt(0).toUpperCase() + granularity.slice(1)}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            {data.periodGroups.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead className={`sticky top-0 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className={`text-left py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Period / Marketer</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Txns</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Acq Cost</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Chg</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Cost</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Revenue</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Gross Profit</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Net Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.periodGroups.map((group) => {
+                    const isPeriodExpanded = expandedPeriods.has(group.period);
+                    return (
+                      <React.Fragment key={group.period}>
+                        {/* Period Header Row */}
+                        <tr
+                          className={`cursor-pointer ${darkMode ? 'bg-gray-750 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          onClick={() => togglePeriod(group.period)}
+                        >
+                          <td className={`py-3 px-4 font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <span className="mr-2">{isPeriodExpanded ? '▼' : '▶'}</span>
+                            {formatPeriodLabel(group.period)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {formatNumber(group.totals.transaction_count)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {formatCurrency(group.totals.acquisition_cost)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {formatCurrency(group.totals.shipping_charged_to_pt)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {formatCurrency(group.totals.shipping_cost_actual)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold text-blue-500`}>
+                            {formatCurrency(group.totals.total_pt_paid)}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {formatCurrency(group.totals.profit_after_product)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-semibold text-green-500">
+                            {formatCurrency(group.totals.net_profit)}
+                          </td>
+                        </tr>
+
+                        {/* Marketer Rows (expanded) */}
+                        {isPeriodExpanded && group.marketers.map((marketer, idx) => {
+                          const marketerKey = `${group.period}|${marketer.marketer_name}`;
+                          const isMarketerExpanded = expandedMarketers.has(marketerKey);
+                          const stateData = data.stateBreakdown[marketerKey] || [];
+
+                          return (
+                            <React.Fragment key={marketerKey}>
+                              <tr
+                                className={`cursor-pointer ${
+                                  darkMode
+                                    ? (idx % 2 === 0 ? 'bg-gray-800' : 'bg-gray-850')
+                                    : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+                                } ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                onClick={() => toggleMarketer(marketerKey)}
+                              >
+                                <td className={`py-2 px-4 pl-8 ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  <span className="mr-2 text-xs">{isMarketerExpanded ? '▼' : '▶'}</span>
+                                  {marketer.marketer_name}
+                                </td>
+                                <td className={`py-2 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  {formatNumber(marketer.transaction_count)}
+                                </td>
+                                <td className={`py-2 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  {formatCurrency(marketer.acquisition_cost)}
+                                </td>
+                                <td className={`py-2 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  {formatCurrency(marketer.shipping_charged_to_pt)}
+                                </td>
+                                <td className={`py-2 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  {formatCurrency(marketer.shipping_cost_actual)}
+                                </td>
+                                <td className={`py-2 px-4 text-right text-blue-400`}>
+                                  {formatCurrency(marketer.total_pt_paid)}
+                                </td>
+                                <td className={`py-2 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                                  {formatCurrency(marketer.profit_after_product)}
+                                </td>
+                                <td className="py-2 px-4 text-right text-green-400">
+                                  {formatCurrency(marketer.net_profit)}
+                                </td>
+                              </tr>
+
+                              {/* State Breakdown (expanded) */}
+                              {isMarketerExpanded && stateData.map((state, sIdx) => (
+                                <tr
+                                  key={`${marketerKey}-${state.patient_state}`}
+                                  className={
+                                    darkMode
+                                      ? (sIdx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-850')
+                                      : (sIdx % 2 === 0 ? 'bg-gray-50' : 'bg-white')
+                                  }
+                                >
+                                  <td className={`py-2 px-4 pl-14 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {state.patient_state}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatNumber(state.transaction_count)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.acquisition_cost)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.shipping_charged_to_pt)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.shipping_cost_actual)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.total_pt_paid)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.profit_after_product)}
+                                  </td>
+                                  <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {formatCurrency(state.net_profit)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className={`p-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                No data available for the selected filters
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
