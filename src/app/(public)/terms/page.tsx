@@ -24,8 +24,8 @@ export default function TermsPage() {
             Purpose
           </h2>
           <p className="text-gray-600">
-            AMY provides accounting analytics, financial reporting, and QuickBooks integration
-            for MedRock&apos;s accounting team.
+            AMY provides accounting analytics and financial reporting for MedRock&apos;s
+            accounting team.
           </p>
 
           <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
@@ -37,14 +37,6 @@ export default function TermsPage() {
             <li>Admin features require additional role-based permissions</li>
             <li>Unauthorized access or misuse is prohibited</li>
           </ul>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
-            Data Usage
-          </h2>
-          <p className="text-gray-600">
-            This application accesses MedRock&apos;s QuickBooks Online accounts to retrieve financial
-            data for internal reporting and analysis purposes only.
-          </p>
 
           <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
             Contact

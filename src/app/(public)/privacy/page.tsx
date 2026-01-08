@@ -22,28 +22,21 @@ export default function PrivacyPage() {
           </p>
 
           <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
-            Data Usage
+            Data Collection & Use
           </h2>
           <p className="text-gray-600">
-            This application accesses financial and operational data from internal MedRock systems
-            for reporting and analysis purposes. Access is restricted to authorized employees only.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
-            QuickBooks Integration
-          </h2>
-          <p className="text-gray-600">
-            This application integrates with QuickBooks Online to retrieve financial data for
-            internal reporting. All QuickBooks data access is authenticated and authorized through
-            OAuth 2.0. No QuickBooks data is shared externally.
+            This application accesses business and financial data from internal systems for
+            reporting and analysis purposes. Access is restricted to authorized employees only.
+            All data is stored securely and remains within company control. No data is shared
+            with external parties.
           </p>
 
           <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
             Security
           </h2>
           <p className="text-gray-600">
-            Access to this application requires employee authentication. All data is stored securely
-            and remains within MedRock&apos;s control. No data is shared with third parties.
+            Access to this application requires employee authentication. All data transmissions
+            are encrypted and secure.
           </p>
 
           <h2 className="text-xl font-semibold text-gray-900 mt-6 mb-3">
