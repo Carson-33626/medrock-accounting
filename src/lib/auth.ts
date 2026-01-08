@@ -137,6 +137,21 @@ export interface AuthUser {
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
+    // DEVELOPMENT MODE: Return mock super_admin user if DEV_SKIP_AUTH is enabled
+    if (process.env.DEV_SKIP_AUTH === 'true') {
+      console.log('⚠️  DEV MODE: Returning mock super_admin user');
+      return {
+        id: 'dev-user-12345',
+        email: 'dev@medrockpharmacy.com',
+        first_name: 'Dev',
+        last_name: 'User',
+        full_name: 'Dev User',
+        role: 'super_admin',
+        regions: [],
+        departments: [],
+      };
+    }
+
     const cookieStore = await cookies();
     const cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 

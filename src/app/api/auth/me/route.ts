@@ -12,6 +12,13 @@ const SESSION_COOKIE_NAME = 'medrock_session';
  */
 export async function GET() {
   try {
+    // DEVELOPMENT MODE: Skip cookie check and return mock user
+    if (process.env.DEV_SKIP_AUTH === 'true') {
+      console.log('[/api/auth/me] DEV MODE: Returning mock super_admin user');
+      const user = await getCurrentUser(); // This will return the mock user
+      return NextResponse.json({ user });
+    }
+
     // Debug: check if cookie is present
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);

@@ -113,6 +113,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // DEVELOPMENT MODE: Skip auth if DEV_SKIP_AUTH is enabled
+  // WARNING: This should NEVER be enabled in production!
+  if (process.env.DEV_SKIP_AUTH === 'true') {
+    console.warn('⚠️  DEV MODE: Authentication is DISABLED. This should only be used for local testing!');
+    return NextResponse.next();
+  }
+
   // Check for session cookie from centralized auth service
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
 
