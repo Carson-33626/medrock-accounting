@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { getRevenueByPeriod, isConnected, type Location } from '@/lib/quickbooks-multi';
 
 interface MarketerMonthlyRow {
   id: number;
@@ -243,6 +244,97 @@ export async function GET(request: NextRequest) {
     // Chart data
     const chartData = getPeriodTotals(typedRows, granularity);
 
+    // Optionally fetch QuickBooks revenue comparison
+    const includeQB = searchParams.get('includeQuickBooks') === 'true';
+    let quickbooksData: any = null;
+    let quickbooksComparison: any = null;
+
+    if (includeQB) {
+      try {
+        // Determine which location(s) to fetch QB data for
+        const qbLocation = (location && location !== 'all' ? location : null) as Location | null;
+
+        if (!qbLocation) {
+          quickbooksData = {
+            connected: false,
+            message: 'Please select a specific location to view QuickBooks comparison',
+          };
+        } else {
+          const qbConnected = await isConnected(qbLocation);
+
+          if (qbConnected && startDate && endDate) {
+            // Format dates for QB API (YYYY-MM-DD)
+            const qbStartDate = startDate; // Already in correct format
+            const qbEndDate = endDate;
+
+            // Fetch QB revenue data for this location
+            const qbRevenue = await getRevenueByPeriod({
+              location: qbLocation,
+              startDate: qbStartDate,
+              endDate: qbEndDate,
+              granularity,
+            });
+
+            quickbooksData = {
+              connected: true,
+              location: qbLocation,
+              data: qbRevenue,
+              totals: {
+                revenue: qbRevenue.reduce((sum, item) => sum + item.revenue, 0),
+                cost_of_goods: qbRevenue.reduce((sum, item) => sum + item.cost_of_goods, 0),
+                gross_profit: qbRevenue.reduce((sum, item) => sum + item.gross_profit, 0),
+              },
+            };
+
+            // Create comparison map by period
+            const qbByPeriod = new Map(qbRevenue.map(item => [item.period, item]));
+
+            quickbooksComparison = periodGroups.map(group => {
+              const qbPeriod = qbByPeriod.get(group.period);
+
+              if (!qbPeriod) {
+                return {
+                  period: group.period,
+                  internal_revenue: group.totals.total_pt_paid,
+                  quickbooks_revenue: 0,
+                  variance: group.totals.total_pt_paid,
+                  variance_percentage: 0,
+                };
+              }
+
+              const variance = group.totals.total_pt_paid - qbPeriod.revenue;
+              const variancePercentage =
+                qbPeriod.revenue !== 0
+                  ? ((variance / qbPeriod.revenue) * 100)
+                  : 0;
+
+              return {
+                period: group.period,
+                internal_revenue: group.totals.total_pt_paid,
+                quickbooks_revenue: qbPeriod.revenue,
+                quickbooks_cogs: qbPeriod.cost_of_goods,
+                quickbooks_gross_profit: qbPeriod.gross_profit,
+                variance,
+                variance_percentage: variancePercentage,
+              };
+            });
+          } else {
+            quickbooksData = {
+              connected: false,
+              location: qbLocation,
+              message: `QuickBooks not connected for ${qbLocation}`,
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching QuickBooks data:', error);
+        quickbooksData = {
+          connected: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    }
+
     return NextResponse.json({
       stats,
       dateRange,
@@ -252,6 +344,8 @@ export async function GET(request: NextRequest) {
       stateBreakdown: Object.fromEntries(statesByMarketerPeriod),
       chartData,
       granularity,
+      quickbooks: quickbooksData,
+      quickbooksComparison,
     });
   } catch (error) {
     console.error('Error fetching marketer profitability:', error);
