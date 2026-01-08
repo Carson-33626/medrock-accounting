@@ -33,8 +33,8 @@ export function Sidebar() {
     : user?.email?.split('@')[0] || null;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-  // Hide sidebar on auth pages
-  if (pathname?.startsWith('/auth')) {
+  // Hide sidebar on auth and public pages
+  if (pathname?.startsWith('/auth') || pathname === '/terms' || pathname === '/privacy') {
     return null;
   }
 
