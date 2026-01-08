@@ -11,6 +11,8 @@ const SESSION_COOKIE_NAME = 'medrock_session';
 const PUBLIC_ROUTES = [
   '/auth/login',
   '/api/health',
+  '/terms',      // Public for QuickBooks app verification
+  '/privacy',    // Public for QuickBooks app verification
 ];
 
 // Routes that handle their own auth (API routes that use Basic Auth, etc.)

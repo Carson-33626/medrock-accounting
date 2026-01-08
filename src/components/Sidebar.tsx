@@ -162,6 +162,30 @@ export function Sidebar() {
           </button>
         </div>
 
+        {/* Terms and Privacy buttons */}
+        <div className="px-4 pt-3">
+          <div className="flex gap-2">
+            <Link
+              href="/terms"
+              target="_blank"
+              onClick={() => setSidebarOpen(false)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-lg transition-colors"
+            >
+              <DocumentIcon className="w-3.5 h-3.5" />
+              Terms
+            </Link>
+            <Link
+              href="/privacy"
+              target="_blank"
+              onClick={() => setSidebarOpen(false)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-lg transition-colors"
+            >
+              <ShieldIcon className="w-3.5 h-3.5" />
+              Privacy
+            </Link>
+          </div>
+        </div>
+
         {/* User section */}
         <div className="p-4 border-t border-slate-700 space-y-3">
           {loading ? (
@@ -282,6 +306,22 @@ function QuickBooksIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  );
+}
+
+function ShieldIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
   );
 }
