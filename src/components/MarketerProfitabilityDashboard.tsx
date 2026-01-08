@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { QuickBooksStatusIndicator } from './QuickBooksStatusIndicator';
 import {
   LineChart,
   Line,
@@ -318,6 +319,13 @@ export default function MarketerProfitabilityDashboard() {
         <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
           Marketer Profitability
         </h2>
+
+        {/* QuickBooks Status Indicator */}
+        {appliedFilters.location !== 'all' && (
+          <div className="mb-6">
+            <QuickBooksStatusIndicator location={appliedFilters.location} />
+          </div>
+        )}
 
         {/* Filters */}
         <div className={`rounded-lg shadow p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>

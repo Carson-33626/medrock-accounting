@@ -97,22 +97,39 @@ export function QuickBooksConnectionManager() {
     }
   };
 
-  const formatExpiration = (timestamp: number | null): string => {
-    if (!timestamp) return 'Unknown';
+  const formatExpiration = (timestamp: number | null): { text: string; expired: boolean } => {
+    if (!timestamp) return { text: 'Unknown', expired: false };
 
     const expiresAt = new Date(timestamp);
     const now = new Date();
     const diffMs = expiresAt.getTime() - now.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 0) return 'Expired';
-    if (diffMins < 60) return `${diffMins} minutes`;
+    if (diffMins < 0) return { text: 'Expired', expired: true };
+    if (diffMins < 60) return { text: `${diffMins} minutes`, expired: false };
 
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hours`;
+    if (diffHours < 24) return { text: `${diffHours} hours`, expired: false };
 
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} days`;
+    return { text: `${diffDays} days`, expired: false };
+  };
+
+  const handleTestConnection = async (location: string) => {
+    try {
+      setError(null);
+      const response = await fetch(`/api/quickbooks/test-connection?location=${encodeURIComponent(location)}`);
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Connection test failed');
+      }
+
+      setSuccessMessage(`Connection to QuickBooks for ${location} is working!`);
+      await fetchStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connection test failed');
+    }
   };
 
   if (loading) {
@@ -204,30 +221,47 @@ export function QuickBooksConnectionManager() {
 
               {/* Connection details */}
               {isConnected && status ? (
-                <div className="space-y-2 mb-4 text-sm">
-                  {status.companyName && (
+                <>
+                  <div className="space-y-2 mb-4 text-sm">
+                    {status.companyName && (
+                      <div>
+                        <span className="text-gray-500 dark:text-slate-400">Company: </span>
+                        <span className="text-gray-900 dark:text-white font-medium">
+                          {status.companyName}
+                        </span>
+                      </div>
+                    )}
+                    {status.realmId && (
+                      <div>
+                        <span className="text-gray-500 dark:text-slate-400">Realm ID: </span>
+                        <span className="text-gray-900 dark:text-white font-mono text-xs">
+                          {status.realmId}
+                        </span>
+                      </div>
+                    )}
                     <div>
-                      <span className="text-gray-500 dark:text-slate-400">Company: </span>
-                      <span className="text-gray-900 dark:text-white font-medium">
-                        {status.companyName}
-                      </span>
+                      <span className="text-gray-500 dark:text-slate-400">Token expires: </span>
+                      {(() => {
+                        const expiration = formatExpiration(status.expiresAt);
+                        return (
+                          <span className={expiration.expired ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-900 dark:text-white'}>
+                            {expiration.text}
+                          </span>
+                        );
+                      })()}
                     </div>
-                  )}
-                  {status.realmId && (
-                    <div>
-                      <span className="text-gray-500 dark:text-slate-400">Realm ID: </span>
-                      <span className="text-gray-900 dark:text-white font-mono text-xs">
-                        {status.realmId}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-gray-500 dark:text-slate-400">Token expires: </span>
-                    <span className="text-gray-900 dark:text-white">
-                      {formatExpiration(status.expiresAt)}
-                    </span>
                   </div>
-                </div>
+
+                  {/* Warning for expired tokens */}
+                  {formatExpiration(status.expiresAt).expired && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+                      <div className="flex items-start gap-2 text-yellow-800 dark:text-yellow-200 text-sm">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <p>Connection expired. Please reconnect to restore access.</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
                   Not connected to QuickBooks
@@ -236,20 +270,28 @@ export function QuickBooksConnectionManager() {
 
               {/* Actions */}
               {isConnected ? (
-                <button
-                  onClick={() => handleDisconnect(location.key)}
-                  disabled={isDisconnecting}
-                  className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isDisconnecting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Disconnecting...
-                    </>
-                  ) : (
-                    'Disconnect'
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleTestConnection(location.key)}
+                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    Test Connection
+                  </button>
+                  <button
+                    onClick={() => handleDisconnect(location.key)}
+                    disabled={isDisconnecting}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isDisconnecting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Disconnecting...
+                      </>
+                    ) : (
+                      'Disconnect'
+                    )}
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => handleConnect(location.key)}
