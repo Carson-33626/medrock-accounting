@@ -31,10 +31,10 @@ export async function GET(request: NextRequest) {
     // Make a simple API call to QuickBooks to test the connection
     // Using CompanyInfo endpoint which is lightweight
     const response = await fetch(
-      `${QUICKBOOKS_API_URL}/v3/company/${tokens.realmId}/companyinfo/${tokens.realmId}`,
+      `${QUICKBOOKS_API_URL}/v3/company/${tokens.realm_id}/companyinfo/${tokens.realm_id}`,
       {
         headers: {
-          'Authorization': `Bearer ${tokens.accessToken}`,
+          'Authorization': `Bearer ${tokens.access_token}`,
           'Accept': 'application/json',
         },
       }
