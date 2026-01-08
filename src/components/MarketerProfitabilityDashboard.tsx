@@ -188,7 +188,7 @@ export default function MarketerProfitabilityDashboard() {
       `Unique Marketers,${data.stats.uniqueMarketers}`,
       '',
       'BY PERIOD AND MARKETER',
-      'Period,Marketer,Transactions,Acquisition Cost,Ship Charged,Ship Cost,Total Paid,Profit After Product,Net Profit',
+      'Period,Marketer,Transactions,Product Cost,Ship Cost,Ship Chg,Revenue,Gross Profit,Net Profit',
     ];
 
     data.periodGroups.forEach(group => {
@@ -217,7 +217,7 @@ export default function MarketerProfitabilityDashboard() {
     setExportDropdownOpen(false);
 
     const lines = [
-      'Period,Marketer,State,Transactions,Acquisition Cost,Ship Charged,Ship Cost,Total Paid,Profit After Product,Net Profit',
+      'Period,Marketer,State,Transactions,Product Cost,Ship Cost,Ship Chg,Revenue,Gross Profit,Net Profit',
     ];
 
     Object.entries(data.stateBreakdown).forEach(([, states]) => {
@@ -526,10 +526,10 @@ export default function MarketerProfitabilityDashboard() {
                 <thead className={`sticky top-0 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
                     <th className={`text-left py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Period / Marketer</th>
-                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Txns</th>
-                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Acq Cost</th>
-                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Chg</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Transactions</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Product Cost</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Cost</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Chg</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Revenue</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Gross Profit</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Net Profit</th>
