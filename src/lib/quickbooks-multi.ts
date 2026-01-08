@@ -53,7 +53,7 @@ interface QuickBooksTokens {
  *
  * @param location - Location identifier (e.g., 'MedRock FL', 'MedRock TN', 'MedRock TX')
  */
-export function getAuthorizationUrl(location: string): string {
+export function getAuthorizationUrl(location: Location): string {
   const params = new URLSearchParams({
     client_id: QB_CLIENT_ID,
     scope: 'com.intuit.quickbooks.accounting',
@@ -68,7 +68,7 @@ export function getAuthorizationUrl(location: string): string {
 /**
  * Exchange authorization code for access + refresh tokens
  */
-export async function exchangeCodeForTokens(code: string, location: string): Promise<QuickBooksTokens> {
+export async function exchangeCodeForTokens(code: string, location: Location): Promise<QuickBooksTokens> {
   const authHeader = Buffer.from(`${QB_CLIENT_ID}:${QB_CLIENT_SECRET}`).toString('base64');
 
   const response = await fetch(QB_TOKEN_URL, {
@@ -103,7 +103,7 @@ export async function exchangeCodeForTokens(code: string, location: string): Pro
 /**
  * Refresh access token using refresh token
  */
-async function refreshAccessToken(refreshToken: string, location: string): Promise<QuickBooksTokens> {
+async function refreshAccessToken(refreshToken: string, location: Location): Promise<QuickBooksTokens> {
   const authHeader = Buffer.from(`${QB_CLIENT_ID}:${QB_CLIENT_SECRET}`).toString('base64');
 
   const response = await fetch(QB_TOKEN_URL, {
@@ -165,7 +165,7 @@ export async function storeTokens(tokens: QuickBooksTokens): Promise<void> {
 /**
  * Get valid QB tokens for a specific location (refreshes if expired)
  */
-export async function getValidTokens(location: string): Promise<QuickBooksTokens | null> {
+export async function getValidTokens(location: Location): Promise<QuickBooksTokens | null> {
   const supabase = getAdminClient();
 
   const { data: tokenRow, error } = await supabase
@@ -184,7 +184,7 @@ export async function getValidTokens(location: string): Promise<QuickBooksTokens
     refresh_token: tokenRow.refresh_token,
     expires_at: new Date(tokenRow.expires_at).getTime(),
     realm_id: tokenRow.realm_id,
-    location: tokenRow.location,
+    location: tokenRow.location as Location,
   };
 
   // Check if token is expired (with 5 min buffer)
@@ -204,7 +204,7 @@ export async function getValidTokens(location: string): Promise<QuickBooksTokens
 /**
  * Get all connected locations
  */
-export async function getConnectedLocations(): Promise<string[]> {
+export async function getConnectedLocations(): Promise<Location[]> {
   const supabase = getAdminClient();
 
   const { data, error } = await supabase
@@ -217,7 +217,7 @@ export async function getConnectedLocations(): Promise<string[]> {
     return [];
   }
 
-  return data?.map(row => row.location) || [];
+  return (data?.map(row => row.location as Location) || []) as Location[];
 }
 
 /**
@@ -225,7 +225,7 @@ export async function getConnectedLocations(): Promise<string[]> {
  */
 async function qbRequest<T>(
   endpoint: string,
-  location: string,
+  location: Location,
   options: RequestInit = {}
 ): Promise<T> {
   const tokens = await getValidTokens(location);
@@ -258,7 +258,7 @@ async function qbRequest<T>(
  * Get Profit & Loss report from QuickBooks
  */
 export async function getProfitAndLoss(params: {
-  location: string;
+  location: Location;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   accounting_method?: 'Accrual' | 'Cash';
@@ -277,7 +277,7 @@ export async function getProfitAndLoss(params: {
  * Get revenue summary by period for a specific location
  */
 export async function getRevenueSummary(params: {
-  location: string;
+  location: Location;
   startDate: string;
   endDate: string;
 }): Promise<{
@@ -303,7 +303,7 @@ export async function getRevenueSummary(params: {
  * Get revenue data grouped by period (monthly/quarterly/yearly) for a specific location
  */
 export async function getRevenueByPeriod(params: {
-  location: string;
+  location: Location;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   granularity: 'monthly' | 'quarterly' | 'yearly';
@@ -488,7 +488,7 @@ function extractCOGSFromReport(report: any): number {
 /**
  * Check if a specific location is connected
  */
-export async function isConnected(location: string): Promise<boolean> {
+export async function isConnected(location: Location): Promise<boolean> {
   const tokens = await getValidTokens(location);
   return tokens !== null;
 }
@@ -512,7 +512,7 @@ export async function getConnectionStatus(): Promise<Record<Location, boolean>> 
 /**
  * Disconnect QuickBooks for a specific location
  */
-export async function disconnect(location: string): Promise<void> {
+export async function disconnect(location: Location): Promise<void> {
   const supabase = getAdminClient();
   await supabase
     .from('amy_quickbooks_tokens')
