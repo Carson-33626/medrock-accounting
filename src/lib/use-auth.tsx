@@ -98,10 +98,30 @@ export function AuthProvider({
         return true;
       }
 
-      // Session check failed - in a cookie-based SSO setup,
-      // if /api/me fails, the session is truly expired
-      // The refresh would need to happen server-side
-      // For now, we return false to trigger re-login
+      // Session expired, attempt to refresh it
+      console.log('Session expired, attempting refresh...');
+      const refreshResponse = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (refreshResponse.ok) {
+        const refreshData = await refreshResponse.json();
+        if (refreshData.success) {
+          // Refresh succeeded, check session again to update user
+          const refreshed = await checkSession();
+          if (refreshed) {
+            console.log('Session refresh successful');
+            warningShownRef.current = false;
+            return true;
+          }
+        }
+      }
+
+      // Refresh failed
+      console.log('Session refresh failed');
       return false;
     } catch (err) {
       console.error('Session extend failed:', err);

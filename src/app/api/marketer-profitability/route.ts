@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { getRevenueByPeriod, isConnected, type Location } from '@/lib/quickbooks-multi';
+import { getRevenueByPeriod, getRevenueAllLocations, isConnected, type Location } from '@/lib/quickbooks-multi';
 
 interface MarketerMonthlyRow {
   id: number;
@@ -249,29 +249,80 @@ export async function GET(request: NextRequest) {
     let quickbooksData: any = null;
     let quickbooksComparison: any = null;
 
-    if (includeQB) {
+    if (includeQB && startDate && endDate) {
       try {
         // Determine which location(s) to fetch QB data for
         const qbLocation = (location && location !== 'all' ? location : null) as Location | null;
 
         if (!qbLocation) {
+          // Fetch ALL locations data
+          const allQBRevenue = await getRevenueAllLocations({
+            startDate,
+            endDate,
+            granularity,
+          });
+
+          // Aggregate revenue by period from all locations
+          const aggregatedByPeriod = new Map<string, { revenue: number; cost_of_goods: number; gross_profit: number }>();
+
+          Object.values(allQBRevenue).forEach(locationData => {
+            locationData.forEach(item => {
+              const existing = aggregatedByPeriod.get(item.period) || { revenue: 0, cost_of_goods: 0, gross_profit: 0 };
+              existing.revenue += item.revenue;
+              existing.cost_of_goods += item.cost_of_goods;
+              existing.gross_profit += item.gross_profit;
+              aggregatedByPeriod.set(item.period, existing);
+            });
+          });
+
           quickbooksData = {
-            connected: false,
-            message: 'Please select a specific location to view QuickBooks comparison',
+            connected: true,
+            location: 'all',
+            message: 'Aggregated from all connected locations',
           };
+
+          // Create comparison map
+          quickbooksComparison = periodGroups.map(group => {
+            const qbPeriod = aggregatedByPeriod.get(group.period);
+
+            if (!qbPeriod) {
+              return {
+                period: group.period,
+                internal_revenue: group.totals.total_pt_paid,
+                quickbooks_revenue: 0,
+                quickbooks_cogs: 0,
+                quickbooks_gross_profit: 0,
+                variance: group.totals.total_pt_paid,
+                variance_percentage: 0,
+              };
+            }
+
+            const variance = group.totals.total_pt_paid - qbPeriod.revenue;
+            const variancePercentage =
+              qbPeriod.revenue !== 0
+                ? ((variance / qbPeriod.revenue) * 100)
+                : 0;
+
+            return {
+              period: group.period,
+              internal_revenue: group.totals.total_pt_paid,
+              quickbooks_revenue: qbPeriod.revenue,
+              quickbooks_cogs: qbPeriod.cost_of_goods,
+              quickbooks_gross_profit: qbPeriod.gross_profit,
+              variance,
+              variance_percentage: variancePercentage,
+            };
+          });
         } else {
+          // Single location
           const qbConnected = await isConnected(qbLocation);
 
-          if (qbConnected && startDate && endDate) {
-            // Format dates for QB API (YYYY-MM-DD)
-            const qbStartDate = startDate; // Already in correct format
-            const qbEndDate = endDate;
-
+          if (qbConnected) {
             // Fetch QB revenue data for this location
             const qbRevenue = await getRevenueByPeriod({
               location: qbLocation,
-              startDate: qbStartDate,
-              endDate: qbEndDate,
+              startDate,
+              endDate,
               granularity,
             });
 
@@ -297,6 +348,8 @@ export async function GET(request: NextRequest) {
                   period: group.period,
                   internal_revenue: group.totals.total_pt_paid,
                   quickbooks_revenue: 0,
+                  quickbooks_cogs: 0,
+                  quickbooks_gross_profit: 0,
                   variance: group.totals.total_pt_paid,
                   variance_percentage: 0,
                 };
