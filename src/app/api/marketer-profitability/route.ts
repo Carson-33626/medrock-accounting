@@ -332,7 +332,7 @@ export async function GET(request: NextRequest) {
           // Aggregate revenue by period from all locations
           const aggregatedByPeriod = new Map<string, { revenue: number; cost_of_goods: number; gross_profit: number }>();
 
-          Object.values(allQBRevenue).forEach((locationData: Array<{ period: string; revenue: number; cost_of_goods: number; gross_profit: number }>) => {
+          (Object.values(allQBRevenue) as Array<Array<{ period: string; revenue: number; cost_of_goods: number; gross_profit: number }>>).forEach(locationData => {
             locationData.forEach(item => {
               const existing = aggregatedByPeriod.get(item.period) || { revenue: 0, cost_of_goods: 0, gross_profit: 0 };
               existing.revenue += item.revenue;
