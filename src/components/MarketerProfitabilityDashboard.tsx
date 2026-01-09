@@ -251,11 +251,15 @@ export default function MarketerProfitabilityDashboard() {
     setExpandedMarketers(newExpanded);
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) return '$0.00';
     return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const formatNumber = (value: number) => value.toLocaleString();
+  const formatNumber = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) return '0';
+    return value.toLocaleString();
+  };
 
   const downloadCSV = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
@@ -604,9 +608,9 @@ export default function MarketerProfitabilityDashboard() {
               ))}
             </div>
           </div>
-          <div className="h-80">
+          <div className="h-80" style={{ minHeight: '320px' }}>
             {data.chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={320} key={`chart-${granularity}-${data.chartData.length}`}>
                 <LineChart data={data.chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
                   <XAxis
@@ -834,7 +838,7 @@ export default function MarketerProfitabilityDashboard() {
                                     {isPositiveVariance ? '+' : ''}{formatCurrency(qbData.variance)}
                                   </td>
                                   <td className={`py-3 px-4 text-right font-semibold ${varianceColor}`}>
-                                    {isPositiveVariance ? '+' : ''}{qbData.variance_percentage.toFixed(2)}%
+                                    {isPositiveVariance ? '+' : ''}{(qbData.variance_percentage ?? 0).toFixed(2)}%
                                   </td>
                                 </>
                               );
@@ -1013,7 +1017,7 @@ export default function MarketerProfitabilityDashboard() {
                           {isPositiveVariance ? '+' : ''}{formatCurrency(qbPeriod.variance)}
                         </td>
                         <td className={`py-3 px-4 text-right font-semibold ${varianceColor}`}>
-                          {isPositiveVariance ? '+' : ''}{qbPeriod.variance_percentage.toFixed(2)}%
+                          {isPositiveVariance ? '+' : ''}{(qbPeriod.variance_percentage ?? 0).toFixed(2)}%
                         </td>
                       </tr>
                     );
