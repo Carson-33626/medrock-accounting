@@ -221,12 +221,20 @@ export async function getConnectedLocations(): Promise<Location[]> {
 }
 
 /**
- * Make authenticated API call to QuickBooks
+ * Sleep utility for rate limiting
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Make authenticated API call to QuickBooks with retry logic for rate limiting
  */
 async function qbRequest<T>(
   endpoint: string,
   location: Location,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryCount = 0
 ): Promise<T> {
   const tokens = await getValidTokens(location);
 
@@ -245,6 +253,19 @@ async function qbRequest<T>(
       ...options.headers,
     },
   });
+
+  // Handle rate limiting (429) with exponential backoff
+  if (response.status === 429) {
+    const maxRetries = 3;
+    if (retryCount < maxRetries) {
+      const delayMs = Math.min(1000 * Math.pow(2, retryCount), 10000); // 1s, 2s, 4s (max 10s)
+      console.log(`Rate limited for ${location}, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+      await sleep(delayMs);
+      return qbRequest<T>(endpoint, location, options, retryCount + 1);
+    } else {
+      throw new Error(`QB API rate limit exceeded for ${location}. Please try again in a few moments.`);
+    }
+  }
 
   if (!response.ok) {
     const error = await response.text();
@@ -301,6 +322,7 @@ export async function getRevenueSummary(params: {
 
 /**
  * Get revenue data grouped by period (monthly/quarterly/yearly) for a specific location
+ * Processes periods sequentially to avoid rate limiting
  */
 export async function getRevenueByPeriod(params: {
   location: Location;
@@ -320,24 +342,37 @@ export async function getRevenueByPeriod(params: {
   // Split date range into periods based on granularity
   const periods = generatePeriods(startDate, endDate, granularity);
 
-  // Fetch P&L for each period
-  const results = await Promise.all(
-    periods.map(async ({ start, end, label }) => {
+  // Fetch P&L for each period SEQUENTIALLY to avoid rate limiting
+  const results = [];
+  for (const { start, end, label } of periods) {
+    try {
       const summary = await getRevenueSummary({ location, startDate: start, endDate: end });
-      return {
+      results.push({
         period: label,
         revenue: summary.revenue,
         cost_of_goods: summary.cost_of_goods,
         gross_profit: summary.gross_profit,
-      };
-    })
-  );
+      });
+      // Small delay between requests to be respectful to API limits
+      await sleep(250);
+    } catch (error) {
+      console.error(`Error fetching ${location} data for period ${label}:`, error);
+      // Include period with zero values on error
+      results.push({
+        period: label,
+        revenue: 0,
+        cost_of_goods: 0,
+        gross_profit: 0,
+      });
+    }
+  }
 
   return results;
 }
 
 /**
  * Get revenue for ALL connected locations, grouped by period
+ * Processes locations sequentially to avoid rate limiting
  */
 export async function getRevenueAllLocations(params: {
   startDate: string;
@@ -353,17 +388,18 @@ export async function getRevenueAllLocations(params: {
 
   const results: Record<string, any[]> = {};
 
-  await Promise.all(
-    locations.map(async (location) => {
-      try {
-        const revenue = await getRevenueByPeriod({ ...params, location });
-        results[location] = revenue;
-      } catch (error) {
-        console.error(`Error fetching revenue for ${location}:`, error);
-        results[location] = [];
-      }
-    })
-  );
+  // Process locations SEQUENTIALLY to avoid overwhelming the API
+  for (const location of locations) {
+    try {
+      console.log(`Fetching QB data for ${location}...`);
+      const revenue = await getRevenueByPeriod({ ...params, location });
+      results[location] = revenue;
+      console.log(`Successfully fetched QB data for ${location}`);
+    } catch (error) {
+      console.error(`Error fetching revenue for ${location}:`, error);
+      results[location] = [];
+    }
+  }
 
   return results;
 }

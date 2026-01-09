@@ -381,9 +381,17 @@ export async function GET(request: NextRequest) {
         }
       } catch (error) {
         console.error('Error fetching QuickBooks data:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // Provide user-friendly message for rate limiting
+        let userMessage = errorMessage;
+        if (errorMessage.includes('rate limit')) {
+          userMessage = 'QuickBooks API rate limit reached. Data is being fetched with automatic retries. Please wait a moment and the data will appear.';
+        }
+
         quickbooksData = {
           connected: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: userMessage,
         };
       }
     }

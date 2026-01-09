@@ -123,8 +123,37 @@ export default function MarketerProfitabilityDashboard() {
   const [expandedMarketers, setExpandedMarketers] = useState<Set<string>>(new Set());
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [showQuickBooksComparison, setShowQuickBooksComparison] = useState(false);
+  const [showMergedView, setShowMergedView] = useState(false);
 
-  const fetchData = useCallback(async (currentFilters: Filters, currentGranularity: Granularity, includeQB: boolean) => {
+  // Helper to convert period string to date range
+  const periodToDateRange = useCallback((period: string, granularity: Granularity): { start: string; end: string } => {
+    if (granularity === 'yearly') {
+      return {
+        start: `${period}-01-01`,
+        end: `${period}-12-31`,
+      };
+    } else if (granularity === 'quarterly') {
+      // Format: YYYY-Q1, YYYY-Q2, etc.
+      const [year, quarter] = period.split('-Q');
+      const q = parseInt(quarter);
+      const startMonth = (q - 1) * 3 + 1;
+      const endMonth = startMonth + 2;
+      return {
+        start: `${year}-${startMonth.toString().padStart(2, '0')}-01`,
+        end: `${year}-${endMonth.toString().padStart(2, '0')}-${new Date(parseInt(year), endMonth, 0).getDate()}`,
+      };
+    } else {
+      // Monthly: YYYY-MM
+      const [year, month] = period.split('-');
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      return {
+        start: `${year}-${month}-01`,
+        end: `${year}-${month}-${lastDay}`,
+      };
+    }
+  }, []);
+
+  const fetchData = useCallback(async (currentFilters: Filters, currentGranularity: Granularity, includeQB: boolean, autoDetectedDates?: { start: string; end: string }) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -134,9 +163,14 @@ export default function MarketerProfitabilityDashboard() {
       if (currentFilters.endDate) params.set('endDate', currentFilters.endDate);
       params.set('granularity', currentGranularity);
 
-      // Include QuickBooks comparison if toggle is on and date range is provided
-      if (includeQB && currentFilters.startDate && currentFilters.endDate) {
+      // Include QuickBooks comparison if toggle is on
+      // Use explicit date filters if provided, otherwise use auto-detected dates
+      if (includeQB) {
         params.set('includeQuickBooks', 'true');
+        if (autoDetectedDates && !currentFilters.startDate && !currentFilters.endDate) {
+          params.set('startDate', autoDetectedDates.start);
+          params.set('endDate', autoDetectedDates.end);
+        }
       }
 
       const url = `/api/marketer-profitability${params.toString() ? `?${params.toString()}` : ''}`;
@@ -157,8 +191,26 @@ export default function MarketerProfitabilityDashboard() {
   }, []);
 
   useEffect(() => {
-    fetchData(appliedFilters, granularity, showQuickBooksComparison);
-  }, [appliedFilters, granularity, showQuickBooksComparison, fetchData]);
+    // Auto-detect date range from visible data when QB toggle is on and no manual dates set
+    let autoDetectedDates: { start: string; end: string } | undefined;
+    if (showQuickBooksComparison && data?.periodGroups && data.periodGroups.length > 0 && !appliedFilters.startDate && !appliedFilters.endDate) {
+      const periods = data.periodGroups.map(g => g.period).sort();
+      const firstPeriod = periods[0];
+      const lastPeriod = periods[periods.length - 1];
+
+      const firstRange = periodToDateRange(firstPeriod, granularity);
+      const lastRange = periodToDateRange(lastPeriod, granularity);
+
+      autoDetectedDates = {
+        start: firstRange.start,
+        end: lastRange.end,
+      };
+    }
+
+    fetchData(appliedFilters, granularity, showQuickBooksComparison, autoDetectedDates);
+    // Note: data.periodGroups is accessed but not a dependency to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedFilters, granularity, showQuickBooksComparison]);
 
   const handleApplyFilters = () => {
     setAppliedFilters({ ...filters });
@@ -228,7 +280,7 @@ export default function MarketerProfitabilityDashboard() {
     ];
 
     // Add header row with optional QB columns
-    const headerRow = ['Period', 'Marketer', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'Revenue'];
+    const headerRow = ['Period', 'Marketer', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'LifeFile Reported'];
     if (showQuickBooksComparison && data.quickbooksComparison) {
       headerRow.push('QB Revenue', 'Variance $', 'Variance %');
     }
@@ -276,7 +328,7 @@ export default function MarketerProfitabilityDashboard() {
     setExportDropdownOpen(false);
 
     // Add header row with optional QB columns
-    const headerRow = ['Period', 'Marketer', 'State', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'Revenue'];
+    const headerRow = ['Period', 'Marketer', 'State', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'LifeFile Reported'];
     if (showQuickBooksComparison && data.quickbooksComparison) {
       headerRow.push('QB Revenue (Period)', 'Variance $ (Period)', 'Variance % (Period)');
     }
@@ -605,32 +657,45 @@ export default function MarketerProfitabilityDashboard() {
           </div>
         </div>
 
-        {/* QuickBooks Toggle - Below Chart */}
-        {appliedFilters.startDate && appliedFilters.endDate && (
-          <div className={`rounded-lg shadow p-4 mb-8 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+        {/* QuickBooks Toggles - Below Chart */}
+        <div className={`rounded-lg shadow p-4 mb-8 ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+          <div className="space-y-4">
+            {/* QuickBooks Comparison Toggle */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                <div>
+                <div className="flex-1">
                   <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    QuickBooks Revenue Comparison
+                    QuickBooks Comparison
                   </h3>
                   <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Compare internal revenue with QuickBooks financial data
+                    {data?.periodGroups && data.periodGroups.length > 0
+                      ? 'Compare LifeFile reported revenue with QuickBooks data (date range auto-detected)'
+                      : 'No data available to compare'}
                   </p>
+                  {/* Show QB error if present */}
+                  {showQuickBooksComparison && data?.quickbooks?.error && (
+                    <div className="mt-2 flex items-start gap-2 text-xs text-amber-600">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span>{data.quickbooks.error}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className={`flex items-center gap-3 ${data?.periodGroups && data.periodGroups.length > 0 ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
                 <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {showQuickBooksComparison ? 'Hide' : 'Show'} QB Columns
+                  {showQuickBooksComparison ? 'On' : 'Off'}
                 </span>
                 <div className="relative">
                   <input
                     type="checkbox"
                     checked={showQuickBooksComparison}
                     onChange={(e) => setShowQuickBooksComparison(e.target.checked)}
+                    disabled={!data?.periodGroups || data.periodGroups.length === 0}
                     className="sr-only peer"
                   />
                   <div className={`w-14 h-7 rounded-full peer transition-colors ${
@@ -642,8 +707,46 @@ export default function MarketerProfitabilityDashboard() {
                 </div>
               </label>
             </div>
+
+            {/* Merged View Toggle - Only show when QB comparison is enabled */}
+            {showQuickBooksComparison && (
+              <div className={`flex items-center justify-between pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <div className="flex-1">
+                    <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Merged Table View
+                    </h3>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Show LifeFile and QuickBooks data in a single merged table with variance columns
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {showMergedView ? 'Merged' : 'Separate'}
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={showMergedView}
+                      onChange={(e) => setShowMergedView(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-14 h-7 rounded-full peer transition-colors ${
+                      showMergedView ? 'bg-purple-600' : darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`absolute left-1 top-1 w-5 h-5 bg-white rounded-full transition-transform shadow-md ${
+                      showMergedView ? 'translate-x-7' : ''
+                    }`}></div>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Data Table */}
         <div className={`rounded-lg shadow ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -662,8 +765,8 @@ export default function MarketerProfitabilityDashboard() {
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Product Cost</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Cost</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ship Chg</th>
-                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Revenue</th>
-                    {showQuickBooksComparison && (
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>LifeFile Reported</th>
+                    {showQuickBooksComparison && showMergedView && (
                       <>
                         <th className={`text-right py-3 px-4 font-medium text-blue-500 border-l-2 ${darkMode ? 'border-blue-800' : 'border-blue-200'}`}>QB Revenue</th>
                         <th className={`text-right py-3 px-4 font-medium text-blue-500`}>Variance</th>
@@ -703,7 +806,7 @@ export default function MarketerProfitabilityDashboard() {
                           <td className={`py-3 px-4 text-right font-semibold text-blue-500`}>
                             {formatCurrency(group.totals.total_pt_paid)}
                           </td>
-                          {showQuickBooksComparison && (() => {
+                          {showQuickBooksComparison && showMergedView && (() => {
                             const qbData = getQBDataForPeriod(group.period);
                             if (qbData) {
                               const isPositiveVariance = qbData.variance >= 0;
@@ -773,7 +876,7 @@ export default function MarketerProfitabilityDashboard() {
                                 <td className={`py-2 px-4 text-right text-blue-400`}>
                                   {formatCurrency(marketer.total_pt_paid)}
                                 </td>
-                                {showQuickBooksComparison && (
+                                {showQuickBooksComparison && showMergedView && (
                                   <>
                                     <td className={`py-2 px-4 text-right text-gray-500 border-l-2 ${darkMode ? 'border-blue-800' : 'border-blue-200'}`}>—</td>
                                     <td className={`py-2 px-4 text-right text-gray-500`}>—</td>
@@ -816,7 +919,7 @@ export default function MarketerProfitabilityDashboard() {
                                   <td className={`py-2 px-4 text-right text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                                     {formatCurrency(state.total_pt_paid)}
                                   </td>
-                                  {showQuickBooksComparison && (
+                                  {showQuickBooksComparison && showMergedView && (
                                     <>
                                       <td className={`py-2 px-4 text-right text-sm text-gray-500 border-l-2 ${darkMode ? 'border-blue-800' : 'border-blue-200'}`}>—</td>
                                       <td className={`py-2 px-4 text-right text-sm text-gray-500`}>—</td>
@@ -846,6 +949,66 @@ export default function MarketerProfitabilityDashboard() {
             )}
           </div>
         </div>
+
+        {/* Separate QuickBooks Table - Only show when QB comparison is on AND merged view is off */}
+        {showQuickBooksComparison && !showMergedView && data.quickbooksComparison && data.quickbooksComparison.length > 0 && (
+          <div className={`rounded-lg shadow mt-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                QuickBooks Data by {granularity.charAt(0).toUpperCase() + granularity.slice(1)}
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className={`sticky top-0 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <tr>
+                    <th className={`text-left py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Period</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Revenue</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB COGS</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Gross Profit</th>
+                    <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>LifeFile Reported</th>
+                    <th className={`text-right py-3 px-4 font-medium text-purple-500`}>Variance</th>
+                    <th className={`text-right py-3 px-4 font-medium text-purple-500`}>Variance %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.quickbooksComparison.map((qbPeriod, idx) => {
+                    const isPositiveVariance = qbPeriod.variance >= 0;
+                    const varianceColor = isPositiveVariance ? 'text-green-500' : 'text-red-500';
+                    return (
+                      <tr
+                        key={qbPeriod.period}
+                        className={darkMode ? (idx % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750') : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}
+                      >
+                        <td className={`py-3 px-4 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {formatPeriodLabel(qbPeriod.period)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          {formatCurrency(qbPeriod.quickbooks_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {formatCurrency(qbPeriod.quickbooks_cogs)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {formatCurrency(qbPeriod.quickbooks_gross_profit)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {formatCurrency(qbPeriod.internal_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-semibold ${varianceColor}`}>
+                          {isPositiveVariance ? '+' : ''}{formatCurrency(qbPeriod.variance)}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-semibold ${varianceColor}`}>
+                          {isPositiveVariance ? '+' : ''}{qbPeriod.variance_percentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
