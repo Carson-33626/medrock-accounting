@@ -293,6 +293,7 @@ export default function MarketerProfitabilityDashboard() {
       'MARKETER PROFITABILITY SUMMARY',
       `Generated: ${new Date().toLocaleString()}`,
       `Granularity: ${granularity}`,
+      showQuickBooksComparison ? `QB Accounting Method: ${qbAccountingMethod}` : '',
       '',
       'OVERVIEW',
       `Total Transactions,${data.stats.totalTransactions}`,
@@ -301,15 +302,32 @@ export default function MarketerProfitabilityDashboard() {
       `Unique Marketers,${data.stats.uniqueMarketers}`,
       '',
       'BY PERIOD AND MARKETER',
-    ];
+    ].filter(line => line !== '');
 
     // Add header row with optional QB columns
     const headerRow = ['Period', 'Marketer', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'LifeFile Reported'];
     if (showQuickBooksComparison && data.quickbooksComparison) {
-      headerRow.push('QB Revenue', 'Variance $', 'Variance %');
+      headerRow.push('QB Product Rev', 'QB Ship Rev', 'QB Total Rev', 'QB COGS', 'QB Gross Profit', 'Variance $', 'Variance %');
     }
     headerRow.push('Gross Profit', 'Net Profit');
     lines.push(headerRow.join(','));
+
+    // Track totals for QB comparison
+    let totals = {
+      transactions: 0,
+      product_cost: 0,
+      ship_cost: 0,
+      ship_chg: 0,
+      lifefile_revenue: 0,
+      qb_product_revenue: 0,
+      qb_shipping_revenue: 0,
+      qb_total_revenue: 0,
+      qb_cogs: 0,
+      qb_gross_profit: 0,
+      variance: 0,
+      gross_profit: 0,
+      net_profit: 0,
+    };
 
     data.periodGroups.forEach(group => {
       const qbData = showQuickBooksComparison ? getQBDataForPeriod(group.period) : null;
@@ -325,22 +343,75 @@ export default function MarketerProfitabilityDashboard() {
           m.total_pt_paid.toFixed(2),
         ];
 
+        // Accumulate totals
+        totals.transactions += m.transaction_count;
+        totals.product_cost += m.acquisition_cost;
+        totals.ship_cost += m.shipping_charged_to_pt;
+        totals.ship_chg += m.shipping_cost_actual;
+        totals.lifefile_revenue += m.total_pt_paid;
+        totals.gross_profit += m.profit_after_product;
+        totals.net_profit += m.net_profit;
+
         if (showQuickBooksComparison && data.quickbooksComparison) {
           if (qbData) {
             row.push(
+              qbData.quickbooks_product_revenue.toFixed(2),
+              qbData.quickbooks_shipping_revenue.toFixed(2),
               qbData.quickbooks_revenue.toFixed(2),
+              qbData.quickbooks_cogs.toFixed(2),
+              qbData.quickbooks_gross_profit.toFixed(2),
               qbData.variance.toFixed(2),
               qbData.variance_percentage.toFixed(2)
             );
           } else {
-            row.push('N/A', 'N/A', 'N/A');
+            row.push('N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A');
           }
         }
 
         row.push(m.profit_after_product.toFixed(2), m.net_profit.toFixed(2));
         lines.push(row.join(','));
       });
+
+      // Accumulate QB totals at period level
+      if (showQuickBooksComparison && qbData) {
+        totals.qb_product_revenue += qbData.quickbooks_product_revenue || 0;
+        totals.qb_shipping_revenue += qbData.quickbooks_shipping_revenue || 0;
+        totals.qb_total_revenue += qbData.quickbooks_revenue || 0;
+        totals.qb_cogs += qbData.quickbooks_cogs || 0;
+        totals.qb_gross_profit += qbData.quickbooks_gross_profit || 0;
+        totals.variance += qbData.variance || 0;
+      }
     });
+
+    // Add totals row
+    lines.push('');
+    const totalsRow = [
+      'TOTAL',
+      '',
+      totals.transactions,
+      totals.product_cost.toFixed(2),
+      totals.ship_cost.toFixed(2),
+      totals.ship_chg.toFixed(2),
+      totals.lifefile_revenue.toFixed(2),
+    ];
+
+    if (showQuickBooksComparison && data.quickbooksComparison) {
+      const totalVariancePercentage = totals.qb_total_revenue !== 0
+        ? ((totals.variance / totals.qb_total_revenue) * 100)
+        : 0;
+      totalsRow.push(
+        totals.qb_product_revenue.toFixed(2),
+        totals.qb_shipping_revenue.toFixed(2),
+        totals.qb_total_revenue.toFixed(2),
+        totals.qb_cogs.toFixed(2),
+        totals.qb_gross_profit.toFixed(2),
+        totals.variance.toFixed(2),
+        totalVariancePercentage.toFixed(2)
+      );
+    }
+
+    totalsRow.push(totals.gross_profit.toFixed(2), totals.net_profit.toFixed(2));
+    lines.push(totalsRow.join(','));
 
     const csv = lines.join('\n');
     const dateStr = new Date().toISOString().split('T')[0];
@@ -351,14 +422,41 @@ export default function MarketerProfitabilityDashboard() {
     if (!data) return;
     setExportDropdownOpen(false);
 
+    const lines = [
+      'MARKETER PROFITABILITY WITH STATE BREAKDOWN',
+      `Generated: ${new Date().toLocaleString()}`,
+      `Granularity: ${granularity}`,
+      showQuickBooksComparison ? `QB Accounting Method: ${qbAccountingMethod}` : '',
+      '',
+    ].filter(line => line !== '');
+
     // Add header row with optional QB columns
     const headerRow = ['Period', 'Marketer', 'State', 'Transactions', 'Product Cost', 'Ship Cost', 'Ship Chg', 'LifeFile Reported'];
     if (showQuickBooksComparison && data.quickbooksComparison) {
-      headerRow.push('QB Revenue (Period)', 'Variance $ (Period)', 'Variance % (Period)');
+      headerRow.push('QB Product Rev (Period)', 'QB Ship Rev (Period)', 'QB Total Rev (Period)', 'QB COGS (Period)', 'QB Gross Profit (Period)', 'Variance $ (Period)', 'Variance % (Period)');
     }
     headerRow.push('Gross Profit', 'Net Profit');
+    lines.push(headerRow.join(','));
 
-    const lines = [headerRow.join(',')];
+    // Track totals
+    let totals = {
+      transactions: 0,
+      product_cost: 0,
+      ship_cost: 0,
+      ship_chg: 0,
+      lifefile_revenue: 0,
+      qb_product_revenue: 0,
+      qb_shipping_revenue: 0,
+      qb_total_revenue: 0,
+      qb_cogs: 0,
+      qb_gross_profit: 0,
+      variance: 0,
+      gross_profit: 0,
+      net_profit: 0,
+    };
+
+    // Track which periods we've already added QB data for (to avoid duplication)
+    const processedPeriods = new Set<string>();
 
     Object.entries(data.stateBreakdown).forEach(([, states]) => {
       states.forEach(s => {
@@ -375,15 +473,38 @@ export default function MarketerProfitabilityDashboard() {
           s.total_pt_paid.toFixed(2),
         ];
 
+        // Accumulate totals
+        totals.transactions += s.transaction_count;
+        totals.product_cost += s.acquisition_cost;
+        totals.ship_cost += s.shipping_charged_to_pt;
+        totals.ship_chg += s.shipping_cost_actual;
+        totals.lifefile_revenue += s.total_pt_paid;
+        totals.gross_profit += s.profit_after_product;
+        totals.net_profit += s.net_profit;
+
         if (showQuickBooksComparison && data.quickbooksComparison) {
           if (qbData) {
             row.push(
+              qbData.quickbooks_product_revenue.toFixed(2),
+              qbData.quickbooks_shipping_revenue.toFixed(2),
               qbData.quickbooks_revenue.toFixed(2),
+              qbData.quickbooks_cogs.toFixed(2),
+              qbData.quickbooks_gross_profit.toFixed(2),
               qbData.variance.toFixed(2),
               qbData.variance_percentage.toFixed(2)
             );
+            // Only add QB totals once per period
+            if (!processedPeriods.has(s.period)) {
+              totals.qb_product_revenue += qbData.quickbooks_product_revenue || 0;
+              totals.qb_shipping_revenue += qbData.quickbooks_shipping_revenue || 0;
+              totals.qb_total_revenue += qbData.quickbooks_revenue || 0;
+              totals.qb_cogs += qbData.quickbooks_cogs || 0;
+              totals.qb_gross_profit += qbData.quickbooks_gross_profit || 0;
+              totals.variance += qbData.variance || 0;
+              processedPeriods.add(s.period);
+            }
           } else {
-            row.push('N/A', 'N/A', 'N/A');
+            row.push('N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A');
           }
         }
 
@@ -391,6 +512,37 @@ export default function MarketerProfitabilityDashboard() {
         lines.push(row.join(','));
       });
     });
+
+    // Add totals row
+    lines.push('');
+    const totalsRow = [
+      'TOTAL',
+      '',
+      '',
+      totals.transactions,
+      totals.product_cost.toFixed(2),
+      totals.ship_cost.toFixed(2),
+      totals.ship_chg.toFixed(2),
+      totals.lifefile_revenue.toFixed(2),
+    ];
+
+    if (showQuickBooksComparison && data.quickbooksComparison) {
+      const totalVariancePercentage = totals.qb_total_revenue !== 0
+        ? ((totals.variance / totals.qb_total_revenue) * 100)
+        : 0;
+      totalsRow.push(
+        totals.qb_product_revenue.toFixed(2),
+        totals.qb_shipping_revenue.toFixed(2),
+        totals.qb_total_revenue.toFixed(2),
+        totals.qb_cogs.toFixed(2),
+        totals.qb_gross_profit.toFixed(2),
+        totals.variance.toFixed(2),
+        totalVariancePercentage.toFixed(2)
+      );
+    }
+
+    totalsRow.push(totals.gross_profit.toFixed(2), totals.net_profit.toFixed(2));
+    lines.push(totalsRow.join(','));
 
     const csv = lines.join('\n');
     const dateStr = new Date().toISOString().split('T')[0];
@@ -1114,6 +1266,57 @@ export default function MarketerProfitabilityDashboard() {
                     );
                   })}
                 </tbody>
+                <tfoot className={`border-t-2 ${darkMode ? 'border-gray-600 bg-gray-750' : 'border-gray-300 bg-gray-100'}`}>
+                  {(() => {
+                    const totals = data.quickbooksComparison.reduce((acc, period) => ({
+                      qb_product_revenue: acc.qb_product_revenue + (period.quickbooks_product_revenue || 0),
+                      qb_shipping_revenue: acc.qb_shipping_revenue + (period.quickbooks_shipping_revenue || 0),
+                      qb_total_revenue: acc.qb_total_revenue + (period.quickbooks_revenue || 0),
+                      qb_cogs: acc.qb_cogs + (period.quickbooks_cogs || 0),
+                      qb_gross_profit: acc.qb_gross_profit + (period.quickbooks_gross_profit || 0),
+                      lifefile_revenue: acc.lifefile_revenue + (period.internal_revenue || 0),
+                      variance: acc.variance + (period.variance || 0),
+                    }), { qb_product_revenue: 0, qb_shipping_revenue: 0, qb_total_revenue: 0, qb_cogs: 0, qb_gross_profit: 0, lifefile_revenue: 0, variance: 0 });
+
+                    const totalVariancePercentage = totals.qb_total_revenue !== 0
+                      ? ((totals.variance / totals.qb_total_revenue) * 100)
+                      : 0;
+                    const isTotalPositive = totals.variance >= 0;
+                    const totalVarianceColor = isTotalPositive ? 'text-green-600' : 'text-red-600';
+
+                    return (
+                      <tr className="font-bold">
+                        <td className={`py-3 px-4 text-left ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          TOTAL
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                          {formatCurrency(totals.qb_product_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                          {formatCurrency(totals.qb_shipping_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                          {formatCurrency(totals.qb_total_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {formatCurrency(totals.qb_cogs)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {formatCurrency(totals.qb_gross_profit)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {formatCurrency(totals.lifefile_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${totalVarianceColor}`}>
+                          {isTotalPositive ? '+' : ''}{formatCurrency(totals.variance)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${totalVarianceColor}`}>
+                          {isTotalPositive ? '+' : ''}{totalVariancePercentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                </tfoot>
               </table>
             </div>
           </div>
