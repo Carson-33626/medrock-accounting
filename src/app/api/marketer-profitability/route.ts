@@ -244,10 +244,10 @@ export async function GET(request: NextRequest) {
 
     // Calculate totals
     const stats = {
-      totalTransactions: typedRows.reduce((sum, r) => sum + r.transaction_count, 0),
-      totalNetProfit: typedRows.reduce((sum, r) => sum + Number(r.net_profit), 0),
-      totalRevenue: typedRows.reduce((sum, r) => sum + Number(r.total_pt_paid), 0),
-      totalAcquisitionCost: typedRows.reduce((sum, r) => sum + Number(r.acquisition_cost), 0),
+      totalTransactions: typedRows.reduce((sum: number, r) => sum + r.transaction_count, 0),
+      totalNetProfit: typedRows.reduce((sum: number, r) => sum + Number(r.net_profit), 0),
+      totalRevenue: typedRows.reduce((sum: number, r) => sum + Number(r.total_pt_paid), 0),
+      totalAcquisitionCost: typedRows.reduce((sum: number, r) => sum + Number(r.acquisition_cost), 0),
       uniqueMarketers: marketers.length,
     };
 
@@ -274,13 +274,13 @@ export async function GET(request: NextRequest) {
         period,
         marketers,
         totals: {
-          transaction_count: marketers.reduce((sum, m) => sum + m.transaction_count, 0),
-          acquisition_cost: marketers.reduce((sum, m) => sum + m.acquisition_cost, 0),
-          shipping_charged_to_pt: marketers.reduce((sum, m) => sum + m.shipping_charged_to_pt, 0),
-          shipping_cost_actual: marketers.reduce((sum, m) => sum + m.shipping_cost_actual, 0),
-          total_pt_paid: marketers.reduce((sum, m) => sum + m.total_pt_paid, 0),
-          profit_after_product: marketers.reduce((sum, m) => sum + m.profit_after_product, 0),
-          net_profit: marketers.reduce((sum, m) => sum + m.net_profit, 0),
+          transaction_count: marketers.reduce((sum: number, m) => sum + m.transaction_count, 0),
+          acquisition_cost: marketers.reduce((sum: number, m) => sum + m.acquisition_cost, 0),
+          shipping_charged_to_pt: marketers.reduce((sum: number, m) => sum + m.shipping_charged_to_pt, 0),
+          shipping_cost_actual: marketers.reduce((sum: number, m) => sum + m.shipping_cost_actual, 0),
+          total_pt_paid: marketers.reduce((sum: number, m) => sum + m.total_pt_paid, 0),
+          profit_after_product: marketers.reduce((sum: number, m) => sum + m.profit_after_product, 0),
+          net_profit: marketers.reduce((sum: number, m) => sum + m.net_profit, 0),
         },
       }));
 
@@ -407,9 +407,9 @@ export async function GET(request: NextRequest) {
               location: qbLocation,
               data: qbRevenue,
               totals: {
-                revenue: qbRevenue.reduce((sum, item) => sum + item.revenue, 0),
-                cost_of_goods: qbRevenue.reduce((sum, item) => sum + item.cost_of_goods, 0),
-                gross_profit: qbRevenue.reduce((sum, item) => sum + item.gross_profit, 0),
+                revenue: qbRevenue.reduce((sum: number, item) => sum + item.revenue, 0),
+                cost_of_goods: qbRevenue.reduce((sum: number, item) => sum + item.cost_of_goods, 0),
+                gross_profit: qbRevenue.reduce((sum: number, item) => sum + item.gross_profit, 0),
               },
             };
 
