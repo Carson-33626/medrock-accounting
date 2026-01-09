@@ -287,7 +287,9 @@ export async function getProfitAndLoss(params: {
   const queryParams = new URLSearchParams({
     start_date: params.startDate,
     end_date: params.endDate,
-    accounting_method: params.accounting_method || 'Accrual',
+    // Use Cash basis to match LifeFile's cash collection timing (total_pt_paid)
+    // Accrual would record revenue when earned, Cash records when actually received
+    accounting_method: params.accounting_method || 'Cash',
   });
 
   const endpoint = `reports/ProfitAndLoss?${queryParams.toString()}`;
@@ -343,6 +345,7 @@ export async function getRevenueByPeriod(params: {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   granularity: 'monthly' | 'quarterly' | 'yearly';
+  accounting_method?: 'Cash' | 'Accrual';
 }): Promise<
   Array<{
     period: string;
@@ -398,6 +401,7 @@ export async function getRevenueAllLocations(params: {
   startDate: string;
   endDate: string;
   granularity: 'monthly' | 'quarterly' | 'yearly';
+  accounting_method?: 'Cash' | 'Accrual';
 }): Promise<Record<string, Array<{
   period: string;
   revenue: number;

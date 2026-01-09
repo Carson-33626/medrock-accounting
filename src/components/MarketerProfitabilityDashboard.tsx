@@ -129,6 +129,7 @@ export default function MarketerProfitabilityDashboard() {
   const [expandedMarketers, setExpandedMarketers] = useState<Set<string>>(new Set());
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const [showQuickBooksComparison, setShowQuickBooksComparison] = useState(false);
+  const [qbAccountingMethod, setQbAccountingMethod] = useState<'Cash' | 'Accrual'>('Cash');
   const [showMergedView, setShowMergedView] = useState(false);
   const [qbLoading, setQbLoading] = useState(false);
 
@@ -160,7 +161,7 @@ export default function MarketerProfitabilityDashboard() {
     }
   }, []);
 
-  const fetchData = useCallback(async (currentFilters: Filters, currentGranularity: Granularity, includeQB: boolean, autoDetectedDates?: { start: string; end: string }) => {
+  const fetchData = useCallback(async (currentFilters: Filters, currentGranularity: Granularity, includeQB: boolean, accountingMethod: 'Cash' | 'Accrual', autoDetectedDates?: { start: string; end: string }) => {
     setLoading(true);
     if (includeQB) {
       setQbLoading(true);
@@ -177,6 +178,7 @@ export default function MarketerProfitabilityDashboard() {
       // Use explicit date filters if provided, otherwise use auto-detected dates
       if (includeQB) {
         params.set('includeQuickBooks', 'true');
+        params.set('accountingMethod', accountingMethod);
         if (autoDetectedDates && !currentFilters.startDate && !currentFilters.endDate) {
           params.set('startDate', autoDetectedDates.start);
           params.set('endDate', autoDetectedDates.end);
@@ -218,10 +220,10 @@ export default function MarketerProfitabilityDashboard() {
       };
     }
 
-    fetchData(appliedFilters, granularity, showQuickBooksComparison, autoDetectedDates);
+    fetchData(appliedFilters, granularity, showQuickBooksComparison, qbAccountingMethod, autoDetectedDates);
     // Note: data.periodGroups is accessed but not a dependency to avoid infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedFilters, granularity, showQuickBooksComparison]);
+  }, [appliedFilters, granularity, showQuickBooksComparison, qbAccountingMethod]);
 
   const handleApplyFilters = () => {
     setAppliedFilters({ ...filters });
@@ -735,6 +737,44 @@ export default function MarketerProfitabilityDashboard() {
               </label>
             </div>
 
+            {/* Accounting Method Toggle - Only show when QB comparison is enabled */}
+            {showQuickBooksComparison && (
+              <div className={`flex items-center justify-between pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-3">
+                  <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div className="flex-1">
+                    <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Accounting Method
+                    </h3>
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Cash = revenue when received | Accrual = revenue when earned
+                    </p>
+                  </div>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {qbAccountingMethod}
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={qbAccountingMethod === 'Accrual'}
+                      onChange={(e) => setQbAccountingMethod(e.target.checked ? 'Accrual' : 'Cash')}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-14 h-7 rounded-full peer transition-colors ${
+                      qbAccountingMethod === 'Accrual' ? 'bg-green-600' : darkMode ? 'bg-gray-700' : 'bg-gray-300'
+                    }`}></div>
+                    <div className={`absolute left-1 top-1 w-5 h-5 bg-white rounded-full transition-transform shadow-md ${
+                      qbAccountingMethod === 'Accrual' ? 'translate-x-7' : ''
+                    }`}></div>
+                  </div>
+                </label>
+              </div>
+            )}
+
             {/* Merged View Toggle - Only show when QB comparison is enabled */}
             {showQuickBooksComparison && (
               <div className={`flex items-center justify-between pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -982,10 +1022,10 @@ export default function MarketerProfitabilityDashboard() {
           <div className={`rounded-lg shadow mt-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <div className={`p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                QuickBooks Data by {granularity.charAt(0).toUpperCase() + granularity.slice(1)}
+                QuickBooks Data by {granularity.charAt(0).toUpperCase() + granularity.slice(1)} ({qbAccountingMethod} Basis)
               </h3>
               <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Note: QuickBooks combines product & shipping revenue in account 4000. Ship Rev column will show $0.00.
+                Note: QuickBooks combines product & shipping revenue in account 4000. Ship Rev column will show $0.00. Toggle between Cash (revenue when received) and Accrual (revenue when earned) above.
               </p>
             </div>
             <div className="overflow-x-auto">

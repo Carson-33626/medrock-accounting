@@ -16,8 +16,8 @@ interface CacheEntry {
 const qbCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
 
-function getCacheKey(location: string | null, startDate: string, endDate: string, granularity: string): string {
-  return `${location || 'all'}:${startDate}:${endDate}:${granularity}`;
+function getCacheKey(location: string | null, startDate: string, endDate: string, granularity: string, accountingMethod: string): string {
+  return `${location || 'all'}:${startDate}:${endDate}:${granularity}:${accountingMethod}`;
 }
 
 function getCachedQBData(key: string): any | null {
@@ -310,6 +310,7 @@ export async function GET(request: NextRequest) {
 
     // Optionally fetch QuickBooks revenue comparison
     const includeQB = searchParams.get('includeQuickBooks') === 'true';
+    const accountingMethod = (searchParams.get('accountingMethod') || 'Cash') as 'Cash' | 'Accrual';
     let quickbooksData: any = null;
     let quickbooksComparison: any = null;
 
@@ -320,7 +321,7 @@ export async function GET(request: NextRequest) {
 
         if (!qbLocation) {
           // Check cache first
-          const cacheKey = getCacheKey(null, startDate, endDate, granularity);
+          const cacheKey = getCacheKey(null, startDate, endDate, granularity, accountingMethod);
           let allQBRevenue = getCachedQBData(cacheKey);
 
           if (!allQBRevenue) {
@@ -330,6 +331,7 @@ export async function GET(request: NextRequest) {
               startDate,
               endDate,
               granularity,
+              accounting_method: accountingMethod,
             });
             // Store in cache
             setCachedQBData(cacheKey, allQBRevenue);
@@ -392,7 +394,7 @@ export async function GET(request: NextRequest) {
 
           if (qbConnected) {
             // Check cache first
-            const cacheKey = getCacheKey(qbLocation, startDate, endDate, granularity);
+            const cacheKey = getCacheKey(qbLocation, startDate, endDate, granularity, accountingMethod);
             let qbRevenue = getCachedQBData(cacheKey);
 
             if (!qbRevenue) {
@@ -403,6 +405,7 @@ export async function GET(request: NextRequest) {
                 startDate,
                 endDate,
                 granularity,
+                accounting_method: accountingMethod,
               });
               // Store in cache
               setCachedQBData(cacheKey, qbRevenue);
