@@ -20,7 +20,7 @@ function getCacheKey(location: string | null, startDate: string, endDate: string
   return `${location || 'all'}:${startDate}:${endDate}:${granularity}:${accountingMethod}`;
 }
 
-function getCachedQBData(key: string): any | null {
+function getCachedQBData(key: string): { data: any; ageSeconds: number } | null {
   const entry = qbCache.get(key);
   if (!entry) return null;
 
@@ -30,8 +30,9 @@ function getCachedQBData(key: string): any | null {
     return null;
   }
 
-  console.log(`[QB Cache] HIT for key: ${key} (age: ${Math.round(age / 1000)}s)`);
-  return entry.data;
+  const ageSeconds = Math.round(age / 1000);
+  console.log(`[QB Cache] HIT for key: ${key} (age: ${ageSeconds}s)`);
+  return { data: entry.data, ageSeconds };
 }
 
 function setCachedQBData(key: string, data: any): void {
@@ -313,6 +314,7 @@ export async function GET(request: NextRequest) {
     const accountingMethod = (searchParams.get('accountingMethod') || 'Cash') as 'Cash' | 'Accrual';
     let quickbooksData: any = null;
     let quickbooksComparison: any = null;
+    let qbCacheInfo: { cached: boolean; ageSeconds?: number } = { cached: false };
 
     if (includeQB && startDate && endDate) {
       try {
@@ -322,9 +324,13 @@ export async function GET(request: NextRequest) {
         if (!qbLocation) {
           // Check cache first
           const cacheKey = getCacheKey(null, startDate, endDate, granularity, accountingMethod);
-          let allQBRevenue = getCachedQBData(cacheKey);
+          const cached = getCachedQBData(cacheKey);
 
-          if (!allQBRevenue) {
+          let allQBRevenue;
+          if (cached) {
+            allQBRevenue = cached.data;
+            qbCacheInfo = { cached: true, ageSeconds: cached.ageSeconds };
+          } else {
             // Cache miss - Fetch ALL locations data
             console.log('[QB Cache] MISS - Fetching from API...');
             allQBRevenue = await getRevenueAllLocations({
@@ -335,6 +341,7 @@ export async function GET(request: NextRequest) {
             });
             // Store in cache
             setCachedQBData(cacheKey, allQBRevenue);
+            qbCacheInfo = { cached: false };
           }
 
           // Aggregate revenue by period from all locations
@@ -395,9 +402,13 @@ export async function GET(request: NextRequest) {
           if (qbConnected) {
             // Check cache first
             const cacheKey = getCacheKey(qbLocation, startDate, endDate, granularity, accountingMethod);
-            let qbRevenue = getCachedQBData(cacheKey);
+            const cached = getCachedQBData(cacheKey);
 
-            if (!qbRevenue) {
+            let qbRevenue;
+            if (cached) {
+              qbRevenue = cached.data;
+              qbCacheInfo = { cached: true, ageSeconds: cached.ageSeconds };
+            } else {
               // Cache miss - Fetch QB revenue data for this location
               console.log('[QB Cache] MISS - Fetching from API...');
               qbRevenue = await getRevenueByPeriod({
@@ -409,6 +420,7 @@ export async function GET(request: NextRequest) {
               });
               // Store in cache
               setCachedQBData(cacheKey, qbRevenue);
+              qbCacheInfo = { cached: false };
             }
 
             quickbooksData = {
@@ -498,6 +510,7 @@ export async function GET(request: NextRequest) {
       granularity,
       quickbooks: quickbooksData,
       quickbooksComparison,
+      qbCacheInfo: includeQB ? qbCacheInfo : undefined,
     });
   } catch (error) {
     console.error('Error fetching marketer profitability:', error);

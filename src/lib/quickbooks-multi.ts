@@ -303,6 +303,7 @@ export async function getRevenueSummary(params: {
   location: Location;
   startDate: string;
   endDate: string;
+  accounting_method?: 'Cash' | 'Accrual';
 }): Promise<{
   period: string;
   revenue: number;
@@ -365,7 +366,12 @@ export async function getRevenueByPeriod(params: {
   const results = [];
   for (const { start, end, label } of periods) {
     try {
-      const summary = await getRevenueSummary({ location, startDate: start, endDate: end });
+      const summary = await getRevenueSummary({
+        location,
+        startDate: start,
+        endDate: end,
+        accounting_method: params.accounting_method
+      });
       results.push({
         period: label,
         revenue: summary.revenue,
@@ -446,6 +452,7 @@ function generatePeriods(
   let current = new Date(start);
 
   while (current <= end) {
+    const periodStart = new Date(current); // Save period start before modifying current
     let periodEnd: Date;
     let label: string;
 
@@ -474,7 +481,7 @@ function generatePeriods(
     }
 
     periods.push({
-      start: formatDate(current < start ? start : current),
+      start: formatDate(periodStart < start ? start : periodStart),
       end: formatDate(periodEnd),
       label,
     });
