@@ -311,10 +311,18 @@ export async function getRevenueSummary(params: {
 }> {
   const report = await getProfitAndLoss(params);
 
-  const productRevenue = extractAccountFromReport(report, '4000', 'Revenue');
-  const shippingRevenue = extractAccountFromReport(report, '4100', 'Shipping Revenue');
-  const totalRevenue = productRevenue + shippingRevenue;
+  // QuickBooks combines all revenue in account 4000 (includes product + shipping)
+  const totalRevenue = extractAccountFromReport(report, '4000', 'Revenue');
+
+  // Note: QB doesn't separate product vs shipping revenue in the P&L
+  // Account 4100 (Shipping Revenue) either doesn't exist or has no transactions
+  // We'll put all revenue in product_revenue since it's combined in QB
+  const productRevenue = totalRevenue;
+  const shippingRevenue = 0; // Not tracked separately in QB
+
   const cogs = extractCOGSFromReport(report);
+
+  console.log(`[QB Revenue] Account 4000 Total: $${totalRevenue.toLocaleString()}`);
 
   return {
     period: `${params.startDate} to ${params.endDate}`,
@@ -495,28 +503,55 @@ function extractAccountFromReport(report: any, accountNumber: string, accountNam
         row.Header?.ColData?.[0]?.value?.includes('Revenue')
     );
 
-    if (!incomeSection?.Rows?.Row) return 0;
+    if (!incomeSection?.Rows?.Row) {
+      console.log(`[QB Extract] No income section found for account ${accountNumber}`);
+      return 0;
+    }
+
+    // DEBUG: Log all accounts found in Income section
+    console.log(`[QB Extract] Looking for account ${accountNumber} (${accountName})`);
+    console.log(`[QB Extract] Found ${incomeSection.Rows.Row.length} account rows in Income section`);
+    incomeSection.Rows.Row.forEach((row: any, idx: number) => {
+      const colData = row.ColData?.[0];
+      console.log(`[QB Extract] Row ${idx}:`, {
+        id: colData?.id,
+        value: colData?.value,
+        amount: row.ColData?.[row.ColData?.length - 1]?.value
+      });
+    });
 
     // Search for the specific account by number or name
     const accountRow = incomeSection.Rows.Row.find((row: any) => {
       const colData = row.ColData?.[0];
-      const value = colData?.value || '';
-      const id = colData?.id || '';
+      const value = (colData?.value || '').toString();
+      const id = (colData?.id || '').toString();
 
-      // Match by account number or account name
-      return (
-        id === accountNumber ||
-        value.includes(accountNumber) ||
-        value.includes(accountName)
-      );
+      // Match by:
+      // 1. Exact account number in ID field
+      // 2. Account number anywhere in value (e.g., "4000 Revenue")
+      // 3. Account name in value
+      const matchesId = id === accountNumber;
+      const matchesNumber = value.includes(accountNumber);
+      const matchesName = value.includes(accountName);
+
+      const matched = matchesId || matchesNumber || matchesName;
+
+      if (matched) {
+        console.log(`[QB Extract] MATCH FOUND for ${accountNumber}:`, { id, value, matchesId, matchesNumber, matchesName });
+      }
+
+      return matched;
     });
 
     if (accountRow?.ColData) {
       // The last column typically contains the amount
       const totalCol = accountRow.ColData[accountRow.ColData.length - 1];
-      return parseFloat(totalCol?.value || '0');
+      const amount = parseFloat(totalCol?.value || '0');
+      console.log(`[QB Extract] ✓ Found ${accountNumber}: $${amount.toLocaleString()}`);
+      return amount;
     }
 
+    console.log(`[QB Extract] ✗ Account ${accountNumber} (${accountName}) NOT FOUND`);
     return 0;
   } catch (error) {
     console.error(`Error parsing QB account ${accountNumber} (${accountName}):`, error);

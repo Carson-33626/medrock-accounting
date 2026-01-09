@@ -231,9 +231,15 @@ export async function GET(request: NextRequest) {
 
     const typedRows = rows as MarketerMonthlyRow[];
 
-    // Get unique marketers and locations for filters
+    // Get unique marketers from filtered results
     const marketers = [...new Set(typedRows.map(r => r.marketer_name))].sort();
-    const locations = [...new Set(typedRows.map(r => r.location))].sort();
+
+    // Get ALL available locations (not filtered) so user can always switch between them
+    const { data: allLocations } = await supabase
+      .from('amy_marketer_monthly')
+      .select('location')
+      .order('location');
+    const locations = [...new Set((allLocations || []).map((r: any) => r.location))].sort();
 
     // Get date range
     const years = [...new Set(typedRows.map(r => r.year))].sort((a, b) => b - a);

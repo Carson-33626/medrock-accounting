@@ -519,7 +519,10 @@ export default function MarketerProfitabilityDashboard() {
               </label>
               <select
                 value={filters.location}
-                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                onChange={(e) => {
+                  const newLocation = e.target.value;
+                  setFilters({ ...filters, location: newLocation });
+                }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                   darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
                 }`}
@@ -981,6 +984,9 @@ export default function MarketerProfitabilityDashboard() {
               <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 QuickBooks Data by {granularity.charAt(0).toUpperCase() + granularity.slice(1)}
               </h3>
+              <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Note: QuickBooks combines product & shipping revenue in account 4000. Ship Rev column will show $0.00.
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
