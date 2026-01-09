@@ -66,11 +66,15 @@ interface QuickBooksData {
   data?: Array<{
     period: string;
     revenue: number;
+    product_revenue: number;
+    shipping_revenue: number;
     cost_of_goods: number;
     gross_profit: number;
   }>;
   totals?: {
     revenue: number;
+    product_revenue: number;
+    shipping_revenue: number;
     cost_of_goods: number;
     gross_profit: number;
   };
@@ -80,6 +84,8 @@ interface QuickBooksComparison {
   period: string;
   internal_revenue: number;
   quickbooks_revenue: number;
+  quickbooks_product_revenue: number;
+  quickbooks_shipping_revenue: number;
   quickbooks_cogs: number;
   quickbooks_gross_profit: number;
   variance: number;
@@ -981,7 +987,9 @@ export default function MarketerProfitabilityDashboard() {
                 <thead className={`sticky top-0 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
                     <th className={`text-left py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Period</th>
-                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Revenue</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Product Rev</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Ship Rev</th>
+                    <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Total Rev</th>
                     <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB COGS</th>
                     <th className={`text-right py-3 px-4 font-medium text-blue-500`}>QB Gross Profit</th>
                     <th className={`text-right py-3 px-4 font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>LifeFile Reported</th>
@@ -1002,6 +1010,12 @@ export default function MarketerProfitabilityDashboard() {
                           {formatPeriodLabel(qbPeriod.period)}
                         </td>
                         <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          {formatCurrency(qbPeriod.quickbooks_product_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          {formatCurrency(qbPeriod.quickbooks_shipping_revenue)}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-semibold ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
                           {formatCurrency(qbPeriod.quickbooks_revenue)}
                         </td>
                         <td className={`py-3 px-4 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>

@@ -304,19 +304,25 @@ export async function getRevenueSummary(params: {
 }): Promise<{
   period: string;
   revenue: number;
+  product_revenue: number;
+  shipping_revenue: number;
   cost_of_goods: number;
   gross_profit: number;
 }> {
   const report = await getProfitAndLoss(params);
 
-  const revenue = extractRevenueFromReport(report);
+  const productRevenue = extractAccountFromReport(report, '4000', 'Revenue');
+  const shippingRevenue = extractAccountFromReport(report, '4100', 'Shipping Revenue');
+  const totalRevenue = productRevenue + shippingRevenue;
   const cogs = extractCOGSFromReport(report);
 
   return {
     period: `${params.startDate} to ${params.endDate}`,
-    revenue,
+    revenue: totalRevenue,
+    product_revenue: productRevenue,
+    shipping_revenue: shippingRevenue,
     cost_of_goods: cogs,
-    gross_profit: revenue - cogs,
+    gross_profit: totalRevenue - cogs,
   };
 }
 
@@ -333,6 +339,8 @@ export async function getRevenueByPeriod(params: {
   Array<{
     period: string;
     revenue: number;
+    product_revenue: number;
+    shipping_revenue: number;
     cost_of_goods: number;
     gross_profit: number;
   }>
@@ -350,6 +358,8 @@ export async function getRevenueByPeriod(params: {
       results.push({
         period: label,
         revenue: summary.revenue,
+        product_revenue: summary.product_revenue,
+        shipping_revenue: summary.shipping_revenue,
         cost_of_goods: summary.cost_of_goods,
         gross_profit: summary.gross_profit,
       });
@@ -361,6 +371,8 @@ export async function getRevenueByPeriod(params: {
       results.push({
         period: label,
         revenue: 0,
+        product_revenue: 0,
+        shipping_revenue: 0,
         cost_of_goods: 0,
         gross_profit: 0,
       });
@@ -381,6 +393,8 @@ export async function getRevenueAllLocations(params: {
 }): Promise<Record<string, Array<{
   period: string;
   revenue: number;
+  product_revenue: number;
+  shipping_revenue: number;
   cost_of_goods: number;
   gross_profit: number;
 }>>> {
@@ -464,6 +478,50 @@ function formatDate(date: Date): string {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Helper: Extract specific account value from P&L report
+ */
+function extractAccountFromReport(report: any, accountNumber: string, accountName: string): number {
+  try {
+    const rows = report?.Rows?.Row || [];
+
+    // Find the Income section
+    const incomeSection = rows.find(
+      (row: any) =>
+        row.group === 'Income' ||
+        row.Header?.ColData?.[0]?.value?.includes('Income') ||
+        row.Header?.ColData?.[0]?.value?.includes('Revenue')
+    );
+
+    if (!incomeSection?.Rows?.Row) return 0;
+
+    // Search for the specific account by number or name
+    const accountRow = incomeSection.Rows.Row.find((row: any) => {
+      const colData = row.ColData?.[0];
+      const value = colData?.value || '';
+      const id = colData?.id || '';
+
+      // Match by account number or account name
+      return (
+        id === accountNumber ||
+        value.includes(accountNumber) ||
+        value.includes(accountName)
+      );
+    });
+
+    if (accountRow?.ColData) {
+      // The last column typically contains the amount
+      const totalCol = accountRow.ColData[accountRow.ColData.length - 1];
+      return parseFloat(totalCol?.value || '0');
+    }
+
+    return 0;
+  } catch (error) {
+    console.error(`Error parsing QB account ${accountNumber} (${accountName}):`, error);
+    return 0;
+  }
 }
 
 /**

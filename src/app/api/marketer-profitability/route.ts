@@ -407,14 +407,16 @@ export async function GET(request: NextRequest) {
               location: qbLocation,
               data: qbRevenue,
               totals: {
-                revenue: qbRevenue.reduce((sum: number, item: { revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.revenue, 0),
-                cost_of_goods: qbRevenue.reduce((sum: number, item: { revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.cost_of_goods, 0),
-                gross_profit: qbRevenue.reduce((sum: number, item: { revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.gross_profit, 0),
+                revenue: qbRevenue.reduce((sum: number, item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.revenue, 0),
+                product_revenue: qbRevenue.reduce((sum: number, item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.product_revenue, 0),
+                shipping_revenue: qbRevenue.reduce((sum: number, item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.shipping_revenue, 0),
+                cost_of_goods: qbRevenue.reduce((sum: number, item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.cost_of_goods, 0),
+                gross_profit: qbRevenue.reduce((sum: number, item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => sum + item.gross_profit, 0),
               },
             };
 
             // Create comparison map by period
-            const qbByPeriod = new Map<string, { revenue: number; cost_of_goods: number; gross_profit: number; period: string }>(qbRevenue.map((item: { revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => [item.period, item]));
+            const qbByPeriod = new Map<string, { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }>(qbRevenue.map((item: { revenue: number; product_revenue: number; shipping_revenue: number; cost_of_goods: number; gross_profit: number; period: string }) => [item.period, item]));
 
             quickbooksComparison = periodGroups.map(group => {
               const qbPeriod = qbByPeriod.get(group.period);
@@ -424,6 +426,8 @@ export async function GET(request: NextRequest) {
                   period: group.period,
                   internal_revenue: group.totals.total_pt_paid,
                   quickbooks_revenue: 0,
+                  quickbooks_product_revenue: 0,
+                  quickbooks_shipping_revenue: 0,
                   quickbooks_cogs: 0,
                   quickbooks_gross_profit: 0,
                   variance: group.totals.total_pt_paid,
@@ -441,6 +445,8 @@ export async function GET(request: NextRequest) {
                 period: group.period,
                 internal_revenue: group.totals.total_pt_paid,
                 quickbooks_revenue: qbPeriod.revenue,
+                quickbooks_product_revenue: qbPeriod.product_revenue,
+                quickbooks_shipping_revenue: qbPeriod.shipping_revenue,
                 quickbooks_cogs: qbPeriod.cost_of_goods,
                 quickbooks_gross_profit: qbPeriod.gross_profit,
                 variance,
