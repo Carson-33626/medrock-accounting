@@ -135,10 +135,14 @@ export default function MarketerProfitabilityDashboard() {
 
   // Helper to convert period string to date range
   const periodToDateRange = useCallback((period: string, granularity: Granularity): { start: string; end: string } => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+
     if (granularity === 'yearly') {
+      const endDate = `${period}-12-31`;
       return {
         start: `${period}-01-01`,
-        end: `${period}-12-31`,
+        end: endDate > todayStr ? todayStr : endDate, // Cap at today if future
       };
     } else if (granularity === 'quarterly') {
       // Format: YYYY-Q1, YYYY-Q2, etc.
@@ -146,17 +150,19 @@ export default function MarketerProfitabilityDashboard() {
       const q = parseInt(quarter);
       const startMonth = (q - 1) * 3 + 1;
       const endMonth = startMonth + 2;
+      const endDate = `${year}-${endMonth.toString().padStart(2, '0')}-${new Date(parseInt(year), endMonth, 0).getDate()}`;
       return {
         start: `${year}-${startMonth.toString().padStart(2, '0')}-01`,
-        end: `${year}-${endMonth.toString().padStart(2, '0')}-${new Date(parseInt(year), endMonth, 0).getDate()}`,
+        end: endDate > todayStr ? todayStr : endDate, // Cap at today if future
       };
     } else {
       // Monthly: YYYY-MM
       const [year, month] = period.split('-');
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`;
       return {
         start: `${year}-${month}-01`,
-        end: `${year}-${month}-${lastDay}`,
+        end: endDate > todayStr ? todayStr : endDate, // Cap at today if future
       };
     }
   }, []);
