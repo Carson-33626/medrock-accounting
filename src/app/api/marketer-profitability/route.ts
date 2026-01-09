@@ -2,6 +2,64 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getRevenueByPeriod, getRevenueAllLocations, isConnected, type Location } from '@/lib/quickbooks-multi';
 
+// Route segment config - allow dynamic rendering with our own cache
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// QuickBooks Response Cache
+// Simple in-memory cache with TTL to reduce API calls
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const qbCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
+
+function getCacheKey(location: string | null, startDate: string, endDate: string, granularity: string): string {
+  return `${location || 'all'}:${startDate}:${endDate}:${granularity}`;
+}
+
+function getCachedQBData(key: string): any | null {
+  const entry = qbCache.get(key);
+  if (!entry) return null;
+
+  const age = Date.now() - entry.timestamp;
+  if (age > CACHE_TTL_MS) {
+    qbCache.delete(key);
+    return null;
+  }
+
+  console.log(`[QB Cache] HIT for key: ${key} (age: ${Math.round(age / 1000)}s)`);
+  return entry.data;
+}
+
+function setCachedQBData(key: string, data: any): void {
+  qbCache.set(key, { data, timestamp: Date.now() });
+  console.log(`[QB Cache] SET for key: ${key}`);
+
+  // Periodic cleanup: remove expired entries when cache grows
+  if (qbCache.size > 50) {
+    cleanExpiredCache();
+  }
+}
+
+function cleanExpiredCache(): void {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [key, entry] of qbCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      qbCache.delete(key);
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[QB Cache] Cleaned ${removed} expired entries. Current size: ${qbCache.size}`);
+  }
+}
+
 interface MarketerMonthlyRow {
   id: number;
   location: string;
@@ -255,12 +313,21 @@ export async function GET(request: NextRequest) {
         const qbLocation = (location && location !== 'all' ? location : null) as Location | null;
 
         if (!qbLocation) {
-          // Fetch ALL locations data
-          const allQBRevenue = await getRevenueAllLocations({
-            startDate,
-            endDate,
-            granularity,
-          });
+          // Check cache first
+          const cacheKey = getCacheKey(null, startDate, endDate, granularity);
+          let allQBRevenue = getCachedQBData(cacheKey);
+
+          if (!allQBRevenue) {
+            // Cache miss - Fetch ALL locations data
+            console.log('[QB Cache] MISS - Fetching from API...');
+            allQBRevenue = await getRevenueAllLocations({
+              startDate,
+              endDate,
+              granularity,
+            });
+            // Store in cache
+            setCachedQBData(cacheKey, allQBRevenue);
+          }
 
           // Aggregate revenue by period from all locations
           const aggregatedByPeriod = new Map<string, { revenue: number; cost_of_goods: number; gross_profit: number }>();
@@ -318,13 +385,22 @@ export async function GET(request: NextRequest) {
           const qbConnected = await isConnected(qbLocation);
 
           if (qbConnected) {
-            // Fetch QB revenue data for this location
-            const qbRevenue = await getRevenueByPeriod({
-              location: qbLocation,
-              startDate,
-              endDate,
-              granularity,
-            });
+            // Check cache first
+            const cacheKey = getCacheKey(qbLocation, startDate, endDate, granularity);
+            let qbRevenue = getCachedQBData(cacheKey);
+
+            if (!qbRevenue) {
+              // Cache miss - Fetch QB revenue data for this location
+              console.log('[QB Cache] MISS - Fetching from API...');
+              qbRevenue = await getRevenueByPeriod({
+                location: qbLocation,
+                startDate,
+                endDate,
+                granularity,
+              });
+              // Store in cache
+              setCachedQBData(cacheKey, qbRevenue);
+            }
 
             quickbooksData = {
               connected: true,
