@@ -27,73 +27,8 @@ const EXCLUDED_PREFIXES = [
   '/public',
 ];
 
-// Cookie payload structure (matches auth service format)
-interface CookiePayload {
-  at: string;  // access token
-  rt: string;  // refresh token
-  exp: number; // expires at (unix timestamp)
-}
-
-/**
- * Decode and validate session cookie
- * Returns null if cookie is invalid or expired
- */
-function validateSessionCookie(cookieValue: string): { accessToken: string; expired: boolean } | null {
-  if (!cookieValue) return null;
-
-  try {
-    // Try new format first (URL-safe base64 encoded JSON)
-    let base64 = cookieValue
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-
-    // Add padding if needed
-    while (base64.length % 4) {
-      base64 += '=';
-    }
-
-    // Decode using atob (works in Edge Runtime)
-    const decoded = atob(base64);
-    const payload = JSON.parse(decoded) as CookiePayload;
-
-    if (payload.at && payload.exp) {
-      // Check if token is expired (with 5 second buffer)
-      const now = Math.floor(Date.now() / 1000);
-      const expired = payload.exp < (now - 5);
-
-      return {
-        accessToken: payload.at,
-        expired,
-      };
-    }
-  } catch {
-    // Not base64 JSON, try old format
-  }
-
-  // Old format: raw access token (JWT has dots)
-  if (cookieValue.includes('.')) {
-    // For old format, we can't check expiration without decoding JWT
-    // We'll need to parse the JWT payload to check exp
-    try {
-      const parts = cookieValue.split('.');
-      if (parts.length === 3) {
-        // Decode JWT payload (second part)
-        const payload = JSON.parse(atob(parts[1]));
-        const now = Math.floor(Date.now() / 1000);
-        const expired = payload.exp ? payload.exp < (now - 5) : false;
-
-        return {
-          accessToken: cookieValue,
-          expired,
-        };
-      }
-    } catch {
-      // JWT decode failed
-    }
-  }
-
-  return null;
-}
+// NOTE: Cookie validation removed - token validation happens in server components/API routes
+// The middleware just checks if the cookie exists, actual validation is done server-side
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -123,26 +58,24 @@ export async function middleware(request: NextRequest) {
   // Check for session cookie from centralized auth service
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
 
+  // DEBUG: Log all cookies to see what's available
+  const allCookies = request.cookies.getAll();
+  console.log('[Middleware] Path:', pathname);
+  console.log('[Middleware] All cookies:', allCookies.map(c => c.name).join(', '));
+  console.log('[Middleware] medrock_session cookie:', sessionCookie ? 'FOUND' : 'NOT FOUND');
+
   if (!sessionCookie?.value) {
     // No session - redirect to centralized auth service
+    console.log('[Middleware] No session cookie, redirecting to auth');
     const currentUrl = request.url;
     const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}`;
 
     return NextResponse.redirect(loginUrl);
   }
 
-  // Validate session cookie and check expiration
-  const sessionData = validateSessionCookie(sessionCookie.value);
+  console.log('[Middleware] Session cookie found, length:', sessionCookie.value.length);
 
-  if (!sessionData || sessionData.expired) {
-    // Invalid or expired session - redirect to login
-    const currentUrl = request.url;
-    const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}`;
-
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Session exists and is valid - check app access
+  // Session exists - check app access
   // REQUIRED: Verify user has permission to access this app
   try {
     const accessCheck = await fetch(
