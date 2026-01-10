@@ -626,52 +626,116 @@ function extractCOGSFromReport(report: any): number {
 }
 
 /**
+ * Helper: Recursively search rows for payroll accounts
+ * Returns total of all matching accounts
+ *
+ * MedRock account structure:
+ * - 5010.xx: COGS - Payroll Expense (Lab Wages, Pharmacist Wages, Employer Taxes)
+ * - 6500.xx: Payroll Expense (Admin, Customer Service, Data Entry, Marketing, etc.)
+ * - 6800.15: Payroll - Car Allowance (in Sales & Marketing)
+ */
+function findPayrollInRows(rows: any[], depth = 0): number {
+  let total = 0;
+  const indent = '  '.repeat(depth);
+
+  for (const row of rows) {
+    // Check if this is a section header with nested rows
+    if (row.Header?.ColData) {
+      const headerValue = (row.Header.ColData[0]?.value || '').toString().toLowerCase();
+
+      // If this is a payroll-related section (5010 or 6500), use its summary total
+      const isPayrollSection =
+        headerValue.includes('5010') ||
+        headerValue.includes('6500') ||
+        (headerValue.includes('payroll') && !headerValue.includes('car allowance'));
+
+      if (isPayrollSection) {
+        // Use the Summary row total for the entire section
+        if (row.Summary?.ColData) {
+          const summaryAmount = parseFloat(row.Summary.ColData[row.Summary.ColData.length - 1]?.value || '0');
+          if (summaryAmount !== 0) {
+            console.log(`${indent}[QB Payroll] Section total: ${row.Header.ColData[0]?.value} = $${summaryAmount.toLocaleString()}`);
+            total += summaryAmount;
+          }
+        }
+      } else if (row.Rows?.Row) {
+        // Not a payroll section, but recurse to find payroll accounts within
+        total += findPayrollInRows(row.Rows.Row, depth + 1);
+      }
+    }
+
+    // Check individual account rows (for accounts like 6800.15 Payroll - Car Allowance)
+    if (row.ColData && !row.Header) {
+      const colData = row.ColData[0];
+      const value = (colData?.value || '').toString().toLowerCase();
+
+      // Match individual payroll accounts (not sections)
+      // This catches things like "6800.15 Payroll - Car Allowance"
+      const isPayrollAccount =
+        (value.includes('payroll') && !value.includes('processing fee')) ||
+        value.includes('wages') ||
+        value.includes('salaries');
+
+      if (isPayrollAccount) {
+        const amount = parseFloat(row.ColData[row.ColData.length - 1]?.value || '0');
+        if (amount !== 0) {
+          console.log(`${indent}[QB Payroll] Found: ${colData?.value} = $${amount.toLocaleString()}`);
+          total += amount;
+        }
+      }
+    }
+
+    // Also check for nested Rows without Header (some QB formats)
+    if (row.Rows?.Row && !row.Header) {
+      total += findPayrollInRows(row.Rows.Row, depth + 1);
+    }
+  }
+
+  return total;
+}
+
+/**
  * Helper: Extract payroll expenses from P&L report
- * Looks for accounts starting with 6100 (Payroll Expenses) or containing "payroll" in name
+ * Searches BOTH COGS section (5010) and Expenses section (6500) for payroll
+ * Returns absolute value since expenses may be recorded as negative credits
  */
 function extractPayrollFromReport(report: any): number {
   try {
     const rows = report?.Rows?.Row || [];
+    let payrollTotal = 0;
 
-    // Find the Expenses section
+    console.log('[QB Payroll] Searching for payroll in COGS and Expenses sections...');
+
+    // Search COGS section for 5010 COGS - Payroll Expense
+    const cogsSection = rows.find(
+      (row: any) =>
+        row.group === 'COGS' ||
+        row.Header?.ColData?.[0]?.value?.includes('Cost of Goods Sold')
+    );
+
+    if (cogsSection?.Rows?.Row) {
+      console.log('[QB Payroll] Searching COGS section...');
+      const cogsPayroll = findPayrollInRows(cogsSection.Rows.Row);
+      payrollTotal += cogsPayroll;
+    }
+
+    // Search Expenses section for 6500 Payroll Expense and other payroll accounts
     const expensesSection = rows.find(
       (row: any) =>
         row.group === 'Expenses' ||
         row.Header?.ColData?.[0]?.value?.includes('Expenses')
     );
 
-    if (!expensesSection?.Rows?.Row) {
-      console.log('[QB Extract] No expenses section found for payroll');
-      return 0;
+    if (expensesSection?.Rows?.Row) {
+      console.log('[QB Payroll] Searching Expenses section...');
+      const expensesPayroll = findPayrollInRows(expensesSection.Rows.Row);
+      payrollTotal += expensesPayroll;
     }
 
-    let payrollTotal = 0;
-
-    // Search for payroll-related accounts
-    expensesSection.Rows.Row.forEach((row: any) => {
-      const colData = row.ColData?.[0];
-      const value = (colData?.value || '').toString().toLowerCase();
-      const id = (colData?.id || '').toString();
-
-      // Match accounts starting with 6100 or containing "payroll", "salaries", "wages"
-      const isPayrollAccount =
-        id.startsWith('6100') ||
-        value.includes('6100') ||
-        value.includes('payroll') ||
-        value.includes('salaries') ||
-        value.includes('wages');
-
-      if (isPayrollAccount && row.ColData) {
-        const amount = parseFloat(row.ColData[row.ColData.length - 1]?.value || '0');
-        if (amount > 0) {
-          console.log(`[QB Extract] Found payroll account: ${value} = $${amount.toLocaleString()}`);
-          payrollTotal += amount;
-        }
-      }
-    });
-
-    console.log(`[QB Extract] Total payroll expenses: $${payrollTotal.toLocaleString()}`);
-    return payrollTotal;
+    // Return absolute value since expenses are often recorded as negative credits
+    const absolutePayroll = Math.abs(payrollTotal);
+    console.log(`[QB Extract] Total payroll: $${absolutePayroll.toLocaleString()} (raw: ${payrollTotal})`);
+    return absolutePayroll;
   } catch (error) {
     console.error('Error parsing QB payroll:', error);
     return 0;
@@ -680,7 +744,7 @@ function extractPayrollFromReport(report: any): number {
 
 /**
  * Helper: Extract operating expenses from P&L report (excluding payroll)
- * Gets total expenses minus payroll
+ * Gets total expenses minus ONLY the expenses-section payroll (not COGS payroll)
  */
 function extractOperatingExpensesFromReport(report: any): number {
   try {
@@ -703,14 +767,20 @@ function extractOperatingExpensesFromReport(report: any): number {
     const summaryRow = expensesSection.Summary;
     if (summaryRow?.ColData) {
       const totalCol = summaryRow.ColData[summaryRow.ColData.length - 1];
-      totalExpenses = parseFloat(totalCol?.value || '0');
+      totalExpenses = Math.abs(parseFloat(totalCol?.value || '0'));
     }
 
-    // Subtract payroll to get operating expenses
-    const payroll = extractPayrollFromReport(report);
-    const operatingExpenses = totalExpenses - payroll;
+    // Get ONLY the expenses-section payroll (6500, not 5010 COGS payroll)
+    let expensesPayroll = 0;
+    if (expensesSection?.Rows?.Row) {
+      expensesPayroll = Math.abs(findPayrollInRows(expensesSection.Rows.Row));
+    }
+
+    // Operating expenses = total expenses - payroll from expenses section
+    const operatingExpenses = totalExpenses - expensesPayroll;
 
     console.log(`[QB Extract] Total expenses: $${totalExpenses.toLocaleString()}`);
+    console.log(`[QB Extract] Expenses-section payroll: $${expensesPayroll.toLocaleString()}`);
     console.log(`[QB Extract] Operating expenses (excl. payroll): $${operatingExpenses.toLocaleString()}`);
 
     return operatingExpenses;
