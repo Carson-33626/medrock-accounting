@@ -626,6 +626,191 @@ function extractCOGSFromReport(report: any): number {
 }
 
 /**
+ * Helper: Extract payroll expenses from P&L report
+ * Looks for accounts starting with 6100 (Payroll Expenses) or containing "payroll" in name
+ */
+function extractPayrollFromReport(report: any): number {
+  try {
+    const rows = report?.Rows?.Row || [];
+
+    // Find the Expenses section
+    const expensesSection = rows.find(
+      (row: any) =>
+        row.group === 'Expenses' ||
+        row.Header?.ColData?.[0]?.value?.includes('Expenses')
+    );
+
+    if (!expensesSection?.Rows?.Row) {
+      console.log('[QB Extract] No expenses section found for payroll');
+      return 0;
+    }
+
+    let payrollTotal = 0;
+
+    // Search for payroll-related accounts
+    expensesSection.Rows.Row.forEach((row: any) => {
+      const colData = row.ColData?.[0];
+      const value = (colData?.value || '').toString().toLowerCase();
+      const id = (colData?.id || '').toString();
+
+      // Match accounts starting with 6100 or containing "payroll", "salaries", "wages"
+      const isPayrollAccount =
+        id.startsWith('6100') ||
+        value.includes('6100') ||
+        value.includes('payroll') ||
+        value.includes('salaries') ||
+        value.includes('wages');
+
+      if (isPayrollAccount && row.ColData) {
+        const amount = parseFloat(row.ColData[row.ColData.length - 1]?.value || '0');
+        if (amount > 0) {
+          console.log(`[QB Extract] Found payroll account: ${value} = $${amount.toLocaleString()}`);
+          payrollTotal += amount;
+        }
+      }
+    });
+
+    console.log(`[QB Extract] Total payroll expenses: $${payrollTotal.toLocaleString()}`);
+    return payrollTotal;
+  } catch (error) {
+    console.error('Error parsing QB payroll:', error);
+    return 0;
+  }
+}
+
+/**
+ * Helper: Extract operating expenses from P&L report (excluding payroll)
+ * Gets total expenses minus payroll
+ */
+function extractOperatingExpensesFromReport(report: any): number {
+  try {
+    const rows = report?.Rows?.Row || [];
+
+    // Find the Expenses section
+    const expensesSection = rows.find(
+      (row: any) =>
+        row.group === 'Expenses' ||
+        row.Header?.ColData?.[0]?.value?.includes('Expenses')
+    );
+
+    if (!expensesSection) {
+      console.log('[QB Extract] No expenses section found');
+      return 0;
+    }
+
+    // Get total expenses from summary
+    let totalExpenses = 0;
+    const summaryRow = expensesSection.Summary;
+    if (summaryRow?.ColData) {
+      const totalCol = summaryRow.ColData[summaryRow.ColData.length - 1];
+      totalExpenses = parseFloat(totalCol?.value || '0');
+    }
+
+    // Subtract payroll to get operating expenses
+    const payroll = extractPayrollFromReport(report);
+    const operatingExpenses = totalExpenses - payroll;
+
+    console.log(`[QB Extract] Total expenses: $${totalExpenses.toLocaleString()}`);
+    console.log(`[QB Extract] Operating expenses (excl. payroll): $${operatingExpenses.toLocaleString()}`);
+
+    return operatingExpenses;
+  } catch (error) {
+    console.error('Error parsing QB operating expenses:', error);
+    return 0;
+  }
+}
+
+/**
+ * Helper: Extract net income from P&L report
+ */
+function extractNetIncomeFromReport(report: any): number {
+  try {
+    const rows = report?.Rows?.Row || [];
+
+    // Find the Net Income row (usually at the end)
+    const netIncomeRow = rows.find(
+      (row: any) =>
+        row.group === 'NetIncome' ||
+        row.Header?.ColData?.[0]?.value?.includes('Net Income')
+    );
+
+    if (!netIncomeRow) {
+      console.log('[QB Extract] No net income found');
+      return 0;
+    }
+
+    const summaryRow = netIncomeRow.Summary;
+    if (summaryRow?.ColData) {
+      const totalCol = summaryRow.ColData[summaryRow.ColData.length - 1];
+      const netIncome = parseFloat(totalCol?.value || '0');
+      console.log(`[QB Extract] Net income: $${netIncome.toLocaleString()}`);
+      return netIncome;
+    }
+
+    return 0;
+  } catch (error) {
+    console.error('Error parsing QB net income:', error);
+    return 0;
+  }
+}
+
+/**
+ * Get complete company financials (revenue, COGS, payroll, operating expenses, net income)
+ */
+export async function getCompanyFinancials(params: {
+  location: Location;
+  startDate: string;
+  endDate: string;
+  accounting_method?: 'Cash' | 'Accrual';
+}): Promise<{
+  location: string;
+  period: string;
+  revenue: number;
+  product_revenue: number;
+  shipping_revenue: number;
+  cogs: number;
+  gross_profit: number;
+  gross_margin_percent: number;
+  payroll_total: number;
+  operating_expenses_total: number;
+  net_income: number;
+  net_margin_percent: number;
+  accounting_method: 'Cash' | 'Accrual';
+  cached: boolean;
+}> {
+  const report = await getProfitAndLoss(params);
+
+  const revenue = extractAccountFromReport(report, '4000', 'Revenue');
+  const productRevenue = revenue; // QB combines all revenue
+  const shippingRevenue = 0;
+  const cogs = extractCOGSFromReport(report);
+  const grossProfit = revenue - cogs;
+  const grossMarginPercent = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+
+  const payrollTotal = extractPayrollFromReport(report);
+  const operatingExpensesTotal = extractOperatingExpensesFromReport(report);
+  const netIncome = extractNetIncomeFromReport(report);
+  const netMarginPercent = revenue > 0 ? (netIncome / revenue) * 100 : 0;
+
+  return {
+    location: params.location,
+    period: `${params.startDate} to ${params.endDate}`,
+    revenue,
+    product_revenue: productRevenue,
+    shipping_revenue: shippingRevenue,
+    cogs,
+    gross_profit: grossProfit,
+    gross_margin_percent: grossMarginPercent,
+    payroll_total: payrollTotal,
+    operating_expenses_total: operatingExpensesTotal,
+    net_income: netIncome,
+    net_margin_percent: netMarginPercent,
+    accounting_method: params.accounting_method || 'Cash',
+    cached: false,
+  };
+}
+
+/**
  * Check if a specific location is connected
  */
 export async function isConnected(location: Location): Promise<boolean> {
