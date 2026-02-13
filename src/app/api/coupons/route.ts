@@ -120,9 +120,6 @@ async function fetchLiveData(filters?: { startDate?: string; endDate?: string })
 
       hasMore = page < result.totalPages;
       page++;
-
-      // Safety limit - don't fetch more than 50 pages (5000 records)
-      if (page > 50) break;
     } catch (error) {
       console.error('Error fetching live data:', error);
       break;
