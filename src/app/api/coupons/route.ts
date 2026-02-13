@@ -72,8 +72,8 @@ function transformLive(data: LiveCoupon[]): CouponRedemption[] {
   }));
 }
 
-// Fetch all live data from MedRock Payments API
-async function fetchLiveData(): Promise<LiveCoupon[]> {
+// Fetch live data from MedRock Payments API with optional date filtering
+async function fetchLiveData(filters?: { startDate?: string; endDate?: string }): Promise<LiveCoupon[]> {
   const apiUrl = process.env.MEDROCK_PAYMENTS_API_URL;
   const apiUser = process.env.MEDROCK_PAYMENTS_API_USER;
   const apiPass = process.env.MEDROCK_PAYMENTS_API_PASS;
@@ -90,8 +90,16 @@ async function fetchLiveData(): Promise<LiveCoupon[]> {
 
   while (hasMore) {
     try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+      // Pass date filters to the API if supported
+      if (filters?.startDate) params.set('startDate', filters.startDate);
+      if (filters?.endDate) params.set('endDate', filters.endDate);
+
       const response = await fetch(
-        `${apiUrl}/coupons/admin/redeemed?page=${page}&limit=${limit}`,
+        `${apiUrl}/coupons/admin/redeemed?${params.toString()}`,
         {
           headers: {
             'Authorization': 'Basic ' + Buffer.from(`${apiUser}:${apiPass}`).toString('base64')
@@ -108,6 +116,8 @@ async function fetchLiveData(): Promise<LiveCoupon[]> {
       const result = await response.json();
       allData.push(...result.data);
 
+      console.log(`[Coupons] Page ${page}/${result.totalPages}, fetched ${result.data.length} records (total so far: ${allData.length})`);
+
       hasMore = page < result.totalPages;
       page++;
 
@@ -119,6 +129,7 @@ async function fetchLiveData(): Promise<LiveCoupon[]> {
     }
   }
 
+  console.log(`[Coupons] Total live records fetched: ${allData.length}`);
   return allData;
 }
 
@@ -276,21 +287,62 @@ export async function GET(request: NextRequest) {
     const granularity = searchParams.get('granularity') || 'monthly';
     const isExport = searchParams.get('export') === 'true';
 
-    // Fetch live data from API
-    const liveData = await fetchLiveData();
+    // Fetch live data from API (pass date filters if the API supports them)
+    const liveData = await fetchLiveData({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    });
     const liveRedemptions = transformLive(liveData);
 
     // Transform historical data
     const historicalRedemptions = transformHistorical(historicalData as HistoricalCoupon[]);
 
+    // Deduplicate: if a live record matches a historical record by email + coupon code + date,
+    // prefer the live record (more complete data)
+    const historicalKeys = new Set<string>();
+    const liveKeys = new Set<string>();
+
+    liveRedemptions.forEach(r => {
+      const key = `${(r.email || '').toLowerCase().trim()}|${r.couponCode.toUpperCase()}|${(r.redeemedAt || '').substring(0, 10)}`;
+      liveKeys.add(key);
+    });
+
+    const dedupedHistorical = historicalRedemptions.filter(r => {
+      const key = `${(r.email || '').toLowerCase().trim()}|${r.couponCode.toUpperCase()}|${(r.redeemedAt || '').substring(0, 10)}`;
+      if (liveKeys.has(key)) {
+        return false; // Skip historical record that exists in live data
+      }
+      if (historicalKeys.has(key)) {
+        return false; // Skip duplicate within historical data
+      }
+      historicalKeys.add(key);
+      return true;
+    });
+
+    const dupesRemoved = historicalRedemptions.length - dedupedHistorical.length;
+    if (dupesRemoved > 0) {
+      console.log(`[Coupons] Deduplication: removed ${dupesRemoved} historical records that overlap with live data`);
+    }
+
     // Merge both datasets
-    let allRedemptions = [...historicalRedemptions, ...liveRedemptions];
+    let allRedemptions = [...dedupedHistorical, ...liveRedemptions];
 
     // Store original counts for source breakdown
     const originalSourceBreakdown = {
-      historical: historicalRedemptions.length,
+      historical: dedupedHistorical.length,
       live: liveRedemptions.length
     };
+
+    // Log record counts by month for diagnostics
+    const monthCounts = new Map<string, number>();
+    allRedemptions.forEach(r => {
+      const month = (r.redeemedAt || '').substring(0, 7);
+      monthCounts.set(month, (monthCounts.get(month) || 0) + 1);
+    });
+    const recentMonths = [...monthCounts.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 6);
+    console.log(`[Coupons] Record counts by month (recent):`, recentMonths.map(([m, c]) => `${m}: ${c}`).join(', '));
 
     // Apply filters
     allRedemptions = filterRedemptions(allRedemptions, filters);
