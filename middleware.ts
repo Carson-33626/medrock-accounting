@@ -8,7 +8,7 @@ const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://au
 const SESSION_COOKIE_NAME = 'medrock_session';
 
 // App slug for access control - registered in auth service admin dashboard
-const APP_SLUG = 'amy';
+const APP_SLUG = 'accounting';
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = [
