@@ -68,11 +68,12 @@ export default function DrugCodingViewer({ rows, loadError = null }: DrugCodingV
     const out = data.filter((row) => {
       if (category !== 'all' && row.category !== category) return false;
       if (form !== 'all' && row.form.toLowerCase() !== form.toLowerCase()) return false;
+      // Prefix match: searching "B" returns items that START WITH B (name, ID or NDC).
       if (
         q &&
-        !row.name.toLowerCase().includes(q) &&
-        !row.id.toLowerCase().includes(q) &&
-        !(row.ndc ?? '').toLowerCase().includes(q)
+        !row.name.toLowerCase().startsWith(q) &&
+        !row.id.toLowerCase().startsWith(q) &&
+        !(row.ndc ?? '').toLowerCase().startsWith(q)
       ) {
         return false;
       }
@@ -227,7 +228,7 @@ export default function DrugCodingViewer({ rows, loadError = null }: DrugCodingV
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by drug name, LifeFile ID or NDC…"
+              placeholder="Starts with… drug name, LifeFile ID or NDC"
               className={`flex-1 rounded-lg border px-4 py-2.5 text-sm outline-none transition ${inputCls}`}
             />
             <select
