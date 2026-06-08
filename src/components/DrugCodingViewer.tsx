@@ -65,17 +65,20 @@ export default function DrugCodingViewer({ rows, loadError = null }: DrugCodingV
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // Hybrid search: a single character matches the START of the field (so "B" lists
+    // everything beginning with B); 2+ characters do a regular "contains" search.
+    const prefix = q.length === 1;
     const out = data.filter((row) => {
       if (category !== 'all' && row.category !== category) return false;
       if (form !== 'all' && row.form.toLowerCase() !== form.toLowerCase()) return false;
-      // Prefix match: searching "B" returns items that START WITH B (name, ID or NDC).
-      if (
-        q &&
-        !row.name.toLowerCase().startsWith(q) &&
-        !row.id.toLowerCase().startsWith(q) &&
-        !(row.ndc ?? '').toLowerCase().startsWith(q)
-      ) {
-        return false;
+      if (q) {
+        const name = row.name.toLowerCase();
+        const id = row.id.toLowerCase();
+        const ndc = (row.ndc ?? '').toLowerCase();
+        const hit = prefix
+          ? name.startsWith(q) || id.startsWith(q) || ndc.startsWith(q)
+          : name.includes(q) || id.includes(q) || ndc.includes(q);
+        if (!hit) return false;
       }
       return true;
     });
@@ -228,7 +231,7 @@ export default function DrugCodingViewer({ rows, loadError = null }: DrugCodingV
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Starts with… drug name, LifeFile ID or NDC"
+              placeholder="Search drug name, LifeFile ID or NDC…"
               className={`flex-1 rounded-lg border px-4 py-2.5 text-sm outline-none transition ${inputCls}`}
             />
             <select
