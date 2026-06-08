@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
 
     // Build query
     let query = supabase
-      .from('amy_marketer_monthly')
+      .from('accounting_marketer_monthly')
       .select('*')
       .order('year', { ascending: false })
       .order('month', { ascending: false });
@@ -237,7 +237,7 @@ export async function GET(request: NextRequest) {
 
     // Get ALL available locations (not filtered) so user can always switch between them
     const { data: allLocations } = await supabase
-      .from('amy_marketer_monthly')
+      .from('accounting_marketer_monthly')
       .select('location')
       .order('location');
     const locations = [...new Set((allLocations || []).map((r: any) => r.location))].sort();

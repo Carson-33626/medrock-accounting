@@ -1,5 +1,5 @@
 /**
- * User types for AMY user management
+ * User types for MedRock Accounting user management
  */
 
 export interface User {
@@ -15,7 +15,7 @@ export interface User {
   updated_at: string;
 }
 
-// Available departments for AMY
+// Available departments for MedRock Accounting
 export const DEPARTMENTS = [
   'Accounting',
   'Administration',

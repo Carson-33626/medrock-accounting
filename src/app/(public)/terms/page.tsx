@@ -16,7 +16,7 @@ export default function TermsPage() {
             Internal Use Only
           </h2>
           <p className="text-gray-600">
-            This application (AMY - Accounting Metrics & Yields) is an internal tool developed
+            This application (MedRock Accounting) is an internal tool developed
             exclusively for use by MedRock Pharmacy employees and authorized personnel.
           </p>
 
@@ -24,7 +24,7 @@ export default function TermsPage() {
             Purpose
           </h2>
           <p className="text-gray-600">
-            AMY provides accounting analytics and financial reporting for MedRock&apos;s
+            MedRock Accounting provides accounting analytics and financial reporting for MedRock&apos;s
             accounting team.
           </p>
 

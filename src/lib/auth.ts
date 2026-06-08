@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://amy.medrockpharmacy.com';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://accounting.medrockpharmacy.com';
 const SESSION_COOKIE_NAME = 'medrock_session';
 
 // Cookie payload structure (matches auth service format)

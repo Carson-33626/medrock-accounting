@@ -141,7 +141,7 @@ export async function storeTokens(tokens: QuickBooksTokens): Promise<void> {
   const supabase = getAdminClient();
 
   const { error } = await supabase
-    .from('amy_quickbooks_tokens')
+    .from('accounting_quickbooks_tokens')
     .upsert(
       {
         location: tokens.location,
@@ -169,7 +169,7 @@ export async function getValidTokens(location: Location): Promise<QuickBooksToke
   const supabase = getAdminClient();
 
   const { data: tokenRow, error } = await supabase
-    .from('amy_quickbooks_tokens')
+    .from('accounting_quickbooks_tokens')
     .select('*')
     .eq('location', location)
     .single();
@@ -208,7 +208,7 @@ export async function getConnectedLocations(): Promise<Location[]> {
   const supabase = getAdminClient();
 
   const { data, error } = await supabase
-    .from('amy_quickbooks_tokens')
+    .from('accounting_quickbooks_tokens')
     .select('location')
     .order('location');
 
@@ -910,7 +910,7 @@ export async function getConnectionStatus(): Promise<Record<Location, boolean>> 
 export async function disconnect(location: Location): Promise<void> {
   const supabase = getAdminClient();
   await supabase
-    .from('amy_quickbooks_tokens')
+    .from('accounting_quickbooks_tokens')
     .delete()
     .eq('location', location);
 }

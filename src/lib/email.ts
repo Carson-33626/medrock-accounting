@@ -1,5 +1,5 @@
 /**
- * Email notification utilities for AMY
+ * Email notification utilities for MedRock Accounting
  * Sends welcome emails to new users
  *
  * Brand Colors:
@@ -110,7 +110,7 @@ async function sendViaSendGrid(data: EmailData): Promise<boolean> {
 // Text-based logo for maximum email client compatibility
 
 /**
- * Email wrapper/layout template for AMY
+ * Email wrapper/layout template for MedRock Accounting
  */
 function emailLayout(title: string, subtitle: string, content: string): string {
   return `
@@ -151,7 +151,7 @@ function emailLayout(title: string, subtitle: string, content: string): string {
                 <tr>
                   <td style="text-align: center;">
                     <p style="margin: 0 0 8px 0; color: #5e3b8d; font-size: 14px; font-weight: 600;">MedRock Pharmacy</p>
-                    <p style="margin: 0; color: #64748b; font-size: 12px;">AMY - Accounting Metrics & Yields</p>
+                    <p style="margin: 0; color: #64748b; font-size: 12px;">MedRock Accounting</p>
                   </td>
                 </tr>
               </table>
@@ -174,13 +174,13 @@ export async function sendWelcomeEmail(
   fullName: string,
   tempPassword: string
 ): Promise<boolean> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://amy.medrockpharmacy.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://accounting.medrockpharmacy.com';
   const authUrl = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
   const firstName = fullName.split(' ')[0];
 
   const content = `
     <p style="margin: 0 0 25px 0; color: #374151; font-size: 16px; line-height: 1.7;">
-      Hi ${firstName}, welcome to the team! Your AMY account has been created and you're ready to start tracking accounting metrics and yields.
+      Hi ${firstName}, welcome to the team! Your MedRock Accounting account has been created and you're ready to start tracking accounting metrics and yields.
     </p>
 
     <!-- Welcome Hero Card -->
@@ -270,13 +270,13 @@ export async function sendWelcomeEmail(
       </tr>
     </table>
 
-    <!-- What is AMY section -->
+    <!-- What is MedRock Accounting section -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 30px 0;">
       <tr>
         <td style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 1px solid #d8b4fe; border-radius: 10px; padding: 20px;">
-          <p style="margin: 0 0 8px 0; color: #5e3b8d; font-size: 14px; font-weight: 700;">What is AMY?</p>
+          <p style="margin: 0 0 8px 0; color: #5e3b8d; font-size: 14px; font-weight: 700;">What is MedRock Accounting?</p>
           <p style="margin: 0; color: #6b21a8; font-size: 13px; line-height: 1.6;">
-            AMY (Accounting Metrics & Yields) is MedRock's internal dashboard for tracking coupon analytics, financial metrics, and accounting data. Use it to monitor coupon usage, generate reports, and analyze pharmacy performance.
+            MedRock Accounting is MedRock's internal dashboard for tracking coupon analytics, financial metrics, and accounting data. Use it to monitor coupon usage, generate reports, and analyze pharmacy performance.
           </p>
         </td>
       </tr>
@@ -308,7 +308,7 @@ export async function sendWelcomeEmail(
       <tr>
         <td align="center">
           <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #5e3b8d 0%, #7b5ba8 100%); color: #ffffff; text-decoration: none; padding: 16px 44px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(94, 59, 141, 0.35);">
-            Log In to AMY
+            Log In to MedRock Accounting
           </a>
         </td>
       </tr>
@@ -320,14 +320,14 @@ export async function sendWelcomeEmail(
   `;
 
   const html = emailLayout(
-    'Welcome to AMY',
+    'Welcome to MedRock Accounting',
     'Your account has been created',
     content
   );
 
   return sendEmail({
     to: userEmail,
-    subject: 'Welcome to AMY - Your Account is Ready',
+    subject: 'Welcome to MedRock Accounting - Your Account is Ready',
     html,
   });
 }

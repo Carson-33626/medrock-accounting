@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AMY - Accounting Metrics & Yields",
+  title: "MedRock Accounting",
   description: "MedRock Pharmacy accounting analytics dashboard",
 };
 

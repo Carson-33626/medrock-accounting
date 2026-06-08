@@ -16,7 +16,7 @@ export default function PrivacyPage() {
             Internal Use Only
           </h2>
           <p className="text-gray-600">
-            AMY (Accounting Metrics & Yields) is an internal business tool used exclusively by
+            MedRock Accounting is an internal business tool used exclusively by
             MedRock Pharmacy employees. This application is not available to the public and does
             not collect, store, or process any customer or end-user data.
           </p>

@@ -1,5 +1,5 @@
-import CouponDashboard from '@/components/CouponDashboard';
+import DrugCodingViewer from '@/components/DrugCodingViewer';
 
 export default function Home() {
-  return <CouponDashboard />;
+  return <DrugCodingViewer />;
 }
