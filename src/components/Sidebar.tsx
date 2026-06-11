@@ -14,6 +14,7 @@ import { AdminLink } from '@/components/AdminLink';
 // web/_archive during the rebuild — re-add them here as they are rebuilt.
 const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
+  { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
 ];
 
 // Admin-only navigation items
@@ -251,6 +252,14 @@ function CloseIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function BoxIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
     </svg>
   );
 }
