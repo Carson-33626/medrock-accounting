@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { decodeTokens } from '@/lib/auth';
 
 const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
 const SESSION_COOKIE_NAME = 'medrock_session';
 
+interface AuthHostRefreshResponse {
+  success?: boolean;
+  expires_at?: number | null;
+}
+
 /**
  * POST /api/auth/refresh
  *
- * Attempts to refresh the session by calling the auth service's refresh endpoint.
- * The auth service will use the refresh token from the cookie to issue a new access token.
+ * Extends the session via the auth host. Prefers POST /api/extend-session
+ * (auth host 1.9+, reads the refresh token from the cookie server-side and
+ * rewrites it — the "Stay Signed In" fix from integration package 1.2.0),
+ * falling back to the older /api/refresh endpoint if extend-session is absent.
  */
 export async function POST() {
   try {
@@ -21,26 +29,38 @@ export async function POST() {
       return NextResponse.json({ success: false, message: 'No session found' }, { status: 401 });
     }
 
-    console.log('[/api/auth/refresh] Attempting to refresh session...');
+    console.log('[/api/auth/refresh] Attempting to extend session...');
 
-    // Call auth service's refresh endpoint
-    const response = await fetch(`${AUTH_SERVICE_URL}/api/refresh`, {
+    const headers = {
+      'Content-Type': 'application/json',
+      Cookie: `${SESSION_COOKIE_NAME}=${sessionCookie.value}`,
+    };
+
+    // Preferred: cookie-based server-side refresh (auth host 1.9+)
+    let response = await fetch(`${AUTH_SERVICE_URL}/api/extend-session`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': `${SESSION_COOKIE_NAME}=${sessionCookie.value}`,
-      },
-      credentials: 'include',
+      headers,
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    // Fallback for older auth hosts without extend-session
+    if (response.status === 404) {
+      console.log('[/api/auth/refresh] extend-session not available, falling back to /api/refresh');
+      response = await fetch(`${AUTH_SERVICE_URL}/api/refresh`, {
+        method: 'POST',
+        headers,
+      });
+    }
 
-      // If auth service returned a new cookie, set it
+    if (response.ok) {
+      const data = (await response.json().catch(() => ({}))) as AuthHostRefreshResponse;
+      let expiresAt: number | null = typeof data.expires_at === 'number' ? data.expires_at : null;
+
+      // If auth service returned a new cookie, set it locally
       const setCookieHeader = response.headers.get('set-cookie');
       if (setCookieHeader) {
-        // Parse and set the new cookie
-        const cookieValue = setCookieHeader.split(';')[0].split('=')[1];
+        const firstPair = setCookieHeader.split(';')[0];
+        const eq = firstPair.indexOf('=');
+        const cookieValue = eq >= 0 ? firstPair.slice(eq + 1) : '';
         if (cookieValue) {
           cookieStore.set(SESSION_COOKIE_NAME, cookieValue, {
             httpOnly: true,
@@ -49,18 +69,25 @@ export async function POST() {
             path: '/',
             maxAge: 60 * 60 * 24 * 7, // 7 days
           });
+          // Derive expiry from the fresh cookie when the host didn't report it
+          if (expiresAt === null) {
+            const decoded = decodeTokens(cookieValue);
+            if (decoded && typeof decoded.expiresAt === 'number') {
+              expiresAt = decoded.expiresAt;
+            }
+          }
         }
       }
 
-      console.log('[/api/auth/refresh] Session refreshed successfully');
-      return NextResponse.json({ success: true, ...data });
-    } else {
-      console.log('[/api/auth/refresh] Refresh failed:', response.status);
-      return NextResponse.json(
-        { success: false, message: 'Refresh failed' },
-        { status: response.status }
-      );
+      console.log('[/api/auth/refresh] Session extended successfully');
+      return NextResponse.json({ success: true, expires_at: expiresAt });
     }
+
+    console.log('[/api/auth/refresh] Extend failed:', response.status);
+    return NextResponse.json(
+      { success: false, message: 'Refresh failed' },
+      { status: response.status }
+    );
   } catch (error) {
     console.error('[/api/auth/refresh] Refresh error:', error);
     return NextResponse.json(
