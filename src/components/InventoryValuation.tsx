@@ -30,9 +30,15 @@ const qty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const CATEGORY_COLORS: Record<string, string> = {
   'Commercial Rx': '#2563eb',
   'Compound Ingredient': '#5e3b8d',
+  'Lab Compound Packaging Inventory': '#0891b2',
+  'Lab Supplies': '#be123c',
   Uncoded: '#d97706',
   'Opening Balance': '#64748b',
 };
+
+function categoryColor(category: string): string {
+  return CATEGORY_COLORS[category] ?? '#94a3b8';
+}
 
 type SortDir = 'asc' | 'desc';
 
@@ -197,6 +203,15 @@ export default function InventoryValuation() {
     return { total, ob, shortfalls, byCategory };
   }, [currentMonthRows]);
 
+  // Categories present anywhere in the summary, ordered by current-month value
+  const allCategories = useMemo(() => {
+    if (!summary) return [];
+    const present = new Set(summary.rows.map((r) => r.qb_category));
+    return [...present].sort(
+      (a, b) => (totals.byCategory.get(b) ?? 0) - (totals.byCategory.get(a) ?? 0),
+    );
+  }, [summary, totals]);
+
   const chartData = useMemo(() => {
     if (!summary) return [];
     const byMonth = new Map<string, Record<string, number | string>>();
@@ -295,10 +310,10 @@ export default function InventoryValuation() {
               incl. {usd0.format(totals.ob)} estimated opening balance
             </p>
           </div>
-          {['Commercial Rx', 'Compound Ingredient', 'Uncoded'].map((cat) => (
+          {allCategories.map((cat) => (
             <div key={cat} className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
               <p className={`text-xs uppercase tracking-wide ${subText}`}>{cat}</p>
-              <p className="text-2xl font-bold mt-1" style={{ color: CATEGORY_COLORS[cat] }}>
+              <p className="text-2xl font-bold mt-1" style={{ color: categoryColor(cat) }}>
                 {usd0.format(totals.byCategory.get(cat) ?? 0)}
               </p>
               {cat === 'Uncoded' && (totals.byCategory.get(cat) ?? 0) > 0 && (
@@ -326,9 +341,9 @@ export default function InventoryValuation() {
                   <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} />
                   <Legend />
                   <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="Commercial Rx" stroke={CATEGORY_COLORS['Commercial Rx']} dot={false} />
-                  <Line type="monotone" dataKey="Compound Ingredient" stroke={CATEGORY_COLORS['Compound Ingredient']} dot={false} />
-                  <Line type="monotone" dataKey="Uncoded" stroke={CATEGORY_COLORS['Uncoded']} dot={false} />
+                  {allCategories.map((cat) => (
+                    <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
