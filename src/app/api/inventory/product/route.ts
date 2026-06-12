@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
               l.remaining_value::float8 AS remaining_value,
               l.fully_used_month, l.is_opening_balance, l.had_shortfall,
               CASE WHEN l.is_opening_balance THEN c.first_month END AS ob_as_of_month,
+              COALESCE(l.lot_anchored, false) AS lot_anchored,
               row_number() OVER (
                 PARTITION BY l.location
                 ORDER BY l.is_opening_balance DESC, p.date_received ASC NULLS FIRST, l.receipt_id

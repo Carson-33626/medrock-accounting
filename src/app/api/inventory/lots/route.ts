@@ -28,6 +28,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'Fully Used (Month)', key: 'fully_used_month' },
   { header: 'Opening Balance', key: 'is_opening_balance' },
   { header: 'Shortfall', key: 'had_shortfall' },
+  { header: 'LifeFile Anchored', key: 'lot_anchored' },
 ];
 
 // $1 is always the as_of_month. qty_consumed in the ledger is PER-MONTH
@@ -56,6 +57,7 @@ function buildLotsQuery(conditions: string[], orderBy: string, paramCount: numbe
               l.remaining_value::float8 AS remaining_value,
               l.fully_used_month, l.is_opening_balance, l.had_shortfall,
               CASE WHEN l.is_opening_balance THEN c.first_month END AS ob_as_of_month,
+              COALESCE(l.lot_anchored, false) AS lot_anchored,
               count(*) OVER() AS total_rows
        FROM inventory.lot_depletion_ledger l
        LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
@@ -160,6 +162,7 @@ export async function GET(request: NextRequest) {
         fully_used_month: r.fully_used_month,
         is_opening_balance: r.is_opening_balance,
         had_shortfall: r.had_shortfall,
+        lot_anchored: r.lot_anchored,
       }));
       const filename = `fifo-lots_${location && location !== 'all' ? location.replace(/\s+/g, '-') : 'all'}_${month}_accrual`;
       if (format === 'csv') {

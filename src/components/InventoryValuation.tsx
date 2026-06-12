@@ -542,7 +542,17 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
                               <td className="py-1 pr-3 text-right">
                                 {r.unit_cost !== null ? usd.format(r.unit_cost) : '—'}
                               </td>
-                              <td className="py-1 pr-3 text-right">{qty.format(r.qty_consumed)}</td>
+                              <td className="py-1 pr-3 text-right">
+                                {qty.format(r.qty_consumed)}
+                                {r.lot_anchored && (
+                                  <span
+                                    title="Depletion anchored to the LifeFile lot report (actual dispensed quantities)"
+                                    className="ml-1 text-[9px] align-middle px-1 py-0.5 rounded bg-blue-500/15 text-blue-600 font-semibold uppercase"
+                                  >
+                                    LF
+                                  </span>
+                                )}
+                              </td>
                               <td className="py-1 pr-3 text-right">{qty.format(r.qty_remaining)}</td>
                               <td className="py-1">{r.fully_used_month ?? 'open'}</td>
                             </tr>

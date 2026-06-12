@@ -49,6 +49,8 @@ export interface LotRow {
   had_shortfall: boolean;
   /** For opening-balance rows: the balance snapshot month the estimate is "as of" */
   ob_as_of_month: string | null;
+  /** Current-month depletion anchored to the LifeFile lot report (vs usage simulation) */
+  lot_anchored: boolean;
 }
 
 export interface LotsResponse {
