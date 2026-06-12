@@ -18,6 +18,7 @@ interface SummaryQueryRow {
   opening_balance_value: number;
   shortfall_count: number;
   lifefile_qty_left_total: number | null;
+  cash_estimated_value: number | null;
 }
 
 const EXPORT_COLUMNS: ExportColumn[] = [
@@ -31,6 +32,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'Consumed Value (Month)', key: 'consumed_value_in_month', currency: true },
   { header: 'Opening Balance Value', key: 'opening_balance_value', currency: true },
   { header: 'Shortfall Count', key: 'shortfall_count' },
+  { header: 'Estimated-Timing Value (Cash)', key: 'cash_estimated_value', currency: true },
 ];
 
 export async function GET(request: NextRequest) {
@@ -56,7 +58,8 @@ export async function GET(request: NextRequest) {
               consumed_value_in_month::float8 AS consumed_value_in_month,
               opening_balance_value::float8 AS opening_balance_value,
               shortfall_count,
-              lifefile_qty_left_total::float8 AS lifefile_qty_left_total
+              lifefile_qty_left_total::float8 AS lifefile_qty_left_total,
+              cash_estimated_value::float8 AS cash_estimated_value
        FROM inventory.fifo_valuation_summary
        WHERE ${where}
        ORDER BY as_of_month, location, qb_category`,

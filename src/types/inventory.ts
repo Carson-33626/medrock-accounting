@@ -17,6 +17,8 @@ export interface ValuationSummaryRow {
   opening_balance_value: number;
   shortfall_count: number;
   lifefile_qty_left_total: number | null;
+  /** Cash-basis rows only: on-hand value recognized at estimated dates (unlinked receipts + OB) */
+  cash_estimated_value: number | null;
 }
 
 export interface SummaryResponse {

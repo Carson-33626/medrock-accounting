@@ -196,11 +196,12 @@ export default function InventoryValuation() {
     const total = currentMonthRows.reduce((s, r) => s + r.on_hand_value_fifo, 0);
     const ob = currentMonthRows.reduce((s, r) => s + r.opening_balance_value, 0);
     const shortfalls = currentMonthRows.reduce((s, r) => s + r.shortfall_count, 0);
+    const cashEstimated = currentMonthRows.reduce((s, r) => s + (r.cash_estimated_value ?? 0), 0);
     const byCategory = new Map<string, number>();
     for (const r of currentMonthRows) {
       byCategory.set(r.qb_category, (byCategory.get(r.qb_category) ?? 0) + r.on_hand_value_fifo);
     }
-    return { total, ob, shortfalls, byCategory };
+    return { total, ob, shortfalls, cashEstimated, byCategory };
   }, [currentMonthRows]);
 
   // Categories present anywhere in the summary, ordered by current-month value
@@ -326,6 +327,14 @@ export default function InventoryValuation() {
             <p className={`text-xs mt-1 ${subText}`}>
               incl. {usd0.format(totals.ob)} estimated opening balance
             </p>
+            {basis === 'cash' && totals.cashEstimated > 0 && (
+              <p
+                className={`text-xs mt-0.5 ${subText}`}
+                title="Receipts without a QB payment link (plus opening balances) are recognized at their received date — link more receipts on the QB Links page to shrink this"
+              >
+                {usd0.format(totals.cashEstimated)} at estimated payment timing
+              </p>
+            )}
           </div>
           {allCategories.map((cat) => (
             <div key={cat} className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
