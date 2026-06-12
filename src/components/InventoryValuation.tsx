@@ -499,40 +499,55 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
                     ? ` (${detail.product_key})`
                     : ''}
                 </p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className={subText}>
-                      <th className="text-left py-1 pr-3 font-medium">#</th>
-                      <th className="text-left py-1 pr-3 font-medium">Received</th>
-                      <th className="text-left py-1 pr-3 font-medium">Lot</th>
-                      <th className="text-left py-1 pr-3 font-medium">Vendor</th>
-                      <th className="text-right py-1 pr-3 font-medium">Qty</th>
-                      <th className="text-right py-1 pr-3 font-medium">Unit Cost</th>
-                      <th className="text-right py-1 pr-3 font-medium">Consumed</th>
-                      <th className="text-right py-1 pr-3 font-medium">Remaining</th>
-                      <th className="text-left py-1 font-medium">Fully Used</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.receipts.map((r) => (
-                      <tr key={r.receipt_id} className={`border-t ${rowBorder}`}>
-                        <td className="py-1 pr-3">{r.fifo_position}</td>
-                        <td className="py-1 pr-3">
-                          {r.is_opening_balance ? 'Opening balance' : r.date_received ?? '—'}
-                        </td>
-                        <td className="py-1 pr-3">{r.lot_number ?? '—'}</td>
-                        <td className="py-1 pr-3">{r.vendor ?? '—'}</td>
-                        <td className="py-1 pr-3 text-right">
-                          {r.qty_received !== null ? qty.format(r.qty_received) : '—'}
-                        </td>
-                        <td className="py-1 pr-3 text-right">{r.unit_cost !== null ? usd.format(r.unit_cost) : '—'}</td>
-                        <td className="py-1 pr-3 text-right">{qty.format(r.qty_consumed)}</td>
-                        <td className="py-1 pr-3 text-right">{qty.format(r.qty_remaining)}</td>
-                        <td className="py-1">{r.fully_used_month ?? 'open'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {detail.locations.map((loc) => {
+                  const locReceipts = detail.receipts.filter((r) => r.location === loc);
+                  if (locReceipts.length === 0) return null;
+                  return (
+                    <div key={loc}>
+                      {detail.locations.length > 1 && (
+                        <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${subText}`}>
+                          {loc.replace('MedRock ', '')}
+                        </p>
+                      )}
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className={subText}>
+                            <th className="text-left py-1 pr-3 font-medium">#</th>
+                            <th className="text-left py-1 pr-3 font-medium">Received</th>
+                            <th className="text-left py-1 pr-3 font-medium">Lot</th>
+                            <th className="text-left py-1 pr-3 font-medium">Vendor</th>
+                            <th className="text-right py-1 pr-3 font-medium">Qty</th>
+                            <th className="text-right py-1 pr-3 font-medium">Unit Cost</th>
+                            <th className="text-right py-1 pr-3 font-medium">Consumed</th>
+                            <th className="text-right py-1 pr-3 font-medium">Remaining</th>
+                            <th className="text-left py-1 font-medium">Fully Used</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {locReceipts.map((r) => (
+                            <tr key={r.receipt_id} className={`border-t ${rowBorder}`}>
+                              <td className="py-1 pr-3">{r.fifo_position}</td>
+                              <td className="py-1 pr-3">
+                                {r.is_opening_balance ? 'Opening balance' : r.date_received ?? '—'}
+                              </td>
+                              <td className="py-1 pr-3">{r.lot_number ?? '—'}</td>
+                              <td className="py-1 pr-3">{r.vendor ?? '—'}</td>
+                              <td className="py-1 pr-3 text-right">
+                                {r.qty_received !== null ? qty.format(r.qty_received) : '—'}
+                              </td>
+                              <td className="py-1 pr-3 text-right">
+                                {r.unit_cost !== null ? usd.format(r.unit_cost) : '—'}
+                              </td>
+                              <td className="py-1 pr-3 text-right">{qty.format(r.qty_consumed)}</td>
+                              <td className="py-1 pr-3 text-right">{qty.format(r.qty_remaining)}</td>
+                              <td className="py-1">{r.fully_used_month ?? 'open'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </td>
