@@ -53,12 +53,29 @@ export interface LotRow {
   lot_anchored: boolean;
 }
 
+/** One row per product in the main ledger table (lots aggregate beneath it) */
+export interface ProductGroupRow {
+  product_key: string;
+  product_name: string | null;
+  ndc: string | null;
+  qb_category: string;
+  locations: string;
+  lot_count: number;
+  open_lots: number;
+  last_received: string | null;
+  qty_consumed: number;
+  qty_remaining: number;
+  remaining_value: number | null;
+  has_opening_balance: boolean;
+  had_shortfall: boolean;
+}
+
 export interface LotsResponse {
   month: string | null;
   total: number;
   limit: number;
   offset: number;
-  rows: LotRow[];
+  rows: ProductGroupRow[];
 }
 
 export interface ProductReceiptRow extends LotRow {

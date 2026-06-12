@@ -14,9 +14,9 @@ import {
 } from 'recharts';
 import type {
   Basis,
-  LotRow,
   LotsResponse,
   ProductDetailResponse,
+  ProductGroupRow,
   SummaryResponse,
   ValuationSummaryRow,
 } from '@/types/inventory';
@@ -46,15 +46,14 @@ interface LotColumn {
 
 const LOT_COLUMNS: LotColumn[] = [
   { key: 'product_name', label: 'Product', align: 'left' },
-  { key: 'lot_number', label: 'Lot #', align: 'left' },
-  { key: 'location', label: 'Location', align: 'left' },
   { key: 'qb_category', label: 'Category', align: 'left' },
-  { key: 'date_received', label: 'Received', align: 'left' },
-  { key: 'qty_received', label: 'Qty Rcvd', align: 'right', defaultDesc: true },
-  { key: 'unit_cost', label: 'Unit Cost', align: 'right', defaultDesc: true },
+  { key: 'locations', label: 'Locations', align: 'left' },
+  { key: 'lot_count', label: 'Lots', align: 'right', defaultDesc: true },
+  { key: 'last_received', label: 'Last Received', align: 'left' },
+  { key: 'qty_consumed', label: 'Consumed', align: 'right', defaultDesc: true },
   { key: 'qty_remaining', label: 'Remaining', align: 'right', defaultDesc: true },
   { key: 'remaining_value', label: 'Value Left', align: 'right', defaultDesc: true },
-  { key: 'fully_used_month', label: 'Fully Used', align: 'left' },
+  { key: 'open_lots', label: 'Status', align: 'left' },
 ];
 
 export default function InventoryValuation() {
@@ -160,7 +159,7 @@ export default function InventoryValuation() {
   }, [lotsQuery]);
 
   const toggleExpand = useCallback(
-    (row: LotRow) => {
+    (row: ProductGroupRow) => {
       const key = row.product_key;
       if (expandedKey === key) {
         setExpandedKey(null);
@@ -431,22 +430,22 @@ export default function InventoryValuation() {
               <tbody>
                 {lotsLoading && (
                   <tr>
-                    <td colSpan={10} className={`px-3 py-8 text-center ${subText}`}>
+                    <td colSpan={9} className={`px-3 py-8 text-center ${subText}`}>
                       Loading…
                     </td>
                   </tr>
                 )}
                 {!lotsLoading && (lots?.rows.length ?? 0) === 0 && (
                   <tr>
-                    <td colSpan={10} className={`px-3 py-8 text-center ${subText}`}>
-                      No lots match the current filters.
+                    <td colSpan={9} className={`px-3 py-8 text-center ${subText}`}>
+                      No products match the current filters.
                     </td>
                   </tr>
                 )}
                 {!lotsLoading &&
                   lots?.rows.map((row) => (
-                    <LotTableRow
-                      key={row.receipt_id}
+                    <ProductTableRow
+                      key={row.product_key}
                       row={row}
                       expanded={expandedKey === row.product_key}
                       onToggle={() => toggleExpand(row)}
@@ -464,7 +463,7 @@ export default function InventoryValuation() {
           {/* Pagination */}
           <div className={`p-4 flex items-center justify-between text-sm ${subText}`}>
             <span>
-              {lots ? `${lots.total.toLocaleString()} lots · page ${page + 1} of ${Math.max(1, Math.ceil(lots.total / PAGE_SIZE))}` : ''}
+              {lots ? `${lots.total.toLocaleString()} products · page ${page + 1} of ${Math.max(1, Math.ceil(lots.total / PAGE_SIZE))}` : ''}
             </span>
             <div className="flex gap-2">
               <button
@@ -489,8 +488,8 @@ export default function InventoryValuation() {
   );
 }
 
-interface LotTableRowProps {
-  row: LotRow;
+interface ProductTableRowProps {
+  row: ProductGroupRow;
   expanded: boolean;
   onToggle: () => void;
   detail: ProductDetailResponse | null;
@@ -500,7 +499,7 @@ interface LotTableRowProps {
   subText: string;
 }
 
-function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode, rowBorder, subText }: LotTableRowProps) {
+function ProductTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode, rowBorder, subText }: ProductTableRowProps) {
   const productNumber = row.ndc || (row.product_key.startsWith('name:') ? null : row.product_key);
   return (
     <>
@@ -513,7 +512,7 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
         <td className="px-3 py-2">
           <div className="font-medium flex items-center gap-2">
             {row.product_name ?? row.product_key}
-            {row.is_opening_balance && (
+            {row.has_opening_balance && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-500 uppercase">OB</span>
             )}
             {row.had_shortfall && (
@@ -522,22 +521,22 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
           </div>
           {productNumber && <div className={`text-xs ${subText}`}>{productNumber}</div>}
         </td>
-        <td className="px-3 py-2">{row.lot_number ?? '—'}</td>
-        <td className="px-3 py-2">{row.location.replace('MedRock ', '')}</td>
         <td className="px-3 py-2">{row.qb_category}</td>
-        <td className="px-3 py-2">
-          {row.date_received ?? (row.ob_as_of_month ? `As of ${row.ob_as_of_month}` : '—')}
+        <td className="px-3 py-2">{row.locations}</td>
+        <td className="px-3 py-2 text-right">
+          {row.lot_count}
+          {row.open_lots > 0 && <span className={`text-xs ${subText}`}> ({row.open_lots} open)</span>}
         </td>
-        <td className="px-3 py-2 text-right">{row.qty_received !== null ? qty.format(row.qty_received) : '—'}</td>
-        <td className="px-3 py-2 text-right">{row.unit_cost !== null ? usd.format(row.unit_cost) : '—'}</td>
+        <td className="px-3 py-2">{row.last_received ?? '—'}</td>
+        <td className="px-3 py-2 text-right">{qty.format(row.qty_consumed)}</td>
         <td className="px-3 py-2 text-right">{qty.format(row.qty_remaining)}</td>
         <td className="px-3 py-2 text-right font-medium">
           {row.remaining_value !== null ? usd.format(row.remaining_value) : '—'}
         </td>
         <td className="px-3 py-2">
-          {row.fully_used_month ? (
+          {row.open_lots === 0 ? (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-600 font-medium">
-              {row.fully_used_month}
+              fully used
             </span>
           ) : (
             <span className={`text-xs ${subText}`}>open</span>
@@ -546,7 +545,7 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
       </tr>
       {expanded && (
         <tr className={`border-t ${rowBorder}`}>
-          <td colSpan={10} className={`px-6 py-4 ${darkMode ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+          <td colSpan={9} className={`px-6 py-4 ${darkMode ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
             {detailLoading && <p className={`text-sm ${subText}`}>Loading FIFO history…</p>}
             {detail && (
               <div className="space-y-3">
