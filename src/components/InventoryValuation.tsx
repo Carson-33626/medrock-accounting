@@ -470,7 +470,9 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
         <td className="px-3 py-2">{row.lot_number ?? '—'}</td>
         <td className="px-3 py-2">{row.location.replace('MedRock ', '')}</td>
         <td className="px-3 py-2">{row.qb_category}</td>
-        <td className="px-3 py-2">{row.date_received ?? '—'}</td>
+        <td className="px-3 py-2">
+          {row.date_received ?? (row.ob_as_of_month ? `As of ${row.ob_as_of_month}` : '—')}
+        </td>
         <td className="px-3 py-2 text-right">{row.qty_received !== null ? qty.format(row.qty_received) : '—'}</td>
         <td className="px-3 py-2 text-right">{row.unit_cost !== null ? usd.format(row.unit_cost) : '—'}</td>
         <td className="px-3 py-2 text-right">{qty.format(row.qty_remaining)}</td>
@@ -528,7 +530,9 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
                             <tr key={r.receipt_id} className={`border-t ${rowBorder}`}>
                               <td className="py-1 pr-3">{r.fifo_position}</td>
                               <td className="py-1 pr-3">
-                                {r.is_opening_balance ? 'Opening balance' : r.date_received ?? '—'}
+                                {r.is_opening_balance
+                                  ? `Opening balance${r.ob_as_of_month ? ` (as of ${r.ob_as_of_month})` : ''}`
+                                  : r.date_received ?? '—'}
                               </td>
                               <td className="py-1 pr-3">{r.lot_number ?? '—'}</td>
                               <td className="py-1 pr-3">{r.vendor ?? '—'}</td>

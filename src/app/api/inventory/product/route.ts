@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
     const receipts = await pool.query<ReceiptQueryRow>(
       `WITH ${PRODUCT_NAMES_CTE},
        consumed AS (
-         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date
+         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date,
+                min(as_of_month) AS first_month
          FROM inventory.lot_depletion_ledger
          WHERE product_key = $1
          GROUP BY receipt_id
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
               l.qty_remaining::float8 AS qty_remaining,
               l.remaining_value::float8 AS remaining_value,
               l.fully_used_month, l.is_opening_balance, l.had_shortfall,
+              CASE WHEN l.is_opening_balance THEN c.first_month END AS ob_as_of_month,
               row_number() OVER (
                 PARTITION BY l.location
                 ORDER BY l.is_opening_balance DESC, p.date_received ASC NULLS FIRST, l.receipt_id

@@ -36,7 +36,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
 function buildLotsQuery(conditions: string[], orderBy: string, paramCount: number): string {
   return `WITH ${PRODUCT_NAMES_CTE},
        consumed AS (
-         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date
+         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date,
+                min(as_of_month) AS first_month
          FROM inventory.lot_depletion_ledger
          WHERE as_of_month <= $1
          GROUP BY receipt_id
@@ -54,6 +55,7 @@ function buildLotsQuery(conditions: string[], orderBy: string, paramCount: numbe
               l.qty_remaining::float8 AS qty_remaining,
               l.remaining_value::float8 AS remaining_value,
               l.fully_used_month, l.is_opening_balance, l.had_shortfall,
+              CASE WHEN l.is_opening_balance THEN c.first_month END AS ob_as_of_month,
               count(*) OVER() AS total_rows
        FROM inventory.lot_depletion_ledger l
        LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
@@ -148,7 +150,7 @@ export async function GET(request: NextRequest) {
         lot_number: r.lot_number,
         vendor: r.vendor,
         qb_category: r.qb_category,
-        date_received: r.date_received,
+        date_received: r.date_received ?? (r.ob_as_of_month ? `As of ${r.ob_as_of_month}` : null),
         qty_received: r.qty_received,
         unit_cost: r.unit_cost,
         total_cost: r.total_cost,

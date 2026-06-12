@@ -47,6 +47,8 @@ export interface LotRow {
   fully_used_month: string | null;
   is_opening_balance: boolean;
   had_shortfall: boolean;
+  /** For opening-balance rows: the balance snapshot month the estimate is "as of" */
+  ob_as_of_month: string | null;
 }
 
 export interface LotsResponse {
