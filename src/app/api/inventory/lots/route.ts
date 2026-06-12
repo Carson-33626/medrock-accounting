@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRdsPool } from '@/lib/rds';
 import { csvResponse, xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
+import { PRODUCT_NAMES_CTE, RESOLVED_PRODUCT_NAME } from '@/lib/inventory-sql';
 import type { LotRow, LotsResponse } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,40 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'Opening Balance', key: 'is_opening_balance' },
   { header: 'Shortfall', key: 'had_shortfall' },
 ];
+
+// $1 is always the as_of_month. qty_consumed in the ledger is PER-MONTH
+// consumption (see fifo_transform.py), so consumed-to-date is the sum of all
+// months up to the requested one.
+function buildLotsQuery(conditions: string[], orderBy: string, paramCount: number): string {
+  return `WITH ${PRODUCT_NAMES_CTE},
+       consumed AS (
+         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date
+         FROM inventory.lot_depletion_ledger
+         WHERE as_of_month <= $1
+         GROUP BY receipt_id
+       )
+       SELECT l.receipt_id, l.location, l.product_key,
+              p.date_received::text AS date_received,
+              p.ndc,
+              ${RESOLVED_PRODUCT_NAME} AS product_name,
+              p.lot_number, p.vendor,
+              COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
+              p.qty_received::float8 AS qty_received,
+              p.unit_cost::float8 AS unit_cost,
+              p.total_cost::float8 AS total_cost,
+              COALESCE(c.consumed_to_date, 0) AS qty_consumed,
+              l.qty_remaining::float8 AS qty_remaining,
+              l.remaining_value::float8 AS remaining_value,
+              l.fully_used_month, l.is_opening_balance, l.had_shortfall,
+              count(*) OVER() AS total_rows
+       FROM inventory.lot_depletion_ledger l
+       LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
+       LEFT JOIN product_names pn ON pn.key = l.product_key
+       LEFT JOIN consumed c ON c.receipt_id = l.receipt_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ${orderBy}
+       LIMIT $${paramCount - 1} OFFSET $${paramCount}`;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,30 +107,18 @@ export async function GET(request: NextRequest) {
       params.push(`%${search}%`);
       const n = params.length;
       conditions.push(
-        `(p.product_name ILIKE $${n} OR p.ndc_norm ILIKE $${n} OR p.lot_number ILIKE $${n} OR l.product_key ILIKE $${n})`,
+        `(${RESOLVED_PRODUCT_NAME} ILIKE $${n} OR p.ndc_norm ILIKE $${n} OR p.lot_number ILIKE $${n} OR l.product_key ILIKE $${n})`,
       );
     }
 
     params.push(limit, offset);
 
     const result = await pool.query<LotQueryRow>(
-      `SELECT l.receipt_id, l.location, l.product_key,
-              p.date_received::text AS date_received,
-              p.ndc, p.product_name, p.lot_number, p.vendor,
-              COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
-              p.qty_received::float8 AS qty_received,
-              p.unit_cost::float8 AS unit_cost,
-              p.total_cost::float8 AS total_cost,
-              l.qty_consumed::float8 AS qty_consumed,
-              l.qty_remaining::float8 AS qty_remaining,
-              l.remaining_value::float8 AS remaining_value,
-              l.fully_used_month, l.is_opening_balance, l.had_shortfall,
-              count(*) OVER() AS total_rows
-       FROM inventory.lot_depletion_ledger l
-       LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
-       WHERE ${conditions.join(' AND ')}
-       ORDER BY l.qty_remaining > 0 DESC, p.date_received ASC NULLS FIRST, l.receipt_id
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      buildLotsQuery(
+        conditions,
+        'l.qty_remaining > 0 DESC, p.date_received ASC NULLS FIRST, l.receipt_id',
+        params.length,
+      ),
       params,
     );
 
@@ -111,23 +134,11 @@ export async function GET(request: NextRequest) {
       const exportParams = params.slice(0, params.length - 2);
       exportParams.push(50000, 0);
       const exportResult = await pool.query<LotQueryRow>(
-        `SELECT l.receipt_id, l.location, l.product_key,
-                p.date_received::text AS date_received,
-                p.ndc, p.product_name, p.lot_number, p.vendor,
-                COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
-                p.qty_received::float8 AS qty_received,
-                p.unit_cost::float8 AS unit_cost,
-                p.total_cost::float8 AS total_cost,
-                l.qty_consumed::float8 AS qty_consumed,
-                l.qty_remaining::float8 AS qty_remaining,
-                l.remaining_value::float8 AS remaining_value,
-                l.fully_used_month, l.is_opening_balance, l.had_shortfall,
-                count(*) OVER() AS total_rows
-         FROM inventory.lot_depletion_ledger l
-         LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
-         WHERE ${conditions.join(' AND ')}
-         ORDER BY l.location, p.product_name NULLS LAST, p.date_received
-         LIMIT $${exportParams.length - 1} OFFSET $${exportParams.length}`,
+        buildLotsQuery(
+          conditions,
+          `l.location, ${RESOLVED_PRODUCT_NAME} NULLS LAST, p.date_received`,
+          exportParams.length,
+        ),
         exportParams,
       );
       const exportRows: Record<string, CellValue>[] = exportResult.rows.map((r) => ({

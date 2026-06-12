@@ -446,6 +446,7 @@ interface LotTableRowProps {
 }
 
 function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode, rowBorder, subText }: LotTableRowProps) {
+  const productNumber = row.ndc || (row.product_key.startsWith('name:') ? null : row.product_key);
   return (
     <>
       <tr
@@ -464,7 +465,7 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 uppercase">Shortfall</span>
             )}
           </div>
-          {row.ndc && <div className={`text-xs ${subText}`}>{row.ndc}</div>}
+          {productNumber && <div className={`text-xs ${subText}`}>{productNumber}</div>}
         </td>
         <td className="px-3 py-2">{row.lot_number ?? '—'}</td>
         <td className="px-3 py-2">{row.location.replace('MedRock ', '')}</td>
@@ -494,6 +495,9 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
               <div className="space-y-3">
                 <p className="text-sm font-semibold">
                   FIFO queue — {detail.product_name ?? detail.product_key}
+                  {detail.product_name && !detail.product_key.startsWith('name:')
+                    ? ` (${detail.product_key})`
+                    : ''}
                 </p>
                 <table className="w-full text-xs">
                   <thead>

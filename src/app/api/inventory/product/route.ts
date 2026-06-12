@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRdsPool } from '@/lib/rds';
+import { PRODUCT_NAMES_CTE, RESOLVED_PRODUCT_NAME } from '@/lib/inventory-sql';
 import type { ProductDetailResponse, ProductMonthRow, ProductReceiptRow } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ interface HistoryQueryRow {
   as_of_month: string;
   qty_remaining: number;
   remaining_value: number | null;
-  cumulative_consumed: number;
+  consumed_in_month: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -33,15 +34,26 @@ export async function GET(request: NextRequest) {
       locationCond = ` AND l.location = $${params.length}`;
     }
 
+    // qty_consumed in the ledger is PER-MONTH consumption (see fifo_transform.py),
+    // so consumed-to-date per receipt is the sum across all its months.
     const receipts = await pool.query<ReceiptQueryRow>(
-      `SELECT l.receipt_id, l.location, l.product_key,
+      `WITH ${PRODUCT_NAMES_CTE},
+       consumed AS (
+         SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date
+         FROM inventory.lot_depletion_ledger
+         WHERE product_key = $1
+         GROUP BY receipt_id
+       )
+       SELECT l.receipt_id, l.location, l.product_key,
               p.date_received::text AS date_received,
-              p.ndc, p.product_name, p.lot_number, p.vendor,
+              p.ndc,
+              ${RESOLVED_PRODUCT_NAME} AS product_name,
+              p.lot_number, p.vendor,
               COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
               p.qty_received::float8 AS qty_received,
               p.unit_cost::float8 AS unit_cost,
               p.total_cost::float8 AS total_cost,
-              l.qty_consumed::float8 AS qty_consumed,
+              COALESCE(c.consumed_to_date, 0) AS qty_consumed,
               l.qty_remaining::float8 AS qty_remaining,
               l.remaining_value::float8 AS remaining_value,
               l.fully_used_month, l.is_opening_balance, l.had_shortfall,
@@ -51,6 +63,8 @@ export async function GET(request: NextRequest) {
               ) AS rn
        FROM inventory.lot_depletion_ledger l
        LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
+       LEFT JOIN product_names pn ON pn.key = l.product_key
+       LEFT JOIN consumed c ON c.receipt_id = l.receipt_id
        WHERE l.product_key = $1${locationCond}
          AND l.as_of_month = (SELECT max(as_of_month) FROM inventory.lot_depletion_ledger)
        ORDER BY l.location, rn`,
@@ -61,7 +75,7 @@ export async function GET(request: NextRequest) {
       `SELECT l.as_of_month,
               sum(l.qty_remaining)::float8 AS qty_remaining,
               sum(l.remaining_value)::float8 AS remaining_value,
-              sum(l.qty_consumed)::float8 AS cumulative_consumed
+              sum(l.qty_consumed)::float8 AS consumed_in_month
        FROM inventory.lot_depletion_ledger l
        WHERE l.product_key = $1${locationCond}
        GROUP BY l.as_of_month
@@ -69,14 +83,17 @@ export async function GET(request: NextRequest) {
       params,
     );
 
-    const historyRows: ProductMonthRow[] = history.rows.map((row, idx, arr) => ({
-      as_of_month: row.as_of_month,
-      qty_remaining: row.qty_remaining,
-      remaining_value: row.remaining_value,
-      cumulative_consumed: row.cumulative_consumed,
-      consumed_in_month:
-        idx === 0 ? row.cumulative_consumed : row.cumulative_consumed - arr[idx - 1].cumulative_consumed,
-    }));
+    let cumulativeConsumed = 0;
+    const historyRows: ProductMonthRow[] = history.rows.map((row) => {
+      cumulativeConsumed += row.consumed_in_month;
+      return {
+        as_of_month: row.as_of_month,
+        qty_remaining: row.qty_remaining,
+        remaining_value: row.remaining_value,
+        cumulative_consumed: cumulativeConsumed,
+        consumed_in_month: row.consumed_in_month,
+      };
+    });
 
     const receiptRows: ProductReceiptRow[] = receipts.rows.map((r) => {
       const { rn, ...rest } = r;
