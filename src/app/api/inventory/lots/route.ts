@@ -31,6 +31,22 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'LifeFile Anchored', key: 'lot_anchored' },
 ];
 
+// Whitelisted sortable columns -> ORDER BY targets (select aliases or raw
+// columns; never user input directly).
+const SORTABLE_COLUMNS: Record<string, string> = {
+  product_name: 'product_name',
+  lot_number: 'p.lot_number',
+  location: 'l.location',
+  qb_category: 'qb_category',
+  date_received: 'p.date_received',
+  qty_received: 'p.qty_received',
+  unit_cost: 'p.unit_cost',
+  qty_consumed: 'qty_consumed',
+  qty_remaining: 'l.qty_remaining',
+  remaining_value: 'l.remaining_value',
+  fully_used_month: 'l.fully_used_month',
+};
+
 // $1 is always the as_of_month. qty_consumed in the ledger is PER-MONTH
 // consumption (see fifo_transform.py), so consumed-to-date is the sum of all
 // months up to the requested one.
@@ -77,6 +93,9 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim() ?? '';
     const requestedMonth = searchParams.get('month');
     const format = searchParams.get('format') ?? 'json';
+    const sortParam = searchParams.get('sort');
+    const sortDir = searchParams.get('dir') === 'desc' ? 'DESC' : 'ASC';
+    const sortTarget = sortParam ? SORTABLE_COLUMNS[sortParam] : undefined;
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '100', 10) || 100, 1), 1000);
     const offset = Math.max(parseInt(searchParams.get('offset') ?? '0', 10) || 0, 0);
 
@@ -117,12 +136,13 @@ export async function GET(request: NextRequest) {
 
     params.push(limit, offset);
 
+    const defaultOrder = 'l.qty_remaining > 0 DESC, p.date_received ASC NULLS FIRST, l.receipt_id';
+    const orderBy = sortTarget
+      ? `${sortTarget} ${sortDir} NULLS LAST, l.receipt_id`
+      : defaultOrder;
+
     const result = await pool.query<LotQueryRow>(
-      buildLotsQuery(
-        conditions,
-        'l.qty_remaining > 0 DESC, p.date_received ASC NULLS FIRST, l.receipt_id',
-        params.length,
-      ),
+      buildLotsQuery(conditions, orderBy, params.length),
       params,
     );
 
@@ -140,7 +160,9 @@ export async function GET(request: NextRequest) {
       const exportResult = await pool.query<LotQueryRow>(
         buildLotsQuery(
           conditions,
-          `l.location, ${RESOLVED_PRODUCT_NAME} NULLS LAST, p.date_received`,
+          sortTarget
+            ? `${sortTarget} ${sortDir} NULLS LAST, l.receipt_id`
+            : `l.location, ${RESOLVED_PRODUCT_NAME} NULLS LAST, p.date_received`,
           exportParams.length,
         ),
         exportParams,

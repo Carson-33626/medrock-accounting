@@ -34,6 +34,29 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Opening Balance': '#64748b',
 };
 
+type SortDir = 'asc' | 'desc';
+
+interface LotColumn {
+  key: string;
+  label: string;
+  align: 'left' | 'right';
+  /** Numeric/value columns open on descending — that's the useful direction */
+  defaultDesc?: boolean;
+}
+
+const LOT_COLUMNS: LotColumn[] = [
+  { key: 'product_name', label: 'Product', align: 'left' },
+  { key: 'lot_number', label: 'Lot #', align: 'left' },
+  { key: 'location', label: 'Location', align: 'left' },
+  { key: 'qb_category', label: 'Category', align: 'left' },
+  { key: 'date_received', label: 'Received', align: 'left' },
+  { key: 'qty_received', label: 'Qty Rcvd', align: 'right', defaultDesc: true },
+  { key: 'unit_cost', label: 'Unit Cost', align: 'right', defaultDesc: true },
+  { key: 'qty_remaining', label: 'Remaining', align: 'right', defaultDesc: true },
+  { key: 'remaining_value', label: 'Value Left', align: 'right', defaultDesc: true },
+  { key: 'fully_used_month', label: 'Fully Used', align: 'left' },
+];
+
 export default function InventoryValuation() {
   const { darkMode } = useDarkMode();
 
@@ -47,6 +70,8 @@ export default function InventoryValuation() {
   const [search, setSearch] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [page, setPage] = useState(0);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -90,8 +115,25 @@ export default function InventoryValuation() {
       offset: String(page * PAGE_SIZE),
     });
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (sortKey) {
+      params.set('sort', sortKey);
+      params.set('dir', sortDir);
+    }
     return params.toString();
-  }, [location, category, status, debouncedSearch, page]);
+  }, [location, category, status, debouncedSearch, page, sortKey, sortDir]);
+
+  const handleSort = useCallback(
+    (column: LotColumn) => {
+      setPage(0);
+      if (sortKey === column.key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setSortKey(column.key);
+        setSortDir(column.defaultDesc ? 'desc' : 'asc');
+      }
+    },
+    [sortKey],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -175,9 +217,13 @@ export default function InventoryValuation() {
       }
       const params = new URLSearchParams({ location, category, status, format });
       if (debouncedSearch) params.set('search', debouncedSearch);
+      if (sortKey) {
+        params.set('sort', sortKey);
+        params.set('dir', sortDir);
+      }
       return `/api/inventory/lots?${params.toString()}`;
     },
-    [basis, location, category, status, debouncedSearch],
+    [basis, location, category, status, debouncedSearch, sortKey, sortDir],
   );
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
@@ -361,16 +407,25 @@ export default function InventoryValuation() {
             <table className="w-full text-sm">
               <thead>
                 <tr className={tableHead}>
-                  <th className="px-3 py-2 text-left font-medium">Product</th>
-                  <th className="px-3 py-2 text-left font-medium">Lot #</th>
-                  <th className="px-3 py-2 text-left font-medium">Location</th>
-                  <th className="px-3 py-2 text-left font-medium">Category</th>
-                  <th className="px-3 py-2 text-left font-medium">Received</th>
-                  <th className="px-3 py-2 text-right font-medium">Qty Rcvd</th>
-                  <th className="px-3 py-2 text-right font-medium">Unit Cost</th>
-                  <th className="px-3 py-2 text-right font-medium">Remaining</th>
-                  <th className="px-3 py-2 text-right font-medium">Value Left</th>
-                  <th className="px-3 py-2 text-left font-medium">Fully Used</th>
+                  {LOT_COLUMNS.map((col) => (
+                    <th
+                      key={col.key}
+                      className={`px-3 py-2 font-medium ${col.align === 'right' ? 'text-right' : 'text-left'}`}
+                    >
+                      <button
+                        onClick={() => handleSort(col)}
+                        className={`inline-flex items-center gap-1 hover:underline ${
+                          col.align === 'right' ? 'flex-row-reverse' : ''
+                        }`}
+                        title={`Sort by ${col.label}`}
+                      >
+                        {col.label}
+                        <span className="text-[10px] w-3 inline-block">
+                          {sortKey === col.key ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                        </span>
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
