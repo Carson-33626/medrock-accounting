@@ -191,11 +191,18 @@ export async function getValidTokens(location: Location): Promise<QuickBooksToke
   const now = Date.now();
   if (tokens.expires_at < now + 5 * 60 * 1000) {
     console.log(`Token expired for ${location}, refreshing...`);
-    const refreshed = await refreshAccessToken(tokens.refresh_token, location);
-    refreshed.realm_id = tokens.realm_id; // Preserve realm_id
+    try {
+      const refreshed = await refreshAccessToken(tokens.refresh_token, location);
+      refreshed.realm_id = tokens.realm_id; // Preserve realm_id
 
-    await storeTokens(refreshed);
-    return refreshed;
+      await storeTokens(refreshed);
+      return refreshed;
+    } catch (error) {
+      // Dead refresh token (e.g. invalid_grant after Intuit's 100-day expiry).
+      // Treat as disconnected so status pages render a re-auth prompt instead of 500ing.
+      console.error(`Token refresh failed for ${location} — connection needs re-authorization:`, error);
+      return null;
+    }
   }
 
   return tokens;
