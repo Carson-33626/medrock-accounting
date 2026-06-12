@@ -546,7 +546,7 @@ function LotTableRow({ row, expanded, onToggle, detail, detailLoading, darkMode,
                                 {qty.format(r.qty_consumed)}
                                 {r.lot_anchored && (
                                   <span
-                                    title="Depletion anchored to the LifeFile lot report (actual dispensed quantities)"
+                                    title="Anchored to LifeFile actuals (lot report / balance snapshot) rather than the usage simulation"
                                     className="ml-1 text-[9px] align-middle px-1 py-0.5 rounded bg-blue-500/15 text-blue-600 font-semibold uppercase"
                                   >
                                     LF
