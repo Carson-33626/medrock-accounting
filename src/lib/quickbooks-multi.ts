@@ -276,6 +276,30 @@ async function qbRequest<T>(
 }
 
 /**
+ * Run a QBO data query (SELECT * FROM <entity> ...), transparently paginating
+ * via STARTPOSITION. The QueryResponse payload keys the entity list by the
+ * entity name, so callers pass it explicitly.
+ */
+export async function qbQueryAll<T>(location: Location, entity: string, where: string): Promise<T[]> {
+  const out: T[] = [];
+  let start = 1;
+  const pageSize = 1000;
+  for (;;) {
+    const q = `SELECT * FROM ${entity} ${where} STARTPOSITION ${start} MAXRESULTS ${pageSize}`;
+    const data = await qbRequest<{ QueryResponse?: Record<string, T[] | number | string> }>(
+      `query?query=${encodeURIComponent(q)}&minorversion=75`,
+      location,
+      { method: 'GET' },
+    );
+    const ents = data.QueryResponse?.[entity];
+    const page = Array.isArray(ents) ? ents : [];
+    out.push(...page);
+    if (page.length < pageSize) return out;
+    start += pageSize;
+  }
+}
+
+/**
  * Get Profit & Loss report from QuickBooks
  */
 export async function getProfitAndLoss(params: {

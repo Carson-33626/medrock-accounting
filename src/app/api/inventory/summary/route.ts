@@ -74,6 +74,13 @@ export async function GET(request: NextRequest) {
     const locations = [...new Set(meta.rows.map((r) => r.location))].sort();
     const categories = [...new Set(meta.rows.map((r) => r.qb_category))].sort();
 
+    // Cash basis rows appear once the Data Loader ships the QB-linkage transform
+    // (Phase 4) — the UI toggle un-grays itself when they exist.
+    const basisRes = await pool.query<{ has_cash: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM inventory.fifo_valuation_summary WHERE basis = 'cash') AS has_cash`,
+    );
+    const hasCashBasis = basisRes.rows[0]?.has_cash ?? false;
+
     if (format === 'csv' || format === 'xlsx') {
       const exportRows: Record<string, CellValue>[] = rows.map((r) => ({ ...r }));
       const filename = `fifo-valuation_${location && location !== 'all' ? location.replace(/\s+/g, '-') : 'all'}_${latestMonth ?? 'na'}_${basis}`;
@@ -84,7 +91,7 @@ export async function GET(request: NextRequest) {
       return xlsxResponse([{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }], filename, note);
     }
 
-    const body: SummaryResponse = { basis, months, locations, categories, rows, latestMonth };
+    const body: SummaryResponse = { basis, months, locations, categories, rows, latestMonth, hasCashBasis };
     return NextResponse.json(body);
   } catch (error) {
     console.error('Error fetching inventory summary:', error);

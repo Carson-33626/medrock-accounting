@@ -26,6 +26,8 @@ export interface SummaryResponse {
   categories: string[];
   rows: ValuationSummaryRow[];
   latestMonth: string | null;
+  /** true once the Data Loader writes basis='cash' rows (Phase 4 QB linkage) */
+  hasCashBasis: boolean;
 }
 
 export interface LotRow {

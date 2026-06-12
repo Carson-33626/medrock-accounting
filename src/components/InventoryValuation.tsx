@@ -277,14 +277,31 @@ export default function InventoryValuation() {
                 Accrual
               </button>
               <button
-                disabled
-                title="Cash basis arrives with the QuickBooks linkage phase — receipts re-timed to payment dates"
-                className={`px-4 py-2 text-sm font-medium cursor-not-allowed ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}
+                disabled={!summary?.hasCashBasis}
+                onClick={() => setBasis('cash')}
+                title={
+                  summary?.hasCashBasis
+                    ? 'Receipts re-timed to QuickBooks payment dates'
+                    : 'Un-grays once QB purchase links are synced and the loader ships cash-basis rows — see QB Links'
+                }
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  summary?.hasCashBasis
+                    ? basis === 'cash'
+                      ? 'text-white'
+                      : darkMode
+                        ? 'text-slate-300'
+                        : 'text-slate-600'
+                    : `cursor-not-allowed ${darkMode ? 'text-slate-600' : 'text-slate-400'}`
+                }`}
+                style={basis === 'cash' && summary?.hasCashBasis ? { backgroundColor: '#5e3b8d' } : undefined}
               >
                 Cash
               </button>
             </div>
             <div className="flex gap-2">
+              <a href="/inventory/qb-links" className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+                QB Links
+              </a>
               <a href={exportHref('summary', 'csv')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
                 CSV
               </a>
