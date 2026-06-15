@@ -1,7 +1,5 @@
-import SalesTaxDashboard from '@/components/SalesTaxDashboard';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default function SalesTaxPage() {
-  return <SalesTaxDashboard />;
+export default function SalesTaxIndex() {
+  redirect('/sales-tax/fl');
 }

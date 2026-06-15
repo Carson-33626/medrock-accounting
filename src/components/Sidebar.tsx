@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -15,7 +15,14 @@ import { AdminLink } from '@/components/AdminLink';
 const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
-  { name: 'Sales Tax', href: '/sales-tax', icon: ReceiptIcon },
+];
+
+// Expandable Sales Tax group — one page per state.
+const salesTaxStates = [
+  { name: 'Florida', href: '/sales-tax/fl' },
+  { name: 'Georgia', href: '/sales-tax/ga' },
+  { name: 'North Carolina', href: '/sales-tax/nc' },
+  { name: 'Texas', href: '/sales-tax/tx' },
 ];
 
 // Admin-only navigation items (user management moved to the central auth system)
@@ -26,6 +33,12 @@ const adminNavigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [salesTaxExpanded, setSalesTaxExpanded] = useState(false);
+
+  // Auto-expand the Sales Tax group when on one of its pages.
+  useEffect(() => {
+    if (pathname?.startsWith('/sales-tax')) setSalesTaxExpanded(true);
+  }, [pathname]);
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { user, loading, logout } = useAuth();
 
@@ -115,6 +128,51 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Sales Tax — expandable group, one page per state */}
+          {(() => {
+            const groupActive = pathname?.startsWith('/sales-tax') ?? false;
+            return (
+              <div>
+                <button
+                  onClick={() => setSalesTaxExpanded((v) => !v)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors min-h-[44px] ${
+                    groupActive && !salesTaxExpanded
+                      ? 'text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                  }`}
+                  style={groupActive && !salesTaxExpanded ? { backgroundColor: '#5e3b8d' } : undefined}
+                  aria-expanded={salesTaxExpanded}
+                >
+                  <ReceiptIcon className="w-5 h-5" />
+                  <span className="flex-1 text-left">Sales Tax</span>
+                  <ChevronIcon className={`w-4 h-4 transition-transform ${salesTaxExpanded ? 'rotate-90' : ''}`} />
+                </button>
+                {salesTaxExpanded && (
+                  <div className="mt-1 ml-4 pl-3 border-l border-slate-700 space-y-1">
+                    {salesTaxStates.map((s) => {
+                      const isActive = pathname === s.href;
+                      return (
+                        <Link
+                          key={s.href}
+                          href={s.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`block px-4 py-2 rounded-lg text-sm transition-colors min-h-[40px] flex items-center ${
+                            isActive
+                              ? 'text-white'
+                              : 'text-slate-400 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                          }`}
+                          style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                        >
+                          {s.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Admin Navigation */}
           {isAdmin && (
@@ -310,6 +368,14 @@ function ReceiptIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h4M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1-2-1z" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
     </svg>
   );
 }
