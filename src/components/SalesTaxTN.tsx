@@ -130,12 +130,12 @@ export default function SalesTaxTN() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-red-400 bg-red-50 text-red-900 px-4 py-3 text-sm">
-        <strong>⚠ Do not file from this page yet — method under CPA review.</strong> The last filed return (CY2025)
-        does <em>not</em> match this method: it reported Gross Sales of <strong>$6,609</strong> (not the full dispensing
-        subtotal) plus <strong>$18,544 of out-of-state purchase use tax</strong> (Line 3 — sourced from QuickBooks, not
-        LifeFile), taxing the full $25,153 for <strong>$2,327</strong> total. This tool computes only the LifeFile
-        dispensing side and omits the purchase use tax, so its total will be far lower. See the Company CPA Review page.
+      <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+        <strong>Method (per the prior accountant):</strong> report the <strong>full dispensing sales</strong> as Gross,
+        with the non-taxable Rx as <strong>Exempt</strong> — Tennessee is the home state that oversees the tax profile.
+        The tool does this from LifeFile. You must still enter the <strong>out-of-state purchase use tax</strong> (Line
+        3) from QuickBooks — the tool can&apos;t source it from the sales feed (CY2025 was $18,544). Note: the filed
+        CY2025 return diverged from this (Gross $6,609, no exemptions); whether to amend it is on the CPA Review page.
       </div>
       <p className={`text-sm ${subText}`}>
         Generated from the LifeFile feed. Taxable Sales backs out of the 9.25% combined rate (Σ Tax ÷ 9.25%, per the
@@ -223,13 +223,14 @@ export default function SalesTaxTN() {
             <table className="w-full text-sm">
               <tbody>
                 {[
-                  { line: 'Line 1', label: 'Gross Sales', value: boxes.grossSales, big: true },
-                  { line: '', label: 'Exempt / Deductions', value: boxes.exemptSales, big: true },
-                  { line: '', label: 'Taxable Sales', value: boxes.taxableSales },
-                  { line: '', label: 'Taxable Purchases (use tax)', value: boxes.taxablePurchases },
-                  { line: '', label: `State Tax (${(boxes.stateTaxRate * 100).toFixed(2)}%)`, value: boxes.stateTaxDue },
-                  { line: '', label: `Local Tax (${(boxes.localTaxRate * 100).toFixed(2)}%)`, value: boxes.localTaxDue },
-                  { line: '', label: 'Total Tax Due', value: boxes.totalTaxDue, highlight: true },
+                  { line: '1', label: 'Gross Sales', value: boxes.grossSales, big: true },
+                  { line: '3', label: 'Cost of Out-of-State Purchases (use tax)', value: boxes.taxablePurchases },
+                  { line: '5', label: 'Total Sales', value: boxes.grossSales + boxes.taxablePurchases },
+                  { line: '6', label: 'Exempt Transactions', value: boxes.exemptSales, big: true },
+                  { line: '7', label: 'State Net Taxable Total', value: boxes.taxableSales + boxes.taxablePurchases },
+                  { line: '8', label: `State Sales Tax (${(boxes.stateTaxRate * 100).toFixed(2)}%)`, value: boxes.stateTaxDue },
+                  { line: '10', label: `Local Sales Tax (${(boxes.localTaxRate * 100).toFixed(2)}%)`, value: boxes.localTaxDue },
+                  { line: '23', label: 'Total Due', value: boxes.totalTaxDue, highlight: true },
                 ].map((r, idx) => (
                   <tr key={idx} className={`border-t ${rowBorder} first:border-t-0`}>
                     <td className="px-5 py-3 font-mono text-xs w-20">{r.line}</td>
@@ -312,10 +313,9 @@ export default function SalesTaxTN() {
                     </thead>
                     <tbody className="tabular-nums">
                       {[
-                        { item: 'Gross Sales (Line 1)', val: usd.format(boxes.grossSales) },
-                        { item: 'Exempt / Deductions', val: usd.format(boxes.exemptSales) },
-                        { item: 'Taxable Sales', val: usd.format(boxes.taxableSales) },
-                        { item: 'Taxable Purchases (use tax)', val: usd.format(boxes.taxablePurchases) },
+                        { item: 'Line 1 · Gross Sales', val: usd.format(boxes.grossSales) },
+                        { item: 'Line 3 · Out-of-State Purchases (use tax)', val: usd.format(boxes.taxablePurchases) },
+                        { item: 'Schedule A · Exempt Transactions', val: usd.format(boxes.exemptSales) },
                       ].map((r) => (
                         <tr key={r.item} className={`border-t ${rowBorder} first:border-t-0`}>
                           <td className="px-3 py-1.5">{r.item}</td>

@@ -97,17 +97,16 @@ export default function CompanyCpaReviewPage() {
             cardBg={cardBg}
             subText={subText}
             tag="Tennessee"
-            title="TN SLS-450 method conflict — filed return ≠ SOP"
+            title="TN SLS-450 — confirm prior-return amend + use-tax source"
           >
-            The last filed TN return (CY2025) reported <strong>Gross Sales $6,609</strong> + <strong>$18,544 of
-            out-of-state purchase use tax</strong> (Line 3), taxed the full $25,153 with no exemptions, and paid{' '}
-            <strong>$2,327</strong>. That contradicts both the Pestle SOP (Gross = full dispensing subtotal ~$2.5M;
-            Taxable = tax ÷ 9.25%; most exempt) and the dispensing feed. Three things to settle:{' '}
-            <strong>(1)</strong> Does Gross Sales report the full dispensing revenue (with the Rx as exempt
-            deductions) or only taxable retail? <strong>(2)</strong> The out-of-state purchase use tax (the bulk of the
-            tax) comes from QuickBooks, not LifeFile — confirm the source and that it belongs on this return.{' '}
-            <strong>(3)</strong> Were prior TN returns filed correctly? The tool currently models only the LifeFile
-            dispensing side and is flagged "do not file" until the method is confirmed.
+            <strong>Method confirmed (Carson, per the prior accountant):</strong> report the full dispensing sales as
+            Gross with the non-taxable Rx as Exempt (TN is the home state overseeing the tax profile) — the tool now
+            does this. Two items remain: <strong>(1)</strong> The filed <strong>CY2025</strong> return diverged from
+            that guidance — it reported Gross of only <strong>$6,609</strong> with no exemptions (plus $18,544
+            out-of-state purchase use tax), taxing $25,153 for $2,327. Should that return be <strong>amended</strong> to
+            the full-gross/exempt basis? <strong>(2)</strong> The <strong>out-of-state purchase use tax</strong> (Line
+            3, $18,544 in CY2025) is a QuickBooks figure the tool can&apos;t source from LifeFile — confirm where it
+            comes from and that it&apos;s entered each year.
           </Topic>
 
           <Topic
