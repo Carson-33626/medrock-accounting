@@ -322,10 +322,11 @@ export default function SalesTaxFL() {
           </a>
         </div>
 
-        <p className={`text-xs mb-4 ${subText}`}>
-          Login: the FL DOR portal account — credentials live in the team password manager (kept out of this app for
-          security). Florida moved to this portal on 2025-12-01.
-        </p>
+        <div className={`text-xs mb-4 rounded-lg border px-3 py-2 ${rowBorder}`}>
+          <span className="font-semibold">FL DOR portal login</span> (new portal, live 2025-12-01) —{' '}
+          Login ID: <code className="font-semibold">AF1674280601</code> · Password:{' '}
+          <code className="font-semibold">69019542</code>
+        </div>
 
         <div className="space-y-4 text-sm">
           {/* Step 1 — prep */}
