@@ -193,25 +193,6 @@ export default function SalesTaxFL() {
               by its delivery county&apos;s 2026 rate (6% + surtax), correctly handling partially-taxable orders.
             </p>
           </div>
-
-          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className="text-sm font-semibold mb-1">Ship-to states (FL location)</p>
-            <p className={`text-xs mb-3 ${subText}`}>
-              Where this location shipped in {month}. Out-of-state volume is the economic-nexus signal for a CPA
-              review — not part of the FL return.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {diag.shipToStates.slice(0, 30).map((s) => (
-                <span
-                  key={s.state}
-                  className={`text-xs px-2 py-1 rounded border ${rowBorder}`}
-                  title={`${s.transactions} transactions`}
-                >
-                  {s.state}: {usd.format(s.sales)}
-                </span>
-              ))}
-            </div>
-          </div>
         </>
       )}
     </div>
