@@ -78,3 +78,92 @@ export interface FlDr15Response {
   /** Latest ingested_at of the feed, so the UI can show data freshness */
   feedAsOf: string | null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Texas Sales & Use Tax (WebFile / 01-114) — two returns, one per     */
+/* entity/permit. See docs/superpowers/specs/2026-06-15-texas-sales-tax.md */
+/* ------------------------------------------------------------------ */
+
+/** How a return's local tax is sourced — drives the jurisdiction line(s). */
+export type TxLocalKind =
+  | 'single' // remote seller, single local use tax rate (one flat line)
+  | 'origin'; // in-state seller, origin-sourced to its place of business
+
+/** One local-tax jurisdiction line on the Texas return / WebFile "list". */
+export interface TxLocalLine {
+  /** Comptroller jurisdiction code (e.g. '2220237'); '' for the single rate line */
+  code: string;
+  /** Jurisdiction name as it reads on the return */
+  name: string;
+  /** Local rate as a decimal (e.g. 0.0175, 0.015) */
+  rate: number;
+  /** Amount subject to local tax (whole dollars) */
+  amountSubjectToLocal: number;
+  /** Local tax due for this jurisdiction (dollars) */
+  localTaxDue: number;
+}
+
+export interface TxReturnBoxes {
+  /** Filing period, e.g. '2026-Q2' */
+  period: string;
+  /** Item 1 — Total Texas Sales = Σ Subtotal (whole dollars) */
+  totalTexasSales: number;
+  /** Item 2 — Taxable Sales = backout Σ min(subtotal, tax÷rate) (whole dollars) */
+  taxableSales: number;
+  /** Item 3 — Taxable Purchases (use tax, whole dollars) */
+  taxablePurchases: number;
+  /** Amount Subject to State Tax = taxableSales + taxablePurchases */
+  subjectToStateTax: number;
+  /** State rate (0.0625) */
+  stateTaxRate: number;
+  /** State Tax Due = subjectToStateTax × 0.0625 */
+  stateTaxDue: number;
+  /** Local jurisdiction lines (one for single-rate, two for Colleyville origin) */
+  localLines: TxLocalLine[];
+  /** Combined local rate (Σ of localLines' rates) */
+  combinedLocalRate: number;
+  /** Total local tax due (Σ localLines) */
+  totalLocalTaxDue: number;
+  /** Total Tax Due = state + local */
+  totalTaxDue: number;
+  /** Timely-filing discount = Total Tax Due × 0.005 */
+  timelyFilingDiscount: number;
+  /** Net Tax Due = Total Tax Due − discount */
+  netTaxDue: number;
+}
+
+export interface TxReturnInputs {
+  /** Taxable purchases for use tax (whole dollars, usually 0) */
+  taxablePurchases: number;
+}
+
+export interface TxReturnDiagnostics {
+  totalTransactions: number;
+  taxableTransactions: number;
+  /** Exact summed Subtotal before whole-dollar rounding */
+  summedSubtotalExact: number;
+  /** Exact tax actually collected by LifeFile (for the over/under-collection note) */
+  summedTaxCollected: number;
+  /** Exact backed-out taxable base before rounding */
+  taxableBaseExact: number;
+  /** Combined state+local rate used for the backout (e.g. 0.08, 0.0825) */
+  combinedRate: number;
+  /** Months actually included after the permit-start floor, e.g. ['02','03'] */
+  monthsCovered: string[];
+  /** Permit-start floor applied (YYYY-MM) */
+  permitStart: string;
+  /** Destination jurisdictions of the taxable orders (informational / nexus) */
+  taxableDestinations: { county: string; transactions: number }[];
+}
+
+export interface TxReturnResponse {
+  period: string;
+  /** Which return this is (location + state + form), enforced server-side */
+  filing: SalesTaxFiling;
+  /** How local tax is sourced for this return */
+  localKind: TxLocalKind;
+  boxes: TxReturnBoxes;
+  inputs: TxReturnInputs;
+  diagnostics: TxReturnDiagnostics;
+  feedAsOf: string | null;
+}

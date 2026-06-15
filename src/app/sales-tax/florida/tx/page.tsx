@@ -1,4 +1,5 @@
-import SalesTaxShell, { StatePlaceholder } from '@/components/SalesTaxShell';
+import SalesTaxShell from '@/components/SalesTaxShell';
+import SalesTaxTX from '@/components/SalesTaxTX';
 import { getFiling } from '@/lib/sales-tax-filings';
 
 export const dynamic = 'force-dynamic';
@@ -11,16 +12,14 @@ export default function FloridaTxSalesTaxPage() {
       filing={filing}
       description={
         <p>
-          The <strong>MedRock Florida</strong> entity&apos;s Texas return — sales where the selling location is MedRock
-          Florida AND the patient&apos;s shipping address is in Texas. The Florida pharmacy was originally registered for
-          both FL and TX, so it files TX separately from the MedRock Texas location.
+          The <strong>MedRock Florida</strong> entity&apos;s Texas return (MEDROCK PHARMACY LLC, taxpayer 32089108859) —
+          sales where the selling location is MedRock Florida AND the patient&apos;s shipping address is in Texas. As an
+          out-of-state <strong>remote seller</strong>, this files local tax at the single local use tax rate (1.75% →
+          8.00% combined). Separate from the MedRock Texas entity&apos;s TX return (Texas is filed twice).
         </p>
       }
     >
-      <StatePlaceholder
-        title="Not yet built — generator scaffolded, build-later"
-        note="Data scope: Location='MedRock Florida' AND Patient State='TX'. May 2026 reference: 1,199 transactions, $78,024.59 gross, $0.00 tax collected (Rx exempt). Texas uses WebFile (Form 01-114), not a DR-15 clone — a separate generator. See docs/superpowers/specs/2026-06-15-sales-tax-filing-automation.md."
-      />
+      <SalesTaxTX slug="florida/tx" />
     </SalesTaxShell>
   );
 }
