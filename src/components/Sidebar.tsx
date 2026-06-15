@@ -11,11 +11,12 @@ import { AdminLink } from '@/components/AdminLink';
 import { TAX_LOCATION_GROUPS, TAX_LEGACY_FILINGS } from '@/lib/sales-tax-filings';
 
 // Navigation items for MedRock Accounting
-// NOTE: dashboards (Coupons, Marketer Profitability, Company Summary) were stashed to
-// web/_archive during the rebuild — re-add them here as they are rebuilt.
+// NOTE: Coupons and Marketer Profitability dashboards remain stashed in web/_archive
+// (rebuild pending). Company Summary was rebuilt + modernized as Location Analytics.
 const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
+  { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
   { name: 'Company CPA Review', href: '/cpa-review', icon: ClipboardIcon },
 ];
 
@@ -432,6 +433,14 @@ function ChevronIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function ChartIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M9 17V9m4 8V5m4 12v-6" />
     </svg>
   );
 }
