@@ -9,6 +9,10 @@ const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' 
 // This page is the MedRock Florida -> FL return; saved inputs key off this slug.
 const FILING_SLUG = 'florida/fl';
 
+// Florida DOR file & pay portal (new portal, live as of 2025-12-01).
+const FL_DOR_PORTAL_URL =
+  'https://login.prd.floridarevenue.com/fdorextprd.onmicrosoft.com/B2C_1A_prd_signin_saml/generic/login?EntityId=https://portal.fl.revenuepremier.com/samlsps/rptp/';
+
 interface SavedInputs {
   taxablePurchases: number | null;
   salesBasisOverride: number | null;
@@ -303,6 +307,72 @@ export default function SalesTaxFL() {
           </div>
         </>
       )}
+
+      {/* How to file — directions (legacy ops doc, updated for this automated tool) */}
+      <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <h2 className="text-sm font-semibold">How to file — Florida DR-15</h2>
+          <a
+            href={FL_DOR_PORTAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700"
+          >
+            Open Florida DOR — File &amp; Pay ↗
+          </a>
+        </div>
+
+        <p className={`text-xs mb-4 ${subText}`}>
+          Login: the FL DOR portal account — credentials live in the team password manager (kept out of this app for
+          security). Florida moved to this portal on 2025-12-01.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+          <div>
+            <p className="font-semibold mb-1">1 · Prep (mostly automated now)</p>
+            <ul className={`list-disc ml-4 space-y-1 ${subText}`}>
+              <li>
+                Pick the <strong>filing month</strong> above — Florida sales pull straight from the LifeFile feed (no
+                more manual CSV export or Excel workbook).
+              </li>
+              <li>
+                Enter <strong>Taxable purchases</strong> (use tax from QuickBooks — usually 0).
+              </li>
+              <li>
+                If the <strong>Truist</strong> statement&apos;s Deposits &amp; Credits total differs from the summed
+                sales, enter it in <strong>Sales basis override</strong>.
+              </li>
+              <li>
+                <strong>Save</strong> your inputs, then <strong>export the PDF/XLSX</strong> for documentation.
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p className="font-semibold mb-1">2 · File &amp; pay on the DOR portal</p>
+            <ol className={`list-decimal ml-4 space-y-1 ${subText}`}>
+              <li>Open the portal (button above) and log in.</li>
+              <li>
+                Start the <strong>Sales &amp; Use Tax (DR-15)</strong> return for the month.{' '}
+                <span className="italic">(The old note said DR-15EZ — confirm which form your account is set to.)</span>
+              </li>
+              <li>
+                Enter the values from this page: <strong>Box 1, 2, 3, 4, B</strong> (surtax) and <strong>8a</strong>{' '}
+                (collection allowance).
+              </li>
+              <li>Fill in the business information section.</li>
+              <li>
+                <strong>Submit payment</strong> — must be initiated by the business day before the 20th (the old note
+                says by the 19th; best practice the 15th to be safe). Use the checkbox to auto-pay from the{' '}
+                <strong>Truist</strong> checking account.
+              </li>
+              <li>
+                Review the full submission, <strong>submit</strong>, then save/print the PDF confirmation and name it
+                (e.g. <code>YYYYMM - MedRock FL DR15 Confirmation</code>).
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
