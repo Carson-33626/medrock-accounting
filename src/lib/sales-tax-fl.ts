@@ -30,7 +30,7 @@ import type { FlDr15Boxes, FlDr15Response, SalesTaxFiling } from '@/types/sales-
 const FL_FILING: SalesTaxFiling = {
   location: 'MedRock Florida',
   filingState: 'FL',
-  form: 'DR-15',
+  form: 'DR-15EZ',
 };
 const FL_LOCATION = FL_FILING.location;
 const FLAT_RATE_FOR_COMPARISON = 0.075; // the accountant's Apr-2026 flat divisor

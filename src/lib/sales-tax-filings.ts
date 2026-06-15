@@ -52,7 +52,7 @@ export const TAX_LOCATION_GROUPS: TaxLocationGroup[] = [
         entity: 'MedRock Florida',
         stateName: 'Florida',
         stateAbbr: 'FL',
-        form: 'DR-15',
+        form: 'DR-15EZ',
         cadence: 'Monthly',
         due: DUE_20TH,
         built: true,

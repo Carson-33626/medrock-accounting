@@ -44,7 +44,7 @@ export async function buildFlDr15Pdf(result: FlDr15Response, sourceRows: FlSourc
   // Header
   text('MedRock Pharmacy — Florida', margin, y, { size: 11, font: bold, color: GRAY });
   y -= 22;
-  text(`Sales & Use Tax Return (DR-15) — ${result.month}`, margin, y, { size: 18, font: bold, color: PURPLE });
+  text(`Sales & Use Tax Return (DR-15EZ) — ${result.month}`, margin, y, { size: 18, font: bold, color: PURPLE });
   y -= 16;
   text(
     `Generated ${new Date().toISOString().slice(0, 10)} from the LifeFile sales-tax feed` +
@@ -65,7 +65,7 @@ export async function buildFlDr15Pdf(result: FlDr15Response, sourceRows: FlSourc
     ['Box B', 'Discretionary Surtax (memo)', b.boxB_surtax, false],
     ['Box 8a', 'Collection Allowance', b.box8a_allowance, false],
   ];
-  text('DR-15 Form Values', margin, y, { size: 12, font: bold });
+  text('DR-15EZ Form Values', margin, y, { size: 12, font: bold });
   y -= 6;
   page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: PURPLE });
   y -= 18;

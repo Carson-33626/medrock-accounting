@@ -311,7 +311,7 @@ export default function SalesTaxFL() {
       {/* How to file — directions (legacy ops doc, updated for this automated tool) */}
       <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
         <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-          <h2 className="text-sm font-semibold">How to file — Florida DR-15</h2>
+          <h2 className="text-sm font-semibold">How to file — Florida DR-15EZ</h2>
           <a
             href={FL_DOR_PORTAL_URL}
             target="_blank"
@@ -327,17 +327,16 @@ export default function SalesTaxFL() {
           security). Florida moved to this portal on 2025-12-01.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+        <div className="space-y-4 text-sm">
+          {/* Step 1 — prep */}
           <div>
-            <p className="font-semibold mb-1">1 · Prep (mostly automated now)</p>
-            <ul className={`list-disc ml-4 space-y-1 ${subText}`}>
+            <p className="font-semibold mb-1">1 · Prep (automated)</p>
+            <ul className={`list-disc ml-5 space-y-1 ${subText}`}>
               <li>
                 Pick the <strong>filing month</strong> above — Florida sales pull straight from the LifeFile feed (no
                 more manual CSV export or Excel workbook).
               </li>
-              <li>
-                Enter <strong>Taxable purchases</strong> (use tax from QuickBooks — usually 0).
-              </li>
+              <li>Enter <strong>Taxable purchases</strong> (use tax from QuickBooks — usually 0).</li>
               <li>
                 If the <strong>Truist</strong> statement&apos;s Deposits &amp; Credits total differs from the summed
                 sales, enter it in <strong>Sales basis override</strong>.
@@ -347,27 +346,92 @@ export default function SalesTaxFL() {
               </li>
             </ul>
           </div>
+
+          {/* Step 2 — start the return */}
           <div>
-            <p className="font-semibold mb-1">2 · File &amp; pay on the DOR portal</p>
-            <ol className={`list-decimal ml-4 space-y-1 ${subText}`}>
-              <li>Open the portal (button above) and log in.</li>
+            <p className="font-semibold mb-1">2 · Start the return</p>
+            <ol className={`list-decimal ml-5 space-y-1 ${subText}`}>
+              <li>Log in to the portal (button above).</li>
               <li>
-                Start the <strong>Sales &amp; Use Tax (DR-15)</strong> return for the month.{' '}
-                <span className="italic">(The old note said DR-15EZ — confirm which form your account is set to.)</span>
+                Top menu → <strong>Online Transaction</strong> → <strong>File a Tax Return / Report</strong>.
               </li>
               <li>
-                Enter the values from this page: <strong>Box 1, 2, 3, 4, B</strong> (surtax) and <strong>8a</strong>{' '}
-                (collection allowance).
+                On the <strong>File a Form</strong> screen set:
+                <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                  <li>Name: <strong>MEDROCK PHARMACY LLC</strong></li>
+                  <li>Account: <strong>Sales And Use Tax</strong></li>
+                  <li>Account ID: Certificate <strong>62-8016742806-0</strong></li>
+                  <li>Form Type: <strong>DR-15EZ</strong></li>
+                  <li>Return Type: <strong>Original Return</strong></li>
+                  <li>Filing Method: <strong>File Online</strong></li>
+                  <li>Filing Period: the month you&apos;re filing (e.g. <strong>05/01/2026 – 05/31/2026</strong>)</li>
+                </ul>
+                Then click <strong>Next</strong>.
               </li>
-              <li>Fill in the business information section.</li>
+            </ol>
+          </div>
+
+          {/* Step 3 — fill the DR-15EZ (live values) */}
+          <div>
+            <p className="font-semibold mb-1">3 · Fill the DR-15EZ — type these values</p>
+            <div className={`rounded-lg border overflow-hidden ${rowBorder}`}>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={`border-b ${rowBorder} ${subText}`}>
+                    <th className="text-left px-3 py-2 w-12">Line</th>
+                    <th className="text-left px-3 py-2">DR-15EZ line item</th>
+                    <th className="text-right px-3 py-2 w-32">Enter</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular-nums">
+                  {[
+                    { ln: '1', item: 'Gross Sales', val: boxes ? usd.format(boxes.box1_gross) : '—' },
+                    { ln: '2', item: 'Exempt Sales', val: boxes ? usd.format(boxes.box2_exempt) : '—' },
+                    { ln: '3', item: 'Taxable Sales and Purchases', val: boxes ? usd.format(boxes.box3_taxable) : '—' },
+                    { ln: '4', item: 'Total Tax Due', val: boxes ? usd.format(boxes.box4_tax) : '—' },
+                    { ln: '5', item: 'Lawful Deductions', val: '0.00' },
+                    { ln: '6', item: 'DOR Credit Memo(s)', val: '0.00' },
+                    { ln: '8a', item: 'Collection Allowance', val: boxes ? usd.format(boxes.box8a_allowance) : '—' },
+                    { ln: '8b', item: 'Penalty (on-time = 0)', val: '0.00' },
+                    { ln: '8c', item: 'Interest (on-time = 0)', val: '0.00' },
+                    { ln: 'B', item: 'Discretionary Sales Surtax Due', val: boxes ? usd.format(boxes.boxB_surtax) : '—' },
+                  ].map((r) => (
+                    <tr key={r.ln} className={`border-t ${rowBorder} first:border-t-0`}>
+                      <td className="px-3 py-1.5 font-mono">{r.ln}</td>
+                      <td className="px-3 py-1.5">{r.item}</td>
+                      <td className="px-3 py-1.5 text-right font-medium">{r.val}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className={`list-disc ml-5 mt-2 space-y-1 ${subText}`}>
               <li>
-                <strong>Submit payment</strong> — must be initiated by the business day before the 20th (the old note
-                says by the 19th; best practice the 15th to be safe). Use the checkbox to auto-pay from the{' '}
-                <strong>Truist</strong> checking account.
+                Leave <strong>Line 7 (Net Tax Due)</strong> and <strong>Line 9 (Amount Due with Return)</strong> — they
+                auto-fill when you click <strong>Calculate</strong>.
+              </li>
+              <li>
+                Leave the <strong>&ldquo;Donate Allowance to the Education Enhancement Trust Fund&rdquo;</strong> box{' '}
+                <strong>unchecked</strong>, and <strong>Line A</strong> blank (not needed — surtax is reported on Line B).
+              </li>
+              <li>
+                Click <strong>Calculate</strong>, verify Net Tax Due / Amount Due, then <strong>Continue</strong>.
+              </li>
+            </ul>
+          </div>
+
+          {/* Step 4 — pay & submit */}
+          <div>
+            <p className="font-semibold mb-1">4 · Pay &amp; submit</p>
+            <ol className={`list-decimal ml-5 space-y-1 ${subText}`}>
+              <li>
+                <strong>Submit payment</strong> — initiate by the business day before the 20th (the old note says by the
+                19th; best practice the 15th to be safe). Use the checkbox to auto-pay from the <strong>Truist</strong>{' '}
+                checking account.
               </li>
               <li>
                 Review the full submission, <strong>submit</strong>, then save/print the PDF confirmation and name it
-                (e.g. <code>YYYYMM - MedRock FL DR15 Confirmation</code>).
+                (e.g. <code>YYYYMM - MedRock FL DR-15EZ Confirmation</code>).
               </li>
             </ol>
           </div>
