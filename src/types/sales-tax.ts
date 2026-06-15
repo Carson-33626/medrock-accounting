@@ -167,3 +167,59 @@ export interface TxReturnResponse {
   diagnostics: TxReturnDiagnostics;
   feedAsOf: string | null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Tennessee Sales & Use Tax (SLS-450) — MedRock Tennessee, annual.    */
+/* See docs/superpowers/specs/2026-06-15-tennessee-sales-tax.md        */
+/* ------------------------------------------------------------------ */
+
+export interface TnReturnBoxes {
+  /** Filing year, e.g. '2026' (period ending 12/31) */
+  period: string;
+  /** Line 1 — Gross Sales = Σ Subtotal */
+  grossSales: number;
+  /** Taxable Sales = Σ Tax ÷ combined rate (SOP backout) */
+  taxableSales: number;
+  /** Taxable purchases (use tax, Line 2) — usually 0 */
+  taxablePurchases: number;
+  /** Exempt / deductions = Gross Sales − Taxable Sales */
+  exemptSales: number;
+  /** State rate (0.07) */
+  stateTaxRate: number;
+  /** Local rate (0.0225 — Hamilton Co.) */
+  localTaxRate: number;
+  /** State tax = (taxableSales + taxablePurchases) × stateTaxRate */
+  stateTaxDue: number;
+  /** Local tax = (taxableSales + taxablePurchases) × localTaxRate */
+  localTaxDue: number;
+  /** Total tax = state + local (ties to tax collected by construction) */
+  totalTaxDue: number;
+}
+
+export interface TnReturnInputs {
+  taxablePurchases: number;
+}
+
+export interface TnReturnDiagnostics {
+  totalTransactions: number;
+  taxableTransactions: number;
+  /** Tax actually collected by LifeFile (= totalTaxDue by construction) */
+  summedTaxCollected: number;
+  /** Combined state+local rate used for the backout (0.0925) */
+  combinedRate: number;
+  /** Months present in the feed for the year, e.g. ['01',...,'06'] */
+  monthsCovered: string[];
+  /** Earliest month the feed carries (TN sales before this predate the feed) */
+  feedStart: string;
+  /** True when the selected year is still in progress (not all 12 months present) */
+  partialYear: boolean;
+}
+
+export interface TnReturnResponse {
+  period: string;
+  filing: SalesTaxFiling;
+  boxes: TnReturnBoxes;
+  inputs: TnReturnInputs;
+  diagnostics: TnReturnDiagnostics;
+  feedAsOf: string | null;
+}

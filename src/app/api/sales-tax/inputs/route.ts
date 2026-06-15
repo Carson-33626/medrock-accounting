@@ -13,9 +13,9 @@ interface SavedInputs {
   updatedBy: string | null;
 }
 
-// The `month` column is really a period key: monthly filings use YYYY-MM, quarterly use YYYY-Qn.
+// The `month` column is really a period key: monthly = YYYY-MM, quarterly = YYYY-Qn, annual = YYYY.
 function isValidMonth(m: string | null): m is string {
-  return !!m && (/^\d{4}-\d{2}$/.test(m) || /^\d{4}-Q[1-4]$/.test(m));
+  return !!m && (/^\d{4}-\d{2}$/.test(m) || /^\d{4}-Q[1-4]$/.test(m) || /^\d{4}$/.test(m));
 }
 
 /** GET /api/sales-tax/inputs?slug=florida/fl&month=YYYY-MM — load saved inputs (or nulls). */

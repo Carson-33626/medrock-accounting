@@ -97,7 +97,7 @@ export const TAX_LOCATION_GROUPS: TaxLocationGroup[] = [
         form: 'SLS-450',
         cadence: 'Annual',
         due: DUE_TN_ANNUAL,
-        built: false,
+        built: true,
       },
     ],
   },
