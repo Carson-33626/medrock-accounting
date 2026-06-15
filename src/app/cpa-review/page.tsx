@@ -9,9 +9,7 @@ export default function CompanyCpaReviewPage() {
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
-  const pendingBg = darkMode
-    ? 'bg-amber-950/40 border-amber-800/60 text-amber-200'
-    : 'bg-amber-50 border-amber-200 text-amber-900';
+  const cardBorder = darkMode ? 'border-slate-700' : 'border-slate-200';
 
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
@@ -21,17 +19,14 @@ export default function CompanyCpaReviewPage() {
           <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
             Company CPA Review
           </h1>
-          <div className={`mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${pendingBg}`}>
-            <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
-            Pending build out
-          </div>
         </div>
 
         <div className={`rounded-xl shadow-sm p-6 ${cardBg}`}>
           <p className="text-sm font-semibold mb-2">What lands here</p>
           <p className={`text-sm ${subText}`}>
             Company-level review material for the CPA — kept out of the per-state tax pages so those stay strictly
-            about filing. The page itself is a placeholder; the topics below are the open items queued for review.
+            about filing. The topics below are the open items queued for review; each one points to where in the app
+            the underlying numbers live.
           </p>
         </div>
 
@@ -43,6 +38,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Texas"
             title="Taxable-sales method change (Texas returns)"
+            cardBorder={cardBorder}
+            where={
+              <>
+                Sales Tax → <strong>Florida → TX · 01-114</strong> and <strong>Texas → TX · 01-114</strong> — the
+                &ldquo;Taxable Sales&rdquo; line and method note on each Texas return page.
+              </>
+            }
           >
             Both Texas returns now compute <strong>Taxable Sales by backing tax out of the combined rate</strong> (tax ÷
             8.0%/8.25%, capped at each order&apos;s subtotal) — the same method as the FL DR-15, which isolates the
@@ -57,6 +59,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Texas"
             title="Single local use tax rate election — Form 01-799 (MEDROCK PHARMACY LLC)"
+            cardBorder={cardBorder}
+            where={
+              <>
+                Sales Tax → <strong>Florida → TX · 01-114</strong> (MedRock Florida&apos;s Texas return) — the amber
+                single-rate election note.
+              </>
+            }
           >
             The Florida entity is an out-of-state <strong>remote seller</strong>, eligible for the single local use tax
             rate (1.75% → 8.00% combined) instead of per-destination jurisdiction sourcing. Recommend{' '}
@@ -70,6 +79,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Texas"
             title="Local tax sourcing — origin (Colleyville) vs destination"
+            cardBorder={cardBorder}
+            where={
+              <>
+                Sales Tax → <strong>Texas → TX · 01-114</strong> (MedRock Texas&apos;s return) — the per-jurisdiction
+                local breakdown and the origin-sourcing caption beneath it.
+              </>
+            }
           >
             MedRock Texas ships to patient cities all over the state, so which local jurisdiction gets the local tax is a
             fair question. As an <strong>in-state seller</strong>, Texas sources local tax to the{' '}
@@ -87,6 +103,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Texas"
             title="Texas permit effective date — February 2026"
+            cardBorder={cardBorder}
+            where={
+              <>
+                Sales Tax → <strong>Florida → TX · 01-114</strong> and <strong>Texas → TX · 01-114</strong> — the
+                quarter picker (Q1-2026 covers Feb–Mar only).
+              </>
+            }
           >
             Both Texas Sales &amp; Use Tax permits appear effective <strong>Feb 1, 2026</strong> (neither entity has any
             January 2026 TX rows; both Q1 returns covered Feb+Mar only). The generator floors at 2026-02 and excludes
@@ -98,6 +121,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Tennessee"
             title="TN SLS-450 — confirm prior-return amend + use-tax source"
+            cardBorder={cardBorder}
+            where={
+              <>
+                Sales Tax → <strong>Tennessee → TN · SLS-450</strong> — the method banner and the Line 3
+                out-of-state-purchase use-tax input.
+              </>
+            }
           >
             <strong>Method confirmed (Carson, per the prior accountant):</strong> report the full dispensing sales as
             Gross with the non-taxable Rx as Exempt (TN is the home state overseeing the tax profile) — the tool now
@@ -114,6 +144,13 @@ export default function CompanyCpaReviewPage() {
             subText={subText}
             tag="Nexus"
             title="Economic-nexus signal (post-Wayfair)"
+            cardBorder={cardBorder}
+            where={
+              <>
+                <strong>Location Analytics</strong> — per-location revenue and out-of-state dispensing volume; the
+                ship-to breakdown that signals new-state registration obligations is sourced here.
+              </>
+            }
           >
             Where each location ships and out-of-state volume by state — informs whether any new state
             registration/filing obligation exists beyond FL/TX/TN. Data can be sourced from the per-location ship-to feed
@@ -128,14 +165,18 @@ export default function CompanyCpaReviewPage() {
 function Topic({
   cardBg,
   subText,
+  cardBorder,
   tag,
   title,
+  where,
   children,
 }: {
   cardBg: string;
   subText: string;
+  cardBorder: string;
   tag: string;
   title: string;
+  where: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -147,6 +188,11 @@ function Topic({
         <p className="text-sm font-semibold">{title}</p>
       </div>
       <p className={`text-sm ${subText}`}>{children}</p>
+      <p className={`mt-3 pt-3 border-t ${cardBorder} text-xs ${subText}`}>
+        <span aria-hidden className="mr-1">📍</span>
+        <span className="font-semibold uppercase tracking-wide">Where to find it: </span>
+        {where}
+      </p>
     </div>
   );
 }
