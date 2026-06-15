@@ -178,7 +178,12 @@ export default function SalesTaxFL() {
               ))}
             </select>
           </Field>
-          <Field label="Taxable purchases" hint="use tax — from QB, usually 0" sub={subText}>
+          <Field
+            label="Taxable purchases"
+            affects="Box 3 · 4"
+            hint="Use tax (E7) from QB — usually 0. Adds to Box 3 (taxable) &amp; Box 4 (tax due)."
+            sub={subText}
+          >
             <input
               type="number"
               step="0.01"
@@ -188,7 +193,12 @@ export default function SalesTaxFL() {
               placeholder="0.00"
             />
           </Field>
-          <Field label="Sales basis override" hint="blank = summed sales" sub={subText}>
+          <Field
+            label="Sales basis override"
+            affects="Box 1 · 2"
+            hint="Bank deposit (B4); blank = summed sales. Box 1 = basis − tax; Box 2 = Box 1 − Box 3."
+            sub={subText}
+          >
             <input
               type="number"
               step="0.01"
@@ -301,16 +311,26 @@ function Field({
   label,
   hint,
   sub,
+  affects,
   children,
 }: {
   label: string;
   hint: string;
   sub: string;
+  /** Which DR-15 box(es) this input drives, e.g. 'Box 1 · 2' — shown as a badge. */
+  affects?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className={`text-xs uppercase tracking-wide ${sub}`}>{label}</span>
+      <span className={`text-xs uppercase tracking-wide flex items-center gap-2 ${sub}`}>
+        {label}
+        {affects && (
+          <span className="normal-case tracking-normal px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-semibold">
+            → {affects}
+          </span>
+        )}
+      </span>
       {children}
       <span className={`text-[11px] ${sub}`} dangerouslySetInnerHTML={{ __html: hint }} />
     </div>
