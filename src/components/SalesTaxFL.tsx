@@ -28,10 +28,21 @@ const FILING_MONTHS: string[] = (() => {
   return out;
 })();
 
+/** YYYY-MM, n calendar months before the current month (0 = current month). */
+function monthsAgo(n: number): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function SalesTaxFL() {
   const { darkMode } = useDarkMode();
 
-  const [month, setMonth] = useState('2026-05');
+  // "Last month" = the period you file now; default to it (fall back if out of range).
+  const lastMonth = monthsAgo(1);
+  const currentMonth = monthsAgo(0);
+  const [month, setMonth] = useState(() => (FILING_MONTHS.includes(lastMonth) ? lastMonth : '2026-05'));
   const [taxablePurchases, setTaxablePurchases] = useState('0');
   const [salesBasisOverride, setSalesBasisOverride] = useState('');
   const [data, setData] = useState<FlDr15Response | null>(null);
@@ -173,13 +184,26 @@ export default function SalesTaxFL() {
       {/* Controls — aligned grid */}
       <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-          <Field label="Filing month" hint="&nbsp;" sub={subText}>
+          <Field label="Filing month" hint="Defaults to last month — the period you file now." sub={subText}>
             <select value={month} onChange={(e) => setMonth(e.target.value)} className={inputCls}>
-              {FILING_MONTHS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
+              {FILING_MONTHS.map((m) => {
+                const isLast = m === lastMonth;
+                const isCurrent = m === currentMonth;
+                const label = isLast
+                  ? `${m}  ◀ last month (file now)`
+                  : isCurrent
+                    ? `${m}  — current (in progress)`
+                    : m;
+                return (
+                  <option
+                    key={m}
+                    value={m}
+                    style={isLast ? { fontWeight: 700, backgroundColor: '#ede9fe', color: '#5b21b6' } : undefined}
+                  >
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </Field>
           <Field
