@@ -21,7 +21,6 @@ export function SessionTimeoutModal({
 }: SessionTimeoutModalProps) {
   const [countdown, setCountdown] = useState(timeoutSeconds);
   const [extending, setExtending] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // Countdown timer
   useEffect(() => {
@@ -39,21 +38,20 @@ export function SessionTimeoutModal({
 
   const handleExtend = useCallback(async () => {
     setExtending(true);
-    setRefreshError(null);
     try {
       const success = await onExtend();
       if (success) {
         onDismiss();
       } else {
-        // Refresh failed, show error but don't log out automatically
-        setRefreshError('Session refresh failed. Please try again or log in manually.');
+        // Refresh failed, log out
+        onLogout();
       }
     } catch {
-      setRefreshError('Session refresh failed. Please try again or log in manually.');
+      onLogout();
     } finally {
       setExtending(false);
     }
-  }, [onExtend, onDismiss]);
+  }, [onExtend, onDismiss, onLogout]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -100,13 +98,6 @@ export function SessionTimeoutModal({
           Your session is about to expire due to inactivity.
         </p>
 
-        {/* Error message if refresh failed */}
-        {refreshError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800 text-center">{refreshError}</p>
-          </div>
-        )}
-
         {/* Countdown */}
         <div className="text-center mb-6">
           <span className="text-sm text-gray-500">You will be logged out in</span>
@@ -133,7 +124,7 @@ export function SessionTimeoutModal({
             disabled={extending}
             className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-wait"
           >
-            {extending ? 'Refreshing...' : (refreshError ? 'Try Again' : 'Refresh Session')}
+            {extending ? 'Extending...' : 'Stay Signed In'}
           </button>
         </div>
       </div>

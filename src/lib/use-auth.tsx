@@ -3,44 +3,36 @@
  *
  * Wrap your app with AuthProvider, then use useAuth() in components.
  *
- * Integration package 1.3.0 behavior, adapted to this app's local proxy
- * routes (/api/auth/me, /api/auth/refresh) which read the session cookie
- * server-side to avoid cross-origin cookie issues.
+ * MedRock Auth Integration Package 1.3.0 — canonical (direct) flow.
+ * Calls the auth host directly with `credentials: 'include'`; the shared
+ * `.medrockpharmacy.com` session cookie travels cross-origin, so no local
+ * proxy routes are needed. (This app previously forked to a /api/auth/* proxy
+ * to work around cross-origin cookies; the auth host now supports CORS +
+ * /api/extend-session directly, so we're back on the canonical package.)
  *
  * Features:
- * - Initial user fetch via /api/auth/me
+ * - Initial user fetch via /api/me
  * - Proactive session timeout modal scheduled against the server-reported
  *   `expires_at` (no polling/heartbeat for the primary trigger)
- * - "Stay Signed In" calls /api/auth/refresh, which extends the session
- *   server-side via the auth host while the refresh token is still alive
- * - Tab visibility handling: when a tab becomes visible we re-fetch /api/auth/me
- *   to pick up any expiry advance done by another tab
- * - Safety-net heartbeat that fires only if expires_at was unavailable
- *   (e.g., legacy cookie format)
+ * - "Stay Signed In" calls /api/extend-session, which cookie-refreshes server-side
+ * - Tab visibility handling: when a tab becomes visible we re-fetch /api/me to
+ *   pick up any expiry advance done by another tab (and to schedule the timer
+ *   in this tab)
+ * - Safety-net heartbeat that fires only if expires_at was unavailable (e.g.,
+ *   older cookies that didn't include it)
  */
 
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { SessionTimeoutModal } from '@/components/SessionTimeoutModal';
+import type { User } from '@/lib/auth-client';
 
 const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
 
 // Configuration
 const FALLBACK_HEARTBEAT_INTERVAL_MS = 60 * 1000; // Only used when expires_at is unknown
 const TIMEOUT_WARNING_SECONDS = 60; // Show the modal this many seconds before token expiry
-
-export interface User {
-  id: string;
-  email: string;
-  full_name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  phone_verified: boolean;
-  regions: string[];
-  departments: string[];
-}
 
 interface AuthContextType {
   user: User | null;
@@ -66,7 +58,8 @@ interface AuthProviderProps {
 }
 
 interface MeResponse {
-  user?: User | null;
+  success?: boolean;
+  user?: User;
   expires_at?: number | null;
 }
 
@@ -87,16 +80,22 @@ export function AuthProvider({
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
 
-  // Check session via the local proxy route (reads cookie server-side).
+  // Check session by calling /api/me. Returns true if session is valid.
   // Also captures expires_at so the warning modal can be scheduled proactively.
   const checkSession = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
+        credentials: 'include',
+      });
 
       if (response.ok) {
         const data = (await response.json()) as MeResponse;
         if (data.user) setUser(data.user);
-        setExpiresAt(typeof data.expires_at === 'number' ? data.expires_at : null);
+        if (typeof data.expires_at === 'number') {
+          setExpiresAt(data.expires_at);
+        } else {
+          setExpiresAt(null);
+        }
         setSessionExpired(false);
         return true;
       } else {
@@ -108,12 +107,12 @@ export function AuthProvider({
     }
   }, []);
 
-  // Extend the session via the local refresh proxy (cookie-based, server-side).
+  // Try to refresh/extend the session via the auth host's cookie-based refresh endpoint.
   const extendSession = useCallback(async (): Promise<boolean> => {
     try {
-      const refreshResp = await fetch('/api/auth/refresh', {
+      const refreshResp = await fetch(`${AUTH_SERVICE_URL}/api/extend-session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
 
       if (refreshResp.ok) {
@@ -126,8 +125,8 @@ export function AuthProvider({
         return valid;
       }
 
-      // Refresh truly failed. Try one more /api/auth/me in case the underlying
-      // issue was a transient network blip rather than a dead refresh token.
+      // Refresh truly failed. Try one more /api/me in case the underlying issue
+      // was a transient network blip rather than a dead refresh token.
       const stillValid = await checkSession();
       return stillValid;
     } catch (err) {
@@ -136,16 +135,20 @@ export function AuthProvider({
     }
   }, [checkSession]);
 
-  // Initial user fetch (uses local API to read cookie server-side)
+  // Initial user fetch
   const fetchUser = useCallback(async () => {
     try {
       setError(null);
-      const response = await fetch('/api/auth/me');
+      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
+        credentials: 'include',
+      });
 
       if (response.ok) {
         const data = (await response.json()) as MeResponse;
-        setUser(data.user ?? null);
-        setExpiresAt(typeof data.expires_at === 'number' ? data.expires_at : null);
+        if (data.user) setUser(data.user);
+        if (typeof data.expires_at === 'number') {
+          setExpiresAt(data.expires_at);
+        }
       } else {
         setUser(null);
         setExpiresAt(null);
@@ -160,15 +163,13 @@ export function AuthProvider({
     }
   }, []);
 
-  // Load user on mount
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
 
-  // Primary modal trigger: schedule it to fire `timeoutWarningSeconds` before token
-  // expiry. This avoids the old failure-driven model where the modal only appeared
-  // *after* /api/auth/me had already 401'd — by which point refresh was usually
-  // also dead and "Stay Signed In" had nothing to extend.
+  // Primary modal trigger: schedule it to fire `timeoutWarningSeconds` before token expiry.
+  // This avoids the old failure-driven model where the modal only appeared *after* /api/me
+  // had already 401'd — by which point refresh was usually also dead.
   useEffect(() => {
     if (disableHeartbeat) return;
     if (!user || !expiresAt) return;
@@ -188,8 +189,8 @@ export function AuthProvider({
     return () => clearTimeout(timer);
   }, [user, expiresAt, timeoutWarningSeconds, disableHeartbeat]);
 
-  // Safety-net heartbeat: ONLY active when expires_at is unknown (legacy cookie
-  // format). With expires_at the scheduled timeout above handles things.
+  // Safety-net heartbeat: ONLY active when expires_at is unknown (older auth host or
+  // legacy cookie format). With expires_at the scheduled timeout above handles things.
   // Tab visibility re-check always runs so multi-tab refreshes stay in sync.
   const expiresAtRef = useRef(expiresAt);
   useEffect(() => {
@@ -255,7 +256,6 @@ export function AuthProvider({
     await fetchUser();
   }, [fetchUser]);
 
-  // Handle timeout warning modal actions
   const handleExtendFromModal = useCallback(async (): Promise<boolean> => {
     return extendSession();
   }, [extendSession]);
@@ -284,7 +284,6 @@ export function AuthProvider({
     >
       {children}
 
-      {/* Session Timeout Warning Modal (ADP-style) */}
       {showTimeoutWarning && (
         <SessionTimeoutModal
           timeoutSeconds={timeoutWarningSeconds}
