@@ -83,18 +83,10 @@ export default function SalesTaxFL() {
 
   return (
     <div className="space-y-6">
-      {/* Filing identity — which location/entity this return belongs to (enforced server-side) */}
-      {data?.filing && (
-        <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-xs font-medium text-purple-800">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500" />
-          {data.filing.form} · {data.filing.location} · ship-to {data.filing.filingState}
-        </div>
-      )}
-
-      {/* subtitle + freshness */}
+      {/* Method + freshness note (filing identity + due date live in the page header) */}
       <p className={`text-sm ${subText}`}>
-        <strong>{data?.filing?.location ?? 'MedRock Florida'}</strong> sales only — FL-destination transactions from
-        the LifeFile feed. Method matches the accountant&apos;s workbook; taxable base uses 2026 county surtax rates.
+        Generated from the LifeFile feed. Method matches the accountant&apos;s workbook; taxable base uses 2026 county
+        surtax rates.
         {data?.feedAsOf ? ` Feed as of ${new Date(data.feedAsOf).toLocaleDateString()}.` : ''}
       </p>
 

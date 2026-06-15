@@ -1,32 +1,6 @@
-import SalesTaxShell from '@/components/SalesTaxShell';
-import SalesTaxFL from '@/components/SalesTaxFL';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default function FloridaSalesTaxPage() {
-  return (
-    <SalesTaxShell
-      state="Florida"
-      description={
-        <>
-          <p className="font-semibold text-purple-800">
-            Florida monthly <span className="whitespace-nowrap">DR-15</span> return — for the{' '}
-            <span className="underline decoration-purple-400">MedRock Florida</span> location only.
-          </p>
-          <p className="mt-1">
-            Includes <strong>only</strong> sales where the <strong>selling location is MedRock Florida</strong> AND the{' '}
-            <strong>patient&apos;s shipping address is in Florida</strong> (ship-to state = FL). This is destination-based:
-            a Florida sale means the medication went to a Florida patient.
-          </p>
-          <p className="mt-1">
-            It does <strong>NOT</strong> include: the Tennessee or Texas locations, or MedRock Florida orders shipped to
-            patients <strong>outside</strong> Florida — those belong to other returns (e.g. MedRock&nbsp;Florida →
-            Texas and MedRock&nbsp;Texas → Texas are two separate Texas filings).
-          </p>
-        </>
-      }
-    >
-      <SalesTaxFL />
-    </SalesTaxShell>
-  );
+// Old flat route — FL is now the MedRock Florida entity's FL return.
+export default function LegacyFlRedirect() {
+  redirect('/sales-tax/florida/fl');
 }

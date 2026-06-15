@@ -8,6 +8,7 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import { useAuth } from '@/lib/use-auth';
 import { authClient } from '@/lib/auth-client';
 import { AdminLink } from '@/components/AdminLink';
+import { TAX_LOCATION_GROUPS, TAX_LEGACY_FILINGS } from '@/lib/sales-tax-filings';
 
 // Navigation items for MedRock Accounting
 // NOTE: dashboards (Coupons, Marketer Profitability, Company Summary) were stashed to
@@ -15,14 +16,6 @@ import { AdminLink } from '@/components/AdminLink';
 const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
-];
-
-// Expandable Sales Tax group — one page per state.
-const salesTaxStates = [
-  { name: 'Florida', href: '/sales-tax/fl' },
-  { name: 'Georgia', href: '/sales-tax/ga' },
-  { name: 'North Carolina', href: '/sales-tax/nc' },
-  { name: 'Texas', href: '/sales-tax/tx' },
 ];
 
 // Admin-only navigation items (user management moved to the central auth system)
@@ -34,6 +27,17 @@ export function Sidebar() {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesTaxExpanded, setSalesTaxExpanded] = useState(false);
+  // Each location (filing entity) is its own collapsible sub-menu; default all open.
+  const [expandedLocations, setExpandedLocations] = useState<Set<string>>(
+    () => new Set(TAX_LOCATION_GROUPS.map((g) => g.entity)),
+  );
+  const toggleLocation = (entity: string) =>
+    setExpandedLocations((prev) => {
+      const next = new Set(prev);
+      if (next.has(entity)) next.delete(entity);
+      else next.add(entity);
+      return next;
+    });
 
   // Auto-expand the Sales Tax group when on one of its pages.
   useEffect(() => {
@@ -150,24 +154,75 @@ export function Sidebar() {
                 </button>
                 {salesTaxExpanded && (
                   <div className="mt-1 ml-4 pl-3 border-l border-slate-700 space-y-1">
-                    {salesTaxStates.map((s) => {
-                      const isActive = pathname === s.href;
+                    {/* Location sub-menus → states filed under each */}
+                    {TAX_LOCATION_GROUPS.map((group) => {
+                      const hasActive = group.filings.some((f) => pathname === `/sales-tax/${f.slug}`);
+                      const open = expandedLocations.has(group.entity) || hasActive;
                       return (
-                        <Link
-                          key={s.href}
-                          href={s.href}
-                          onClick={() => setSidebarOpen(false)}
-                          className={`block px-4 py-2 rounded-lg text-sm transition-colors min-h-[40px] flex items-center ${
-                            isActive
-                              ? 'text-white'
-                              : 'text-slate-400 hover:bg-slate-800 hover:text-white active:bg-slate-700'
-                          }`}
-                          style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
-                        >
-                          {s.name}
-                        </Link>
+                        <div key={group.entity}>
+                          <button
+                            onClick={() => toggleLocation(group.entity)}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider text-slate-400 hover:bg-slate-800 hover:text-white active:bg-slate-700 transition-colors"
+                            aria-expanded={open}
+                          >
+                            <ChevronIcon className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+                            <span className="flex-1 text-left">{group.short}</span>
+                          </button>
+                          {open && (
+                            <div className="ml-3 pl-3 border-l border-slate-800 space-y-1">
+                              {group.filings.map((f) => {
+                                const href = `/sales-tax/${f.slug}`;
+                                const isActive = pathname === href;
+                                return (
+                                  <Link
+                                    key={href}
+                                    href={href}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className={`block px-4 py-2 rounded-lg text-sm transition-colors min-h-[40px] flex items-center justify-between gap-2 ${
+                                      isActive
+                                        ? 'text-white'
+                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                                    }`}
+                                    style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                                  >
+                                    <span>{f.stateAbbr} · {f.form.split(' ')[0]}</span>
+                                    {!f.built && (
+                                      <span className="text-[10px] font-medium text-slate-500 uppercase">soon</span>
+                                    )}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
+
+                    {/* Legacy registrations (filing until formally closed) */}
+                    <div className="pt-2 mt-1 border-t border-slate-800">
+                      <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                        Legacy
+                      </p>
+                      {TAX_LEGACY_FILINGS.map((f) => {
+                        const href = `/sales-tax/${f.slug}`;
+                        const isActive = pathname === href;
+                        return (
+                          <Link
+                            key={href}
+                            href={href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`block px-4 py-2 rounded-lg text-sm transition-colors min-h-[40px] flex items-center ${
+                              isActive
+                                ? 'text-white'
+                                : 'text-slate-500 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                            }`}
+                            style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                          >
+                            {f.stateAbbr} · {f.stateName}
+                          </Link>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
