@@ -10,7 +10,7 @@ const FILING_SLUG = 'tennessee/tn';
 // Tennessee TNTAP portal (Sales & Use → View/File Returns).
 const TNTAP_URL = 'https://tntap.tn.gov/eservices/_/#4';
 const TNTAP_LOGIN = 'Medrockton';
-const TNTAP_PASSWORD = 'Shallow11sford$';
+const TNTAP_PASSWORD = 'Shallow6116Ford$';
 const TN_ACCOUNT = '1002172027-SLC';
 
 interface SavedInputs {
@@ -130,6 +130,13 @@ export default function SalesTaxTN() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border border-red-400 bg-red-50 text-red-900 px-4 py-3 text-sm">
+        <strong>⚠ Do not file from this page yet — method under CPA review.</strong> The last filed return (CY2025)
+        does <em>not</em> match this method: it reported Gross Sales of <strong>$6,609</strong> (not the full dispensing
+        subtotal) plus <strong>$18,544 of out-of-state purchase use tax</strong> (Line 3 — sourced from QuickBooks, not
+        LifeFile), taxing the full $25,153 for <strong>$2,327</strong> total. This tool computes only the LifeFile
+        dispensing side and omits the purchase use tax, so its total will be far lower. See the Company CPA Review page.
+      </div>
       <p className={`text-sm ${subText}`}>
         Generated from the LifeFile feed. Taxable Sales backs out of the 9.25% combined rate (Σ Tax ÷ 9.25%, per the
         filing SOP), so the total tax ties to what was collected; Gross Sales = summed Subtotal; Exempt = Gross −
@@ -149,9 +156,9 @@ export default function SalesTaxTN() {
             </select>
           </Field>
           <Field
-            label="Taxable purchases"
-            affects="Use tax"
-            hint="Cost of property purchased for use (use tax) from QuickBooks — usually 0."
+            label="Out-of-state purchases"
+            affects="Line 3 · use tax"
+            hint="Cost of out-of-state purchases for use (Line 3) from QuickBooks. NOT usually 0 — the CY2025 return was $18,544. Taxed at the full 9.25%."
             sub={subText}
           >
             <input

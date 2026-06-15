@@ -96,6 +96,23 @@ export default function CompanyCpaReviewPage() {
           <Topic
             cardBg={cardBg}
             subText={subText}
+            tag="Tennessee"
+            title="TN SLS-450 method conflict — filed return ≠ SOP"
+          >
+            The last filed TN return (CY2025) reported <strong>Gross Sales $6,609</strong> + <strong>$18,544 of
+            out-of-state purchase use tax</strong> (Line 3), taxed the full $25,153 with no exemptions, and paid{' '}
+            <strong>$2,327</strong>. That contradicts both the Pestle SOP (Gross = full dispensing subtotal ~$2.5M;
+            Taxable = tax ÷ 9.25%; most exempt) and the dispensing feed. Three things to settle:{' '}
+            <strong>(1)</strong> Does Gross Sales report the full dispensing revenue (with the Rx as exempt
+            deductions) or only taxable retail? <strong>(2)</strong> The out-of-state purchase use tax (the bulk of the
+            tax) comes from QuickBooks, not LifeFile — confirm the source and that it belongs on this return.{' '}
+            <strong>(3)</strong> Were prior TN returns filed correctly? The tool currently models only the LifeFile
+            dispensing side and is flagged "do not file" until the method is confirmed.
+          </Topic>
+
+          <Topic
+            cardBg={cardBg}
+            subText={subText}
             tag="Nexus"
             title="Economic-nexus signal (post-Wayfair)"
           >
