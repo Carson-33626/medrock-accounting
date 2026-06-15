@@ -3,7 +3,16 @@
 import { useDarkMode } from '@/contexts/DarkModeContext';
 
 /** Page chrome shared by every per-state sales-tax page. */
-export default function SalesTaxShell({ state, children }: { state: string; children: React.ReactNode }) {
+export default function SalesTaxShell({
+  state,
+  description,
+  children,
+}: {
+  state: string;
+  /** Per-state explainer shown under the title. Falls back to a generic line. */
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   const { darkMode } = useDarkMode();
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -14,7 +23,11 @@ export default function SalesTaxShell({ state, children }: { state: string; chil
           <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
             Sales Tax — {state}
           </h1>
-          <p className={`text-sm ${subText}`}>State sales &amp; use tax filing prep, generated from the LifeFile feed.</p>
+          {description ? (
+            <div className={`text-sm mt-1 ${subText}`}>{description}</div>
+          ) : (
+            <p className={`text-sm ${subText}`}>State sales &amp; use tax filing prep, generated from the LifeFile feed.</p>
+          )}
         </div>
         {children}
       </div>

@@ -48,8 +48,26 @@ export interface FlDr15Diagnostics {
   shipToStates: { state: string; transactions: number; sales: number }[];
 }
 
+/**
+ * Identifies exactly which return this is. Each MedRock location is its own
+ * filing entity; a return is scoped by (location origin, ship-to state, form).
+ * Surfaced + enforced so a FL DR-15 can never silently include another
+ * location's sales. The (location x state) matrix also yields the two separate
+ * TX returns: MedRock Florida -> TX and MedRock Texas -> TX.
+ */
+export interface SalesTaxFiling {
+  /** Origin location / filing entity — matches source.sales_tax_report 'Location' */
+  location: string;
+  /** Ship-to state this return covers (destination basis) */
+  filingState: string;
+  /** Form name, e.g. 'DR-15' (FL) */
+  form: string;
+}
+
 export interface FlDr15Response {
   month: string;
+  /** Which return this is (location + state + form), enforced server-side */
+  filing: SalesTaxFiling;
   boxes: FlDr15Boxes;
   inputs: FlDr15Inputs;
   diagnostics: FlDr15Diagnostics;

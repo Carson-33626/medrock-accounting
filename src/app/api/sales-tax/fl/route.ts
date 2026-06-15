@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     const source = await fetchFlSourceRows(month);
     // Lead with YYYYMM so Windows sorts exports chronologically by name.
     const filename = `${month.replace('-', '')} - MedRock FL DR15 Taxes`;
-    const note = `MedRock FL DR-15 — ${month} — generated ${new Date().toISOString()} from source.sales_tax_report (feed as of ${result.feedAsOf ?? 'n/a'}). ${result.diagnostics.taxableTransactions} taxable of ${result.diagnostics.totalTransactions} FL transactions.`;
+    const note = `${result.filing.location} ${result.filing.form} (ship-to ${result.filing.filingState}) — ${month} — generated ${new Date().toISOString()} from source.sales_tax_report (feed as of ${result.feedAsOf ?? 'n/a'}). ${result.diagnostics.taxableTransactions} taxable of ${result.diagnostics.totalTransactions} ${result.filing.location} transactions.`;
 
     if (format === 'xlsx') {
       return xlsxResponse(

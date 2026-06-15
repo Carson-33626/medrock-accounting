@@ -18,9 +18,21 @@
 
 import { getRdsPool } from './rds';
 import { flCombinedRate, flCountyKnown } from './fl-surtax';
-import type { FlDr15Boxes, FlDr15Response } from '@/types/sales-tax';
+import type { FlDr15Boxes, FlDr15Response, SalesTaxFiling } from '@/types/sales-tax';
 
-const FL_LOCATION = 'MedRock Florida';
+/**
+ * This return is the MedRock FLORIDA entity's FL DR-15. Enforced everywhere:
+ * source rows are filtered to this location AND ship-to FL, so the FL filing
+ * can never include Tennessee- or Texas-origin sales. (The Texas location, and
+ * Florida-origin sales shipped into TX, are separate returns — see the filing
+ * matrix in docs/superpowers/specs/2026-06-15-sales-tax-filing-automation.md.)
+ */
+const FL_FILING: SalesTaxFiling = {
+  location: 'MedRock Florida',
+  filingState: 'FL',
+  form: 'DR-15',
+};
+const FL_LOCATION = FL_FILING.location;
 const FLAT_RATE_FOR_COMPARISON = 0.075; // the accountant's Apr-2026 flat divisor
 
 /** One source transaction for the export (no street address — minimize PHI). */
@@ -217,6 +229,7 @@ export async function computeFlDr15(
 
   return {
     month,
+    filing: FL_FILING,
     boxes,
     inputs: {
       salesBasis: round2(salesBasisC / 100),
