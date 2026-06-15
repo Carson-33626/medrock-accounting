@@ -23,6 +23,73 @@ import type { FlDr15Boxes, FlDr15Response } from '@/types/sales-tax';
 const FL_LOCATION = 'MedRock Florida';
 const FLAT_RATE_FOR_COMPARISON = 0.075; // the accountant's Apr-2026 flat divisor
 
+/** One source transaction for the export (no street address — minimize PHI). */
+export interface FlSourceRow {
+  tx_id: string;
+  date: string;
+  county: string;
+  fips: string;
+  state: string;
+  zip: string;
+  subtotal: number;
+  tax: number;
+  total_sales: number;
+  combined_rate: number;
+  taxable_base: number;
+}
+
+/** Fetch the FL source transactions for a month, ordered by date, for export. */
+export async function fetchFlSourceRows(month: string): Promise<FlSourceRow[]> {
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new Error(`Invalid month: ${month}`);
+  const [year, mm] = month.split('-');
+  const pool = getRdsPool();
+  const res = await pool.query<{
+    tx_id: string | null;
+    date: string | null;
+    county: string | null;
+    fips: string | null;
+    state: string | null;
+    zip: string | null;
+    subtotal: string | null;
+    tax: string | null;
+    total_sales: string | null;
+  }>(
+    `SELECT row_data->>'Tx ID' AS tx_id, row_data->>'Tx Effective Date' AS date,
+            row_data->>'Patient County' AS county, row_data->>'Patient County FIPS' AS fips,
+            row_data->>'Patient State' AS state, row_data->>'Patient ZIP' AS zip,
+            row_data->>'Subtotal' AS subtotal, row_data->>'Tax' AS tax,
+            row_data->>'Total Sales' AS total_sales
+     FROM source.sales_tax_report
+     WHERE row_data->>'Location' = $1 AND row_data->>'Patient State' = 'FL'
+       AND row_data->>'Tx Effective Date' LIKE $2
+     ORDER BY row_data->>'Tx Effective Date', row_data->>'Tx ID'`,
+    [FL_LOCATION, `${mm}/%/${year}`],
+  );
+  const num = (s: string | null): number => {
+    const v = parseFloat((s ?? '').replace(/[$,\s]/g, ''));
+    return Number.isFinite(v) ? v : 0;
+  };
+  return res.rows.map((r) => {
+    const tax = num(r.tax);
+    const subtotal = num(r.subtotal);
+    const rate = flCombinedRate(r.fips);
+    return {
+      tx_id: r.tx_id ?? '',
+      date: r.date ?? '',
+      county: r.county ?? '',
+      fips: r.fips ?? '',
+      state: r.state ?? '',
+      zip: r.zip ?? '',
+      subtotal,
+      tax,
+      total_sales: num(r.total_sales),
+      combined_rate: tax > 0 ? rate : 0,
+      // base capped at subtotal (see computeFlDr15)
+      taxable_base: tax > 0 ? Math.min(subtotal, Math.round((tax / rate) * 100) / 100) : 0,
+    };
+  });
+}
+
 interface FeedRow {
   subtotal: number;
   tax: number;
@@ -101,8 +168,12 @@ export async function computeFlDr15(
     if (taxCents > 0) {
       taxableTxns += 1;
       const rate = flCombinedRate(r.fips);
-      taxableBaseC += Math.round(taxCents / rate);
-      flatBaseC += Math.round(taxCents / FLAT_RATE_FOR_COMPARISON);
+      const subCents = Math.round(r.subtotal * 100);
+      // Backed-out taxable base, capped at the actual sale subtotal: when LifeFile
+      // collected at a slightly different rate than the county's official 2026 rate,
+      // tax/rate can exceed what was sold, which is nonsensical for a taxable base.
+      taxableBaseC += Math.min(subCents, Math.round(taxCents / rate));
+      flatBaseC += Math.min(subCents, Math.round(taxCents / FLAT_RATE_FOR_COMPARISON));
       if (!flCountyKnown(r.fips)) unknownCounty += 1;
     }
     const st = (r.state || '(blank)').toUpperCase();
