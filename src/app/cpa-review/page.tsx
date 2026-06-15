@@ -69,6 +69,23 @@ export default function CompanyCpaReviewPage() {
             cardBg={cardBg}
             subText={subText}
             tag="Texas"
+            title="Local tax sourcing — origin (Colleyville) vs destination"
+          >
+            MedRock Texas ships to patient cities all over the state, so which local jurisdiction gets the local tax is a
+            fair question. As an <strong>in-state seller</strong>, Texas sources local tax to the{' '}
+            <strong>place of business (Colleyville)</strong>, not the delivery address — and because the combined local
+            cap is <strong>2%</strong> and Colleyville is already at 2% (1.5% city + 0.5% crime control), no additional
+            destination local tax can be owed. So <strong>MedRock&apos;s total liability is the same regardless of ship-to
+            city</strong>; origin vs destination only changes which jurisdiction the Comptroller credits. The tool files
+            origin-Colleyville (matching the prior return); a Dec-2025 district court ruling invalidated the
+            destination-leaning Rule 3.334 amendment, favoring origin. <strong>Confirm origin sourcing is the position to
+            keep.</strong> (The MedRock Florida remote-seller return sidesteps this entirely via the single 1.75% rate.)
+          </Topic>
+
+          <Topic
+            cardBg={cardBg}
+            subText={subText}
+            tag="Texas"
             title="Texas permit effective date — February 2026"
           >
             Both Texas Sales &amp; Use Tax permits appear effective <strong>Feb 1, 2026</strong> (neither entity has any
