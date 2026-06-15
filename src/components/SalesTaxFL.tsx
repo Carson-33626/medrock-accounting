@@ -254,6 +254,17 @@ export default function SalesTaxFL() {
         <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">{error}</div>
       )}
 
+      {/* Dated reminder: county surtax rates are CY-specific; flag when filing past that year. */}
+      {diag?.surtaxStale && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+          <strong>Surtax rates may be out of date.</strong> The county rates loaded are for{' '}
+          <strong>CY{diag.surtaxTaxYear}</strong> (FL DR-15DSS), but you&apos;re filing for{' '}
+          <strong>{month.slice(0, 4)}</strong>. Update <code>fl-surtax.ts</code> /{' '}
+          <code>data/fl_county_surtax_rates.json</code> from the {month.slice(0, 4)} DR-15DSS
+          (FL publishes it ~January) before relying on Box 3 and the discretionary surtax.
+        </div>
+      )}
+
       {boxes && inputs && diag && (
         <>
           <div className={`rounded-xl shadow-sm overflow-hidden ${cardBg}`}>

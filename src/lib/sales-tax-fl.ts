@@ -17,7 +17,7 @@
  */
 
 import { getRdsPool } from './rds';
-import { flCombinedRate, flCountyKnown } from './fl-surtax';
+import { flCombinedRate, flCountyKnown, FL_SURTAX_TAX_YEAR } from './fl-surtax';
 import type { FlDr15Boxes, FlDr15Response, SalesTaxFiling } from '@/types/sales-tax';
 
 /**
@@ -248,6 +248,8 @@ export async function computeFlDr15(
       flatRateTaxableBase: round2(flatBaseC / 100),
       flatRate: FLAT_RATE_FOR_COMPARISON,
       shipToStates,
+      surtaxTaxYear: FL_SURTAX_TAX_YEAR,
+      surtaxStale: Number(year) > FL_SURTAX_TAX_YEAR,
     },
     feedAsOf: freshRes.rows[0]?.as_of ?? null,
   };

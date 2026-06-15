@@ -14,6 +14,15 @@ export const FL_STATE_RATE = 0.06;
 /** Fallback surtax when a transaction has no/unknown county (logged by callers). */
 export const FL_DEFAULT_SURTAX = 0.01;
 
+/**
+ * Calendar year these county surtax rates are valid for.
+ * DATED REMINDER: refresh from the next DR-15DSS when FL publishes it (~January each
+ * year). For CY2027, pull `dr15dss_27.pdf`, update FL_SURTAX_BY_FIPS, and bump this to
+ * 2027 — do it around January 2027. The sales-tax page auto-flags whenever a selected
+ * filing month falls in a year past this one, so a stale table can't go unnoticed.
+ */
+export const FL_SURTAX_TAX_YEAR = 2026;
+
 /** FIPS -> { county, surtax (decimal) } for CY2026. */
 export const FL_SURTAX_BY_FIPS: Record<string, { county: string; surtax: number }> = {
   '12001': { county: 'Alachua', surtax: 0.015 },

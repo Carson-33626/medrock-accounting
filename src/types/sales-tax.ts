@@ -46,6 +46,10 @@ export interface FlDr15Diagnostics {
   flatRateTaxableBase: number;
   flatRate: number;
   shipToStates: { state: string; transactions: number; sales: number }[];
+  /** Calendar year the loaded county surtax rates (DR-15DSS) are valid for */
+  surtaxTaxYear: number;
+  /** True when the filing month's year is past surtaxTaxYear — rates need refreshing */
+  surtaxStale: boolean;
 }
 
 /**
