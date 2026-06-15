@@ -6,6 +6,16 @@ import type { FlDr15Response } from '@/types/sales-tax';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
+// This page is the MedRock Florida -> FL return; saved inputs key off this slug.
+const FILING_SLUG = 'florida/fl';
+
+interface SavedInputs {
+  taxablePurchases: number | null;
+  salesBasisOverride: number | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 const FILING_MONTHS: string[] = (() => {
   const out: string[] = [];
   for (let y = 2026; y <= 2027; y++) {
@@ -23,6 +33,16 @@ export default function SalesTaxFL() {
   const [data, setData] = useState<FlDr15Response | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Persistence: last-saved snapshot for the current month + save status.
+  const [savedInputs, setSavedInputs] = useState<SavedInputs>({
+    taxablePurchases: null,
+    salesBasisOverride: null,
+    updatedAt: null,
+    updatedBy: null,
+  });
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle');
+  const [loadingInputs, setLoadingInputs] = useState(false);
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ month });
@@ -56,6 +76,62 @@ export default function SalesTaxFL() {
       cancelled = true;
     };
   }, [query]);
+
+  // Load saved inputs whenever the month changes; populate the editable fields.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingInputs(true);
+    setSaveState('idle');
+    fetch(`/api/sales-tax/inputs?slug=${encodeURIComponent(FILING_SLUG)}&month=${month}`)
+      .then((r) => r.json() as Promise<SavedInputs | { error: string }>)
+      .then((d) => {
+        if (cancelled || 'error' in d) return;
+        setSavedInputs(d);
+        setTaxablePurchases(d.taxablePurchases != null ? String(d.taxablePurchases) : '0');
+        setSalesBasisOverride(d.salesBasisOverride != null ? String(d.salesBasisOverride) : '');
+      })
+      .catch(() => {
+        /* leave defaults on load failure */
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInputs(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
+
+  // Current parsed values + dirty check vs the saved snapshot.
+  const parsedTP = taxablePurchases.trim() === '' ? 0 : Number(taxablePurchases);
+  const parsedSBO = salesBasisOverride.trim() === '' ? null : Number(salesBasisOverride);
+  const dirty = parsedTP !== (savedInputs.taxablePurchases ?? 0) || parsedSBO !== savedInputs.salesBasisOverride;
+
+  const saveInputs = useCallback(async () => {
+    setSaveState('saving');
+    try {
+      const resp = await fetch('/api/sales-tax/inputs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: FILING_SLUG,
+          month,
+          taxablePurchases: parsedTP,
+          salesBasisOverride: parsedSBO,
+        }),
+      });
+      const d = (await resp.json()) as { ok?: boolean; updatedAt?: string | null; updatedBy?: string | null; error?: string };
+      if (!resp.ok || !d.ok) throw new Error(d.error || 'save failed');
+      setSavedInputs({
+        taxablePurchases: parsedTP,
+        salesBasisOverride: parsedSBO,
+        updatedAt: d.updatedAt ?? null,
+        updatedBy: d.updatedBy ?? null,
+      });
+      setSaveState('idle');
+    } catch {
+      setSaveState('error');
+    }
+  }, [month, parsedTP, parsedSBO]);
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -135,6 +211,28 @@ export default function SalesTaxFL() {
               ))}
             </div>
           </Field>
+        </div>
+
+        {/* Persist the manual inputs (taxable purchases + sales-basis override) per month */}
+        <div className={`mt-4 pt-4 border-t ${rowBorder} flex items-center justify-between gap-3 flex-wrap`}>
+          <span className={`text-xs ${dirty || saveState === 'error' ? 'text-amber-600' : subText}`}>
+            {saveState === 'saving'
+              ? 'Saving…'
+              : saveState === 'error'
+                ? 'Save failed — try again.'
+                : dirty
+                  ? 'Unsaved changes — click Save to keep them.'
+                  : savedInputs.updatedAt
+                    ? `Saved ${new Date(savedInputs.updatedAt).toLocaleString()}${savedInputs.updatedBy ? ` by ${savedInputs.updatedBy}` : ''}`
+                    : 'Not yet saved for this month.'}
+          </span>
+          <button
+            onClick={saveInputs}
+            disabled={loadingInputs || saveState === 'saving' || (!dirty && saveState !== 'error')}
+            className="px-4 py-2 text-sm rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saveState === 'saving' ? 'Saving…' : 'Save inputs'}
+          </button>
         </div>
       </div>
 
