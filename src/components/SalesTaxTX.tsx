@@ -289,6 +289,11 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
           {/* Local jurisdiction breakdown */}
           <div className={`rounded-xl shadow-sm p-5 ${cardBg} space-y-3`}>
             <p className="text-sm font-semibold">Local tax by jurisdiction</p>
+            <p className={`text-xs ${subText}`}>
+              {ui.singleRate
+                ? 'Remote seller — one Single Local Use Tax Rate line every quarter (1.75%). The jurisdiction is fixed; only the amounts change by period.'
+                : 'In-state seller — local tax is origin-sourced to the Colleyville place of business, so these two jurisdictions are the same every quarter (matching the filed return). Only the Subject / Local-tax amounts change by period.'}
+            </p>
             <div className={`rounded-lg border overflow-hidden ${rowBorder}`}>
               <table className="w-full text-xs">
                 <thead>
