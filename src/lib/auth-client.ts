@@ -22,6 +22,10 @@ export interface User {
   phone_verified: boolean;
   regions: string[];
   departments: string[];
+  /** Single-valued office location (FL | TN | TX) for Task System grouping. */
+  location: 'FL' | 'TN' | 'TX' | null;
+  /** Single-valued canonical department for Task System grouping. */
+  department: string | null;
 }
 
 class MedRockAuthClient {

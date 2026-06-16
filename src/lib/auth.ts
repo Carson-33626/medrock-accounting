@@ -129,6 +129,10 @@ export interface AuthUser {
   role: 'user' | 'admin' | 'super_admin';
   regions?: string[];
   departments?: string[];
+  /** Single-valued office location (FL | TN | TX) for Task System grouping. */
+  location?: 'FL' | 'TN' | 'TX' | null;
+  /** Single-valued canonical department for Task System grouping. */
+  department?: string | null;
 }
 
 /**
@@ -185,7 +189,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     // Get user profile from database
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, email, full_name, role, regions, departments')
+      .select('id, email, full_name, role, regions, departments, location, department')
       .eq('id', authData.user.id)
       .single();
 
@@ -215,6 +219,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       role: profile.role || 'user',
       regions: profile.regions,
       departments: profile.departments,
+      location: profile.location ?? null,
+      department: profile.department ?? null,
     };
   } catch (error) {
     console.error('Auth error:', error);
