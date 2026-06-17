@@ -364,10 +364,11 @@ export async function buildTnReturnPdf(result: TnReturnResponse, sourceRows: TnS
   page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 0.5, color: GRAY });
   y -= 16;
   const deriv: [string, string][] = [
-    ['Gross Sales = Σ Subtotal', usd(b.grossSales)],
-    [`Taxable Sales = Σ Tax ÷ ${(d.combinedRate * 100).toFixed(2)}%`, usd(b.taxableSales)],
-    ['Tax collected by LifeFile (= total tax)', usd(d.summedTaxCollected)],
-    ['TN transactions / taxable', `${d.totalTransactions.toLocaleString()} / ${d.taxableTransactions}`],
+    ['Gross Sales = Σ Subtotal (all ship-to states)', usd(b.grossSales)],
+    ['Out-of-state deduction (Schedule A Line 7)', usd(d.outOfStateGross)],
+    [`TN Taxable = Σ TN Tax ÷ ${(d.combinedRate * 100).toFixed(2)}%`, usd(b.taxableSales)],
+    ['TN tax collected (= total tax)', usd(d.summedTaxCollected)],
+    ['Transactions (all ship-to / TN-taxable)', `${d.totalTransactions.toLocaleString()} / ${d.taxableTransactions}`],
   ];
   for (const [label, value] of deriv) {
     text(label, margin, y, { size: 9, color: GRAY });
@@ -376,7 +377,7 @@ export async function buildTnReturnPdf(result: TnReturnResponse, sourceRows: TnS
   }
   y -= 12;
 
-  const taxable = sourceRows.filter((r) => r.tax > 0);
+  const taxable = sourceRows.filter((r) => r.taxable_base > 0);
   ensure(60);
   text(`Taxable Transaction Detail (${taxable.length})`, margin, y, { size: 12, font: bold });
   y -= 6;

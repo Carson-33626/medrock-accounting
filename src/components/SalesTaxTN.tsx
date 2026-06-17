@@ -130,17 +130,19 @@ export default function SalesTaxTN() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
-        <strong>Method (per the prior accountant):</strong> report the <strong>full dispensing sales</strong> as Gross,
-        with the non-taxable Rx as <strong>Exempt</strong> — Tennessee is the home state that oversees the tax profile.
-        The tool does this from LifeFile. You must still enter the <strong>out-of-state purchase use tax</strong> (Line
-        3) from QuickBooks — the tool can&apos;t source it from the sales feed (CY2025 was $18,544). Note: the filed
-        CY2025 return diverged from this (Gross $6,609, no exemptions); whether to amend it is on the CPA Review page.
+      <div className="rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-900 px-4 py-3 text-sm">
+        <strong>Method — CPA-confirmed 2026-06-17:</strong> Gross Sales (Line 1) = <strong>total sales</strong> for
+        MEDROCK TN LLC across <strong>every ship-to state</strong> (TN is the catch-all dispensing entity); then{' '}
+        <strong>exempt everything except the TN-taxable items</strong> — out-of-state sales on Schedule A Line 7, exempt
+        Rx on Line 9. Matches the SLS-450 instructions. You must still enter the <strong>out-of-state purchase use
+        tax</strong> (Line 3) from QuickBooks — the tool can&apos;t source it from the sales feed (CY2025 was $18,544).
+        The filed CY2025 return diverged (Gross $6,609, no exemptions); whether to amend it is on the CPA Review page.
       </div>
       <p className={`text-sm ${subText}`}>
-        Generated from the LifeFile feed. Taxable Sales backs out of the 9.25% combined rate (Σ Tax ÷ 9.25%, per the
-        filing SOP), so the total tax ties to what was collected; Gross Sales = summed Subtotal; Exempt = Gross −
-        Taxable.{data?.feedAsOf ? ` Feed as of ${new Date(data.feedAsOf).toLocaleDateString()}.` : ''}
+        Generated from the LifeFile feed. <strong>Gross Sales</strong> = summed Subtotal across all ship-to states.{' '}
+        <strong>Taxable</strong> = TN-ship-to tax ÷ 9.25% (only Tennessee taxes these sales, so other states&apos; tax is
+        never backed out at the TN rate), which ties the total tax to what was collected. <strong>Exempt</strong> = Gross
+        − Taxable = out-of-state + Rx.{data?.feedAsOf ? ` Feed as of ${new Date(data.feedAsOf).toLocaleDateString()}.` : ''}
       </p>
 
       <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
@@ -250,17 +252,59 @@ export default function SalesTaxTN() {
           <div className={`rounded-xl shadow-sm p-5 ${cardBg} space-y-3`}>
             <p className="text-sm font-semibold">How these were derived</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
-              <Row label="TN transactions" value={diag.totalTransactions.toLocaleString()} sub={subText} />
-              <Row label="Taxable transactions" value={diag.taxableTransactions.toLocaleString()} sub={subText} />
-              <Row label="Gross Sales (Σ Subtotal)" value={usd.format(boxes.grossSales)} sub={subText} />
-              <Row label={`Taxable (Σ Tax ÷ ${(diag.combinedRate * 100).toFixed(2)}%)`} value={usd.format(boxes.taxableSales)} sub={subText} />
-              <Row label="Tax collected (= total tax)" value={usd.format(diag.summedTaxCollected)} sub={subText} />
-              <Row label="Months in feed" value={diag.monthsCovered.join(', ') || 'none'} sub={subText} />
+              <Row label="Total transactions (all ship-to)" value={diag.totalTransactions.toLocaleString()} sub={subText} />
+              <Row label="TN-taxable transactions" value={diag.taxableTransactions.toLocaleString()} sub={subText} />
+              <Row label="Gross Sales (Σ Subtotal, all states)" value={usd.format(boxes.grossSales)} sub={subText} />
+              <Row label="Out-of-state (Sch A Line 7)" value={usd.format(diag.outOfStateGross)} sub={subText} />
+              <Row label={`TN Taxable (Σ TN Tax ÷ ${(diag.combinedRate * 100).toFixed(2)}%)`} value={usd.format(boxes.taxableSales)} sub={subText} />
+              <Row label="TN tax collected (= total tax)" value={usd.format(diag.summedTaxCollected)} sub={subText} />
             </div>
             <p className={`text-xs ${subText}`}>
-              Because Taxable = Σ Tax ÷ 9.25%, the computed State + Local tax equals the tax actually collected — no
-              over/under-remittance. Chattanooga is in Hamilton County (2.25% local → 9.25% combined).
+              Because Taxable = Σ TN Tax ÷ 9.25%, the computed State + Local tax equals the tax actually collected — no
+              over/under-remittance. Chattanooga is in Hamilton County (2.25% local → 9.25% combined). Months in feed:{' '}
+              {diag.monthsCovered.join(', ') || 'none'}.
             </p>
+          </div>
+
+          {/* Ship-to breakdown — substantiates Gross and the Schedule A out-of-state deduction */}
+          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+            <p className="text-sm font-semibold mb-1">Gross by ship-to state</p>
+            <p className={`text-xs mb-3 ${subText}`}>
+              Substantiates Line 1 Gross and the Schedule A Line 7 out-of-state deduction. Only Tennessee is taxable;
+              every other state is deducted as out-of-state.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={subText}>
+                    <th className="text-left py-1.5 pr-3 font-medium">Ship-to</th>
+                    <th className="text-right py-1.5 pr-3 font-medium">Gross</th>
+                    <th className="text-right py-1.5 pr-3 font-medium">Tax</th>
+                    <th className="text-right py-1.5 pr-3 font-medium">Txns</th>
+                    <th className="text-left py-1.5 font-medium">Treatment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {diag.byState.map((s) => (
+                    <tr key={s.state} className={`border-t ${rowBorder}`}>
+                      <td className="py-1.5 pr-3 font-medium">{s.state}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{usd.format(s.gross)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{usd.format(s.tax)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{s.transactions.toLocaleString()}</td>
+                      <td className="py-1.5">
+                        {s.isTennessee ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-medium">
+                            taxable (TN)
+                          </span>
+                        ) : (
+                          <span className={`text-xs ${subText}`}>out-of-state — exempt</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>

@@ -31,19 +31,21 @@ const SUMMARY_COLS: ExportColumn[] = [
 const SOURCE_COLS: ExportColumn[] = [
   { header: 'Tx ID', key: 'tx_id' },
   { header: 'Date', key: 'date' },
+  { header: 'Ship-to State', key: 'state' },
   { header: 'City', key: 'city' },
   { header: 'County', key: 'county' },
   { header: 'ZIP', key: 'zip' },
   { header: 'Subtotal', key: 'subtotal', currency: true },
   { header: 'Tax', key: 'tax', currency: true },
   { header: 'Total Sales', key: 'total_sales', currency: true },
-  { header: 'Taxable Base', key: 'taxable_base', currency: true },
+  { header: 'TN Taxable Base', key: 'taxable_base', currency: true },
 ];
 
 function sourceAsRecords(rows: TnSourceRow[]): Record<string, CellValue>[] {
   return rows.map((r) => ({
     tx_id: r.tx_id,
     date: r.date,
+    state: r.state,
     city: r.city,
     county: r.county,
     zip: r.zip,

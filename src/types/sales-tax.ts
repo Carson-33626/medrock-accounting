@@ -200,13 +200,29 @@ export interface TnReturnInputs {
   taxablePurchases: number;
 }
 
+/** Per-ship-to-state breakdown — substantiates Gross and the Schedule A out-of-state deduction. */
+export interface TnStateBreakdown {
+  state: string;
+  gross: number;
+  tax: number;
+  transactions: number;
+  /** True for Tennessee (the only taxable destination on this return). */
+  isTennessee: boolean;
+}
+
 export interface TnReturnDiagnostics {
+  /** All MEDROCK TN LLC transactions for the year (every ship-to state). */
   totalTransactions: number;
+  /** TN-ship-to transactions carrying tax (the taxable items). */
   taxableTransactions: number;
-  /** Tax actually collected by LifeFile (= totalTaxDue by construction) */
+  /** Tax collected on TN-ship-to sales (= TN total tax due by construction). */
   summedTaxCollected: number;
   /** Combined state+local rate used for the backout (0.0925) */
   combinedRate: number;
+  /** Σ Subtotal of non-TN ship-to sales — the Schedule A Line 7 out-of-state deduction. */
+  outOfStateGross: number;
+  /** Gross + tax + count per ship-to state, TN first then by gross desc. */
+  byState: TnStateBreakdown[];
   /** Months present in the feed for the year, e.g. ['01',...,'06'] */
   monthsCovered: string[];
   /** Earliest month the feed carries (TN sales before this predate the feed) */
