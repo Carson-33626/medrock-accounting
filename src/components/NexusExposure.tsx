@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import type { NexusResponse, NexusStateRow, NexusStatus } from '@/lib/nexus';
+import { THRESHOLD_BY_ABBR, NEXUS_SOURCES } from '@/lib/nexus-thresholds';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const int = new Intl.NumberFormat('en-US');
@@ -117,6 +118,10 @@ export default function NexusExposure() {
             A <strong>screen to feed the CPA nexus study</strong>, not a filing determination. Crossing a threshold
             creates a registration/filing duty even when little or no tax is due (Rx is exempt almost everywhere).
           </li>
+          <li>
+            Thresholds are <strong>interim references</strong> (sourced below, per-state links in the table) pending the
+            CPA&apos;s own nexus determination.
+          </li>
         </ul>
       </div>
 
@@ -174,6 +179,29 @@ export default function NexusExposure() {
         </div>
       </div>
 
+      {/* Sources & references (interim, pending the CPA's determination) */}
+      <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+        <p className="text-sm font-semibold mb-1">Sources &amp; references</p>
+        <p className={`text-xs mb-3 ${subText}`}>
+          Interim references backing the threshold table, pending the CPA&apos;s own nexus determination. Per-state
+          primary sources (statute / DOR) are linked in the table&apos;s right-hand column where verified; the
+          continuously-updated aggregators below cover every state and are appropriate for ongoing monitoring.
+        </p>
+        <ul className="space-y-1.5 text-sm">
+          {NEXUS_SOURCES.map((s) => (
+            <li key={s.url}>
+              <a href={s.url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+                {s.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p className={`text-xs mt-3 ${subText}`}>
+          Full write-up: <code>docs/tax-reference/economic-nexus-thresholds-by-state.md</code> (verified 2026-06-17,
+          cross-checked across the above).
+        </p>
+      </div>
+
       {/* Unrecognized ship-to codes */}
       {data.unrecognized.length > 0 && (
         <p className={`text-xs ${subText}`}>
@@ -190,6 +218,7 @@ export default function NexusExposure() {
 }
 
 function Row({ r, dark, border, subText }: { r: NexusStateRow; dark: boolean; border: string; subText: string }) {
+  const source = THRESHOLD_BY_ABBR[r.abbr]?.source;
   const projFlag = !r.overNow && r.overProjected;
   const thresholdText =
     !r.hasSalesTax
@@ -224,6 +253,17 @@ function Row({ r, dark, border, subText }: { r: NexusStateRow; dark: boolean; bo
       <td className={`px-4 py-3 text-xs ${subText}`}>
         {r.measurement}
         {r.note ? <span className="block mt-0.5">{r.note}</span> : null}
+        {source ? (
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-0.5 underline hover:opacity-80"
+            title={source.label}
+          >
+            source ↗
+          </a>
+        ) : null}
       </td>
     </tr>
   );

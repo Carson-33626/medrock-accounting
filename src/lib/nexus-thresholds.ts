@@ -20,6 +20,11 @@ export type NexusCombine = 'or' | 'and' | 'sales_only';
 /** Which sales figure the threshold measures. */
 export type NexusSalesBasis = 'gross' | 'taxable';
 
+export interface NexusSource {
+  label: string;
+  url: string;
+}
+
 export interface StateThreshold {
   abbr: string;
   name: string;
@@ -35,6 +40,8 @@ export interface StateThreshold {
   measurement: string;
   /** Short caveat (repeal date, AND rule, no-tax note, etc.). */
   note?: string;
+  /** Per-state source (primary DOR/statute where verified). Falls back to the aggregators below. */
+  source?: NexusSource;
 }
 
 const T = (
@@ -44,7 +51,7 @@ const T = (
   txnThreshold: number | null,
   combine: NexusCombine,
   measurement: string,
-  opts: { salesBasis?: NexusSalesBasis; hasSalesTax?: boolean; note?: string } = {},
+  opts: { salesBasis?: NexusSalesBasis; hasSalesTax?: boolean; note?: string; source?: NexusSource } = {},
 ): StateThreshold => ({
   abbr,
   name,
@@ -55,11 +62,12 @@ const T = (
   salesBasis: opts.salesBasis ?? 'gross',
   measurement,
   note: opts.note,
+  source: opts.source,
 });
 
 export const STATE_THRESHOLDS: StateThreshold[] = [
   T('AL', 'Alabama', 250000, null, 'sales_only', 'Previous calendar year', { note: 'Retail (TPP) sales; marketplace excluded.' }),
-  T('AK', 'Alaska', 100000, null, 'sales_only', 'Current or previous CY', { note: 'No STATE tax — local only via ARSSTC; 200-txn prong repealed 1/1/2025.' }),
+  T('AK', 'Alaska', 100000, null, 'sales_only', 'Current or previous CY', { note: 'No STATE tax — local only via ARSSTC; 200-txn prong repealed 1/1/2025.', source: { label: 'Avalara — AK removes txn threshold', url: 'https://www.avalara.com/blog/en/north-america/2024/11/alaska-removes-economic-nexus-transaction-threshold.html' } }),
   T('AZ', 'Arizona', 100000, null, 'sales_only', 'Previous or current CY'),
   T('AR', 'Arkansas', 100000, 200, 'or', 'Previous or current CY', { note: 'Txn prong not verified to a 2026 DOR source.' }),
   T('CA', 'California', 500000, null, 'sales_only', 'Preceding or current CY', { note: 'TPP only; txn prong repealed 2019.' }),
@@ -67,11 +75,11 @@ export const STATE_THRESHOLDS: StateThreshold[] = [
   T('CT', 'Connecticut', 100000, 200, 'and', '12-mo ending Sep 30', { note: 'BOTH thresholds required (AND).' }),
   T('DE', 'Delaware', null, null, 'sales_only', '—', { hasSalesTax: false, note: 'No sales tax.' }),
   T('DC', 'District of Columbia', 100000, 200, 'or', 'Previous or current CY'),
-  T('FL', 'Florida', 100000, null, 'sales_only', 'Previous calendar year', { salesBasis: 'taxable', note: 'Threshold is TAXABLE remote sales — exempt Rx likely excluded.' }),
-  T('GA', 'Georgia', 100000, 200, 'or', 'Previous or current CY', { note: 'Txn prong still active — 200 individual shipments can trigger nexus before $.' }),
+  T('FL', 'Florida', 100000, null, 'sales_only', 'Previous calendar year', { salesBasis: 'taxable', note: 'Threshold is TAXABLE remote sales — exempt Rx likely excluded.', source: { label: 'Fla. Stat. § 212.0596', url: 'https://www.flsenate.gov/Laws/Statutes/2021/212.0596' } }),
+  T('GA', 'Georgia', 100000, 200, 'or', 'Previous or current CY', { note: 'Txn prong still active — 200 individual shipments can trigger nexus before $.', source: { label: 'TaxJar — GA economic nexus', url: 'https://www.taxjar.com/blog/nexus/economic-nexus-georgia' } }),
   T('HI', 'Hawaii', 100000, 200, 'or', 'Current or preceding CY', { note: 'GET, not sales tax; marketplace counts toward seller threshold.' }),
   T('ID', 'Idaho', 100000, null, 'sales_only', 'Previous or current CY'),
-  T('IL', 'Illinois', 100000, null, 'sales_only', 'Preceding 12 months', { note: 'Txn prong repealed 1/1/2026. IL taxes Rx at 1% — Rx sales DO count.' }),
+  T('IL', 'Illinois', 100000, null, 'sales_only', 'Preceding 12 months', { note: 'Txn prong repealed 1/1/2026. IL taxes Rx at 1% — Rx sales DO count.', source: { label: 'Avalara — IL txn threshold repeal', url: 'https://www.avalara.com/blog/en/north-america/2025/06/states-eliminating-economic-nexus-transaction-thresholds.html' } }),
   T('IN', 'Indiana', 100000, null, 'sales_only', 'CY of txn or preceding', { note: 'Txn prong repealed 1/1/2024.' }),
   T('IA', 'Iowa', 100000, null, 'sales_only', 'Current or preceding CY', { note: 'Txn prong repealed 2019.' }),
   T('KS', 'Kansas', 100000, null, 'sales_only', 'Current or preceding CY'),
@@ -91,7 +99,7 @@ export const STATE_THRESHOLDS: StateThreshold[] = [
   T('NJ', 'New Jersey', 100000, 200, 'or', 'Previous or current CY'),
   T('NM', 'New Mexico', 100000, null, 'sales_only', 'Previous CY', { note: 'Gross Receipts Tax.' }),
   T('NY', 'New York', 500000, 100, 'and', 'Preceding four sales-tax quarters', { note: 'BOTH required (AND); 100 txns.' }),
-  T('NC', 'North Carolina', 100000, null, 'sales_only', 'Previous or current CY', { note: 'Txn prong repealed 7/1/2024; broadest gross definition.' }),
+  T('NC', 'North Carolina', 100000, null, 'sales_only', 'Previous or current CY', { note: 'Txn prong repealed 7/1/2024; broadest gross definition.', source: { label: 'Avalara — NC eliminates txn threshold', url: 'https://www.avalara.com/blog/en/north-america/2024/07/north-carolina-eliminates-economic-nexus-transaction-threshold.html' } }),
   T('ND', 'North Dakota', 100000, null, 'sales_only', 'Previous or current CY', { note: 'Txn prong repealed 2018.' }),
   T('OH', 'Ohio', 100000, 200, 'or', 'Previous or current CY'),
   T('OK', 'Oklahoma', 100000, null, 'sales_only', 'Preceding or current CY'),
@@ -100,8 +108,8 @@ export const STATE_THRESHOLDS: StateThreshold[] = [
   T('RI', 'Rhode Island', 100000, 200, 'or', 'Preceding CY'),
   T('SC', 'South Carolina', 100000, null, 'sales_only', 'Previous or current CY'),
   T('SD', 'South Dakota', 100000, null, 'sales_only', 'Previous or current CY', { note: 'Txn prong repealed 7/1/2023.' }),
-  T('TN', 'Tennessee', 100000, null, 'sales_only', 'Previous 12 months', { note: 'Gross retail (taxable + nontaxable); wholesale/marketplace excluded.' }),
-  T('TX', 'Texas', 500000, null, 'sales_only', 'Preceding 12 calendar months (rolling)', { note: 'Gross; Rx counts even though exempt.' }),
+  T('TN', 'Tennessee', 100000, null, 'sales_only', 'Previous 12 months', { note: 'Gross retail (taxable + nontaxable); wholesale/marketplace excluded.', source: { label: 'TN DOR — out-of-state dealers', url: 'https://www.tn.gov/revenue/taxes/sales-and-use-tax/out-of-state-dealers.html' } }),
+  T('TX', 'Texas', 500000, null, 'sales_only', 'Preceding 12 calendar months (rolling)', { note: 'Gross; Rx counts even though exempt.', source: { label: '34 Tex. Admin. Code § 3.286', url: 'https://comptroller.texas.gov/taxes/sales/remote-sellers.php' } }),
   T('UT', 'Utah', 100000, null, 'sales_only', 'Previous or current CY', { note: 'Txn prong repealed 7/1/2025.' }),
   T('VT', 'Vermont', 100000, 200, 'or', 'Prior four calendar quarters'),
   T('VA', 'Virginia', 100000, 200, 'or', 'Previous or current CY'),
@@ -114,3 +122,18 @@ export const STATE_THRESHOLDS: StateThreshold[] = [
 export const THRESHOLD_BY_ABBR: Record<string, StateThreshold> = Object.fromEntries(
   STATE_THRESHOLDS.map((t) => [t.abbr, t]),
 );
+
+/**
+ * Authoritative references backing the threshold table — INTERIM, pending the CPA's own
+ * nexus determination/document. All thresholds are cross-checked against these; per-state
+ * primary sources (statute / DOR) are attached on the rows where verified.
+ */
+export const NEXUS_SOURCES: NexusSource[] = [
+  { label: 'Sales Tax Institute — Economic Nexus State Guide (updated 5/4/2026)', url: 'https://www.salestaxinstitute.com/resources/economic-nexus-state-guide' },
+  { label: 'Avalara — State-by-State Economic Nexus Laws', url: 'https://www.avalara.com/us/en/learn/guides/state-by-state-guide-economic-nexus-laws.html' },
+  { label: 'Avalara — States eliminating transaction thresholds (2025)', url: 'https://www.avalara.com/blog/en/north-america/2025/06/states-eliminating-economic-nexus-transaction-thresholds.html' },
+  { label: 'TaxJar — Economic Nexus by State', url: 'https://www.taxjar.com/sales-tax/economic-nexus' },
+  { label: 'TaxJar — Which sales count toward thresholds (gross vs. taxable)', url: 'https://www.taxjar.com/blog/what-types-of-sales-are-included-in-economic-nexus-thresholds' },
+  { label: 'TaxCloud — Sales Tax Nexus by State (2026)', url: 'https://taxcloud.com/blog/sales-tax-nexus-by-state/' },
+  { label: 'Numeral — Economic Nexus Handbook (2026)', url: 'https://www.numeral.com/blog/economic-nexus' },
+];
