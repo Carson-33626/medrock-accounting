@@ -67,11 +67,13 @@ export default function CompanyCpaReviewPage() {
               </>
             }
           >
-            The Florida entity is an out-of-state <strong>remote seller</strong>, eligible for the single local use tax
-            rate (1.75% → 8.00% combined) instead of per-destination jurisdiction sourcing. Recommend{' '}
-            <strong>filing Form 01-799</strong> to elect it — it collapses local tax to one flat line and is the correct
-            remote-seller treatment. Election is <strong>forward-only</strong> (effective the month after filing); the TX
-            page computes at the single rate and flags that the election must be effective for the period filed.
+            <strong>APPROVED by the CPA (2026-06-17).</strong> The Florida entity is an out-of-state{' '}
+            <strong>remote seller</strong>, eligible for the single local use tax rate (1.75% → 8.00% combined) instead
+            of per-destination jurisdiction sourcing. Action: <strong>file Form 01-799</strong> by email to{' '}
+            <code>sales.applications@cpa.texas.gov</code> (or mail) for MEDROCK PHARMACY LLC (taxpayer 32089108859) to
+            elect the single rate — see the filing steps on the <strong>Florida → TX</strong> page. Election is{' '}
+            <strong>forward-only</strong> (effective the start of a reporting period), so file before the quarter it
+            should first apply to; it then stays in effect until revoked.
           </Topic>
 
           <Topic

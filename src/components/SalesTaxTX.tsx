@@ -244,13 +244,30 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
 
       {error && <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">{error}</div>}
 
-      {/* Single-rate election prerequisite (FL remote-seller entity only) */}
+      {/* Single-rate election (FL remote-seller entity only) — CPA-approved 2026-06-17; now file 01-799 */}
       {ui.singleRate && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
-          <strong>Single local use tax rate (1.75%) election required.</strong> These figures assume MEDROCK PHARMACY
-          LLC files at the remote-seller single local rate (combined 8.00%). That requires{' '}
-          <strong>Form 01-799</strong> on file and effective for this period (election is forward-only — effective the
-          month after filing). Pending the CPA sign-off on the Company CPA Review page.
+        <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm space-y-1.5">
+          <p>
+            <strong>Single local use tax rate (1.75%) — CPA-approved; file Form 01-799 to elect it.</strong> These
+            figures use the remote-seller single local rate (combined 8.00%).
+          </p>
+          <p>
+            Email{' '}
+            <a
+              href="https://comptroller.texas.gov/forms/01-799.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold"
+            >
+              Form 01-799
+            </a>{' '}
+            to <code>sales.applications@cpa.texas.gov</code> (or mail to Comptroller of Public Accounts, P.O. Box
+            149354, Austin, TX 78714-9354) for <strong>{ui.accountName}</strong> (taxpayer{' '}
+            <code>{ui.taxpayerId}</code>), electing to <strong>use</strong> the single local use tax rate. Not filed
+            through WebFile. The election is <strong>forward-only</strong> — effective the start of a reporting period,
+            so file before the quarter you want it to apply to (earliest: the next quarter start). It stays in effect
+            until you revoke it (same form).
+          </p>
         </div>
       )}
 
