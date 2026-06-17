@@ -11,6 +11,8 @@ export default function CompanyCpaReviewPage() {
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const cardBorder = darkMode ? 'border-slate-700' : 'border-slate-200';
 
+  const shared = { cardBg, subText, cardBorder, darkMode };
+
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
       <div className="max-w-5xl mx-auto space-y-6">
@@ -24,21 +26,21 @@ export default function CompanyCpaReviewPage() {
         <div className={`rounded-xl shadow-sm p-6 ${cardBg}`}>
           <p className="text-sm font-semibold mb-2">What lands here</p>
           <p className={`text-sm ${subText}`}>
-            Company-level review material for the CPA — kept out of the per-state tax pages so those stay strictly
-            about filing. The topics below are the open items queued for review; each one points to where in the app
-            the underlying numbers live.
+            Company-level review material for the CPA — kept out of the per-state tax pages so those stay strictly about
+            filing. <strong>Open topics</strong> are queued for a decision; <strong>resolved</strong> items (with the
+            decision and date) are kept at the bottom for the record. Each one points to where in the app the underlying
+            numbers live.
           </p>
         </div>
 
+        {/* ---------------- OPEN ---------------- */}
         <div className="space-y-4">
           <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Open topics for the CPA</p>
 
           <Topic
-            cardBg={cardBg}
-            subText={subText}
+            {...shared}
             tag="Texas"
             title="Taxable-sales method change (Texas returns)"
-            cardBorder={cardBorder}
             where={
               <>
                 Sales Tax → <strong>Florida → TX · 01-114</strong> and <strong>Texas → TX · 01-114</strong> — the
@@ -55,33 +57,9 @@ export default function CompanyCpaReviewPage() {
           </Topic>
 
           <Topic
-            cardBg={cardBg}
-            subText={subText}
-            tag="Texas"
-            title="Single local use tax rate election — Form 01-799 (MEDROCK PHARMACY LLC)"
-            cardBorder={cardBorder}
-            where={
-              <>
-                Sales Tax → <strong>Florida → TX · 01-114</strong> (MedRock Florida&apos;s Texas return) — the amber
-                single-rate election note.
-              </>
-            }
-          >
-            <strong>APPROVED by the CPA (2026-06-17).</strong> The Florida entity is an out-of-state{' '}
-            <strong>remote seller</strong>, eligible for the single local use tax rate (1.75% → 8.00% combined) instead
-            of per-destination jurisdiction sourcing. Action: <strong>file Form 01-799</strong> by email to{' '}
-            <code>sales.applications@cpa.texas.gov</code> (or mail) for MEDROCK PHARMACY LLC (taxpayer 32089108859) to
-            elect the single rate — see the filing steps on the <strong>Florida → TX</strong> page. Election is{' '}
-            <strong>forward-only</strong> (effective the start of a reporting period), so file before the quarter it
-            should first apply to; it then stays in effect until revoked.
-          </Topic>
-
-          <Topic
-            cardBg={cardBg}
-            subText={subText}
+            {...shared}
             tag="Texas"
             title="Local tax sourcing — origin (Colleyville) vs destination"
-            cardBorder={cardBorder}
             where={
               <>
                 Sales Tax → <strong>Texas → TX · 01-114</strong> (MedRock Texas&apos;s return) — the per-jurisdiction
@@ -101,11 +79,9 @@ export default function CompanyCpaReviewPage() {
           </Topic>
 
           <Topic
-            cardBg={cardBg}
-            subText={subText}
+            {...shared}
             tag="Texas"
             title="Texas permit effective date — February 2026"
-            cardBorder={cardBorder}
             where={
               <>
                 Sales Tax → <strong>Florida → TX · 01-114</strong> and <strong>Texas → TX · 01-114</strong> — the
@@ -119,34 +95,30 @@ export default function CompanyCpaReviewPage() {
           </Topic>
 
           <Topic
-            cardBg={cardBg}
-            subText={subText}
+            {...shared}
             tag="Tennessee"
-            title="TN SLS-450 — confirm prior-return amend + use-tax source"
-            cardBorder={cardBorder}
+            title="TN SLS-450 — amend CY2025? + out-of-state purchase use-tax source"
             where={
               <>
-                Sales Tax → <strong>Tennessee → TN · SLS-450</strong> — the method banner and the Line 3
-                out-of-state-purchase use-tax input.
+                Sales Tax → <strong>Tennessee → TN · SLS-450</strong> — the Line 3 out-of-state-purchase use-tax input
+                and the CY2025 note.
               </>
             }
           >
-            <strong>Method confirmed (Carson, per the prior accountant):</strong> report the full dispensing sales as
-            Gross with the non-taxable Rx as Exempt (TN is the home state overseeing the tax profile) — the tool now
-            does this. Two items remain: <strong>(1)</strong> The filed <strong>CY2025</strong> return diverged from
-            that guidance — it reported Gross of only <strong>$6,609</strong> with no exemptions (plus $18,544
-            out-of-state purchase use tax), taxing $25,153 for $2,327. Should that return be <strong>amended</strong> to
-            the full-gross/exempt basis? <strong>(2)</strong> The <strong>out-of-state purchase use tax</strong> (Line
-            3, $18,544 in CY2025) is a QuickBooks figure the tool can&apos;t source from LifeFile — confirm where it
-            comes from and that it&apos;s entered each year.
+            With the Gross method now settled (see Resolved below), two items remain: <strong>(1)</strong> the filed{' '}
+            <strong>CY2025</strong> return diverged from that method — it reported Gross of only <strong>$6,609</strong>{' '}
+            with no exemptions (plus $18,544 out-of-state purchase use tax), taxing $25,153 for $2,327. Should it be{' '}
+            <strong>amended</strong> to the full-gross / all-exempt-but-TN-taxable basis? (Net tax ≈ unchanged; it&apos;s
+            a presentation/consistency call — 3-year window, open through Dec 31 2029.) <strong>(2)</strong> The{' '}
+            <strong>out-of-state purchase use tax</strong> (Line 3, $18,544 in CY2025) is a QuickBooks figure the tool
+            can&apos;t source from LifeFile — confirm where it comes from and that it&apos;s entered each year (it is the
+            actual driver of TN tax owed).
           </Topic>
 
           <Topic
-            cardBg={cardBg}
-            subText={subText}
+            {...shared}
             tag="Nexus"
             title="Economic-nexus signal (post-Wayfair)"
-            cardBorder={cardBorder}
             where={
               <>
                 <strong>Nexus Exposure</strong> — per-state ship-to gross sales + transaction counts vs each
@@ -158,8 +130,64 @@ export default function CompanyCpaReviewPage() {
             even though Rx is exempt almost everywhere (crossing a threshold creates a registration/filing duty regardless
             of tax due). The <strong>Nexus Exposure</strong> page screens YTD-2026 ship-to sales (annualized) against the
             2026 threshold table — several states (e.g. CO, OH, MA, SC, AZ, IL) are already over $100k gross, and GA&apos;s
-            still-active 200-transaction prong is well past. <strong>This is the data input for a CPA-led nexus study</strong>
+            still-active 200-transaction prong is well past. <strong>This is the data input for a CPA-led nexus study</strong>{' '}
             to decide where to register; figures are gross-basis and YTD, not a filing determination.
+          </Topic>
+        </div>
+
+        {/* ---------------- RESOLVED ---------------- */}
+        <div className="space-y-4 pt-2">
+          <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Resolved / decided</p>
+
+          <Topic
+            {...shared}
+            resolved
+            tag="Texas"
+            title="Single local use tax rate election — Form 01-799 (MEDROCK PHARMACY LLC)"
+            decision={
+              <>
+                <strong>Approved (2026-06-17).</strong> Use the single local use tax rate (1.75% → 8.00% combined) for the
+                MedRock Florida remote-seller TX return. Action: file <strong>Form 01-799</strong> by email to{' '}
+                <code>sales.applications@cpa.texas.gov</code> (or mail) for MEDROCK PHARMACY LLC (taxpayer 32089108859) —
+                steps are on the <strong>Florida → TX</strong> page. Forward-only (effective the start of a reporting
+                period), so file before the quarter it should first apply to; stays in effect until revoked.
+              </>
+            }
+            where={
+              <>
+                Sales Tax → <strong>Florida → TX · 01-114</strong> — the single-rate election note with the filing steps.
+              </>
+            }
+          >
+            The Florida entity is an out-of-state <strong>remote seller</strong>, eligible for the single local use tax
+            rate instead of per-destination jurisdiction sourcing — it collapses local tax to one flat line and is the
+            correct remote-seller treatment.
+          </Topic>
+
+          <Topic
+            {...shared}
+            resolved
+            tag="Tennessee"
+            title="TN SLS-450 — Gross Sales method"
+            decision={
+              <>
+                <strong>Confirmed (2026-06-17).</strong> Gross Sales (Line 1) = <strong>total sales</strong> for MEDROCK
+                TN LLC across <strong>every ship-to state</strong>, then exempt everything except the TN-taxable items
+                (out-of-state on Schedule A Line 7, exempt Rx on Line 9) — matches the SLS-450 instructions. The tool was
+                updated to this basis (Gross is no longer scoped to TN-delivered sales; the taxable backout stays
+                TN-only). CY2026 Gross moves from ~$1.28M to ~$5.84M with tax unchanged.
+              </>
+            }
+            where={
+              <>
+                Sales Tax → <strong>Tennessee → TN · SLS-450</strong> — the method banner and the &ldquo;Gross by ship-to
+                state&rdquo; breakdown.
+              </>
+            }
+          >
+            The earlier question was whether Gross should be only TN-delivered sales or the entity&apos;s full dispensing
+            volume across all states. The all-ship-to basis (with out-of-state deducted) is the instruction-conformant
+            answer and reconciles to the F&amp;E / Business-Tax gross.
           </Topic>
         </div>
       </div>
@@ -171,28 +199,48 @@ function Topic({
   cardBg,
   subText,
   cardBorder,
+  darkMode,
   tag,
   title,
   where,
+  decision,
+  resolved,
   children,
 }: {
   cardBg: string;
   subText: string;
   cardBorder: string;
+  darkMode: boolean;
   tag: string;
   title: string;
   where: React.ReactNode;
+  decision?: React.ReactNode;
+  resolved?: boolean;
   children: React.ReactNode;
 }) {
+  const decisionBox = darkMode
+    ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200'
+    : 'bg-emerald-50 border-emerald-200 text-emerald-900';
   return (
-    <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+    <div className={`rounded-xl shadow-sm p-5 ${cardBg} ${resolved ? 'opacity-95' : ''}`}>
       <div className="flex items-center gap-2 mb-1.5">
         <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-semibold uppercase tracking-wide">
           {tag}
         </span>
+        {resolved && (
+          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">
+            ✓ Resolved
+          </span>
+        )}
         <p className="text-sm font-semibold">{title}</p>
       </div>
       <p className={`text-sm ${subText}`}>{children}</p>
+      {decision && (
+        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${decisionBox}`}>
+          <span className="block text-[10px] font-semibold uppercase tracking-wide mb-0.5">Decision</span>
+          {decision}
+        </div>
+      )}
       <p className={`mt-3 pt-3 border-t ${cardBorder} text-xs ${subText}`}>
         <span aria-hidden className="mr-1">📍</span>
         <span className="font-semibold uppercase tracking-wide">Where to find it: </span>
