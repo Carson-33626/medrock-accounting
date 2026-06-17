@@ -13,16 +13,19 @@ import { TAX_LOCATION_GROUPS, TAX_LEGACY_FILINGS } from '@/lib/sales-tax-filings
 // Navigation items for MedRock Accounting
 // NOTE: Coupons and Marketer Profitability dashboards remain stashed in web/_archive
 // (rebuild pending). Company Summary was rebuilt + modernized as Location Analytics.
+// General section — open to any authenticated user.
 const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
-  { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
   { name: 'Nexus Exposure', href: '/nexus', icon: GlobeIcon },
   { name: 'Company CPA Review', href: '/cpa-review', icon: ClipboardIcon },
 ];
 
-// Admin-only navigation items (user management moved to the central auth system)
+// Admin-only navigation. These pages enforce an admin role server-side (requireAdmin),
+// so they're hidden from non-admins here to avoid the bounce-back-to-home trap.
+// (User management lives in the central auth system.)
 const adminNavigation = [
+  { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
   { name: 'QuickBooks', href: '/admin/quickbooks', icon: QuickBooksIcon },
 ];
 
@@ -116,6 +119,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <p className="px-4 pt-1 pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">General</p>
           {navigation.map((item) => {
             const isActive = pathname === item.href;
             return (
