@@ -84,6 +84,13 @@ export async function GET(request: NextRequest) {
     );
     const hasCashBasis = basisRes.rows[0]?.has_cash ?? false;
 
+    // Which months are anchored to LifeFile actuals (any lot_anchored ledger row) — lets
+    // an as-of value be badged reconciled vs. estimate. Today only the current month qualifies.
+    const anchoredRes = await pool.query<{ as_of_month: string }>(
+      `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true ORDER BY as_of_month`,
+    );
+    const anchoredMonths = anchoredRes.rows.map((r) => r.as_of_month);
+
     if (format === 'csv' || format === 'xlsx') {
       const exportRows: Record<string, CellValue>[] = rows.map((r) => ({ ...r }));
       const filename = `fifo-valuation_${location && location !== 'all' ? location.replace(/\s+/g, '-') : 'all'}_${latestMonth ?? 'na'}_${basis}`;
@@ -94,7 +101,7 @@ export async function GET(request: NextRequest) {
       return xlsxResponse([{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }], filename, note);
     }
 
-    const body: SummaryResponse = { basis, months, locations, categories, rows, latestMonth, hasCashBasis };
+    const body: SummaryResponse = { basis, months, locations, categories, rows, latestMonth, hasCashBasis, anchoredMonths };
     return NextResponse.json(body);
   } catch (error) {
     console.error('Error fetching inventory summary:', error);

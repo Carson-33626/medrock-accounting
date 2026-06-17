@@ -300,6 +300,9 @@ export default function InventoryValuation() {
               </button>
             </div>
             <div className="flex gap-2">
+              <a href="/inventory/as-of" className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+                As-of Value
+              </a>
               <a href="/inventory/qb-links" className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
                 QB Links
               </a>

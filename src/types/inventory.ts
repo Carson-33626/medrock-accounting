@@ -30,6 +30,12 @@ export interface SummaryResponse {
   latestMonth: string | null;
   /** true once the Data Loader writes basis='cash' rows (Phase 4 QB linkage) */
   hasCashBasis: boolean;
+  /**
+   * Months whose ledger is anchored to LifeFile actuals (vs. raw usage simulation).
+   * Today only the current month is anchored (Phase 2b/2c); historical months become
+   * anchored once Phase 2d lands. Used to badge an as-of value as reconciled vs. estimate.
+   */
+  anchoredMonths: string[];
 }
 
 export interface LotRow {
