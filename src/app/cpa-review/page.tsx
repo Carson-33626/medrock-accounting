@@ -147,14 +147,17 @@ export default function CompanyCpaReviewPage() {
             cardBorder={cardBorder}
             where={
               <>
-                <strong>Location Analytics</strong> — per-location revenue and out-of-state dispensing volume; the
-                ship-to breakdown that signals new-state registration obligations is sourced here.
+                <strong>Nexus Exposure</strong> — per-state ship-to gross sales + transaction counts vs each
+                state&apos;s verified threshold, with over / approaching / registered flags and CSV/Excel export.
               </>
             }
           >
-            Where each location ships and out-of-state volume by state — informs whether any new state
-            registration/filing obligation exists beyond FL/TX/TN. Data can be sourced from the per-location ship-to feed
-            once built out here.
+            MedRock ships nationwide, so economic nexus (post-<em>Wayfair</em>) can attach in states beyond FL/TX/TN/GA/NC
+            even though Rx is exempt almost everywhere (crossing a threshold creates a registration/filing duty regardless
+            of tax due). The <strong>Nexus Exposure</strong> page screens YTD-2026 ship-to sales (annualized) against the
+            2026 threshold table — several states (e.g. CO, OH, MA, SC, AZ, IL) are already over $100k gross, and GA&apos;s
+            still-active 200-transaction prong is well past. <strong>This is the data input for a CPA-led nexus study</strong>
+            to decide where to register; figures are gross-basis and YTD, not a filing determination.
           </Topic>
         </div>
       </div>
