@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ramp-split-push preview output (contains cardholder PII)
+scripts/ramp-split-push/out/
