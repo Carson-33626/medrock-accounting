@@ -84,6 +84,12 @@ export async function readQbAmazonEntries(entity: Entity): Promise<QBEntry[]> {
 }
 
 export async function readAllQbAmazonEntries(): Promise<QBEntry[]> {
-  const perEntity = await Promise.all(ALL_ENTITIES.map((e) => readQbAmazonEntries(e)));
-  return perEntity.flat();
+  // Sequential per realm: concurrent QB token refresh across realms races and yields
+  // transient "No QB tokens found" errors. Read-only preview tolerates the slower path.
+  const all: QBEntry[] = [];
+  for (const entity of ALL_ENTITIES) {
+    const entries = await readQbAmazonEntries(entity);
+    all.push(...entries);
+  }
+  return all;
 }

@@ -26,8 +26,10 @@ export async function rampToken(entity: Entity, scope: string): Promise<string> 
   return json.access_token;
 }
 
-export async function rampGet<T>(entity: Entity, path: string, token: string): Promise<{ status: number; body: T }> {
-  const res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+export async function rampGet<T>(entity: Entity, pathOrUrl: string, token: string): Promise<{ status: number; body: T }> {
+  // Ramp's `page.next` is a full URL — follow it as-is; otherwise prepend the base path.
+  const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${BASE}${pathOrUrl}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const body = (await res.json()) as T;
   return { status: res.status, body };
 }
@@ -55,13 +57,18 @@ function parseOrderNo(...texts: (string | null | undefined)[]): string | null {
   return null;
 }
 
+interface RampTxnPage {
+  data: RawRampTxn[];
+  page?: { next?: string };
+}
+
 export async function getRampTransactions(entity: Entity, token: string, pages = 30): Promise<RampTxn[]> {
   const out: RampTxn[] = [];
-  let start: string | null = null;
-  for (let i = 0; i < pages; i++) {
-    const q = `/transactions?page_size=100&order_by_date_desc=true${start ? `&start=${start}` : ''}`;
-    const { body } = await rampGet<{ data: RawRampTxn[]; page?: { next?: string } }>(entity, q, token);
-    const rows = body.data ?? [];
+  let nextUrl: string | null = '/transactions?page_size=100&order_by_date_desc=true';
+  for (let i = 0; i < pages && nextUrl !== null; i++) {
+    const res: { status: number; body: RampTxnPage } = await rampGet<RampTxnPage>(entity, nextUrl, token);
+    const body: RampTxnPage = res.body;
+    const rows: RawRampTxn[] = body.data ?? [];
     for (const r of rows) {
       const holder = r.card_holder ? `${r.card_holder.first_name ?? ''} ${r.card_holder.last_name ?? ''}`.trim() : null;
       out.push({
@@ -77,17 +84,27 @@ export async function getRampTransactions(entity: Entity, token: string, pages =
         priorLineItems: r.line_items,
       });
     }
-    const next = body.page?.next;
-    if (!next || rows.length === 0) break;
-    start = next;
+    if (rows.length === 0) break;
+    nextUrl = body.page?.next ?? null;
   }
   return out;
 }
 
 interface RawAccount { id: string; code: string | null; name: string }
+interface AccountsPage { data: RawAccount[]; page?: { next?: string } }
 export async function getRampAccounts(entity: Entity, token: string): Promise<RawAccount[]> {
-  const { body } = await rampGet<{ data: RawAccount[] }>(entity, '/accounting/accounts?page_size=100', token);
-  return body.data ?? [];
+  // The QB chart of accounts exceeds one page (100) — paginate so the coding map is complete,
+  // otherwise valid expense accounts beyond the first page show as "not in coding map".
+  const out: RawAccount[] = [];
+  let url: string | null = '/accounting/accounts?page_size=100';
+  for (let i = 0; i < 50 && url !== null; i++) {
+    const res: { status: number; body: AccountsPage } = await rampGet<AccountsPage>(entity, url, token);
+    const rows: RawAccount[] = res.body.data ?? [];
+    out.push(...rows);
+    if (rows.length === 0) break;
+    url = res.body.page?.next ?? null;
+  }
+  return out;
 }
 
 interface RawField { id: string; ramp_id: string; name: string }
