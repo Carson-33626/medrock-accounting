@@ -7,12 +7,14 @@ import type {
   LocationAnalyticsResponse,
   LocationAnalyticsRow,
   LocationTrendsResponse,
+  LocationForecastResponse,
 } from '@/types/location-analytics';
 import { TrendsPanel } from './location-analytics/TrendsPanel';
+import { ForecastPanel } from './location-analytics/ForecastPanel';
 
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-type Tab = 'summary' | 'charts';
+type Tab = 'summary' | 'charts' | 'forecast';
 
 function defaultStartDate(): string {
   const d = new Date();
@@ -106,6 +108,38 @@ export function LocationAnalytics() {
       fetchTrends();
     }
   }, [activeTab, trendsKey, trendsLoading, fetchTrends]);
+
+  // Forecast: lazy-loaded when the Forecast tab opens. The 24-month window is
+  // server-derived, so the only filter that affects it is Basis.
+  const [forecast, setForecast] = useState<LocationForecastResponse | null>(null);
+  const [forecastLoading, setForecastLoading] = useState<boolean>(false);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+  const attemptedForecastBasisRef = useRef<string | null>(null);
+
+  const fetchForecast = useCallback(async () => {
+    attemptedForecastBasisRef.current = basis;
+    setForecastLoading(true);
+    setForecastError(null);
+    try {
+      const res = await fetch(`/api/location-analytics/forecast?${new URLSearchParams({ basis })}`);
+      if (!res.ok) {
+        const body: { error?: string } = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to load forecast');
+      }
+      setForecast((await res.json()) as LocationForecastResponse);
+    } catch (err) {
+      setForecastError(err instanceof Error ? err.message : 'Unknown error');
+      setForecast(null);
+    } finally {
+      setForecastLoading(false);
+    }
+  }, [basis]);
+
+  useEffect(() => {
+    if (activeTab === 'forecast' && attemptedForecastBasisRef.current !== basis && !forecastLoading) {
+      fetchForecast();
+    }
+  }, [activeTab, basis, forecastLoading, fetchForecast]);
 
   const exportHref = (format: 'csv' | 'xlsx'): string => {
     const params = new URLSearchParams({ startDate, endDate, basis, threshold: String(threshold), format });
@@ -207,6 +241,7 @@ export function LocationAnalytics() {
           {([
             { key: 'summary', label: 'Summary' },
             { key: 'charts', label: 'Trends & Charts' },
+            { key: 'forecast', label: 'Forecast' },
           ] as const).map((t) => (
             <button
               key={t.key}
@@ -402,6 +437,42 @@ export function LocationAnalytics() {
             {trends && !trendsLoading && (
               <TrendsPanel
                 trends={trends}
+                darkMode={darkMode}
+                cardBg={cardBg}
+                subText={subText}
+                rowBorder={rowBorder}
+              />
+            )}
+          </>
+        )}
+
+        {/* ── Forecast tab ──────────────────────────────────────────── */}
+        {activeTab === 'forecast' && (
+          <>
+            {forecastLoading && (
+              <div className={`rounded-xl shadow-sm p-12 text-center ${cardBg}`}>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto" />
+                <p className={`mt-4 ${subText}`}>
+                  Pulling 24 months of QuickBooks history (one report per location)…
+                </p>
+              </div>
+            )}
+
+            {forecastError && !forecastLoading && (
+              <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm flex items-center justify-between">
+                <span>{forecastError}</span>
+                <button
+                  onClick={fetchForecast}
+                  className="ml-4 px-3 py-1 rounded-md bg-red-200 hover:bg-red-300 text-red-900 font-medium"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {forecast && !forecastLoading && (
+              <ForecastPanel
+                forecast={forecast}
                 darkMode={darkMode}
                 cardBg={cardBg}
                 subText={subText}

@@ -314,6 +314,7 @@ export async function getProfitAndLoss(params: {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   accounting_method?: 'Accrual' | 'Cash';
+  summarize_column_by?: 'Month' | 'Quarter' | 'Year';
 }) {
   const queryParams = new URLSearchParams({
     start_date: params.startDate,
@@ -322,9 +323,99 @@ export async function getProfitAndLoss(params: {
     // Accrual would record revenue when earned, Cash records when actually received
     accounting_method: params.accounting_method || 'Cash',
   });
+  if (params.summarize_column_by) {
+    queryParams.set('summarize_column_by', params.summarize_column_by);
+  }
 
   const endpoint = `reports/ProfitAndLoss?${queryParams.toString()}`;
   return qbRequest(endpoint, params.location, { method: 'GET' });
+}
+
+// ── Monthly P&L (one call/location via summarize_column_by=Month) ──
+// Minimal typed view of the QB ProfitAndLoss report shape we read.
+interface QbColMeta {
+  Name: string;
+  Value: string;
+}
+interface QbColumn {
+  ColTitle?: string;
+  ColType?: string;
+  MetaData?: QbColMeta[];
+}
+interface QbColData {
+  value?: string;
+}
+interface QbReportRow {
+  group?: string;
+  Summary?: { ColData?: QbColData[] };
+}
+interface QbMonthlyReport {
+  Columns?: { Column?: QbColumn[] };
+  Rows?: { Row?: QbReportRow[] };
+}
+
+export interface MonthlyPnl {
+  month: string; // 'YYYY-MM'
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  netIncome: number;
+}
+
+/** Column index → 'YYYY-MM' for the report's month columns (skips label + Total columns). */
+function monthColumns(report: QbMonthlyReport): Array<{ index: number; month: string }> {
+  const cols = report.Columns?.Column ?? [];
+  const out: Array<{ index: number; month: string }> = [];
+  cols.forEach((col, index) => {
+    if ((col.ColTitle ?? '').toLowerCase() === 'total') return;
+    const start = col.MetaData?.find((m) => m.Name === 'StartDate')?.Value;
+    if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
+      out.push({ index, month: start.slice(0, 7) });
+    }
+  });
+  return out;
+}
+
+/** Per-column values from a top-level section's Summary row, keyed by group. */
+function sectionSummaryByColumn(report: QbMonthlyReport, group: string): QbColData[] | null {
+  const section = (report.Rows?.Row ?? []).find((r) => r.group === group);
+  return section?.Summary?.ColData ?? null;
+}
+
+/**
+ * Monthly P&L for one location in a single QB call (summarize_column_by=Month).
+ * Throws if the report has no recognizable month columns / section summaries —
+ * callers surface the error rather than silently zero-filling.
+ */
+export async function getMonthlyProfitAndLoss(params: {
+  location: Location;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  accounting_method?: 'Cash' | 'Accrual';
+}): Promise<MonthlyPnl[]> {
+  const report = (await getProfitAndLoss({ ...params, summarize_column_by: 'Month' })) as QbMonthlyReport;
+
+  const months = monthColumns(report);
+  if (months.length === 0) {
+    throw new Error(`QB monthly P&L for ${params.location} returned no month columns`);
+  }
+
+  const incomeCols = sectionSummaryByColumn(report, 'Income');
+  const cogsCols = sectionSummaryByColumn(report, 'COGS');
+  const netIncomeCols = sectionSummaryByColumn(report, 'NetIncome');
+  if (!incomeCols && !netIncomeCols) {
+    throw new Error(`QB monthly P&L for ${params.location} returned no section summaries`);
+  }
+
+  const valAt = (cols: QbColData[] | null, index: number): number =>
+    cols ? parseFloat(cols[index]?.value || '0') || 0 : 0;
+
+  return months.map(({ index, month }) => {
+    const revenue = valAt(incomeCols, index);
+    const cogs = valAt(cogsCols, index);
+    const netIncome = valAt(netIncomeCols, index);
+    return { month, revenue, cogs, grossProfit: revenue - cogs, netIncome };
+  });
 }
 
 /**
