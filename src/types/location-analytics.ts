@@ -76,3 +76,43 @@ export interface LocationAnalyticsResponse {
   feedAsOf: string | null;
   generatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Trends (over-time) — monthly series powering the Trends & Charts tab.
+// See docs/superpowers/specs/2026-06-29-location-analytics-trends-charts-design.md
+// ---------------------------------------------------------------------------
+
+/** Metric the trend line chart can plot. */
+export type TrendMetric = 'revenue' | 'grossProfit' | 'netIncome';
+
+/** One month of QB P&L + RDS cross-check for a single location. */
+export interface LocationTrendPoint {
+  month: string; // 'YYYY-MM'
+  revenue: number; // QB
+  cogs: number; // QB
+  grossProfit: number; // QB
+  netIncome: number; // QB
+  lifefileSales: number; // RDS
+  fifoCogs: number | null; // RDS (null when basis unavailable)
+}
+
+/** Dense monthly series for one location (one point per month in range). */
+export interface LocationTrendSeries {
+  qbLocation: string;
+  label: string;
+  state: string;
+  connected: boolean;
+  points: LocationTrendPoint[];
+}
+
+export interface LocationTrendsResponse {
+  startDate: string;
+  endDate: string;
+  basis: Basis;
+  /** Ordered 'YYYY-MM' list spanning the range — shared x-axis. */
+  months: string[];
+  series: LocationTrendSeries[];
+  /** False when the selected basis has no FIFO rows yet. */
+  fifoBasisAvailable: boolean;
+  generatedAt: string;
+}

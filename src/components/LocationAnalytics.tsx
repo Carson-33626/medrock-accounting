@@ -1,21 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts';
-import type { Basis, LocationAnalyticsResponse, LocationAnalyticsRow } from '@/types/location-analytics';
+import type {
+  Basis,
+  LocationAnalyticsResponse,
+  LocationAnalyticsRow,
+  LocationTrendsResponse,
+} from '@/types/location-analytics';
+import { TrendLineChart } from './location-analytics/TrendLineChart';
+import { RevenueVsLifefileChart } from './location-analytics/RevenueVsLifefileChart';
+import { NetIncomeByLocationChart } from './location-analytics/NetIncomeByLocationChart';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+type Tab = 'summary' | 'charts';
 
 function defaultStartDate(): string {
   const d = new Date();
@@ -45,10 +44,19 @@ export function LocationAnalytics() {
   const [endDate, setEndDate] = useState<string>(defaultEndDate);
   const [basis, setBasis] = useState<Basis>('Cash');
   const [threshold, setThreshold] = useState<number>(5);
+  const [activeTab, setActiveTab] = useState<Tab>('summary');
 
   const [data, setData] = useState<LocationAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Trends are lazy-loaded only when the Charts tab is first opened (they make
+  // ~months × locations sequential QB calls — too slow for the Summary load).
+  const [trends, setTrends] = useState<LocationTrendsResponse | null>(null);
+  const [trendsLoading, setTrendsLoading] = useState<boolean>(false);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
+  const trendsKey = `${startDate}|${endDate}|${basis}`;
+  const attemptedKeyRef = useRef<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -73,20 +81,38 @@ export function LocationAnalytics() {
     fetchData();
   }, [fetchData]);
 
+  const fetchTrends = useCallback(async () => {
+    attemptedKeyRef.current = `${startDate}|${endDate}|${basis}`;
+    setTrendsLoading(true);
+    setTrendsError(null);
+    try {
+      const params = new URLSearchParams({ startDate, endDate, basis });
+      const res = await fetch(`/api/location-analytics/trends?${params}`);
+      if (!res.ok) {
+        const body: { error?: string } = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to load trends');
+      }
+      setTrends((await res.json()) as LocationTrendsResponse);
+    } catch (err) {
+      setTrendsError(err instanceof Error ? err.message : 'Unknown error');
+      setTrends(null);
+    } finally {
+      setTrendsLoading(false);
+    }
+  }, [startDate, endDate, basis]);
+
+  // Fetch trends once per (tab open × filter set). Uses a ref so a failed fetch
+  // doesn't loop — the user retries via the button instead.
+  useEffect(() => {
+    if (activeTab === 'charts' && attemptedKeyRef.current !== trendsKey && !trendsLoading) {
+      fetchTrends();
+    }
+  }, [activeTab, trendsKey, trendsLoading, fetchTrends]);
+
   const exportHref = (format: 'csv' | 'xlsx'): string => {
     const params = new URLSearchParams({ startDate, endDate, basis, threshold: String(threshold), format });
     return `/api/location-analytics?${params}`;
   };
-
-  const chartData = useMemo(
-    () =>
-      (data?.locations ?? []).map((l) => ({
-        location: l.label,
-        'QB Revenue': l.qb?.revenue ?? 0,
-        'LifeFile Sales': l.rds.lifefileSales,
-      })),
-    [data],
-  );
 
   // Theme tokens — matched to the Inventory (FIFO) page
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
@@ -150,7 +176,7 @@ export function LocationAnalytics() {
           variance is expected.
         </div>
 
-        {/* Date + threshold filter bar */}
+        {/* Date + threshold filter bar (shared by both tabs) */}
         <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-end gap-4 ${cardBg}`}>
           <label className="flex flex-col gap-1">
             <span className={`text-xs uppercase tracking-wide ${subText}`}>Start Date</span>
@@ -178,6 +204,25 @@ export function LocationAnalytics() {
           )}
         </div>
 
+        {/* Tab bar */}
+        <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
+          {([
+            { key: 'summary', label: 'Summary' },
+            { key: 'charts', label: 'Trends & Charts' },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-5 py-2 text-sm font-medium transition-colors ${
+                activeTab === t.key ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+              }`}
+              style={activeTab === t.key ? { backgroundColor: '#5e3b8d' } : undefined}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {error && !loading && (
           <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">{error}</div>
         )}
@@ -189,7 +234,8 @@ export function LocationAnalytics() {
           </div>
         )}
 
-        {data && !loading && (
+        {/* ── Summary tab ───────────────────────────────────────────── */}
+        {data && !loading && activeTab === 'summary' && (
           <>
             {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -218,38 +264,6 @@ export function LocationAnalytics() {
                 {fifoUnavailable && <p className={`text-xs mt-1 ${subText}`}>unavailable on {data.basis} basis</p>}
               </SummaryCard>
             </div>
-
-            {/* Revenue cross-check chart */}
-            {chartData.length > 0 && (
-              <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-                <p className="text-sm font-semibold mb-3">QB Revenue vs LifeFile Sales by Location</p>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                      <XAxis dataKey="location" tick={{ fontSize: 12 }} stroke={darkMode ? '#94a3b8' : '#64748b'} />
-                      <YAxis
-                        tickFormatter={(v: number) => usd0.format(v)}
-                        tick={{ fontSize: 12 }}
-                        stroke={darkMode ? '#94a3b8' : '#64748b'}
-                        width={90}
-                      />
-                      <Tooltip
-                        formatter={(v: number | undefined) => usd.format(v ?? 0)}
-                        contentStyle={
-                          darkMode
-                            ? { backgroundColor: '#1e293b', border: '1px solid #334155', color: '#f1f5f9' }
-                            : undefined
-                        }
-                      />
-                      <Legend />
-                      <Bar dataKey="QB Revenue" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="LifeFile Sales" fill="#5e3b8d" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
 
             {/* Reconciliation cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -359,6 +373,53 @@ export function LocationAnalytics() {
                 </div>
               )}
             </div>
+          </>
+        )}
+
+        {/* ── Trends & Charts tab ───────────────────────────────────── */}
+        {activeTab === 'charts' && (
+          <>
+            {trendsLoading && (
+              <div className={`rounded-xl shadow-sm p-12 text-center ${cardBg}`}>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto" />
+                <p className={`mt-4 ${subText}`}>
+                  Building monthly trends from QuickBooks — one P&amp;L pull per month per location, this can take a
+                  moment for longer ranges…
+                </p>
+              </div>
+            )}
+
+            {trendsError && !trendsLoading && (
+              <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm flex items-center justify-between">
+                <span>{trendsError}</span>
+                <button
+                  onClick={fetchTrends}
+                  className="ml-4 px-3 py-1 rounded-md bg-red-200 hover:bg-red-300 text-red-900 font-medium"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {trends && !trendsLoading && (
+              <>
+                <TrendLineChart trends={trends} darkMode={darkMode} cardBg={cardBg} />
+                {!trends.fifoBasisAvailable && (
+                  <div className={`rounded-xl shadow-sm px-4 py-3 text-xs ${cardBg} ${subText}`}>
+                    FIFO COGS is unavailable on the <strong>{trends.basis}</strong> basis (no rows yet) — the trend
+                    reflects QuickBooks figures only for COGS-derived metrics.
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Period-comparison charts use the (already-loaded) Summary aggregate. */}
+            {data && !loading && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <RevenueVsLifefileChart locations={data.locations} darkMode={darkMode} cardBg={cardBg} />
+                <NetIncomeByLocationChart locations={data.locations} darkMode={darkMode} cardBg={cardBg} />
+              </div>
+            )}
           </>
         )}
       </div>

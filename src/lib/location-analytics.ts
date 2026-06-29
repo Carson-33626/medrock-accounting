@@ -18,7 +18,7 @@ import type {
   Reconciliation,
 } from '@/types/location-analytics';
 
-interface LocationConfig {
+export interface LocationConfig {
   qb: Location; // QuickBooks company name
   rds: string; // source.sales_tax_report / fifo_valuation_summary location string
   state: string;
@@ -26,7 +26,7 @@ interface LocationConfig {
 }
 
 /** Canonical mapping: QB and RDS name the same three locations differently. */
-const LOCATIONS: readonly LocationConfig[] = [
+export const LOCATIONS: readonly LocationConfig[] = [
   { qb: 'MedRock FL', rds: 'MedRock Florida', state: 'FL', label: 'Florida' },
   { qb: 'MedRock TN', rds: 'MedRock Tennessee', state: 'TN', label: 'Tennessee' },
   { qb: 'MedRock TX', rds: 'MedRock Texas', state: 'TX', label: 'Texas' },
@@ -35,7 +35,7 @@ const LOCATIONS: readonly LocationConfig[] = [
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_THRESHOLD = 5;
 
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
@@ -44,7 +44,7 @@ function pct(part: number, whole: number): number {
   return whole !== 0 ? round2((part / whole) * 100) : 0;
 }
 
-const RDS_NAMES: string[] = LOCATIONS.map((l) => l.rds);
+export const RDS_NAMES: string[] = LOCATIONS.map((l) => l.rds);
 
 /** Σ Subtotal by location over the date range — all ship-to states (full dispensing revenue). */
 async function fetchLifefileSales(startDate: string, endDate: string): Promise<Map<string, number>> {
