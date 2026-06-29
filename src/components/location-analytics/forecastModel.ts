@@ -12,6 +12,7 @@ export interface ForecastLocation {
   label: string;
   state: string;
   connected: boolean;
+  openedMonth: string | null; // months before this are pre-opening (excluded from the forecast)
   method: ForecastMethod;
   cmgr: number;
   actual: Record<string, number>; // completed months (+ current partial month)
@@ -56,7 +57,12 @@ export function buildForecastModel(
       histMap[p.month] = p[metric];
     });
 
-    const history = completedMonths.map((m) => histMap[m] ?? 0);
+    // Train only on post-opening months — pre-opening build-out costs would
+    // otherwise poison the trend (e.g. a new location's negative ramp).
+    const trainingMonths = s.openedMonth
+      ? completedMonths.filter((m) => m >= (s.openedMonth as string))
+      : completedMonths;
+    const history = trainingMonths.map((m) => histMap[m] ?? 0);
     // horizon + 1 steps: step 0 = current partial month estimate, steps 1..horizon = future.
     const { method, forecast, cmgr } = forecastSeries(history, horizon + 1);
 
@@ -77,6 +83,7 @@ export function buildForecastModel(
       label: s.label,
       state: s.state,
       connected: s.connected,
+      openedMonth: s.openedMonth,
       method,
       cmgr,
       actual,

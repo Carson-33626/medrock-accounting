@@ -38,6 +38,15 @@ function Cmgr({ value }: { value: number }) {
   );
 }
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtMonth(month: string): string {
+  const [year, m] = month.split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]} ${year}`;
+}
+function isPreOpening(openedMonth: string | null, month: string): boolean {
+  return !!openedMonth && month < openedMonth;
+}
+
 function methodBadge(method: string, darkMode: boolean): string {
   if (method === 'Holt-Winters') return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
   if (method === 'Damped trend') return darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700';
@@ -152,6 +161,14 @@ export function ForecastTable({
             </span>
           ))}
         </div>
+        {model.locations
+          .filter((loc) => loc.openedMonth)
+          .map((loc) => (
+            <p key={loc.qbLocation} className={`mt-2 text-[11px] ${subText}`}>
+              ↳ <strong>{loc.label}</strong> opened {fmtMonth(loc.openedMonth as string)} — earlier months are
+              <span className="italic"> pre-opening expenses</span> and are excluded from its forecast.
+            </p>
+          ))}
       </div>
       <div className="overflow-x-auto max-h-[32rem] overflow-y-auto">
         <table className="w-full text-xs">
@@ -191,7 +208,19 @@ export function ForecastTable({
                       <span className={`ml-2 text-[9px] uppercase ${subText}`}>proj</span>
                     )}
                   </td>
-                  {model.locations.map((loc) => renderCell(cellFor(loc, month, model), `${loc.qbLocation}-${month}`))}
+                  {model.locations.map((loc) => {
+                    const keyId = `${loc.qbLocation}-${month}`;
+                    if (isPreOpening(loc.openedMonth, month)) {
+                      const c = cellFor(loc, month, model);
+                      return (
+                        <td key={keyId} className="px-3 py-2 text-right" title="Pre-opening — excluded from forecast">
+                          <span className="block text-slate-400 italic">{usd0.format(c.value)}</span>
+                          <span className="block text-[9px] uppercase text-slate-400">pre-open</span>
+                        </td>
+                      );
+                    }
+                    return renderCell(cellFor(loc, month, model), keyId);
+                  })}
                   {renderCell(totalCell(month), `total-${month}`)}
                 </tr>
               );

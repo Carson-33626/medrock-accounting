@@ -136,6 +136,8 @@ export interface LocationForecastSeries {
   label: string;
   state: string;
   connected: boolean;
+  /** First operating month ('YYYY-MM'); earlier months are pre-opening, excluded from the forecast. */
+  openedMonth: string | null;
   points: LocationForecastPoint[]; // dense over `months`
 }
 
