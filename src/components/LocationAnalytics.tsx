@@ -42,7 +42,7 @@ export function LocationAnalytics() {
 
   const [startDate, setStartDate] = useState<string>(defaultStartDate);
   const [endDate, setEndDate] = useState<string>(defaultEndDate);
-  const [basis, setBasis] = useState<Basis>('Cash');
+  const [basis, setBasis] = useState<Basis>('Accrual');
   const [threshold, setThreshold] = useState<number>(5);
   const [activeTab, setActiveTab] = useState<Tab>('summary');
 

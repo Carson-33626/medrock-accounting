@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
 import { METRIC_OPTIONS } from './chartTheme';
 import { MetricLegend } from './MetricLegend';
-import { buildForecastModel } from './forecastModel';
+import { buildForecastModel, CLOSE_LAG_MONTHS } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
 
@@ -32,16 +32,22 @@ export function ForecastPanel({
   const [horizon, setHorizon] = useState<number>(6);
   const metricLabel = METRIC_OPTIONS.find((m) => m.key === metric)?.label ?? '';
 
-  const model = useMemo(() => buildForecastModel(forecast, metric, horizon), [forecast, metric, horizon]);
+  // Revenue posts in real time; gross profit / net income depend on expenses
+  // that post on a lag, so hold out the most recent months for those.
+  const closeLag = metric === 'revenue' ? 0 : CLOSE_LAG_MONTHS;
+  const model = useMemo(
+    () => buildForecastModel(forecast, metric, horizon, closeLag),
+    [forecast, metric, horizon, closeLag],
+  );
 
   const handleExport = () => {
     const header = ['Location', ...model.allMonths, 'Method', 'CMGR %'];
     const lines = [header.join(',')];
     for (const loc of model.locations) {
       const vals = model.allMonths.map((m) => {
-        if (m !== model.currentMonthKey && m in loc.actual) return loc.actual[m];
-        if (m === model.currentMonthKey) return loc.estCurrent ?? loc.actual[m] ?? '';
+        if (model.provisionalMonths.includes(m)) return loc.est[m] ?? loc.actual[m] ?? '';
         if (m in loc.future) return loc.future[m];
+        if (m in loc.actual) return loc.actual[m];
         return '';
       });
       lines.push([loc.label, ...vals, loc.method, loc.cmgr.toFixed(1)].join(','));
@@ -109,6 +115,13 @@ export function ForecastPanel({
         on up to 24 months of QuickBooks history, with damping that flattens long-horizon growth. Locations with
         2+ years of history use Holt-Winters; shorter histories fall back to a damped trend or weighted average
         (see the Method column). <strong>CMGR</strong> = compound monthly growth rate implied by the projection.
+        {metric !== 'revenue' && (
+          <>
+            {' '}For {metricLabel}, the most recent {closeLag} month{closeLag === 1 ? '' : 's'} may not be fully
+            closed (expenses post on a lag), so {closeLag === 1 ? "it's" : "they're"} shown as provisional
+            (actual + estimate) and held out of the trend.
+          </>
+        )}{' '}
         Read-only estimate — not financial guidance.
       </div>
 
