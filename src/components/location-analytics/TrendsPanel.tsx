@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { LocationTrendsResponse, TrendMetric } from '@/types/location-analytics';
 import { METRIC_OPTIONS, type TrendRow } from './chartTheme';
+import { MetricLegend } from './MetricLegend';
 import { TrendLineChart } from './TrendLineChart';
 import { TrendBarChart } from './TrendBarChart';
 import { TrendTable } from './TrendTable';
@@ -59,6 +60,8 @@ export function TrendsPanel({
           ))}
         </div>
       </div>
+
+      <MetricLegend subText={subText} />
 
       <TrendLineChart
         rows={rows}
