@@ -31,15 +31,16 @@ export function ForecastChart({
 }) {
   const theme = chartTheme(darkMode);
 
+  const provisionalSet = new Set(model.provisionalMonths);
   const rows: Row[] = model.allMonths.map((month) => {
     const row: Row = { month };
     for (const loc of model.locations) {
-      // Actual line: completed months only (current partial omitted to avoid a false dip).
-      row[loc.label] = month in loc.actual && month !== model.currentMonthKey ? loc.actual[month] : null;
-      // Forecast line: connect from last actual, through the current-month estimate, into the future.
+      // Actual line: fully-closed completed months only (provisional/current omitted to avoid a false spike).
+      row[loc.label] = month in loc.actual && !provisionalSet.has(month) ? loc.actual[month] : null;
+      // Forecast line: connect from last trained actual, through provisional + current estimates, into the future.
       let f: number | null = null;
-      if (month === loc.lastCompletedMonth) f = loc.connectValue;
-      else if (month === model.currentMonthKey) f = loc.estCurrent;
+      if (month === loc.lastTrainMonth) f = loc.connectValue;
+      else if (provisionalSet.has(month)) f = loc.est[month] ?? null;
       else if (month in loc.future) f = loc.future[month];
       row[`${loc.label} (forecast)`] = f;
     }

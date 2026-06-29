@@ -12,14 +12,14 @@ interface CellView {
 }
 
 function cellFor(loc: ForecastLocation, month: string, model: ForecastModel): CellView {
-  if (month !== model.currentMonthKey && month in loc.actual) {
-    return { kind: 'actual', value: loc.actual[month], estValue: null };
-  }
-  if (month === model.currentMonthKey) {
-    return { kind: 'dual', value: loc.actual[month] ?? 0, estValue: loc.estCurrent };
+  if (model.provisionalMonths.includes(month)) {
+    return { kind: 'dual', value: loc.actual[month] ?? 0, estValue: loc.est[month] ?? 0 };
   }
   if (month in loc.future) {
     return { kind: 'projected', value: loc.future[month], estValue: null };
+  }
+  if (month in loc.actual) {
+    return { kind: 'actual', value: loc.actual[month], estValue: null };
   }
   return { kind: 'empty', value: 0, estValue: null };
 }
@@ -86,17 +86,19 @@ export function ForecastTable({
   const dualRow = darkMode ? 'bg-amber-500/10' : 'bg-amber-50';
 
   const monthsDesc = useMemo(() => [...model.allMonths].reverse(), [model]);
-  const isProjected = (month: string): boolean =>
-    month === model.currentMonthKey || model.futureMonths.includes(month);
+  const isProvisional = (month: string): boolean => model.provisionalMonths.includes(month);
+  const isFuture = (month: string): boolean => model.futureMonths.includes(month);
 
-  // Total column: CMGR from the summed series.
+  // Total column: CMGR from the summed series, anchored on the last fully-closed month.
   const totalCmgr = useMemo(() => {
-    const lastActualMonth = model.completedMonths[model.completedMonths.length - 1];
+    const trained = model.completedMonths.filter((m) => !model.provisionalMonths.includes(m));
+    const lastActualMonth = trained[trained.length - 1];
     const lastFutureMonth = model.futureMonths[model.futureMonths.length - 1];
     if (!lastActualMonth || !lastFutureMonth) return 0;
     const lastActual = model.locations.reduce((s, l) => s + (l.actual[lastActualMonth] ?? 0), 0);
     const finalForecast = model.locations.reduce((s, l) => s + (l.future[lastFutureMonth] ?? 0), 0);
-    return cmgrFrom(lastActual, finalForecast, model.futureMonths.length);
+    const periods = model.provisionalMonths.length + model.futureMonths.length;
+    return cmgrFrom(lastActual, finalForecast, periods);
   }, [model]);
 
   // Aggregate one month across locations for the Total column.
@@ -199,14 +201,13 @@ export function ForecastTable({
             </tr>
             {/* Month rows, latest first */}
             {monthsDesc.map((month) => {
-              const rowBg = month === model.currentMonthKey ? dualRow : isProjected(month) ? projRow : '';
+              const rowBg = isProvisional(month) ? dualRow : isFuture(month) ? projRow : '';
+              const tag = isProvisional(month) ? 'prov' : isFuture(month) ? 'proj' : '';
               return (
                 <tr key={month} className={`border-t ${rowBorder} ${rowBg}`}>
                   <td className={`sticky left-0 z-10 ${rowBg || stickyBg} px-3 py-2 text-left font-medium`}>
                     {month}
-                    {isProjected(month) && (
-                      <span className={`ml-2 text-[9px] uppercase ${subText}`}>proj</span>
-                    )}
+                    {tag && <span className={`ml-2 text-[9px] uppercase ${subText}`}>{tag}</span>}
                   </td>
                   {model.locations.map((loc) => {
                     const keyId = `${loc.qbLocation}-${month}`;
