@@ -18,7 +18,7 @@ import type { LocationForecastResponse, TrendMetric } from '@/types/location-ana
  * for the expense-dependent metrics (gross profit, net income). Bump to 2 if the
  * monthly close runs longer. Revenue ignores this (it posts in real time).
  */
-export const CLOSE_LAG_MONTHS: number = 2;
+export const CLOSE_LAG_MONTHS: number = 0;
 
 export interface ForecastLocation {
   qbLocation: string;

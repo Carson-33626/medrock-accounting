@@ -115,7 +115,7 @@ export function ForecastPanel({
         the directors&apos; model): month-over-month growth is capped to −5%…+10% per month so a one-off spike
         can&apos;t dominate, the <strong>median</strong> rate is taken (robust to outliers), and it&apos;s compounded
         forward from the latest actual. <strong>CMGR</strong> = that capped monthly growth rate.
-        {metric !== 'revenue' && (
+        {metric !== 'revenue' && closeLag > 0 && (
           <>
             {' '}For {metricLabel}, the most recent {closeLag} month{closeLag === 1 ? '' : 's'} may not be fully
             closed (expenses post on a lag), so {closeLag === 1 ? "it's" : "they're"} shown as provisional
