@@ -12,7 +12,7 @@ const HORIZONS = [3, 6, 12] as const;
 
 /**
  * Forecast tab body. Owns the metric clicker (Revenue / Gross Profit / Net
- * Income) and horizon selector, runs Holt-Winters client-side over the 24-month
+ * Income) and horizon selector, runs the capped-growth model client-side over the 24-month
  * history, and renders the forecast chart + SF-style table.
  */
 export function ForecastPanel({
@@ -111,10 +111,10 @@ export function ForecastPanel({
 
       {/* Method note */}
       <div className={`rounded-xl shadow-sm p-4 text-xs ${cardBg} ${subText}`}>
-        Projections use <strong>damped Holt-Winters exponential smoothing</strong> (level + trend + seasonality)
-        on up to 24 months of QuickBooks history, with damping that flattens long-horizon growth. Locations with
-        2+ years of history use Holt-Winters; shorter histories fall back to a damped trend or weighted average
-        (see the Method column). <strong>CMGR</strong> = compound monthly growth rate implied by the projection.
+        Projections use a <strong>capped median growth</strong> model (the approach from our forecast research and
+        the directors&apos; model): month-over-month growth is capped to −5%…+10% per month so a one-off spike
+        can&apos;t dominate, the <strong>median</strong> rate is taken (robust to outliers), and it&apos;s compounded
+        forward from the latest actual. <strong>CMGR</strong> = that capped monthly growth rate.
         {metric !== 'revenue' && (
           <>
             {' '}For {metricLabel}, the most recent {closeLag} month{closeLag === 1 ? '' : 's'} may not be fully

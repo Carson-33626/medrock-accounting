@@ -119,7 +119,7 @@ export interface LocationTrendsResponse {
 
 // ---------------------------------------------------------------------------
 // Forecast — 24-month QB P&L history powering the Forecast tab. The projection
-// math (Holt-Winters) runs client-side, so this response carries history only.
+// math (capped median growth) runs client-side, so this response carries history only.
 // See docs/superpowers/specs/2026-06-29-location-analytics-forecast-design.md
 // ---------------------------------------------------------------------------
 

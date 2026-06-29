@@ -48,8 +48,7 @@ function isPreOpening(openedMonth: string | null, month: string): boolean {
 }
 
 function methodBadge(method: string, darkMode: boolean): string {
-  if (method === 'Holt-Winters') return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
-  if (method === 'Damped trend') return darkMode ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700';
+  if (method === 'Capped growth') return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
   return darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600';
 }
 

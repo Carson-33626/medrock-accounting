@@ -1,6 +1,6 @@
 /**
  * Pure transform: 24-month QB history → a per-location forecast model for the
- * selected metric + horizon. Runs the Holt-Winters math and arranges actual /
+ * selected metric + horizon. Runs the capped-growth math and arranges actual /
  * estimate / future-projection values for the chart and table.
  *
  * Two kinds of months are held out of forecast training:
@@ -10,7 +10,7 @@
  *    as a provisional "actual + estimate" cell, like the current partial month.
  */
 
-import { forecastSeries, type ForecastMethod } from '@/lib/forecast/holtWinters';
+import { forecastSeries, type ForecastMethod } from '@/lib/forecast/growthModel';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
 
 /**
