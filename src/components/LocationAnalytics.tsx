@@ -173,7 +173,7 @@ export function LocationAnalytics() {
             </p>
           </div>
 
-          {/* Basis toggle + exports */}
+          {/* Basis toggle (applies to all tabs) + Summary-only exports */}
           <div className="flex items-center gap-3">
             <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
               {(['Cash', 'Accrual'] as const).map((b) => (
@@ -189,54 +189,20 @@ export function LocationAnalytics() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-2">
-              <a href={exportHref('csv')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
-                CSV
-              </a>
-              <a href={exportHref('xlsx')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
-                Excel
-              </a>
-            </div>
+            {activeTab === 'summary' && (
+              <div className="flex gap-2">
+                <a href={exportHref('csv')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+                  CSV
+                </a>
+                <a href={exportHref('xlsx')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+                  Excel
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Read-only / methodology note */}
-        <div className={`rounded-xl shadow-sm p-4 text-xs ${cardBg} ${subText}`}>
-          Read-only investigative view — nothing here writes to QuickBooks or the data warehouse. LifeFile Sales =
-          Σ dispensed Subtotal (pre-tax, all ship-to states), a timing/scope cross-check rather than a GL revenue
-          account. QB COGS includes payroll booked to COGS (acct 5010) while FIFO COGS is materials only, so a COGS
-          variance is expected.
-        </div>
-
-        {/* Date + threshold filter bar (shared by both tabs) */}
-        <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-end gap-4 ${cardBg}`}>
-          <label className="flex flex-col gap-1">
-            <span className={`text-xs uppercase tracking-wide ${subText}`}>Start Date</span>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={`text-xs uppercase tracking-wide ${subText}`}>End Date</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className={`text-xs uppercase tracking-wide ${subText}`}>Variance Flag (%)</span>
-            <input
-              type="number"
-              min={0}
-              step={0.5}
-              value={threshold}
-              onChange={(e) => setThreshold(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
-              className={`${inputCls} w-28`}
-            />
-          </label>
-          {data && (
-            <span className={`text-xs ml-auto ${subText}`}>
-              {data.basis} basis · {data.startDate} → {data.endDate}
-            </span>
-          )}
-        </div>
-
-        {/* Tab bar */}
+        {/* Tab bar (moved up — drives the filter section below) */}
         <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
           {([
             { key: 'summary', label: 'Summary' },
@@ -255,6 +221,54 @@ export function LocationAnalytics() {
             </button>
           ))}
         </div>
+
+        {/* Filter section — respects the active tab */}
+        {activeTab === 'forecast' ? (
+          <div className={`rounded-xl shadow-sm p-4 text-xs ${cardBg} ${subText}`}>
+            Forecast uses a fixed trailing <strong>24-month</strong> QuickBooks history (through the last completed
+            month). Date and variance filters don&apos;t apply here — only the <strong>{basis}</strong> basis toggle
+            above.
+          </div>
+        ) : (
+          <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-end gap-4 ${cardBg}`}>
+            <label className="flex flex-col gap-1">
+              <span className={`text-xs uppercase tracking-wide ${subText}`}>Start Date</span>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={`text-xs uppercase tracking-wide ${subText}`}>End Date</span>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
+            </label>
+            {activeTab === 'summary' && (
+              <label className="flex flex-col gap-1">
+                <span className={`text-xs uppercase tracking-wide ${subText}`}>Variance Flag (%)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={threshold}
+                  onChange={(e) => setThreshold(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
+                  className={`${inputCls} w-28`}
+                />
+              </label>
+            )}
+            {data && (
+              <span className={`text-xs ml-auto ${subText}`}>
+                {data.basis} basis · {data.startDate} → {data.endDate}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Read-only / methodology note (Summary + Trends only) */}
+        {activeTab !== 'forecast' && (
+          <div className={`rounded-xl shadow-sm p-4 text-xs ${cardBg} ${subText}`}>
+            Read-only investigative view — nothing here writes to QuickBooks or the data warehouse. LifeFile Sales =
+            Σ dispensed Subtotal (pre-tax, all ship-to states), a timing/scope cross-check rather than a GL revenue
+            account. QB COGS includes payroll booked to COGS (acct 5010) while FIFO COGS is materials only, so a COGS
+            variance is expected.
+          </div>
+        )}
 
         {error && !loading && (
           <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">{error}</div>
