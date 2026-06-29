@@ -11,45 +11,57 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import type { LocationAnalyticsRow } from '@/types/location-analytics';
+import type { LocationTrendsResponse } from '@/types/location-analytics';
 import { BRAND_PURPLE, chartTheme, usd, usd0 } from './chartTheme';
 
 interface Row {
-  location: string;
+  month: string;
   'QB Revenue': number;
   'LifeFile Sales': number;
 }
 
+/**
+ * Monthly QB Revenue vs LifeFile Sales, totaled across all locations — a
+ * source cross-check over time (the line chart carries QB only). Same monthly
+ * basis as the trend chart.
+ */
 export function RevenueVsLifefileChart({
-  locations,
+  trends,
   darkMode,
   cardBg,
+  subText,
 }: {
-  locations: LocationAnalyticsRow[];
+  trends: LocationTrendsResponse;
   darkMode: boolean;
   cardBg: string;
+  subText: string;
 }) {
   const theme = chartTheme(darkMode);
   const data = useMemo<Row[]>(
     () =>
-      locations.map((l) => ({
-        location: l.label,
-        'QB Revenue': l.qb?.revenue ?? 0,
-        'LifeFile Sales': l.rds.lifefileSales,
-      })),
-    [locations],
+      trends.months.map((month, idx) => {
+        let qb = 0;
+        let lifefile = 0;
+        for (const s of trends.series) {
+          qb += s.points[idx]?.revenue ?? 0;
+          lifefile += s.points[idx]?.lifefileSales ?? 0;
+        }
+        return { month, 'QB Revenue': qb, 'LifeFile Sales': lifefile };
+      }),
+    [trends],
   );
 
   if (data.length === 0) return null;
 
   return (
     <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-      <p className="text-sm font-semibold mb-3">QB Revenue vs LifeFile Sales by Location</p>
+      <p className="text-sm font-semibold">QB Revenue vs LifeFile Sales</p>
+      <p className={`text-xs mb-3 ${subText}`}>Monthly · all locations combined</p>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
-            <XAxis dataKey="location" tick={{ fontSize: 12 }} stroke={theme.axisStroke} />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke={theme.axisStroke} />
             <YAxis
               tickFormatter={(v: number) => usd0.format(v)}
               tick={{ fontSize: 12 }}

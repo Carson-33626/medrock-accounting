@@ -410,15 +410,11 @@ export function LocationAnalytics() {
                     reflects QuickBooks figures only for COGS-derived metrics.
                   </div>
                 )}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <RevenueVsLifefileChart trends={trends} darkMode={darkMode} cardBg={cardBg} subText={subText} />
+                  <NetIncomeByLocationChart trends={trends} darkMode={darkMode} cardBg={cardBg} subText={subText} />
+                </div>
               </>
-            )}
-
-            {/* Period-comparison charts use the (already-loaded) Summary aggregate. */}
-            {data && !loading && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <RevenueVsLifefileChart locations={data.locations} darkMode={darkMode} cardBg={cardBg} />
-                <NetIncomeByLocationChart locations={data.locations} darkMode={darkMode} cardBg={cardBg} />
-              </div>
             )}
           </>
         )}
