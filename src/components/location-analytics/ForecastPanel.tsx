@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
 import { METRIC_OPTIONS } from './chartTheme';
+import { MetricLegend } from './MetricLegend';
 import { buildForecastModel } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
@@ -99,6 +100,8 @@ export function ForecastPanel({
           CSV
         </button>
       </div>
+
+      <MetricLegend subText={subText} />
 
       {/* Method note */}
       <div className={`rounded-xl shadow-sm p-4 text-xs ${cardBg} ${subText}`}>
