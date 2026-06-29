@@ -6,6 +6,20 @@
  */
 
 import type { CSSProperties } from 'react';
+import type { TrendMetric } from '@/types/location-analytics';
+
+/** Metrics the trend clicker exposes — shared by the line chart, bar chart, and table. */
+export const METRIC_OPTIONS: ReadonlyArray<{ key: TrendMetric; label: string }> = [
+  { key: 'revenue', label: 'Revenue' },
+  { key: 'grossProfit', label: 'Gross Profit' },
+  { key: 'netIncome', label: 'Net Income' },
+];
+
+/** One month's value per location for the selected metric (recharts row shape). */
+export interface TrendRow {
+  month: string;
+  [location: string]: string | number;
+}
 
 export const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 export const usd0 = new Intl.NumberFormat('en-US', {

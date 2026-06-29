@@ -8,9 +8,7 @@ import type {
   LocationAnalyticsRow,
   LocationTrendsResponse,
 } from '@/types/location-analytics';
-import { TrendLineChart } from './location-analytics/TrendLineChart';
-import { RevenueVsLifefileChart } from './location-analytics/RevenueVsLifefileChart';
-import { NetIncomeByLocationChart } from './location-analytics/NetIncomeByLocationChart';
+import { TrendsPanel } from './location-analytics/TrendsPanel';
 
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
@@ -402,19 +400,13 @@ export function LocationAnalytics() {
             )}
 
             {trends && !trendsLoading && (
-              <>
-                <TrendLineChart trends={trends} darkMode={darkMode} cardBg={cardBg} />
-                {!trends.fifoBasisAvailable && (
-                  <div className={`rounded-xl shadow-sm px-4 py-3 text-xs ${cardBg} ${subText}`}>
-                    FIFO COGS is unavailable on the <strong>{trends.basis}</strong> basis (no rows yet) — the trend
-                    reflects QuickBooks figures only for COGS-derived metrics.
-                  </div>
-                )}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <RevenueVsLifefileChart trends={trends} darkMode={darkMode} cardBg={cardBg} subText={subText} />
-                  <NetIncomeByLocationChart trends={trends} darkMode={darkMode} cardBg={cardBg} subText={subText} />
-                </div>
-              </>
+              <TrendsPanel
+                trends={trends}
+                darkMode={darkMode}
+                cardBg={cardBg}
+                subText={subText}
+                rowBorder={rowBorder}
+              />
             )}
           </>
         )}

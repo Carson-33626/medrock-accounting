@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -13,8 +13,11 @@ import {
 import type { LocationTrendSeries } from '@/types/location-analytics';
 import { chartTheme, locationColor, usd, usd0, type TrendRow } from './chartTheme';
 
-/** Monthly trend lines (one per location) for the metric chosen in TrendsPanel. */
-export function TrendLineChart({
+/**
+ * Monthly grouped bars (one bar per location, per month) for the metric chosen
+ * in TrendsPanel — the discrete-comparison companion to the trend lines.
+ */
+export function TrendBarChart({
   rows,
   series,
   metricLabel,
@@ -33,11 +36,11 @@ export function TrendLineChart({
 
   return (
     <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-      <p className="text-sm font-semibold">{metricLabel} over time</p>
-      <p className={`text-xs mb-3 ${subText}`}>Monthly trend by location</p>
+      <p className="text-sm font-semibold">{metricLabel} by month</p>
+      <p className={`text-xs mb-3 ${subText}`}>Monthly breakdown by location</p>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows}>
+          <BarChart data={rows}>
             <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
             <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke={theme.axisStroke} />
             <YAxis
@@ -49,18 +52,9 @@ export function TrendLineChart({
             <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} contentStyle={theme.tooltipStyle} />
             <Legend />
             {series.map((s) => (
-              <Line
-                key={s.qbLocation}
-                type="monotone"
-                dataKey={s.label}
-                stroke={locationColor(s.state)}
-                strokeWidth={2}
-                dot={{ r: 2 }}
-                activeDot={{ r: 5 }}
-                connectNulls
-              />
+              <Bar key={s.qbLocation} dataKey={s.label} fill={locationColor(s.state)} radius={[4, 4, 0, 0]} />
             ))}
-          </LineChart>
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </div>
