@@ -3,7 +3,7 @@
  *
  * Pulls monthly P&L per location in ONE QB call each (summarize_column_by=Month)
  * and returns a dense monthly history (24 completed months + the current partial
- * month). The Holt-Winters projection runs client-side on this history.
+ * month). The capped-median-growth projection runs client-side on this history.
  *
  * Read-only. See docs/superpowers/specs/2026-06-29-location-analytics-forecast-design.md
  */
