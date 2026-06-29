@@ -116,3 +116,35 @@ export interface LocationTrendsResponse {
   fifoBasisAvailable: boolean;
   generatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Forecast — 24-month QB P&L history powering the Forecast tab. The projection
+// math (Holt-Winters) runs client-side, so this response carries history only.
+// See docs/superpowers/specs/2026-06-29-location-analytics-forecast-design.md
+// ---------------------------------------------------------------------------
+
+export interface LocationForecastPoint {
+  month: string; // 'YYYY-MM'
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  netIncome: number;
+}
+
+export interface LocationForecastSeries {
+  qbLocation: string;
+  label: string;
+  state: string;
+  connected: boolean;
+  points: LocationForecastPoint[]; // dense over `months`
+}
+
+export interface LocationForecastResponse {
+  basis: Basis;
+  /** Ordered 'YYYY-MM' history window (24 completed months + the current partial month). */
+  months: string[];
+  /** The current partial calendar month, if included in the window. */
+  currentMonthKey: string | null;
+  series: LocationForecastSeries[];
+  generatedAt: string;
+}
