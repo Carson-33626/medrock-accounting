@@ -103,6 +103,7 @@ export async function computeLocationForecast(opts: {
       label: loc.label,
       state: loc.state,
       connected: isConnected,
+      openedMonth: loc.openedMonth ?? null,
       points,
     });
   }

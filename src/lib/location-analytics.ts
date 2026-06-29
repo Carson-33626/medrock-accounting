@@ -23,13 +23,15 @@ export interface LocationConfig {
   rds: string; // source.sales_tax_report / fifo_valuation_summary location string
   state: string;
   label: string;
+  /** First operating month ('YYYY-MM'); earlier months are pre-opening (excluded from the forecast). */
+  openedMonth?: string;
 }
 
 /** Canonical mapping: QB and RDS name the same three locations differently. */
 export const LOCATIONS: readonly LocationConfig[] = [
   { qb: 'MedRock FL', rds: 'MedRock Florida', state: 'FL', label: 'Florida' },
   { qb: 'MedRock TN', rds: 'MedRock Tennessee', state: 'TN', label: 'Tennessee' },
-  { qb: 'MedRock TX', rds: 'MedRock Texas', state: 'TX', label: 'Texas' },
+  { qb: 'MedRock TX', rds: 'MedRock Texas', state: 'TX', label: 'Texas', openedMonth: '2026-02' },
 ] as const;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
