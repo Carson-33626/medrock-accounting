@@ -18,7 +18,7 @@ const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
   { name: 'Nexus Exposure', href: '/nexus', icon: GlobeIcon },
-  { name: 'Company CPA Review', href: '/cpa-review', icon: ClipboardIcon },
+  { name: 'Accounting Review Topics', href: '/cpa-review', icon: ClipboardIcon },
 ];
 
 // Admin-only navigation. These pages enforce an admin role server-side (requireAdmin),

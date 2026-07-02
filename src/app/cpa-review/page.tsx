@@ -19,15 +19,16 @@ export default function CompanyCpaReviewPage() {
         <div>
           <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Company</p>
           <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-            Company CPA Review
+            Accounting Review Topics
           </h1>
         </div>
 
         <div className={`rounded-xl shadow-sm p-6 ${cardBg}`}>
           <p className="text-sm font-semibold mb-2">What lands here</p>
           <p className={`text-sm ${subText}`}>
-            Company-level review material for the CPA — kept out of the per-state tax pages so those stay strictly about
-            filing. <strong>Open topics</strong> are queued for a decision; <strong>resolved</strong> items (with the
+            Company-level review material for our CPA, <strong>Barbara</strong> — kept out of the per-state tax pages so
+            those stay strictly about filing. <strong>Open topics</strong> are queued for a decision;{' '}
+            <strong>resolved</strong> items (with the
             decision and date) are kept at the bottom for the record. Each one points to where in the app the underlying
             numbers live.
           </p>
@@ -36,6 +37,32 @@ export default function CompanyCpaReviewPage() {
         {/* ---------------- OPEN ---------------- */}
         <div className="space-y-4">
           <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Open topics for the CPA</p>
+
+          <Topic
+            {...shared}
+            tag="Use Tax"
+            title="Use-tax figure — QuickBooks &ldquo;Use Tax on Purchases&rdquo; account (DR-15 E7 · TN SLS-450 Line 3)"
+            where={
+              <>
+                Not yet surfaced in a page — it is a QuickBooks Chart-of-Accounts figure (<strong>MedRock Florida acct
+                294</strong> / <strong>MedRock Tennessee acct 340</strong>). Feeds Sales Tax → <strong>Florida → FL ·
+                DR-15</strong> (the E7 &ldquo;Sales Use&rdquo; line) and <strong>Tennessee → TN · SLS-450</strong> (Line
+                3).
+              </>
+            }
+          >
+            We traced the use-tax number to QuickBooks: each entity posts it to an Expense account named{' '}
+            <strong>General &amp; Administrative — Use Tax on Purchases</strong> (MedRock Florida <strong>acct 294</strong>,
+            MedRock Tennessee <strong>acct 340</strong>). This is the source for two figures the tool <em>cannot</em> get
+            from LifeFile: the <strong>FL DR-15 use-tax line</strong> (E7 → F7, today keyed in by hand) and the{' '}
+            <strong>TN SLS-450 Line 3</strong> out-of-state purchase use tax ($18,544 in CY2025). We can pull it per
+            period automatically via the QB General Ledger report — observed FL activity was $596.79 (Mar 2026), $374.23
+            (Apr), $33.25 (May) of debits, with smaller offsetting credits. <strong>For Barbara: (1)</strong> does this
+            account hold the use-tax <em>dollars</em> already computed (it appears to), or the taxable-purchase{' '}
+            <em>base</em> that still needs × 8.5% (FL) / the TN rate? <strong>(2)</strong> are the periodic credit entries
+            legitimate reversals to net against the debits, or something else? <strong>(3)</strong> confirm this account
+            is the authoritative source and is posted every period, so it is safe to pull automatically into the returns.
+          </Topic>
 
           <Topic
             {...shared}
@@ -111,8 +138,9 @@ export default function CompanyCpaReviewPage() {
             <strong>amended</strong> to the full-gross / all-exempt-but-TN-taxable basis? (Net tax ≈ unchanged; it&apos;s
             a presentation/consistency call — 3-year window, open through Dec 31 2029.) <strong>(2)</strong> The{' '}
             <strong>out-of-state purchase use tax</strong> (Line 3, $18,544 in CY2025) is a QuickBooks figure the tool
-            can&apos;t source from LifeFile — confirm where it comes from and that it&apos;s entered each year (it is the
-            actual driver of TN tax owed).
+            can&apos;t source from LifeFile — <strong>now located:</strong> QB account <strong>340</strong>, &ldquo;Use Tax
+            on Purchases&rdquo; (see the <em>Use Tax</em> topic above). The open part is just confirming the CY2025 $18,544
+            reconciles to that account and that it&apos;s posted each year (it is the actual driver of TN tax owed).
           </Topic>
 
           <Topic
