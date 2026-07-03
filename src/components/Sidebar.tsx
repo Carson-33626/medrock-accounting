@@ -18,6 +18,7 @@ const navigation = [
   { name: 'Drug Coding', href: '/', icon: PillIcon },
   { name: 'Inventory (FIFO)', href: '/inventory', icon: BoxIcon },
   { name: 'Nexus Exposure', href: '/nexus', icon: GlobeIcon },
+  { name: 'Weekly AP Report', href: '/ap-weekly', icon: ReceiptIcon },
   { name: 'Accounting Review Topics', href: '/cpa-review', icon: ClipboardIcon },
 ];
 
@@ -57,7 +58,11 @@ export function Sidebar() {
   const userName = user?.first_name
     ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`
     : user?.email?.split('@')[0] || null;
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  // NEXT_PUBLIC_DEV_SKIP_AUTH is the client-side counterpart of DEV_SKIP_AUTH (lib/auth.ts):
+  // local inspection has no auth-host session, which would hide the whole admin nav group.
+  // Build-time inlined — never set it for a build that gets deployed.
+  const devBypass = process.env.NEXT_PUBLIC_DEV_SKIP_AUTH === 'true';
+  const isAdmin = devBypass || user?.role === 'admin' || user?.role === 'super_admin';
 
   // Hide sidebar on auth and public pages
   if (pathname?.startsWith('/auth') || pathname === '/terms' || pathname === '/privacy') {
