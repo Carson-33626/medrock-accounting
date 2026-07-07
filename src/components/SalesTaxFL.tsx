@@ -168,7 +168,6 @@ export default function SalesTaxFL() {
         { line: 'Box 3', label: 'Total Taxable Amount', value: boxes.box3_taxable, big: false },
         { line: 'Box 4', label: 'Total Tax Due', value: boxes.box4_tax, big: false, highlight: true },
         { line: 'Box B', label: 'Discretionary Surtax (memo)', value: boxes.boxB_surtax, big: false },
-        { line: 'Box 8a', label: 'Collection Allowance', value: boxes.box8a_allowance, big: false },
       ]
     : [];
 
@@ -304,7 +303,7 @@ export default function SalesTaxFL() {
                       }`}
                       style={r.highlight ? { color: '#5e3b8d' } : undefined}
                     >
-                      {usd.format(r.value)}
+                      <CopyValue display={usd.format(r.value)} copy={r.value.toFixed(2)} />
                     </td>
                   </tr>
                 ))}
@@ -359,8 +358,8 @@ export default function SalesTaxFL() {
 
         <div className={`text-xs mb-4 rounded-lg border px-3 py-2 ${rowBorder}`}>
           <span className="font-semibold">FL DOR portal login</span> (new portal, live 2025-12-01) —{' '}
-          Login ID: <code className="font-semibold">AF1674280601</code> · Password:{' '}
-          <code className="font-semibold">69019542</code>
+          Login ID: <CopyValue display="AF1674280601" copy="AF1674280601" mono /> · Password:{' '}
+          <CopyValue display="69019542" copy="69019542" mono />
         </div>
 
         <div className="space-y-4 text-sm">
@@ -396,7 +395,9 @@ export default function SalesTaxFL() {
                 <ul className="list-disc ml-5 mt-1 space-y-0.5">
                   <li>Name: <strong>MEDROCK PHARMACY LLC</strong></li>
                   <li>Account: <strong>Sales And Use Tax</strong></li>
-                  <li>Account ID: Certificate <strong>62-8016742806-0</strong></li>
+                  <li>
+                    Account ID: Certificate <CopyValue display="62-8016742806-0" copy="62-8016742806-0" mono />
+                  </li>
                   <li>Form Type: <strong>DR-15EZ</strong></li>
                   <li>Return Type: <strong>Original Return</strong></li>
                   <li>Filing Method: <strong>File Online</strong></li>
@@ -421,21 +422,26 @@ export default function SalesTaxFL() {
                 </thead>
                 <tbody className="tabular-nums">
                   {[
-                    { ln: '1', item: 'Gross Sales', val: boxes ? usd.format(boxes.box1_gross) : '—' },
-                    { ln: '2', item: 'Exempt Sales', val: boxes ? usd.format(boxes.box2_exempt) : '—' },
-                    { ln: '3', item: 'Taxable Sales and Purchases', val: boxes ? usd.format(boxes.box3_taxable) : '—' },
-                    { ln: '4', item: 'Total Tax Due', val: boxes ? usd.format(boxes.box4_tax) : '—' },
-                    { ln: '5', item: 'Lawful Deductions', val: '0.00' },
-                    { ln: '6', item: 'DOR Credit Memo(s)', val: '0.00' },
-                    { ln: '8a', item: 'Collection Allowance', val: boxes ? usd.format(boxes.box8a_allowance) : '—' },
-                    { ln: '8b', item: 'Penalty (on-time = 0)', val: '0.00' },
-                    { ln: '8c', item: 'Interest (on-time = 0)', val: '0.00' },
-                    { ln: 'B', item: 'Discretionary Sales Surtax Due', val: boxes ? usd.format(boxes.boxB_surtax) : '—' },
+                    { ln: '1', item: 'Gross Sales', num: boxes ? boxes.box1_gross : null },
+                    { ln: '2', item: 'Exempt Sales', num: boxes ? boxes.box2_exempt : null },
+                    { ln: '3', item: 'Taxable Sales and Purchases', num: boxes ? boxes.box3_taxable : null },
+                    { ln: '4', item: 'Total Tax Due', num: boxes ? boxes.box4_tax : null },
+                    { ln: '5', item: 'Lawful Deductions', num: 0 },
+                    { ln: '6', item: 'DOR Credit Memo(s)', num: 0 },
+                    { ln: '8b', item: 'Penalty (on-time = 0)', num: 0 },
+                    { ln: '8c', item: 'Interest (on-time = 0)', num: 0 },
+                    { ln: 'B', item: 'Discretionary Sales Surtax Due', num: boxes ? boxes.boxB_surtax : null },
                   ].map((r) => (
                     <tr key={r.ln} className={`border-t ${rowBorder} first:border-t-0`}>
                       <td className="px-3 py-1.5 font-mono">{r.ln}</td>
                       <td className="px-3 py-1.5">{r.item}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{r.val}</td>
+                      <td className="px-3 py-1.5 text-right font-medium">
+                        {r.num != null ? (
+                          <CopyValue display={usd.format(r.num)} copy={r.num.toFixed(2)} />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -443,8 +449,9 @@ export default function SalesTaxFL() {
             </div>
             <ul className={`list-disc ml-5 mt-2 space-y-1 ${subText}`}>
               <li>
-                Leave <strong>Line 7 (Net Tax Due)</strong> and <strong>Line 9 (Amount Due with Return)</strong> — they
-                auto-fill when you click <strong>Calculate</strong>.
+                Leave <strong>Line 7 (Net Tax Due)</strong>, <strong>Line 8a (Collection Allowance)</strong>, and{' '}
+                <strong>Line 9 (Amount Due with Return)</strong> — the portal calculates them when you click{' '}
+                <strong>Calculate</strong>.
               </li>
               <li>
                 Leave the <strong>&ldquo;Donate Allowance to the Education Enhancement Trust Fund&rdquo;</strong> box{' '}
@@ -504,6 +511,32 @@ function Field({
       {children}
       <span className={`text-[11px] ${sub}`} dangerouslySetInnerHTML={{ __html: hint }} />
     </div>
+  );
+}
+
+/** Renders a value that copies to the clipboard on click (raw `copy` string, not the display text). */
+function CopyValue({ display, copy, mono }: { display: string; copy: string; mono?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const doCopy = useCallback(() => {
+    void navigator.clipboard.writeText(copy).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    });
+  }, [copy]);
+  return (
+    <button
+      type="button"
+      onClick={doCopy}
+      title="Click to copy"
+      className={`inline-flex items-center gap-1 tabular-nums cursor-pointer rounded px-1 -mx-1 hover:bg-purple-500/15 ${
+        mono ? 'font-mono' : ''
+      }`}
+    >
+      {display}
+      <span className={`text-[10px] ${copied ? 'text-green-600' : 'opacity-40'}`} aria-hidden>
+        {copied ? '✓ copied' : '⧉'}
+      </span>
+    </button>
   );
 }
 
