@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import CopyValue from '@/components/CopyValue';
 import type { TnReturnResponse } from '@/types/sales-tax';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -241,7 +242,7 @@ export default function SalesTaxTN() {
                       className={`px-5 py-3 text-right tabular-nums ${r.highlight ? 'font-bold' : ''} ${r.big ? 'text-base' : ''}`}
                       style={r.highlight ? { color: '#5e3b8d' } : undefined}
                     >
-                      {usd.format(r.value)}
+                      <CopyValue display={usd.format(r.value)} copy={r.value.toFixed(2)} />
                     </td>
                   </tr>
                 ))}
@@ -321,9 +322,10 @@ export default function SalesTaxTN() {
             </div>
 
             <div className={`text-xs mb-4 rounded-lg border px-3 py-2 ${rowBorder}`}>
-              <span className="font-semibold">TNTAP login</span> — User: <code className="font-semibold">{TNTAP_LOGIN}</code>{' '}
-              · Password: <code className="font-semibold">{TNTAP_PASSWORD}</code> · Account{' '}
-              <code className="font-semibold">{TN_ACCOUNT}</code> (MEDROCK TN LLC)
+              <span className="font-semibold">TNTAP login</span> — User:{' '}
+              <CopyValue display={TNTAP_LOGIN} copy={TNTAP_LOGIN} mono /> · Password:{' '}
+              <CopyValue display={TNTAP_PASSWORD} copy={TNTAP_PASSWORD} mono /> · Account{' '}
+              <CopyValue display={TN_ACCOUNT} copy={TN_ACCOUNT} mono /> (MEDROCK TN LLC)
             </div>
 
             <div className="space-y-4 text-sm">
@@ -357,13 +359,15 @@ export default function SalesTaxTN() {
                     </thead>
                     <tbody className="tabular-nums">
                       {[
-                        { item: 'Line 1 · Gross Sales', val: usd.format(boxes.grossSales) },
-                        { item: 'Line 3 · Out-of-State Purchases (use tax)', val: usd.format(boxes.taxablePurchases) },
-                        { item: 'Schedule A · Exempt Transactions', val: usd.format(boxes.exemptSales) },
+                        { item: 'Line 1 · Gross Sales', num: boxes.grossSales },
+                        { item: 'Line 3 · Out-of-State Purchases (use tax)', num: boxes.taxablePurchases },
+                        { item: 'Schedule A · Exempt Transactions', num: boxes.exemptSales },
                       ].map((r) => (
                         <tr key={r.item} className={`border-t ${rowBorder} first:border-t-0`}>
                           <td className="px-3 py-1.5">{r.item}</td>
-                          <td className="px-3 py-1.5 text-right font-medium">{r.val}</td>
+                          <td className="px-3 py-1.5 text-right font-medium">
+                            <CopyValue display={usd.format(r.num)} copy={r.num.toFixed(2)} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>

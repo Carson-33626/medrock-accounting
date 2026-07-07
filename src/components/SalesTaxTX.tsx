@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import CopyValue from '@/components/CopyValue';
 import type { TxReturnResponse } from '@/types/sales-tax';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -295,7 +296,11 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                       className={`px-5 py-3 text-right tabular-nums ${r.highlight ? 'font-bold' : ''}`}
                       style={r.highlight ? { color: '#5e3b8d' } : undefined}
                     >
-                      {r.dollars ? `$${whole.format(r.value)}` : usd.format(r.value)}
+                      {r.dollars ? (
+                        <CopyValue display={`$${whole.format(r.value)}`} copy={String(Math.round(r.value))} />
+                      ) : (
+                        <CopyValue display={usd.format(r.value)} copy={r.value.toFixed(2)} />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -328,8 +333,15 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                       <td className="px-3 py-1.5">{l.name}</td>
                       <td className="px-3 py-1.5 font-mono">{l.code || '—'}</td>
                       <td className="px-3 py-1.5 text-right">{(l.rate * 100).toFixed(3)}%</td>
-                      <td className="px-3 py-1.5 text-right">${whole.format(l.amountSubjectToLocal)}</td>
-                      <td className="px-3 py-1.5 text-right">{usd.format(l.localTaxDue)}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        <CopyValue
+                          display={`$${whole.format(l.amountSubjectToLocal)}`}
+                          copy={String(Math.round(l.amountSubjectToLocal))}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <CopyValue display={usd.format(l.localTaxDue)} copy={l.localTaxDue.toFixed(2)} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -371,8 +383,8 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
 
             <div className={`text-xs mb-4 rounded-lg border px-3 py-2 ${rowBorder}`}>
               <span className="font-semibold">eSystems login</span> (shared — pick the account inside) — User:{' '}
-              <code className="font-semibold">{TX_PORTAL_LOGIN}</code> · Password:{' '}
-              <code className="font-semibold">{TX_PORTAL_PASSWORD}</code>
+              <CopyValue display={TX_PORTAL_LOGIN} copy={TX_PORTAL_LOGIN} mono /> · Password:{' '}
+              <CopyValue display={TX_PORTAL_PASSWORD} copy={TX_PORTAL_PASSWORD} mono />
             </div>
 
             <div className="space-y-4 text-sm">
@@ -392,7 +404,7 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                   <li>
                     On <strong>My Taxpayer Accounts</strong>, open the row{' '}
                     <strong>{ui.accountName}</strong> · <strong>Sales and Use Tax</strong> (Taxpayer{' '}
-                    <code>{ui.taxpayerId}</code>).
+                    <CopyValue display={ui.taxpayerId} copy={ui.taxpayerId} mono />).
                   </li>
                   <li>
                     Choose <strong>WebFile/Pay Taxes and Fees</strong> → <strong>File an Original Return</strong> → select
@@ -413,13 +425,15 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                     </thead>
                     <tbody className="tabular-nums">
                       {[
-                        { item: 'Total Texas Sales', val: `$${whole.format(boxes.totalTexasSales)}` },
-                        { item: 'Taxable Sales', val: `$${whole.format(boxes.taxableSales)}` },
-                        { item: 'Taxable Purchases', val: `$${whole.format(boxes.taxablePurchases)}` },
+                        { item: 'Total Texas Sales', num: boxes.totalTexasSales },
+                        { item: 'Taxable Sales', num: boxes.taxableSales },
+                        { item: 'Taxable Purchases', num: boxes.taxablePurchases },
                       ].map((r) => (
                         <tr key={r.item} className={`border-t ${rowBorder} first:border-t-0`}>
                           <td className="px-3 py-1.5">{r.item}</td>
-                          <td className="px-3 py-1.5 text-right font-medium">{r.val}</td>
+                          <td className="px-3 py-1.5 text-right font-medium">
+                            <CopyValue display={`$${whole.format(r.num)}`} copy={String(Math.round(r.num))} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -429,12 +443,26 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                   {ui.singleRate ? (
                     <>
                       Then for local tax, add the <strong>Single Local Use Tax Rate</strong> jurisdiction (per the 01-799
-                      election) with <strong>${whole.format(boxes.subjectToStateTax)}</strong> subject to local tax.
+                      election) with{' '}
+                      <strong>
+                        <CopyValue
+                          display={`$${whole.format(boxes.subjectToStateTax)}`}
+                          copy={String(Math.round(boxes.subjectToStateTax))}
+                        />
+                      </strong>{' '}
+                      subject to local tax.
                     </>
                   ) : (
                     <>
                       Then add the Colleyville jurisdiction lines below (the place of business — origin-sourced), each
-                      with <strong>${whole.format(boxes.subjectToStateTax)}</strong> subject to local tax:
+                      with{' '}
+                      <strong>
+                        <CopyValue
+                          display={`$${whole.format(boxes.subjectToStateTax)}`}
+                          copy={String(Math.round(boxes.subjectToStateTax))}
+                        />
+                      </strong>{' '}
+                      subject to local tax:
                     </>
                   )}
                 </p>
@@ -442,7 +470,8 @@ export default function SalesTaxTX({ slug }: { slug: string }) {
                   <ul className={`list-disc ml-5 mt-1 space-y-0.5 ${subText}`}>
                     {boxes.localLines.map((l, i) => (
                       <li key={i}>
-                        <strong>{l.name}</strong> (<code>{l.code}</code>) — {(l.rate * 100).toFixed(3)}%
+                        <strong>{l.name}</strong> (<CopyValue display={l.code} copy={l.code} mono />) —{' '}
+                        {(l.rate * 100).toFixed(3)}%
                       </li>
                     ))}
                   </ul>
