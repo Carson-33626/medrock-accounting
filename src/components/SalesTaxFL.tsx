@@ -429,6 +429,7 @@ export default function SalesTaxFL() {
                     { ln: '4', item: 'Total Tax Due', num: boxes ? boxes.box4_tax : null },
                     { ln: '5', item: 'Lawful Deductions', num: 0 },
                     { ln: '6', item: 'DOR Credit Memo(s)', num: 0 },
+                    { ln: '8a', item: 'Collection Allowance — auto-calculated by the portal, leave as 0', num: 0 },
                     { ln: '8b', item: 'Penalty (on-time = 0)', num: 0 },
                     { ln: '8c', item: 'Interest (on-time = 0)', num: 0 },
                     { ln: 'B', item: 'Discretionary Sales Surtax Due', num: boxes ? boxes.boxB_surtax : null },
