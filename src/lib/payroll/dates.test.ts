@@ -11,4 +11,7 @@ describe('adp dates', () => {
   it('converts MM/DD/YYYY to ISO YYYY-MM-DD', () => {
     expect(adpDateToIso('06/18/2026')).toBe('2026-06-18');
   });
+  it('zero-pads non-padded month/day when converting to ISO', () => {
+    expect(adpDateToIso('6/1/2026')).toBe('2026-06-01');
+  });
 });

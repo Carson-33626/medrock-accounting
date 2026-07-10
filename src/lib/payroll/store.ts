@@ -120,6 +120,22 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
   try {
     await client.query('BEGIN');
 
+    // C1 SAFETY GATE: never let a re-run of the draft builder reset an already-posted
+    // header back to 'needs_review' and wipe its lines — that would defeat the
+    // double-post guard in decidePost/the post route. Lock the row (if any) and bail
+    // out of the upsert entirely when it's already posted.
+    const existing = await client.query<{ id: number; status: HeaderStatus }>(
+      `SELECT id, status FROM accounting.payroll_journal_headers
+       WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+       FOR UPDATE`,
+      [draft.entity, draft.payDate, draft.payGroup],
+    );
+    const existingRow = existing.rows[0];
+    if (existingRow && existingRow.status === 'posted') {
+      await client.query('COMMIT');
+      return existingRow.id;
+    }
+
     const headerRes = await client.query<{ id: number }>(
       `INSERT INTO accounting.payroll_journal_headers
          (entity, pay_date, pay_group, period_start, period_end, status,

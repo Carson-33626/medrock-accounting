@@ -7,8 +7,9 @@ interface QbRefLine { Amount: number; DetailType: 'JournalEntryLineDetail'; Desc
   JournalEntryLineDetail: { PostingType: 'Debit' | 'Credit'; AccountRef: { value: string }; DepartmentRef?: { value: string }; ClassRef?: { value: string }; }; }
 export interface QbJournalEntryPayload { DocNumber: string; TxnDate: string; PrivateNote?: string; Line: QbRefLine[]; }
 
-const docNumber = (payDate: string): string => { const [m, d, y] = payDate.split('/'); return `PR ${y}.${m}.${d}`; };
-const txnDate = (payDate: string): string => { const [m, d, y] = payDate.split('/'); return `${y}-${m}-${d}`; };
+const pad2 = (s: string): string => s.padStart(2, '0');
+const docNumber = (payDate: string): string => { const [m, d, y] = payDate.split('/'); return `PR ${y}.${pad2(m)}.${pad2(d)}`; };
+const txnDate = (payDate: string): string => { const [m, d, y] = payDate.split('/'); return `${y}-${pad2(m)}-${pad2(d)}`; };
 
 export function buildJePayload(draft: JournalDraft, refs: Refs): QbJournalEntryPayload {
   const Line: QbRefLine[] = draft.lines.map((l) => {

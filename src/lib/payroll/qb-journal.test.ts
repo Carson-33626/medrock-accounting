@@ -21,4 +21,10 @@ describe('buildJePayload', () => {
   it('throws if an account name has no id', () => {
     expect(() => buildJePayload(draft, { accounts: {}, departments: {}, classes: {} })).toThrow(/unresolved account/i);
   });
+  it('zero-pads non-padded pay dates in DocNumber and TxnDate', () => {
+    const nonPadded: JournalDraft = { ...draft, payDate: '6/1/2026' };
+    const p = buildJePayload(nonPadded, refs);
+    expect(p.DocNumber).toBe('PR 2026.06.01');
+    expect(p.TxnDate).toBe('2026-06-01');
+  });
 });

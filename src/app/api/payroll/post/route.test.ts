@@ -29,17 +29,19 @@ const base = (overrides: Partial<{
   reconcile: ReconcileResult;
   headerStatus: HeaderStatus;
   hasKey: boolean;
-}>): { mode: 'dry_run' | 'live'; reconcile: ReconcileResult; headerStatus: HeaderStatus; hasKey: boolean } => ({
+  hasDrift: boolean;
+}>): { mode: 'dry_run' | 'live'; reconcile: ReconcileResult; headerStatus: HeaderStatus; hasKey: boolean; hasDrift: boolean } => ({
   mode: 'live',
   reconcile: postable,
-  headerStatus: 'needs_review',
+  headerStatus: 'approved',
   hasKey: true,
+  hasDrift: false,
   ...overrides,
 });
 
 describe('decidePost — LIVE QuickBooks posting safety gate', () => {
   it('always allows mode: dry_run, even when not postable / no key / already posted', () => {
-    const decision = decidePost(base({ mode: 'dry_run', reconcile: notPostable, hasKey: false, headerStatus: 'posted' }));
+    const decision = decidePost(base({ mode: 'dry_run', reconcile: notPostable, hasKey: false, headerStatus: 'posted', hasDrift: true }));
     expect(decision.allowed).toBe(true);
     expect(decision.status).toBe(200);
   });
@@ -65,7 +67,21 @@ describe('decidePost — LIVE QuickBooks posting safety gate', () => {
     expect(decision.error).toBe('decrypt key not configured for live post');
   });
 
-  it('allows mode: live when postable, keyed, and not already posted', () => {
+  it('REJECTS mode: live when the header has not been approved yet, with 409', () => {
+    const decision = decidePost(base({ headerStatus: 'needs_review' }));
+    expect(decision.allowed).toBe(false);
+    expect(decision.status).toBe(409);
+    expect(decision.error).toBe('must be approved before posting');
+  });
+
+  it('REJECTS mode: live when the source has drifted since the draft was built, with 409', () => {
+    const decision = decidePost(base({ hasDrift: true }));
+    expect(decision.allowed).toBe(false);
+    expect(decision.status).toBe(409);
+    expect(decision.error).toMatch(/source changed/);
+  });
+
+  it('allows mode: live when approved, postable, keyed, not already posted, and no drift', () => {
     const decision = decidePost(base({}));
     expect(decision.allowed).toBe(true);
     expect(decision.status).toBe(200);

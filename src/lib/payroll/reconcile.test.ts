@@ -20,8 +20,18 @@ describe('reconcile', () => {
     const r = reconcile(balanced, rows, { unmappedColumns: ['X'], unmappedPositions: [] });
     expect(r.postable).toBe(false); expect(r.unmappedColumns).toContain('X');
   });
-  it('blocks when variance is nonzero', () => {
-    const r = reconcile({ ...balanced, variance: 5, totalDebits: 1055 }, rows, { unmappedColumns: [], unmappedPositions: [] });
+  it('blocks when variance is nonzero (lines themselves are unbalanced)', () => {
+    const unbalanced: JournalDraft = {
+      ...balanced,
+      variance: 5,
+      totalDebits: 1055,
+      lines: [
+        { ...balanced.lines[0], amount: 1055 },
+        balanced.lines[1],
+        balanced.lines[2],
+      ],
+    };
+    const r = reconcile(unbalanced, rows, { unmappedColumns: [], unmappedPositions: [] });
     expect(r.balanced).toBe(false); expect(r.postable).toBe(false);
   });
 });

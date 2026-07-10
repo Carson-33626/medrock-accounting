@@ -11,5 +11,5 @@ export function inRange(payDate: string, startISO: string, endISO: string): bool
 /** Converts an ADP-style MM/DD/YYYY date string to an ISO YYYY-MM-DD date string. */
 export function adpDateToIso(mmddyyyy: string): string {
   const [month, day, year] = mmddyyyy.trim().split('/');
-  return `${year}-${month}-${day}`;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
