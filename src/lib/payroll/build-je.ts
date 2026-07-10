@@ -15,6 +15,19 @@ export function buildJournal(
   let excludedFocsRows = 0;
   const groups = new Map<string, { entity: Entity; row0: PayrollRow; buckets: Map<string, Bucket> }>();
 
+  const acctCache = new Map<Entity, AccountMapRule[]>();
+  const empCache = new Map<Entity, EmployeeMapRule[]>();
+  const acctFor = (e: Entity): AccountMapRule[] => {
+    let v = acctCache.get(e);
+    if (!v) { v = accountMap.filter((a) => a.entity === e); acctCache.set(e, v); }
+    return v;
+  };
+  const empFor = (e: Entity): EmployeeMapRule[] => {
+    let v = empCache.get(e);
+    if (!v) { v = employeeMap.filter((x) => x.entity === e); empCache.set(e, v); }
+    return v;
+  };
+
   for (const row of rows) {
     const ent = entityForPayGroup(row.pay_group);
     if (ent === 'FOCS_EXCLUDED') { excludedFocsRows++; continue; }
@@ -26,7 +39,7 @@ export function buildJournal(
     for (const [col, val] of Object.entries(row.sensitive)) {
       if (typeof val !== 'number' || val === 0) continue;
       if (isTaxableBase(col)) continue;
-      const r = resolveLine(row, col, accountMap, employeeMap);
+      const r = resolveLine(row, col, acctFor(ent), empFor(ent));
       if ('unmapped' in r) { if (r.unmapped === 'column') unmappedColumns.add(col); else unmappedPositions.add(row.position_id); continue; }
       const bkey = [r.accountName, r.departmentName ?? '', r.className ?? '', r.postingType, r.creditBucket ?? ''].join('¦');
       let b = g.buckets.get(bkey);

@@ -35,4 +35,25 @@ describe('buildJournal', () => {
     expect(drafts).toHaveLength(0);
     expect(excludedFocsRows).toBe(1);
   });
+
+  it('resolves each row against only its own entity mapping rules (no cross-entity leakage)', () => {
+    const combinedAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', accountName: 'FL Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock TN', adpColumn: 'REGULAR PAY - EARNING', accountName: 'TN Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+    ];
+    const combinedEmpMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '1001', departmentName: null, className: null, cogsOverride: null, active: true },
+      { entity: 'MedRock TN', positionId: '2002', departmentName: null, className: null, cogsOverride: null, active: true },
+    ];
+    const rows = [
+      baseRow({ pay_group: 'MRFL', position_id: '1001', row_key: 'fl1', sensitive: { 'REGULAR PAY - EARNING': 1000 } }),
+      baseRow({ pay_group: 'MRTN', position_id: '2002', row_key: 'tn1', sensitive: { 'REGULAR PAY - EARNING': 1000 } }),
+    ];
+    const { drafts } = buildJournal(rows, combinedAccountMap, combinedEmpMap);
+    expect(drafts).toHaveLength(2);
+    const flDraft = drafts.find((d) => d.entity === 'MedRock FL');
+    const tnDraft = drafts.find((d) => d.entity === 'MedRock TN');
+    expect(flDraft?.lines[0]?.accountName).toBe('FL Wages');
+    expect(tnDraft?.lines[0]?.accountName).toBe('TN Wages');
+  });
 });
