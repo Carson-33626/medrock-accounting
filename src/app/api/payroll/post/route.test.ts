@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { decidePostable } from '../../../../lib/payroll/post-guard';
+import { decidePost } from '../../../../lib/payroll/post-guard';
 import type { ReconcileResult } from '../../../../lib/payroll/types';
+import type { HeaderStatus } from '../../../../lib/payroll/store';
 
 const notPostable: ReconcileResult = {
   balanced: false,
@@ -23,20 +24,50 @@ const postable: ReconcileResult = {
   postable: true,
 };
 
-describe('decidePostable — LIVE QuickBooks posting safety gate', () => {
+const base = (overrides: Partial<{
+  mode: 'dry_run' | 'live';
+  reconcile: ReconcileResult;
+  headerStatus: HeaderStatus;
+  hasKey: boolean;
+}>): { mode: 'dry_run' | 'live'; reconcile: ReconcileResult; headerStatus: HeaderStatus; hasKey: boolean } => ({
+  mode: 'live',
+  reconcile: postable,
+  headerStatus: 'needs_review',
+  hasKey: true,
+  ...overrides,
+});
+
+describe('decidePost — LIVE QuickBooks posting safety gate', () => {
+  it('always allows mode: dry_run, even when not postable / no key / already posted', () => {
+    const decision = decidePost(base({ mode: 'dry_run', reconcile: notPostable, hasKey: false, headerStatus: 'posted' }));
+    expect(decision.allowed).toBe(true);
+    expect(decision.status).toBe(200);
+  });
+
   it('REJECTS a non-postable draft for mode: live with 409 (no QB call should happen)', () => {
-    const decision = decidePostable(notPostable, 'live');
+    const decision = decidePost(base({ reconcile: notPostable }));
     expect(decision.allowed).toBe(false);
     expect(decision.status).toBe(409);
+    expect(decision.error).toBe('not postable');
   });
 
-  it('allows a postable draft for mode: live', () => {
-    const decision = decidePostable(postable, 'live');
-    expect(decision.allowed).toBe(true);
+  it('REJECTS mode: live when the header is already posted, with 409 — even if postable (double-post guard)', () => {
+    const decision = decidePost(base({ headerStatus: 'posted' }));
+    expect(decision.allowed).toBe(false);
+    expect(decision.status).toBe(409);
+    expect(decision.error).toBe('already posted');
   });
 
-  it('always allows mode: dry_run, even when not postable', () => {
-    const decision = decidePostable(notPostable, 'dry_run');
+  it('REJECTS mode: live when no decrypt key is configured, with 503 (fail-closed, not fixture fallback)', () => {
+    const decision = decidePost(base({ hasKey: false }));
+    expect(decision.allowed).toBe(false);
+    expect(decision.status).toBe(503);
+    expect(decision.error).toBe('decrypt key not configured for live post');
+  });
+
+  it('allows mode: live when postable, keyed, and not already posted', () => {
+    const decision = decidePost(base({}));
     expect(decision.allowed).toBe(true);
+    expect(decision.status).toBe(200);
   });
 });

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
-import { loadDraft } from '@/lib/payroll/store';
+import { buildJournal } from '@/lib/payroll/build-je';
+import { loadDraft, getAccountMap, getEmployeeMap } from '@/lib/payroll/store';
+import { adpDateToIso } from '@/lib/payroll/dates';
 import type { JournalDraft } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -12,13 +14,12 @@ interface ReconcileRequestBody {
   headerId: number;
 }
 
-/** Converts an ADP-style MM/DD/YYYY date string to an ISO YYYY-MM-DD date string. */
-function mmddyyyyToIso(mmddyyyy: string): string {
-  const [month, day, year] = mmddyyyy.split('/');
-  return `${year}-${month}-${day}`;
-}
-
-/** POST /api/payroll/reconcile { headerId } — recompute + validate one persisted draft. */
+/**
+ * POST /api/payroll/reconcile { headerId } — recompute + validate one persisted draft.
+ *
+ * Unmapped columns/positions are recomputed for real via `buildJournal` over this run's
+ * rows (not hardcoded empty) so `reconcile.postable` reflects the actual mapping state.
+ */
 export async function POST(request: NextRequest) {
   // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
   await requireAuth();
@@ -49,11 +50,20 @@ export async function POST(request: NextRequest) {
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
     };
 
-    const dayIso = mmddyyyyToIso(header.pay_date);
+    const dayIso = adpDateToIso(header.pay_date);
     const dayRows = await selectSource().fetchRange(dayIso, dayIso);
-    const rows = dayRows.filter((r) => r.pay_group === header.pay_group);
+    const runRows = dayRows.filter((r) => r.pay_group === header.pay_group);
 
-    const result = reconcile(draft, rows, { unmappedColumns: [], unmappedPositions: [] });
+    const [accountMap, employeeMap] = await Promise.all([
+      getAccountMap(header.entity),
+      getEmployeeMap(header.entity),
+    ]);
+    const built = buildJournal(runRows, accountMap, employeeMap);
+
+    const result = reconcile(draft, runRows, {
+      unmappedColumns: built.unmappedColumns,
+      unmappedPositions: built.unmappedPositions,
+    });
 
     return NextResponse.json(result);
   } catch (error) {
