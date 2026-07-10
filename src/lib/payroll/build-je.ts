@@ -7,12 +7,23 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
 
+export interface ExcludedGroup { payGroup: string; reason: string; count: number; }
+
+/** Human-readable reason a row's pay_group is non-postable, given the raw (untrimmed) value. */
+export function exclusionReason(payGroup: string): string {
+  const g = payGroup.trim().toUpperCase();
+  if (g === 'FOCS') return 'FOCS (FOCAS Institute) — no QuickBooks company connected';
+  if (g === '1099') return '1099 contractor — separate handling, not a W-2 payroll JE';
+  if (g === '') return 'blank pay group';
+  return `unknown pay group: ${payGroup}`;
+}
+
 export function buildJournal(
   rows: PayrollRow[], accountMap: AccountMapRule[], employeeMap: EmployeeMapRule[],
-): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedPositions: string[]; excludedFocsRows: number } {
+): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
   const unmappedColumns = new Set<string>();
   const unmappedPositions = new Set<string>();
-  let excludedFocsRows = 0;
+  const excluded = new Map<string, ExcludedGroup>();
   const groups = new Map<string, { entity: Entity; row0: PayrollRow; buckets: Map<string, Bucket> }>();
 
   const acctCache = new Map<Entity, AccountMapRule[]>();
@@ -30,8 +41,12 @@ export function buildJournal(
 
   for (const row of rows) {
     const ent = entityForPayGroup(row.pay_group);
-    if (ent === 'FOCS_EXCLUDED') { excludedFocsRows++; continue; }
-    if (ent === null) continue; // unknown group — surfaced elsewhere
+    if (ent === 'FOCS_EXCLUDED' || ent === null) {
+      const key = row.pay_group;
+      const existing = excluded.get(key);
+      if (existing) { existing.count++; } else { excluded.set(key, { payGroup: key, reason: exclusionReason(key), count: 1 }); }
+      continue;
+    }
     const gkey = `${ent}|${row.pay_date}|${row.pay_group}`;
     let g = groups.get(gkey);
     if (!g) { g = { entity: ent, row0: row, buckets: new Map() }; groups.set(gkey, g); }
@@ -64,5 +79,10 @@ export function buildJournal(
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
     });
   }
-  return { drafts, unmappedColumns: [...unmappedColumns], unmappedPositions: [...unmappedPositions], excludedFocsRows };
+  return {
+    drafts,
+    unmappedColumns: [...unmappedColumns],
+    unmappedPositions: [...unmappedPositions],
+    excluded: [...excluded.values()].sort((a, b) => b.count - a.count),
+  };
 }

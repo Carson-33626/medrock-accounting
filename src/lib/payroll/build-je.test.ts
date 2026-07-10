@@ -31,9 +31,28 @@ describe('buildJournal', () => {
   });
   it('excludes FOCS rows from drafts', () => {
     const rows = [baseRow({ pay_group: 'FOCS' })];
-    const { drafts, excludedFocsRows } = buildJournal(rows, accountMap, empMap);
+    const { drafts, excluded } = buildJournal(rows, accountMap, empMap);
     expect(drafts).toHaveLength(0);
-    expect(excludedFocsRows).toBe(1);
+    expect(excluded).toHaveLength(1);
+    expect(excluded[0]?.payGroup).toBe('FOCS');
+    expect(excluded[0]?.reason).toContain('FOCS');
+    expect(excluded[0]?.count).toBe(1);
+  });
+
+  it('surfaces 1099 and unknown pay groups as excluded, not silently dropped', () => {
+    const rows = [
+      baseRow({ pay_group: '1099', position_id: '3003', row_key: '1099row' }),
+      baseRow({ pay_group: 'ZZZ', position_id: '4004', row_key: 'zzzrow' }),
+    ];
+    const { drafts, excluded } = buildJournal(rows, accountMap, empMap);
+    expect(drafts).toHaveLength(0);
+    expect(excluded).toHaveLength(2);
+    const contractor = excluded.find((e) => e.payGroup === '1099');
+    const unknown = excluded.find((e) => e.payGroup === 'ZZZ');
+    expect(contractor?.reason).toContain('1099');
+    expect(contractor?.count).toBe(1);
+    expect(unknown?.reason).toContain('unknown pay group');
+    expect(unknown?.count).toBe(1);
   });
 
   it('resolves each row against only its own entity mapping rules (no cross-entity leakage)', () => {

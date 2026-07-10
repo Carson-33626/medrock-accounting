@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const accountMap = accountMapLists.flat();
     const employeeMap = employeeMapLists.flat();
 
-    const { drafts, unmappedColumns, unmappedPositions, excludedFocsRows } = buildJournal(rows, accountMap, employeeMap);
+    const { drafts, unmappedColumns, unmappedPositions, excluded } = buildJournal(rows, accountMap, employeeMap);
 
     for (const draft of drafts) {
       await saveDraft(draft, snapshot);
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const headers = await listHeaders(start, end);
 
-    return NextResponse.json({ headers, unmappedColumns, unmappedPositions, excludedFocsRows });
+    return NextResponse.json({ headers, unmappedColumns, unmappedPositions, excluded });
   } catch (error) {
     console.error('[payroll/runs POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to build payroll run';
