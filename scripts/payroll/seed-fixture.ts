@@ -64,7 +64,7 @@ async function main(): Promise<void> {
       else { sensitive[h] = parseRound(raw); }
       if (raw != null) hasData = true;
     }
-    if (!hasData || !plain.position_id) continue;
+    if (!hasData || !plain.position_id || !plain.pay_group || !plain.pay_date) continue;
     plain.row_key = [plain.position_id, plain.pay_date, plain.period_start_date, plain.period_end_date, plain.processed_as].join('|');
     plain.updated_at = '2026-07-10T02:00:00Z';
     rows.push({ ...plain, sensitive_encrypted: encrypt(sensitive) });
