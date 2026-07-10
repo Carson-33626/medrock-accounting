@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { RunsTab } from './RunsTab';
+import { ReviewTab } from './ReviewTab';
 
 type TabKey = 'runs' | 'review' | 'mappings';
 
@@ -50,7 +51,7 @@ export function PayrollTabs() {
         </div>
 
         {tab === 'runs' && <RunsTab />}
-        {tab === 'review' && <ComingSoon cardBg={cardBg} subText={subText} label="Review" />}
+        {tab === 'review' && <ReviewTab />}
         {tab === 'mappings' && <ComingSoon cardBg={cardBg} subText={subText} label="Mappings" />}
       </div>
     </div>
