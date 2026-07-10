@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { loadDraft, saveDraft } from '@/lib/payroll/store';
 import type { JournalDraft, JournalLine } from '@/lib/payroll/types';
 
@@ -18,8 +18,8 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** GET /api/payroll/run/[id] — load one persisted draft (header + lines). */
 export async function GET(_request: NextRequest, context: RouteContext) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const { id } = await context.params;
@@ -43,8 +43,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
 /** PATCH /api/payroll/run/[id] { lines } — edit a draft's lines, recompute totals, persist. */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const { id } = await context.params;

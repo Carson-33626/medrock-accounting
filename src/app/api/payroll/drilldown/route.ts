@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { decryptSensitive } from '@/lib/payroll/crypto';
 import type { SensitiveRow } from '@/lib/payroll/types';
@@ -23,8 +23,8 @@ interface DrilldownRow {
  * returned directly in the response.
  */
 export async function GET(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const rowKey = request.nextUrl.searchParams.get('rowKey');

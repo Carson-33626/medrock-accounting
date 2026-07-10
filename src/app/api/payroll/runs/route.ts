@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
@@ -18,8 +18,8 @@ interface RunsRequestBody {
 
 /** POST /api/payroll/runs { start, end } — build + persist draft JEs for the range. */
 export async function POST(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const body = (await request.json()) as RunsRequestBody;
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
 /** GET /api/payroll/runs?start=&end= — list persisted headers in the range. */
 export async function GET(request: NextRequest) {
-  await requireAuth();
+  await requireAdmin();
 
   try {
     const sp = request.nextUrl.searchParams;

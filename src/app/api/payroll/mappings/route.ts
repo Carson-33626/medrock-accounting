@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { getAccountMap, getEmployeeMap, upsertAccountRule, upsertEmployeeRule } from '@/lib/payroll/store';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
 import type { AccountMapRule, EmployeeMapRule, Entity } from '@/lib/payroll/types';
@@ -17,8 +17,8 @@ function isEntity(value: string): value is Entity {
 
 /** GET /api/payroll/mappings?entity= — list account + employee mapping rules for one entity. */
 export async function GET(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const entity = request.nextUrl.searchParams.get('entity');
@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
 
 /** POST /api/payroll/mappings { kind, rule } — upsert one account or employee mapping rule. */
 export async function POST(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const body = (await request.json()) as MappingsPostBody;

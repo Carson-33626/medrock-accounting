@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
 import { buildJournal } from '@/lib/payroll/build-je';
@@ -23,8 +23,8 @@ interface ReconcileRequestBody {
  * since this draft's source_snapshot_hash was captured.
  */
 export async function POST(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const body = (await request.json()) as ReconcileRequestBody;

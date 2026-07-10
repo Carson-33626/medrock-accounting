@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { setHeaderStatus } from '@/lib/payroll/store';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,8 @@ interface ApproveRequestBody {
  * but approval alone never posts anything — it only flips the header's status.
  */
 export async function POST(request: NextRequest) {
-  // requireAuth redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAuth();
+  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireAdmin();
 
   try {
     const body = (await request.json()) as ApproveRequestBody;
