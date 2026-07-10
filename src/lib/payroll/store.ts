@@ -1,0 +1,336 @@
+/**
+ * RDS persistence for the payroll JE feature (accounting.payroll_* tables,
+ * created in Task 3.1). Holds the pure sourceSnapshotHash plus DB CRUD used
+ * by the /payroll API routes (later phase).
+ */
+import { createHash } from 'node:crypto';
+import { getRdsPool } from '../rds';
+import type {
+  PayrollRow,
+  JournalDraft,
+  JournalLine,
+  AccountMapRule,
+  EmployeeMapRule,
+  Entity,
+  PostingType,
+  CreditBucket,
+  LineOrigin,
+} from './types';
+
+export type HeaderStatus = 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
+
+/** Arbitrary JSON persisted to a jsonb column — explicitly typed (no any/unknown). */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface PayrollHeader {
+  id: number;
+  entity: Entity;
+  pay_date: string;
+  pay_group: string;
+  period_start: string | null;
+  period_end: string | null;
+  status: HeaderStatus;
+  total_debits: number;
+  total_credits: number;
+  variance: number;
+  row_count: number;
+  source_snapshot_hash: string | null;
+  qb_entry_id: string | null;
+  qb_doc_number: string | null;
+}
+
+export function sourceSnapshotHash(rows: PayrollRow[]): string {
+  const parts = rows.map((r) => `${r.row_key}=${r.updated_at}`).sort();
+  return createHash('sha256').update(parts.join('\n')).digest('hex');
+}
+
+interface AccountMapRow {
+  entity: Entity;
+  adpColumn: string;
+  accountName: string;
+  postingType: PostingType;
+  isCogs: boolean;
+  creditBucket: CreditBucket | null;
+  active: boolean;
+}
+
+export async function getAccountMap(entity: Entity): Promise<AccountMapRule[]> {
+  const { rows } = await getRdsPool().query<AccountMapRow>(
+    `SELECT entity, adp_column AS "adpColumn", account_name AS "accountName", posting_type AS "postingType",
+            is_cogs AS "isCogs", credit_bucket AS "creditBucket", active
+     FROM accounting.payroll_account_map WHERE entity=$1 AND active`,
+    [entity],
+  );
+  return rows;
+}
+
+interface EmployeeMapRow {
+  entity: Entity;
+  positionId: string;
+  departmentName: string | null;
+  className: string | null;
+  cogsOverride: boolean | null;
+  active: boolean;
+}
+
+export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]> {
+  const { rows } = await getRdsPool().query<EmployeeMapRow>(
+    `SELECT entity, position_id AS "positionId", department_name AS "departmentName", class_name AS "className",
+            cogs_override AS "cogsOverride", active
+     FROM accounting.payroll_employee_map WHERE entity=$1 AND active`,
+    [entity],
+  );
+  return rows;
+}
+
+export async function upsertAccountRule(rule: AccountMapRule): Promise<void> {
+  await getRdsPool().query(
+    `INSERT INTO accounting.payroll_account_map
+       (entity, adp_column, account_name, posting_type, is_cogs, credit_bucket, active, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+     ON CONFLICT (entity, adp_column) DO UPDATE SET
+       account_name = EXCLUDED.account_name,
+       posting_type = EXCLUDED.posting_type,
+       is_cogs = EXCLUDED.is_cogs,
+       credit_bucket = EXCLUDED.credit_bucket,
+       active = EXCLUDED.active,
+       updated_at = now()`,
+    [rule.entity, rule.adpColumn, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
+  );
+}
+
+export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<void> {
+  await getRdsPool().query(
+    `INSERT INTO accounting.payroll_employee_map
+       (entity, position_id, department_name, class_name, cogs_override, active, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
+     ON CONFLICT (entity, position_id) DO UPDATE SET
+       department_name = EXCLUDED.department_name,
+       class_name = EXCLUDED.class_name,
+       cogs_override = EXCLUDED.cogs_override,
+       active = EXCLUDED.active,
+       updated_at = now()`,
+    [rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active],
+  );
+}
+
+export async function saveDraft(draft: JournalDraft, snapshotHash: string): Promise<number> {
+  const pool = getRdsPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const headerRes = await client.query<{ id: number }>(
+      `INSERT INTO accounting.payroll_journal_headers
+         (entity, pay_date, pay_group, period_start, period_end, status,
+          total_debits, total_credits, variance, row_count, source_snapshot_hash, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'needs_review', $6, $7, $8, $9, $10, now())
+       ON CONFLICT (entity, pay_date, pay_group) DO UPDATE SET
+         period_start = EXCLUDED.period_start,
+         period_end = EXCLUDED.period_end,
+         status = 'needs_review',
+         total_debits = EXCLUDED.total_debits,
+         total_credits = EXCLUDED.total_credits,
+         variance = EXCLUDED.variance,
+         row_count = EXCLUDED.row_count,
+         source_snapshot_hash = EXCLUDED.source_snapshot_hash,
+         updated_at = now()
+       RETURNING id`,
+      [
+        draft.entity,
+        draft.payDate,
+        draft.payGroup,
+        draft.periodStart,
+        draft.periodEnd,
+        draft.totalDebits,
+        draft.totalCredits,
+        draft.variance,
+        draft.rowKeys.length,
+        snapshotHash,
+      ],
+    );
+    const headerId = headerRes.rows[0].id;
+
+    await client.query(`DELETE FROM accounting.payroll_journal_lines WHERE header_id = $1`, [headerId]);
+
+    for (let i = 0; i < draft.lines.length; i++) {
+      const line = draft.lines[i];
+      await client.query(
+        `INSERT INTO accounting.payroll_journal_lines
+           (header_id, posting_type, amount, account_name, department_name, class_name, memo,
+            credit_bucket, origin, source_row_keys, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          headerId,
+          line.postingType,
+          line.amount,
+          line.accountName,
+          line.departmentName,
+          line.className,
+          line.memo,
+          line.creditBucket,
+          line.origin,
+          line.sourceRowKeys,
+          i,
+        ],
+      );
+    }
+
+    await client.query('COMMIT');
+    return headerId;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+interface HeaderRow {
+  id: number;
+  entity: Entity;
+  pay_date: string;
+  pay_group: string;
+  period_start: string | null;
+  period_end: string | null;
+  status: HeaderStatus;
+  total_debits: string;
+  total_credits: string;
+  variance: string;
+  row_count: number;
+  source_snapshot_hash: string | null;
+  qb_entry_id: string | null;
+  qb_doc_number: string | null;
+}
+
+function toHeader(r: HeaderRow): PayrollHeader {
+  return {
+    id: r.id,
+    entity: r.entity,
+    pay_date: r.pay_date,
+    pay_group: r.pay_group,
+    period_start: r.period_start,
+    period_end: r.period_end,
+    status: r.status,
+    total_debits: Number(r.total_debits),
+    total_credits: Number(r.total_credits),
+    variance: Number(r.variance),
+    row_count: r.row_count,
+    source_snapshot_hash: r.source_snapshot_hash,
+    qb_entry_id: r.qb_entry_id,
+    qb_doc_number: r.qb_doc_number,
+  };
+}
+
+interface LineRow {
+  posting_type: PostingType;
+  amount: string;
+  account_name: string;
+  department_name: string | null;
+  class_name: string | null;
+  memo: string | null;
+  credit_bucket: CreditBucket | null;
+  origin: LineOrigin;
+  source_row_keys: string[];
+}
+
+function toLine(r: LineRow): JournalLine {
+  return {
+    postingType: r.posting_type,
+    amount: Number(r.amount),
+    accountName: r.account_name,
+    departmentName: r.department_name,
+    className: r.class_name,
+    memo: r.memo ?? '',
+    creditBucket: r.credit_bucket,
+    origin: r.origin,
+    sourceRowKeys: r.source_row_keys,
+  };
+}
+
+export async function loadDraft(id: number): Promise<{ header: PayrollHeader; lines: JournalLine[] } | null> {
+  const pool = getRdsPool();
+  const headerRes = await pool.query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+     FROM accounting.payroll_journal_headers WHERE id = $1`,
+    [id],
+  );
+  const headerRow = headerRes.rows[0];
+  if (!headerRow) return null;
+
+  const linesRes = await pool.query<LineRow>(
+    `SELECT posting_type, amount, account_name, department_name, class_name, memo,
+            credit_bucket, origin, source_row_keys
+     FROM accounting.payroll_journal_lines
+     WHERE header_id = $1
+     ORDER BY sort_order`,
+    [id],
+  );
+
+  return { header: toHeader(headerRow), lines: linesRes.rows.map(toLine) };
+}
+
+export async function listHeaders(startISO: string, endISO: string): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+     FROM accounting.payroll_journal_headers
+     WHERE to_date(pay_date, 'MM/DD/YYYY') BETWEEN $1::date AND $2::date
+     ORDER BY pay_date, entity`,
+    [startISO, endISO],
+  );
+  return rows.map(toHeader);
+}
+
+export interface AuditEntry {
+  headerId: number | null;
+  mode: 'dry_run' | 'live';
+  entity: Entity;
+  qbRealm?: string;
+  qbDocNumber?: string;
+  qbEntryId?: string;
+  outcome: string;
+  requestPayload?: JsonValue;
+  responseStatus?: number;
+  responseBody?: JsonValue;
+  reason?: string;
+}
+
+export async function insertAudit(entry: AuditEntry): Promise<void> {
+  await getRdsPool().query(
+    `INSERT INTO accounting.payroll_post_audit
+       (header_id, mode, entity, qb_realm, qb_doc_number, qb_entry_id, outcome,
+        request_payload, response_status, response_body, reason)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [
+      entry.headerId,
+      entry.mode,
+      entry.entity,
+      entry.qbRealm ?? null,
+      entry.qbDocNumber ?? null,
+      entry.qbEntryId ?? null,
+      entry.outcome,
+      entry.requestPayload === undefined ? null : JSON.stringify(entry.requestPayload),
+      entry.responseStatus ?? null,
+      entry.responseBody === undefined ? null : JSON.stringify(entry.responseBody),
+      entry.reason ?? null,
+    ],
+  );
+}
+
+export async function setHeaderStatus(
+  id: number,
+  status: HeaderStatus,
+  qb?: { entryId?: string; docNumber?: string },
+): Promise<void> {
+  await getRdsPool().query(
+    `UPDATE accounting.payroll_journal_headers
+     SET status = $2,
+         qb_entry_id = COALESCE($3, qb_entry_id),
+         qb_doc_number = COALESCE($4, qb_doc_number),
+         updated_at = now()
+     WHERE id = $1`,
+    [id, status, qb?.entryId ?? null, qb?.docNumber ?? null],
+  );
+}
