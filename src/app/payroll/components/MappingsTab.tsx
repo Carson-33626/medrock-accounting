@@ -1,0 +1,675 @@
+'use client';
+
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useDarkMode } from '@/contexts/DarkModeContext';
+import { AlertTriangle, CheckCircle2, Loader2, Plus, Save, XCircle } from 'lucide-react';
+
+/**
+ * Local mirrors of the payroll mapping types (web/src/lib/payroll/types.ts) and the
+ * /api/payroll/dimensions response shape. Not imported directly — src/lib/payroll/*
+ * modules pull in the RDS pool (`pg`) / QuickBooks client, which must never land in a
+ * client bundle.
+ */
+type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+type PostingType = 'Debit' | 'Credit';
+type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
+
+interface AccountMapRule {
+  entity: Entity;
+  adpColumn: string;
+  accountName: string;
+  postingType: PostingType;
+  isCogs: boolean;
+  creditBucket: CreditBucket | null;
+  active: boolean;
+}
+
+interface EmployeeMapRule {
+  entity: Entity;
+  positionId: string;
+  departmentName: string | null;
+  className: string | null;
+  cogsOverride: boolean | null;
+  active: boolean;
+}
+
+interface MappingsResponse {
+  accountMap: AccountMapRule[];
+  employeeMap: EmployeeMapRule[];
+}
+
+interface DimensionsResponse {
+  accounts: string[];
+  departments: string[];
+  classes: string[];
+}
+
+interface ApiErrorBody {
+  error?: string;
+}
+
+const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
+
+let nextTempId = 0;
+function withKey<T>(rule: T): T & { _key: number } {
+  return { ...rule, _key: nextTempId++ };
+}
+
+function blankAccountRule(entity: Entity): AccountMapRule & { _key: number } {
+  return withKey({
+    entity,
+    adpColumn: '',
+    accountName: '',
+    postingType: 'Debit',
+    isCogs: false,
+    creditBucket: null,
+    active: true,
+  });
+}
+
+function blankEmployeeRule(entity: Entity): EmployeeMapRule & { _key: number } {
+  return withKey({
+    entity,
+    positionId: '',
+    departmentName: null,
+    className: null,
+    cogsOverride: null,
+    active: true,
+  });
+}
+
+function stripKey<T extends { _key: number }>(rule: T): Omit<T, '_key'> {
+  const { _key: _unused, ...rest } = rule;
+  void _unused;
+  return rest;
+}
+
+/**
+ * Mappings tab: accounting self-serve editor for the two payroll mapping tables —
+ * ADP column → GL account (account map) and position → department/class (employee map).
+ * Dropdowns are populated from live QuickBooks dimensions when reachable; if QuickBooks
+ * is unreachable (502), editing falls back to free-text inputs rather than blocking.
+ */
+export function MappingsTab() {
+  const { darkMode } = useDarkMode();
+
+  const [entity, setEntity] = useState<Entity>('MedRock FL');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [accountRules, setAccountRules] = useState<Array<AccountMapRule & { _key: number }>>([]);
+  const [employeeRules, setEmployeeRules] = useState<Array<EmployeeMapRule & { _key: number }>>([]);
+
+  const [dimensions, setDimensions] = useState<DimensionsResponse | null>(null);
+  const [dimensionsError, setDimensionsError] = useState<string | null>(null);
+  const [dimensionsLoading, setDimensionsLoading] = useState(false);
+
+  const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
+  const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
+  const border = darkMode ? 'border-slate-700' : 'border-slate-200';
+  const inputBg = darkMode ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-300 text-slate-900';
+
+  const loadForEntity = useCallback(async (ent: Entity) => {
+    setLoading(true);
+    setError(null);
+    setDimensionsError(null);
+    setDimensionsLoading(true);
+
+    try {
+      const res = await fetch(`/api/payroll/mappings?entity=${encodeURIComponent(ent)}`);
+      const body = (await res.json()) as MappingsResponse & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setAccountRules(body.accountMap.map(withKey));
+      setEmployeeRules(body.employeeMap.map(withKey));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to load payroll mappings';
+      setError(message);
+      setAccountRules([]);
+      setEmployeeRules([]);
+    } finally {
+      setLoading(false);
+    }
+
+    try {
+      const res = await fetch(`/api/payroll/dimensions?entity=${encodeURIComponent(ent)}`);
+      const body = (await res.json()) as DimensionsResponse & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setDimensions(body);
+    } catch (e) {
+      // Dimensions are a convenience (dropdowns) — never block editing on this failure.
+      const message = e instanceof Error ? e.message : 'QuickBooks dimensions unavailable';
+      setDimensionsError(message);
+      setDimensions(null);
+    } finally {
+      setDimensionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadForEntity(entity);
+  }, [entity, loadForEntity]);
+
+  return (
+    <div className="space-y-6">
+      {/* Entity selector */}
+      <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-end gap-3`}>
+        <label className={`text-sm ${subText}`}>
+          Entity
+          <select
+            value={entity}
+            onChange={(e) => setEntity(e.target.value as Entity)}
+            className={`block mt-1 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
+          >
+            {ENTITIES.map((ent) => (
+              <option key={ent} value={ent}>
+                {ent}
+              </option>
+            ))}
+          </select>
+        </label>
+        {loading && (
+          <span className={`flex items-center gap-1.5 text-xs ${subText}`}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+            Loading mappings…
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div
+          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {dimensionsError && !dimensionsLoading && (
+        <div
+          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+            darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <p>
+            QuickBooks dimensions unavailable ({dimensionsError}). Account/department/class fields are free-text
+            until QuickBooks is reachable again — editing is not blocked.
+          </p>
+        </div>
+      )}
+
+      <AccountMapEditor
+        darkMode={darkMode}
+        cardBg={cardBg}
+        subText={subText}
+        border={border}
+        inputBg={inputBg}
+        entity={entity}
+        rules={accountRules}
+        setRules={setAccountRules}
+        accountOptions={dimensions?.accounts ?? null}
+      />
+
+      <EmployeeMapEditor
+        darkMode={darkMode}
+        cardBg={cardBg}
+        subText={subText}
+        border={border}
+        inputBg={inputBg}
+        entity={entity}
+        rules={employeeRules}
+        setRules={setEmployeeRules}
+        departmentOptions={dimensions?.departments ?? null}
+        classOptions={dimensions?.classes ?? null}
+      />
+    </div>
+  );
+}
+
+// ── Account map editor ──────────────────────────────────────────────────────
+
+function AccountMapEditor({
+  darkMode,
+  cardBg,
+  subText,
+  border,
+  inputBg,
+  entity,
+  rules,
+  setRules,
+  accountOptions,
+}: {
+  darkMode: boolean;
+  cardBg: string;
+  subText: string;
+  border: string;
+  inputBg: string;
+  entity: Entity;
+  rules: Array<AccountMapRule & { _key: number }>;
+  setRules: Dispatch<SetStateAction<Array<AccountMapRule & { _key: number }>>>;
+  accountOptions: string[] | null;
+}) {
+  const update = useCallback(
+    (key: number, patch: Partial<AccountMapRule>) => {
+      setRules((prev) => prev.map((r) => (r._key === key ? { ...r, ...patch } : r)));
+    },
+    [setRules],
+  );
+
+  const addRow = useCallback(() => {
+    setRules((prev) => [...prev, blankAccountRule(entity)]);
+  }, [entity, setRules]);
+
+  return (
+    <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">
+          Account map <span className={`font-normal ${subText}`}>({rules.length})</span>
+        </p>
+        <button
+          onClick={addRow}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+            darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <Plus className="w-3.5 h-3.5" aria-hidden />
+          Add rule
+        </button>
+      </div>
+
+      {rules.length === 0 && <p className={`text-xs ${subText}`}>No account rules for {entity} yet.</p>}
+
+      <div className="space-y-2">
+        {rules.map((rule) => (
+          <AccountRuleRow
+            key={rule._key}
+            darkMode={darkMode}
+            border={border}
+            inputBg={inputBg}
+            subText={subText}
+            rule={rule}
+            accountOptions={accountOptions}
+            onUpdate={update}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AccountRuleRow({
+  darkMode,
+  border,
+  inputBg,
+  subText,
+  rule,
+  accountOptions,
+  onUpdate,
+}: {
+  darkMode: boolean;
+  border: string;
+  inputBg: string;
+  subText: string;
+  rule: AccountMapRule & { _key: number };
+  accountOptions: string[] | null;
+  onUpdate: (key: number, patch: Partial<AccountMapRule>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const res = await fetch('/api/payroll/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'account', rule: stripKey(rule) }),
+      });
+      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setSaved(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to save account rule';
+      setSaveError(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [rule]);
+
+  return (
+    <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <input
+          type="text"
+          value={rule.adpColumn}
+          onChange={(e) => onUpdate(rule._key, { adpColumn: e.target.value })}
+          placeholder="ADP column (e.g. REGULAR PAY - EARNING)"
+          className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+        />
+
+        {accountOptions ? (
+          <select
+            value={rule.accountName}
+            onChange={(e) => onUpdate(rule._key, { accountName: e.target.value })}
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          >
+            <option value="">Select account…</option>
+            {accountOptions.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={rule.accountName}
+            onChange={(e) => onUpdate(rule._key, { accountName: e.target.value })}
+            placeholder="Account name (free-text — QuickBooks unavailable)"
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          />
+        )}
+
+        <select
+          value={rule.creditBucket ?? ''}
+          onChange={(e) => onUpdate(rule._key, { creditBucket: (e.target.value || null) as CreditBucket | null })}
+          className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+        >
+          <option value="">Credit bucket…</option>
+          {CREDIT_BUCKETS.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={rule.postingType}
+          onChange={(e) => onUpdate(rule._key, { postingType: e.target.value as PostingType })}
+          className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
+        >
+          <option value="Debit">Debit</option>
+          <option value="Credit">Credit</option>
+        </select>
+
+        <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
+          <input
+            type="checkbox"
+            checked={rule.isCogs}
+            onChange={(e) => onUpdate(rule._key, { isCogs: e.target.checked })}
+          />
+          COGS
+        </label>
+
+        <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
+          <input
+            type="checkbox"
+            checked={rule.active}
+            onChange={(e) => onUpdate(rule._key, { active: e.target.checked })}
+          />
+          Active
+        </label>
+
+        <button
+          onClick={() => void handleSave()}
+          disabled={saving || !rule.adpColumn || !rule.accountName}
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Save className="w-3.5 h-3.5" aria-hidden />}
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+
+        {saved && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`}>
+            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />
+            Saved
+          </span>
+        )}
+        {saveError && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+            <XCircle className="w-3.5 h-3.5" aria-hidden />
+            {saveError}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Employee map editor ─────────────────────────────────────────────────────
+
+function EmployeeMapEditor({
+  darkMode,
+  cardBg,
+  subText,
+  border,
+  inputBg,
+  entity,
+  rules,
+  setRules,
+  departmentOptions,
+  classOptions,
+}: {
+  darkMode: boolean;
+  cardBg: string;
+  subText: string;
+  border: string;
+  inputBg: string;
+  entity: Entity;
+  rules: Array<EmployeeMapRule & { _key: number }>;
+  setRules: Dispatch<SetStateAction<Array<EmployeeMapRule & { _key: number }>>>;
+  departmentOptions: string[] | null;
+  classOptions: string[] | null;
+}) {
+  const update = useCallback(
+    (key: number, patch: Partial<EmployeeMapRule>) => {
+      setRules((prev) => prev.map((r) => (r._key === key ? { ...r, ...patch } : r)));
+    },
+    [setRules],
+  );
+
+  const addRow = useCallback(() => {
+    setRules((prev) => [...prev, blankEmployeeRule(entity)]);
+  }, [entity, setRules]);
+
+  return (
+    <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">
+          Employee map <span className={`font-normal ${subText}`}>({rules.length})</span>
+        </p>
+        <button
+          onClick={addRow}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+            darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <Plus className="w-3.5 h-3.5" aria-hidden />
+          Add rule
+        </button>
+      </div>
+
+      {rules.length === 0 && <p className={`text-xs ${subText}`}>No employee rules for {entity} yet.</p>}
+
+      <div className="space-y-2">
+        {rules.map((rule) => (
+          <EmployeeRuleRow
+            key={rule._key}
+            darkMode={darkMode}
+            border={border}
+            inputBg={inputBg}
+            subText={subText}
+            rule={rule}
+            departmentOptions={departmentOptions}
+            classOptions={classOptions}
+            onUpdate={update}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmployeeRuleRow({
+  darkMode,
+  border,
+  inputBg,
+  subText,
+  rule,
+  departmentOptions,
+  classOptions,
+  onUpdate,
+}: {
+  darkMode: boolean;
+  border: string;
+  inputBg: string;
+  subText: string;
+  rule: EmployeeMapRule & { _key: number };
+  departmentOptions: string[] | null;
+  classOptions: string[] | null;
+  onUpdate: (key: number, patch: Partial<EmployeeMapRule>) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const res = await fetch('/api/payroll/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'employee', rule: stripKey(rule) }),
+      });
+      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setSaved(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to save employee rule';
+      setSaveError(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [rule]);
+
+  // Tri-state cogsOverride: '' = unset (null), 'true' = true, 'false' = false.
+  const cogsOverrideValue = rule.cogsOverride === null ? '' : String(rule.cogsOverride);
+
+  return (
+    <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <input
+          type="text"
+          value={rule.positionId}
+          onChange={(e) => onUpdate(rule._key, { positionId: e.target.value })}
+          placeholder="Position ID"
+          className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+        />
+
+        {departmentOptions ? (
+          <select
+            value={rule.departmentName ?? ''}
+            onChange={(e) => onUpdate(rule._key, { departmentName: e.target.value || null })}
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          >
+            <option value="">Select department…</option>
+            {departmentOptions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={rule.departmentName ?? ''}
+            onChange={(e) => onUpdate(rule._key, { departmentName: e.target.value || null })}
+            placeholder="Department (free-text — QuickBooks unavailable)"
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          />
+        )}
+
+        {classOptions ? (
+          <select
+            value={rule.className ?? ''}
+            onChange={(e) => onUpdate(rule._key, { className: e.target.value || null })}
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          >
+            <option value="">Select class…</option>
+            {classOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={rule.className ?? ''}
+            onChange={(e) => onUpdate(rule._key, { className: e.target.value || null })}
+            placeholder="Class (free-text — QuickBooks unavailable)"
+            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          />
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
+          COGS override
+          <select
+            value={cogsOverrideValue}
+            onChange={(e) =>
+              onUpdate(rule._key, { cogsOverride: e.target.value === '' ? null : e.target.value === 'true' })
+            }
+            className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
+          >
+            <option value="">Unset</option>
+            <option value="true">True</option>
+            <option value="false">False</option>
+          </select>
+        </label>
+
+        <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
+          <input
+            type="checkbox"
+            checked={rule.active}
+            onChange={(e) => onUpdate(rule._key, { active: e.target.checked })}
+          />
+          Active
+        </label>
+
+        <button
+          onClick={() => void handleSave()}
+          disabled={saving || !rule.positionId}
+          className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Save className="w-3.5 h-3.5" aria-hidden />}
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+
+        {saved && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`}>
+            <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />
+            Saved
+          </span>
+        )}
+        {saveError && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+            <XCircle className="w-3.5 h-3.5" aria-hidden />
+            {saveError}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { RunsTab } from './RunsTab';
 import { ReviewTab } from './ReviewTab';
+import { MappingsTab } from './MappingsTab';
+import { PostPanel } from './PostPanel';
 
 type TabKey = 'runs' | 'review' | 'mappings';
 
@@ -51,17 +53,14 @@ export function PayrollTabs() {
         </div>
 
         {tab === 'runs' && <RunsTab />}
-        {tab === 'review' && <ReviewTab />}
-        {tab === 'mappings' && <ComingSoon cardBg={cardBg} subText={subText} label="Mappings" />}
+        {tab === 'review' && (
+          <div className="space-y-6">
+            <ReviewTab />
+            <PostPanel />
+          </div>
+        )}
+        {tab === 'mappings' && <MappingsTab />}
       </div>
-    </div>
-  );
-}
-
-function ComingSoon({ cardBg, subText, label }: { cardBg: string; subText: string; label: string }) {
-  return (
-    <div className={`rounded-xl shadow-sm p-10 text-center ${cardBg}`}>
-      <p className={`text-sm ${subText}`}>{label} tab — coming soon.</p>
     </div>
   );
 }
