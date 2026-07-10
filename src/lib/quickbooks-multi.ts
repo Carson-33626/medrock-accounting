@@ -7,6 +7,7 @@
  */
 
 import { getAdminClient } from './supabase-admin';
+import type { JsonValue } from './payroll/store';
 
 const QB_CLIENT_ID = process.env.QUICKBOOKS_CLIENT_ID!;
 const QB_CLIENT_SECRET = process.env.QUICKBOOKS_CLIENT_SECRET!;
@@ -269,6 +270,55 @@ async function qbRequest<T>(
       console.log(`Rate limited for ${location}, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
       await sleep(delayMs);
       return qbRequest<T>(endpoint, location, options, retryCount + 1);
+    } else {
+      throw new Error(`QB API rate limit exceeded for ${location}. Please try again in a few moments.`);
+    }
+  }
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`QB API error for ${location}: ${response.status} ${error}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Make authenticated POST call to QuickBooks with a JSON body, with the same
+ * rate-limit retry behavior as qbRequest. Used for writes (e.g. JournalEntry).
+ */
+export async function qbPost<T>(
+  location: Location,
+  endpoint: string,
+  body: JsonValue,
+  retryCount = 0
+): Promise<T> {
+  const tokens = await getValidTokens(location);
+
+  if (!tokens) {
+    throw new Error(`QuickBooks not connected for location: ${location}. Please authorize first.`);
+  }
+
+  const url = `${QB_API_BASE}/company/${tokens.realm_id}/${endpoint}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  // Handle rate limiting (429) with exponential backoff
+  if (response.status === 429) {
+    const maxRetries = 3;
+    if (retryCount < maxRetries) {
+      const delayMs = Math.min(1000 * Math.pow(2, retryCount), 10000); // 1s, 2s, 4s (max 10s)
+      console.log(`Rate limited for ${location}, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+      await sleep(delayMs);
+      return qbPost<T>(location, endpoint, body, retryCount + 1);
     } else {
       throw new Error(`QB API rate limit exceeded for ${location}. Please try again in a few moments.`);
     }
