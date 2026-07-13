@@ -5,7 +5,7 @@
 // Dry-run by default; --live writes (split PATCH + receipt attach), capped, reversible via rollback.
 import './../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { withWalmartContext } from './session';
+import { withWalmartContext, isLoginWall } from './session';
 import { scrapeOrderHistory } from './order-history';
 import { fetchInvoice } from './order-fetch';
 import { matchOrders } from './matcher';
@@ -44,6 +44,21 @@ function toParsed(rec: ExtractedOrder): ParsedReceipt {
   return { layout: 'WMT', source: 'walmart', order: rec.orderId, glHint: null, items: rec.items, taxCents: rec.taxCents, shippingCents: rec.shippingCents, tipCents: rec.tipCents, parsedTotalCents: rec.parsedTotalCents };
 }
 
+// Already enriched by us = either a real multi-line split, OR a single line that carries a product
+// memo (mirrors amazon-enrich/client.ts:isEnriched). priorLineItems is `unknown` on RampTxn — narrow
+// it explicitly before inspecting shape. Erring toward "skip if memo present" is the safe direction
+// (worst case we skip a txn, never re-split/re-attach one already enriched by a prior run).
+function isTxnEnriched(priorLineItems: unknown): boolean {
+  if (!Array.isArray(priorLineItems)) return false;
+  const lines = priorLineItems as unknown[];
+  if (lines.length > 1) return true;
+  return lines.some((l) => {
+    if (typeof l !== 'object' || l === null) return false;
+    const memo = (l as { memo?: unknown }).memo;
+    return typeof memo === 'string' && memo.trim().length > 0;
+  });
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
@@ -71,8 +86,12 @@ async function main(): Promise<void> {
           });
           extracted++;
         } catch (e) {
-          console.error(`extract stopped at ${o.orderId}: ${(e as Error).message}`);
-          break; // session expiry etc. — cache holds everything so far; re-run to resume
+          if (isLoginWall(page.url())) {
+            console.error(`extract stopped at ${o.orderId}: session expired (login wall) — ${(e as Error).message}`);
+            break; // session is dead; cache holds everything so far, re-bootstrap + re-run to resume
+          }
+          console.error(`extract skipped ${o.orderId}: ${(e as Error).message}`);
+          continue; // transient per-order failure — left uncached, retried next run; keep extracting
         }
       }
     });
@@ -89,7 +108,8 @@ async function main(): Promise<void> {
   // ---- SPLIT phase: match cache -> Ramp charges, preview/write (never re-fetches Walmart) ----
   const token = await rampToken(ENTITY, args.live ? SCOPES_WRITE : SCOPES_READ);
   const gl = await buildGlIndex(ENTITY, token);
-  const txns: RampTxn[] = (await getRampTransactions(ENTITY, token, 40)).filter((t) => /walmart/i.test(t.merchantName ?? ''));
+  const txns: RampTxn[] = (await getRampTransactions(ENTITY, token, 40))
+    .filter((t) => /walmart/i.test(t.merchantName ?? '') && !isTxnEnriched(t.priorLineItems));
 
   const cachedOrders: WalmartOrder[] = store.all()
     .filter((r) => r.date >= args.since)
@@ -98,7 +118,7 @@ async function main(): Promise<void> {
 
   const preview: string[] = ['order_id,txn_id,amount,line_desc,split_amount,gl_name,confidence,coded,mode'];
   const aside: string[] = ['order_id,reason,detail'];
-  const rollback: { entity: Entity; txn_id: string; order_id: string }[] = [];
+  const rollback: { entity: Entity; txn_id: string; order_id: string; prior_line_items: unknown }[] = [];
   for (const o of match.ambiguous) aside.push([o.orderId, 'ambiguous_match', ''].map(csv).join(','));
   for (const o of match.unmatched) aside.push([o.orderId, 'no_ramp_match', `total=${(o.totalCents / 100).toFixed(2)}`].map(csv).join(','));
 
@@ -117,7 +137,7 @@ async function main(): Promise<void> {
       const att = await attachReceipt(ENTITY, m.txn.id, readFileSync(rec.pdfPath), `walmart-${m.order.orderId}.pdf`, token);
       if (att.status < 200 || att.status >= 300) aside.push([m.order.orderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(','));
       writes++;
-      rollback.push({ entity: ENTITY, txn_id: m.txn.id, order_id: m.order.orderId });
+      rollback.push({ entity: ENTITY, txn_id: m.txn.id, order_id: m.order.orderId, prior_line_items: m.txn.priorLineItems });
     }
     for (const l of built.lines) {
       preview.push([m.order.orderId, m.txn.id, (m.txn.amountCents / 100).toFixed(2), l.desc, (l.amount / 100).toFixed(2), l.glName, l.confidence, l.coded, mode].map(csv).join(','));
@@ -126,7 +146,14 @@ async function main(): Promise<void> {
 
   writeFileSync(`${OUT}/preview_splits.csv`, preview.join('\n'));
   writeFileSync(`${OUT}/set_aside.csv`, aside.join('\n'));
-  if (rollback.length) writeFileSync(`${OUT}/rollback.json`, JSON.stringify(rollback, null, 2));
+  // Append to the rollback audit trail — never clobber prior live runs' snapshots. Dedup by txn_id.
+  if (rollback.length) {
+    const path = `${OUT}/rollback.json`;
+    const prior: typeof rollback = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : [];
+    const seen = new Set(prior.map((r) => r.txn_id));
+    const merged = [...prior, ...rollback.filter((r) => !seen.has(r.txn_id))];
+    writeFileSync(path, JSON.stringify(merged, null, 2));
+  }
   console.log(`\nMODE: ${args.live ? `LIVE (cap ${args.cap || '∞'}, ${writes} written)` : 'DRY-RUN (no writes)'}`);
   console.log(`confident ${match.confident.length} | ambiguous ${match.ambiguous.length} | unmatched ${match.unmatched.length}`);
   console.log(`Wrote ${OUT}/extraction-index.csv, ${OUT}/preview_splits.csv (${preview.length - 1}), ${OUT}/set_aside.csv (${aside.length - 1})${rollback.length ? `, ${OUT}/rollback.json (${rollback.length})` : ''}`);
