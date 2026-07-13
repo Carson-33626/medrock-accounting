@@ -152,6 +152,9 @@ async function fetchAmyTotals(
 function fmt(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 async function main(): Promise<void> {
   const { qbQueryAll, getConnectionStatus } = await import('../../src/lib/quickbooks-multi');
@@ -200,6 +203,24 @@ async function main(): Promise<void> {
     console.log(`  Reconcile: balanced=${result.balanced} netOk=${result.netOk} postable=${result.postable}`);
     if (result.errors.length) console.log(`  Errors: ${result.errors.join(' | ')}`);
     console.log(`  Unmapped columns (${built.unmappedColumns.length}): ${built.unmappedColumns.length ? built.unmappedColumns.sort().join(', ') : '(none)'}`);
+
+    // Per-unmapped-column summed |$| across this entity's rows for this pay date — distinguishes
+    // real GL-carrying columns from $0/rollup columns. Sorted desc so the biggest gaps surface first.
+    if (built.unmappedColumns.length) {
+      const unmappedDollars = built.unmappedColumns
+        .map((col) => {
+          const total = rows.reduce((s, r) => {
+            const v = r.sensitive[col];
+            return s + (typeof v === 'number' ? Math.abs(v) : 0);
+          }, 0);
+          return { col, total: round2(total) };
+        })
+        .sort((a, b) => b.total - a.total);
+      console.log(`  Unmapped columns by summed |$| (desc):`);
+      for (const { col, total } of unmappedDollars) {
+        console.log(`    ${fmt(total).padStart(14)}  ${col}`);
+      }
+    }
     if (built.excluded.length) {
       console.log(`  Excluded groups: ${built.excluded.map((e) => `${e.payGroup} (${e.reason}) x${e.count}`).join('; ')}`);
     }
