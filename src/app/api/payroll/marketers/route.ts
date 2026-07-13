@@ -13,6 +13,7 @@ export interface MarketerReviewItem {
   name: string;
   currentDepartment: string | null;
   currentClass: string | null;
+  currentCogsOverride: boolean | null;
   employeeRuleId: number | null;
 }
 
@@ -21,6 +22,7 @@ interface MarketerRow {
   name: string;
   currentDepartment: string | null;
   currentClass: string | null;
+  currentCogsOverride: boolean | null;
   employeeRuleId: number | null;
 }
 
@@ -72,6 +74,7 @@ export async function GET(request: NextRequest) {
               ph.name AS "name",
               pm.department_name AS "currentDepartment",
               pm.class_name AS "currentClass",
+              pm.cogs_override AS "currentCogsOverride",
               pm.id AS "employeeRuleId"
        FROM source.payroll_history ph
        LEFT JOIN accounting.payroll_employee_map pm

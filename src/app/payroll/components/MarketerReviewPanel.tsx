@@ -16,6 +16,7 @@ interface MarketerReviewItem {
   name: string;
   currentDepartment: string | null;
   currentClass: string | null;
+  currentCogsOverride: boolean | null;
   employeeRuleId: number | null;
 }
 
@@ -322,7 +323,9 @@ function MarketerRow({
         positionId: marketer.positionId,
         departmentName: departmentName.trim(),
         className: className.trim() ? className.trim() : null,
-        cogsOverride: null,
+        // Preserve any COGS-override the accountant set in the full Mappings tab — this
+        // shortcut panel only edits region/class, so it must not clobber that field.
+        cogsOverride: marketer.currentCogsOverride,
         active: true,
       };
       const res = await fetch('/api/payroll/mappings', {
