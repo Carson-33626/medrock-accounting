@@ -79,6 +79,15 @@ interface DrilldownResponse {
   sensitive: Record<string, number | string | null>;
 }
 
+/** Mirror of /api/payroll/roster RosterItem — plaintext only, no amounts. */
+interface RosterItem {
+  rowKey: string;
+  name: string;
+  positionId: string;
+  payDate: string;
+  payGroup: string;
+}
+
 interface ApiErrorBody {
   error?: string;
 }
@@ -134,7 +143,9 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
 
-  const [rowKeyInput, setRowKeyInput] = useState<string>('');
+  const [roster, setRoster] = useState<RosterItem[]>([]);
+  const [personSearch, setPersonSearch] = useState<string>('');
+  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
   const [drilldownLoading, setDrilldownLoading] = useState(false);
   const [drilldownError, setDrilldownError] = useState<string | null>(null);
   const [drilldownKeyNotConfigured, setDrilldownKeyNotConfigured] = useState(false);
@@ -169,11 +180,25 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
     }
   }, []);
 
+  const loadRoster = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`/api/payroll/roster?headerId=${id}`);
+      if (!res.ok) return; // roster is a convenience — never block the draft on it
+      const body = (await res.json()) as RosterItem[];
+      setRoster(body);
+    } catch {
+      // ignore — the drill-down just won't offer a picker
+    }
+  }, []);
+
   const loadDraft = useCallback(
     async (id: number) => {
       setLoading(true);
       setError(null);
       setReconcileResult(null);
+      setRoster([]);
+      setDrilldown(null);
+      setActiveRowKey(null);
       let ok = false;
       try {
         const res = await fetch(`/api/payroll/run/${id}`);
@@ -191,10 +216,10 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         setLoading(false);
       }
       if (ok) {
-        await runReconcile(id);
+        await Promise.all([runReconcile(id), loadRoster(id)]);
       }
     },
-    [runReconcile],
+    [runReconcile, loadRoster],
   );
 
   // Auto-load whenever the selected draft changes (i.e. a different card was clicked).
@@ -257,9 +282,9 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
     void runReconcile(headerId);
   }, [headerId, runReconcile]);
 
-  const handleDrilldown = useCallback(async () => {
-    const rowKey = rowKeyInput.trim();
+  const handleDrilldown = useCallback(async (rowKey: string) => {
     if (!rowKey) return;
+    setActiveRowKey(rowKey);
     setDrilldownLoading(true);
     setDrilldownError(null);
     setDrilldownKeyNotConfigured(false);
@@ -280,7 +305,13 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
     } finally {
       setDrilldownLoading(false);
     }
-  }, [rowKeyInput]);
+  }, []);
+
+  const filteredRoster = useMemo(() => {
+    const q = personSearch.trim().toLowerCase();
+    if (!q) return roster;
+    return roster.filter((p) => p.name.toLowerCase().includes(q) || p.positionId.toLowerCase().includes(q));
+  }, [roster, personSearch]);
 
   return (
     <div className="space-y-6">
@@ -436,50 +467,61 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             <ReconcilePanel darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} result={reconcileResult} />
           )}
 
-          {/* Drill-down */}
+          {/* Drill-down — pick a person to see their source pay detail. */}
           <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
-            <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Source detail (drill-down)</p>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className={`text-sm ${subText} flex-1 min-w-[240px]`}>
-                Row key
-                <input
-                  type="text"
-                  value={rowKeyInput}
-                  onChange={(e) => setRowKeyInput(e.target.value)}
-                  placeholder="e.g. 1001|06/18/2026|06/01/2026|06/14/2026|Bi-Weekly Payroll"
-                  className={`block mt-1 w-full rounded-md border px-2 py-1.5 text-sm font-mono ${inputBg}`}
-                />
-              </label>
-              <button
-                onClick={() => void handleDrilldown()}
-                disabled={drilldownLoading || !rowKeyInput.trim()}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {drilldownLoading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Search className="w-4 h-4" aria-hidden />}
-                {drilldownLoading ? 'Loading…' : 'Look up'}
-              </button>
-              {lines.some((l) => l.sourceRowKeys.length > 0) && (
-                <p className={`text-xs w-full ${subText}`}>
-                  Row keys on this draft&apos;s lines: click one to look it up, or paste a key above.
-                </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Source detail — by person</p>
+              {roster.length > 0 && (
+                <div className="relative">
+                  <Search className={`w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 ${subText}`} aria-hidden />
+                  <input
+                    type="text"
+                    value={personSearch}
+                    onChange={(e) => setPersonSearch(e.target.value)}
+                    placeholder="Search person…"
+                    className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
+                  />
+                </div>
               )}
             </div>
 
-            {lines.some((l) => l.sourceRowKeys.length > 0) && (
+            {roster.length === 0 ? (
+              <p className={`text-xs ${subText}`}>
+                {loading ? 'Loading people…' : 'No people found for this run.'}
+              </p>
+            ) : (
               <div className="flex flex-wrap gap-1.5">
-                {[...new Set(lines.flatMap((l) => l.sourceRowKeys))].slice(0, 24).map((rk) => (
-                  <button
-                    key={rk}
-                    onClick={() => setRowKeyInput(rk)}
-                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded border truncate max-w-[220px] ${
-                      darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
-                    }`}
-                    title={rk}
-                  >
-                    {rk}
-                  </button>
-                ))}
+                {filteredRoster.map((p) => {
+                  const active = p.rowKey === activeRowKey;
+                  return (
+                    <button
+                      key={p.rowKey}
+                      onClick={() => void handleDrilldown(p.rowKey)}
+                      disabled={drilldownLoading}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                        active
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : darkMode
+                            ? 'border-slate-600 hover:bg-slate-700'
+                            : 'border-slate-300 hover:bg-slate-100'
+                      }`}
+                      title={`${p.name} · ${p.payGroup}`}
+                    >
+                      {p.name}
+                    </button>
+                  );
+                })}
+                {filteredRoster.length === 0 && (
+                  <p className={`text-xs ${subText}`}>No one matches “{personSearch}”.</p>
+                )}
               </div>
+            )}
+
+            {drilldownLoading && (
+              <p className={`text-xs flex items-center gap-2 ${subText}`}>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                Loading source detail…
+              </p>
             )}
 
             {drilldownKeyNotConfigured && (
