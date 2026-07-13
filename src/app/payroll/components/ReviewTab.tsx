@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import {
   AlertTriangle,
@@ -683,6 +683,73 @@ function LineGroup({
   );
 }
 
+/**
+ * Read-only text that marquees when it overflows: sits at the start for 2s, scrolls to the
+ * end at a constant speed, holds 2s, snaps back to the start, repeats. Static (no animation,
+ * no timers) when the text fits. Re-measures on text change and window resize.
+ */
+function ScrollingText({ text, className }: { text: string; className: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const [style, setStyle] = useState<{ x: number; dur: number }>({ x: 0, dur: 0 });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const span = spanRef.current;
+    if (!container || !span) return;
+
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const clear = (): void => {
+      for (const t of timers) clearTimeout(t);
+      timers.length = 0;
+    };
+
+    const HOLD = 2000; // pause at each end (ms)
+    const run = (): void => {
+      clear();
+      const overflow = Math.ceil(span.scrollWidth - container.clientWidth);
+      if (overflow <= 1) {
+        setStyle({ x: 0, dur: 0 });
+        return;
+      }
+      const travel = Math.max(1200, overflow * 14); // constant ~70px/s
+      const cycle = (): void => {
+        setStyle({ x: 0, dur: 0 }); // at start
+        timers.push(
+          setTimeout(() => {
+            setStyle({ x: -overflow, dur: travel }); // scroll to end
+            // wait for the scroll to finish + hold at the end, then snap back and repeat
+            timers.push(setTimeout(cycle, travel + HOLD));
+          }, HOLD),
+        );
+      };
+      cycle();
+    };
+
+    run();
+    window.addEventListener('resize', run);
+    return () => {
+      clear();
+      window.removeEventListener('resize', run);
+    };
+  }, [text]);
+
+  return (
+    <div ref={containerRef} className={`overflow-hidden whitespace-nowrap ${className}`} title={text}>
+      <span
+        ref={spanRef}
+        className="inline-block align-middle will-change-transform"
+        style={{
+          transform: `translateX(${style.x}px)`,
+          transition: style.dur ? `transform ${style.dur}ms linear` : 'none',
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
 function LineRow({
   darkMode,
   border,
@@ -710,14 +777,22 @@ function LineRow({
       <div className="flex items-start gap-2">
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="relative">
-            <input
-              type="text"
-              value={line.accountName}
-              onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
-              placeholder="Account"
-              disabled={!editable}
-              className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm ${inputBg} disabled:opacity-70 ${accountMissing ? reqRing : ''}`}
-            />
+            {editable ? (
+              <input
+                type="text"
+                value={line.accountName}
+                onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
+                placeholder="Account"
+                className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm ${inputBg} ${accountMissing ? reqRing : ''}`}
+              />
+            ) : (
+              // Generated line: account is read-only and often long — marquee it so the full
+              // name is readable without truncation (only animates when it actually overflows).
+              <ScrollingText
+                text={line.accountName}
+                className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm opacity-70 ${inputBg} ${accountMissing ? reqRing : ''}`}
+              />
+            )}
             <span
               className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-sm pointer-events-none"
               title="Required to post"
