@@ -47,7 +47,10 @@ export async function scrapeOrderHistory(sinceDate = '2026-01-01', maxPages = 40
     await page.goto('https://www.walmart.com/orders', { waitUntil: 'networkidle' });
     if (isLoginWall(page.url())) throw new Error('Walmart session expired — re-run bootstrap-login.ts');
     const rows: RawHistoryRow[] = [];
+    let pagesRead = 0;
+    let stoppedCleanly = false;
     for (let i = 0; i < maxPages; i++) {
+      pagesRead++;
       // Selector mirrors the working extraction validated in Step 1 against the live DOM.
       const pageRows: RawHistoryRow[] = await page.evaluate(() => {
         const out: { orderId: string; date: string; total: string }[] = [];
@@ -63,14 +66,37 @@ export async function scrapeOrderHistory(sinceDate = '2026-01-01', maxPages = 40
       });
       rows.push(...pageRows);
       // History is newest-first: once this whole page is older than `sinceDate`, stop paginating.
+      // Only consider rows whose date actually parsed — an unparseable date must never look "old"
+      // (DS §6: silent truncation is disallowed).
       const pageOrders = toWalmartOrders(pageRows);
-      const pageMaxDate = pageOrders.reduce((mx, o) => (o.date > mx ? o.date : mx), '');
-      if (pageOrders.length > 0 && pageMaxDate < sinceDate) break;
+      const parsedDates = pageOrders.map((o) => o.date).filter((d) => d !== '');
+      if (pageRows.length > 0 && parsedDates.length === 0) {
+        console.warn(
+          `[order-history] page ${pagesRead} had ${pageRows.length} row(s) but 0 parseable dates — ` +
+            `selectors may need validation; continuing pagination instead of stopping silently.`,
+        );
+      } else if (parsedDates.length > 0) {
+        const pageMaxDate = parsedDates.reduce((mx, d) => (d > mx ? d : mx), '');
+        if (pageMaxDate < sinceDate) {
+          stoppedCleanly = true;
+          break;
+        }
+      }
       const next = page.locator('a[aria-label="Next page"], button[aria-label="Next page"]').first();
-      if (await next.count() === 0 || !(await next.isEnabled().catch(() => false))) break;
+      if (await next.count() === 0 || !(await next.isEnabled().catch(() => false))) {
+        stoppedCleanly = true;
+        break;
+      }
       await next.click();
       await page.waitForLoadState('networkidle');
     }
+    if (!stoppedCleanly) {
+      console.warn(
+        `[order-history] reached maxPages=${maxPages} without a clean date-based stop — ` +
+          `discovery may be incomplete (roster could be truncated).`,
+      );
+    }
+    console.log(`[order-history] read ${pagesRead} page(s) of order history.`);
     return toWalmartOrders(rows).filter((o) => o.date >= sinceDate);
   });
 }

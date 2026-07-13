@@ -19,4 +19,16 @@ describe('toWalmartOrders', () => {
     ];
     expect(toWalmartOrders(rows)).toHaveLength(1);
   });
+  it('parses a comma-thousands total into cents', () => {
+    const out = toWalmartOrders([
+      { orderId: '200013207850010', date: 'Jun 11, 2025', total: '$1,234.56' },
+    ]);
+    expect(out).toEqual([{ orderId: '200013207850010', date: '2025-06-11', totalCents: 123456 }]);
+  });
+  it('keeps a row with an unparseable date but emits date: "" (documents pagination-safe behavior)', () => {
+    const out = toWalmartOrders([
+      { orderId: '200013207850010', date: 'Sept 3, 2025', total: '$10.00' },
+    ]);
+    expect(out).toEqual([{ orderId: '200013207850010', date: '', totalCents: 1000 }]);
+  });
 });
