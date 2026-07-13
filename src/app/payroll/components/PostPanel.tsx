@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { AlertTriangle, Ban, CheckCircle2, Eye, Loader2, RefreshCw, ShieldCheck, XCircle, Zap } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/store.ts
@@ -412,10 +412,20 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
             {previewPayload && (
               <div className="space-y-2">
-                <p className={`text-xs ${subText}`}>
-                  Exact QuickBooks JournalEntry payload — <strong>{previewPayload.DocNumber}</strong> ·{' '}
-                  {previewPayload.TxnDate} · {previewPayload.Line.length} line(s). Read-only.
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className={`text-xs ${subText}`}>
+                    Exact QuickBooks JournalEntry payload — <strong>{previewPayload.DocNumber}</strong> ·{' '}
+                    {previewPayload.TxnDate} · {previewPayload.Line.length} line(s). Read-only.
+                  </p>
+                  <button
+                    onClick={() => setPreviewPayload(null)}
+                    aria-label="Close preview"
+                    title="Close preview"
+                    className={`p-1 rounded-md shrink-0 ${darkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                  >
+                    <X className="w-4 h-4" aria-hidden />
+                  </button>
+                </div>
                 <pre
                   className={`text-[11px] font-mono rounded-lg border p-3 overflow-x-auto max-h-80 overflow-y-auto ${
                     darkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
