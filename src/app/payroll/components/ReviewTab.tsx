@@ -11,6 +11,7 @@ import {
   Save,
   Search,
   Trash2,
+  X,
   XCircle,
 } from 'lucide-react';
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
@@ -327,16 +328,34 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         </p>
       </DirectionsBanner>
 
-      {/* Loaded-draft summary */}
-      <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-center gap-3`}>
-        {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
-        {header ? (
-          <div className="text-sm">
-            <span className="font-semibold">{header.entity}</span>
-            <span className={subText}> · {header.pay_date} · {header.pay_group}</span>
-          </div>
-        ) : (
-          <div className={`text-sm ${subText}`}>{loading ? 'Loading draft…' : 'Draft'}</div>
+      {/* Loaded-draft summary — what this JE is + who it pays. */}
+      <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-2`}>
+        <div className="flex flex-wrap items-center gap-3">
+          {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
+          {header ? (
+            <div className="text-sm">
+              <span className="font-semibold">{header.entity}</span>
+              <span className={subText}> · {header.pay_date} · {header.pay_group}</span>
+            </div>
+          ) : (
+            <div className={`text-sm ${subText}`}>{loading ? 'Loading draft…' : 'Draft'}</div>
+          )}
+          {roster.length > 0 && (
+            <span
+              className={`text-xs rounded-full border px-2 py-0.5 ${
+                darkMode ? 'border-slate-600 text-slate-300' : 'border-slate-300 text-slate-600'
+              }`}
+            >
+              {roster.length} {roster.length === 1 ? 'person' : 'people'} paid
+            </span>
+          )}
+        </div>
+        {header && roster.length > 0 && (
+          <p className={`text-xs ${subText}`}>
+            <span className="font-medium">Paying:</span>{' '}
+            {roster.slice(0, 12).map((p) => p.name).join(', ')}
+            {roster.length > 12 ? `, +${roster.length - 12} more` : ''}
+          </p>
         )}
       </div>
 
@@ -539,16 +558,29 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             {drilldown && (
               <div className={`rounded-lg border p-3 ${border} space-y-2`}>
                 {/* Person · Date · Type — lead with the person, not the employee ID. */}
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-sm font-semibold">{drilldown.name}</span>
-                  <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>
-                  <span
-                    className={`text-[11px] font-medium rounded-full border px-2 py-0.5 ${
-                      darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-                    }`}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-sm font-semibold">{drilldown.name}</span>
+                    <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>
+                    <span
+                      className={`text-[11px] font-medium rounded-full border px-2 py-0.5 ${
+                        darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {drilldown.pay_group}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDrilldown(null);
+                      setActiveRowKey(null);
+                    }}
+                    aria-label="Close source detail"
+                    title="Close"
+                    className={`p-1 rounded-md shrink-0 ${darkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}
                   >
-                    {drilldown.pay_group}
-                  </span>
+                    <X className="w-4 h-4" aria-hidden />
+                  </button>
                 </div>
                 {/* Amounts */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
