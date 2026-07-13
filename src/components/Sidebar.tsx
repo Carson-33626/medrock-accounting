@@ -27,6 +27,7 @@ const navigation = [
 // (User management lives in the central auth system.)
 const adminNavigation = [
   { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
+  { name: 'Payroll JE', href: '/payroll', icon: PayrollIcon },
   { name: 'QuickBooks', href: '/admin/quickbooks', icon: QuickBooksIcon },
 ];
 
@@ -468,6 +469,16 @@ function ClipboardIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  );
+}
+
+function PayrollIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18v12H3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9v.01M18 15v.01" />
     </svg>
   );
 }
