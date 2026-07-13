@@ -707,7 +707,9 @@ function ScrollingText({ text, className }: { text: string; className: string })
     const HOLD = 2000; // pause at each end (ms)
     const run = (): void => {
       clear();
-      const overflow = Math.ceil(span.scrollWidth - container.clientWidth);
+      // scrollWidth - clientWidth is the exact max scroll distance, correctly accounting for
+      // the field's padding (transforms don't affect layout, so this is stable mid-animation).
+      const overflow = Math.ceil(container.scrollWidth - container.clientWidth);
       if (overflow <= 1) {
         setStyle({ x: 0, dur: 0 });
         return;
