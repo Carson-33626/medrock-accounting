@@ -253,7 +253,10 @@ interface HeaderRow {
 
 function toHeader(r: HeaderRow): PayrollHeader {
   return {
-    id: r.id,
+    // `id` is a bigint — node-postgres returns bigint as a string. Coerce so every
+    // consumer (reconcile/approve/post routes require typeof headerId === 'number')
+    // gets a real number. IDs are far below Number.MAX_SAFE_INTEGER, so this is safe.
+    id: Number(r.id),
     entity: r.entity,
     pay_date: r.pay_date,
     pay_group: r.pay_group,
