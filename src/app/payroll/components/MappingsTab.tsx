@@ -54,6 +54,10 @@ interface ApiErrorBody {
 const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 
+function isEntity(value: string): value is Entity {
+  return (ENTITIES as string[]).includes(value);
+}
+
 let nextTempId = 0;
 function withKey<T>(rule: T): T & { _key: number } {
   return { ...rule, _key: nextTempId++ };
@@ -95,10 +99,17 @@ function stripKey<T extends { _key: number }>(rule: T): Omit<T, '_key'> {
  * Dropdowns are populated from live QuickBooks dimensions when reachable; if QuickBooks
  * is unreachable (502), editing falls back to free-text inputs rather than blocking.
  */
-export function MappingsTab() {
+interface MappingsTabProps {
+  /** Pre-select an entity, e.g. when arriving via Review tab's "Refine in Mappings" link. */
+  initialEntity?: string;
+}
+
+export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
   const { darkMode } = useDarkMode();
 
-  const [entity, setEntity] = useState<Entity>('MedRock FL');
+  const [entity, setEntity] = useState<Entity>(
+    initialEntity && isEntity(initialEntity) ? initialEntity : 'MedRock FL',
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

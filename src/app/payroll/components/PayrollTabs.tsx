@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { RunsTab } from './RunsTab';
 import { ReviewTab } from './ReviewTab';
@@ -19,6 +19,14 @@ const TABS: Array<{ key: TabKey; label: string }> = [
 export function PayrollTabs() {
   const { darkMode } = useDarkMode();
   const [tab, setTab] = useState<TabKey>('runs');
+  const [mappingsEntity, setMappingsEntity] = useState<string | undefined>(undefined);
+
+  // "Refine in Mappings →" from the Review tab's unmapped-columns panel: jump to the full
+  // Mappings tab, pre-selecting the run's entity so the accountant isn't re-picking it.
+  const handleNavigateToMappings = useCallback((entity: string) => {
+    setMappingsEntity(entity);
+    setTab('mappings');
+  }, []);
 
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
@@ -55,11 +63,11 @@ export function PayrollTabs() {
         {tab === 'runs' && <RunsTab />}
         {tab === 'review' && (
           <div className="space-y-6">
-            <ReviewTab />
+            <ReviewTab onNavigateToMappings={handleNavigateToMappings} />
             <PostPanel />
           </div>
         )}
-        {tab === 'mappings' && <MappingsTab />}
+        {tab === 'mappings' && <MappingsTab initialEntity={mappingsEntity} />}
       </div>
     </div>
   );

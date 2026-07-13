@@ -14,6 +14,7 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
+import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -111,8 +112,13 @@ function stripKey(line: JournalLine & { _key: number }): JournalLine {
   return rest;
 }
 
+interface ReviewTabProps {
+  /** Switches PayrollTabs to the Mappings tab (optionally pre-selecting an entity). */
+  onNavigateToMappings?: (entity: string) => void;
+}
+
 /** Review tab: load a draft by header id, edit its lines with a live client-side balance, reconcile, and drill into source detail. */
-export function ReviewTab() {
+export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   const { darkMode } = useDarkMode();
 
   const [draftIdInput, setDraftIdInput] = useState<string>('');
@@ -137,27 +143,59 @@ export function ReviewTab() {
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
   const inputBg = darkMode ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-300 text-slate-900';
 
-  const loadDraft = useCallback(async (id: number) => {
-    setLoading(true);
+  // Shared by the manual "Reconcile" button and the automatic post-load reconcile below, so
+  // unmapped columns (and the "New columns detected" panel) surface as soon as a run is loaded
+  // rather than only after the accountant clicks Reconcile.
+  const runReconcile = useCallback(async (id: number) => {
+    setReconciling(true);
     setError(null);
-    setReconcileResult(null);
     try {
-      const res = await fetch(`/api/payroll/run/${id}`);
-      const body = (await res.json()) as DraftResponse & ApiErrorBody;
+      const res = await fetch('/api/payroll/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headerId: id }),
+      });
+      const body = (await res.json()) as ReconcileResult & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
-      setHeader(body.header);
-      setLines(body.lines.map(withKey));
-      setHeaderId(id);
+      setReconcileResult(body);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to load draft';
+      const message = e instanceof Error ? e.message : 'Failed to reconcile draft';
       setError(message);
-      setHeader(null);
-      setLines([]);
-      setHeaderId(null);
+      setReconcileResult(null);
     } finally {
-      setLoading(false);
+      setReconciling(false);
     }
   }, []);
+
+  const loadDraft = useCallback(
+    async (id: number) => {
+      setLoading(true);
+      setError(null);
+      setReconcileResult(null);
+      let loadedId: number | null = null;
+      try {
+        const res = await fetch(`/api/payroll/run/${id}`);
+        const body = (await res.json()) as DraftResponse & ApiErrorBody;
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        setHeader(body.header);
+        setLines(body.lines.map(withKey));
+        setHeaderId(id);
+        loadedId = id;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to load draft';
+        setError(message);
+        setHeader(null);
+        setLines([]);
+        setHeaderId(null);
+      } finally {
+        setLoading(false);
+      }
+      if (loadedId !== null) {
+        await runReconcile(loadedId);
+      }
+    },
+    [runReconcile],
+  );
 
   const handleLoadClick = useCallback(() => {
     const id = Number(draftIdInput);
@@ -220,27 +258,10 @@ export function ReviewTab() {
     }
   }, [headerId, lines]);
 
-  const handleReconcile = useCallback(async () => {
+  const handleReconcile = useCallback(() => {
     if (headerId === null) return;
-    setReconciling(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/payroll/reconcile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headerId }),
-      });
-      const body = (await res.json()) as ReconcileResult & ApiErrorBody;
-      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
-      setReconcileResult(body);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to reconcile draft';
-      setError(message);
-      setReconcileResult(null);
-    } finally {
-      setReconciling(false);
-    }
-  }, [headerId]);
+    void runReconcile(headerId);
+  }, [headerId, runReconcile]);
 
   const handleDrilldown = useCallback(async () => {
     const rowKey = rowKeyInput.trim();
@@ -311,6 +332,22 @@ export function ReviewTab() {
 
       {header && (
         <>
+          {/* New columns detected — inline mapper worklist, resets per draft via `key`. */}
+          <UnmappedColumnsPanel
+            key={headerId ?? 'none'}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            subText={subText}
+            border={border}
+            inputBg={inputBg}
+            entity={header.entity}
+            unmappedColumns={reconcileResult?.unmappedColumns ?? []}
+            onMapped={() => {
+              if (headerId !== null) void runReconcile(headerId);
+            }}
+            onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
+          />
+
           {/* Live balance banner */}
           <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-center gap-4`}>
             <div>
@@ -346,7 +383,7 @@ export function ReviewTab() {
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button
-                onClick={() => void handleReconcile()}
+                onClick={handleReconcile}
                 disabled={reconciling}
                 className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
