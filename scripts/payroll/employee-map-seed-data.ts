@@ -156,8 +156,25 @@ export async function buildMarketerEmployeeMap(): Promise<EmployeeMapRule[]> {
     const hit = resolveMarket(row.name, repMarket);
     if (!hit) {
       // No territory_mapping entry for this name at all -- e.g. Luke Lockwood (offboarded, no
-      // territory): correctly produces NO employee-map row, his marketing wage stays un-split.
+      // territory). Still recorded as a diagnostic (lastUnmatchedMarketers) so someone can see who
+      // defaulted, but per Carson's decision (2026-07-13) this now emits a '% Allocation' Department
+      // employee-map row rather than being dropped -- this matches Amy's actual treatment, who folds
+      // every marketer she can't tie to a live territory into the inter-entity '% Allocation'
+      // catch-all Department rather than leaving the wage un-split. This default is overridable: the
+      // Mappings employee-map editor / Review marketer worklist in the UI lets someone reassign a
+      // real region once a territory is known.
+      // Tradeoff: a brand-new marketer not yet present in territory-snapshot.json will silently
+      // default to '% Allocation' until reassigned -- this is exactly why the UI must surface the
+      // lastUnmatchedMarketers diagnostic list for review rather than treating it as a dead end.
       lastUnmatchedMarketers.push({ payGroup: row.pay_group, name: row.name, sui: row.sui_sdi_tax_code ?? '?' });
+      rules.push({
+        entity,
+        positionId: row.position_id,
+        departmentName: '% Allocation',
+        className: null,
+        cogsOverride: null,
+        active: true,
+      });
       continue;
     }
 
