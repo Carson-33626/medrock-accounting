@@ -99,6 +99,17 @@ const fmtMoney = (n: number): string => usd.format(n);
 
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 
+/**
+ * Drill-down source values are raw ADP numbers that carry floating-point tails
+ * (12.639999999999999). Round to 4 dp then strip trailing zeros — kills the noise on
+ * dollars (→ 12.64) while preserving genuine sub-cent precision on hours (0.0901, -0.0033).
+ */
+function fmtDetailValue(v: number | string | null): string {
+  if (v === null) return '—';
+  if (typeof v === 'number') return String(Number(v.toFixed(4)));
+  return v;
+}
+
 let nextTempId = 0;
 function withKey(line: JournalLine): JournalLine & { _key: number } {
   return { ...line, _key: nextTempId++ };
@@ -587,7 +598,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                   {Object.entries(drilldown.sensitive).map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-2 border-b border-dashed pb-0.5 last:border-0">
                       <span className={subText}>{k}</span>
-                      <span className="tabular-nums font-medium">{v === null ? '—' : String(v)}</span>
+                      <span className="tabular-nums font-medium">{fmtDetailValue(v)}</span>
                     </div>
                   ))}
                 </div>
