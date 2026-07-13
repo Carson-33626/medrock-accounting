@@ -36,6 +36,7 @@ import { entityForPayGroup, POSTABLE_ENTITIES } from '../../src/lib/payroll/enti
 import { buildJournal } from '../../src/lib/payroll/build-je';
 import { reconcile } from '../../src/lib/payroll/reconcile';
 import { buildSeedAccountMap } from './account-map-seed-data';
+import { buildMarketerEmployeeMap } from './employee-map-seed-data';
 
 const PAY_DATE_ISO = '2026-03-27';
 const PAY_DATE_DISPLAY = '03/27/2026';
@@ -88,6 +89,8 @@ interface AmyTotals {
   credits: number;
   byAccount: Map<string, { debit: number; credit: number }>;
   marketingDepartments: Set<string>;
+  /** Net (debit - credit) $ per QB Department, for lines whose account/memo mentions "marketing" only. */
+  marketingByDept: Map<string, number>;
 }
 
 async function fetchAmyTotals(
@@ -101,6 +104,7 @@ async function fetchAmyTotals(
     credits: 0,
     byAccount: new Map(),
     marketingDepartments: new Set(),
+    marketingByDept: new Map(),
   };
 
   let candidates: QbJournalEntry[] = [];
@@ -131,6 +135,7 @@ async function fetchAmyTotals(
 
   const byAccount = new Map<string, { debit: number; credit: number }>();
   const marketingDepartments = new Set<string>();
+  const marketingByDept = new Map<string, number>();
   let debits = 0;
   let credits = 0;
   for (const line of je.Line ?? []) {
@@ -143,10 +148,14 @@ async function fetchAmyTotals(
     else { entry.credit += amt; credits += amt; }
     byAccount.set(acct, entry);
 
-    if (/marketing/i.test(acct) && d.DepartmentRef?.name) marketingDepartments.add(d.DepartmentRef.name);
+    if (/marketing/i.test(acct)) {
+      const dept = d.DepartmentRef?.name ?? '(no dept)';
+      marketingByDept.set(dept, (marketingByDept.get(dept) ?? 0) + (d.PostingType === 'Debit' ? amt : -amt));
+      if (d.DepartmentRef?.name) marketingDepartments.add(d.DepartmentRef.name);
+    }
   }
 
-  return { found: true, matchedBy, debits, credits, byAccount, marketingDepartments };
+  return { found: true, matchedBy, debits, credits, byAccount, marketingDepartments, marketingByDept };
 }
 
 function fmt(n: number): string {
@@ -174,6 +183,12 @@ async function main(): Promise<void> {
   const allRows: PayrollRow[] = await source.fetchRange(PAY_DATE_ISO, PAY_DATE_ISO);
   console.log(`\nFetched ${allRows.length} total payroll_history rows for ${PAY_DATE_DISPLAY} (all entities/pay-groups).`);
 
+  // Marketer -> region (Department/Class) overlay, derived from the territory-mapping snapshot.
+  // Covers all 3 entities; filtered per-entity below before being passed into buildJournal (same
+  // shape as the entity-scoped accountMap).
+  const fullEmployeeMap: EmployeeMapRule[] = await buildMarketerEmployeeMap();
+  console.log(`\nMarketer employee-map: ${fullEmployeeMap.length} rule(s) derived across FL/TN/TX.`);
+
   for (const entity of POSTABLE_ENTITIES) {
     console.log(`\n\n================ ${entity} — ${PAY_DATE_DISPLAY} ================`);
 
@@ -184,7 +199,7 @@ async function main(): Promise<void> {
     }
 
     const accountMap: AccountMapRule[] = buildSeedAccountMap(entity);
-    const employeeMap: EmployeeMapRule[] = [];
+    const employeeMap: EmployeeMapRule[] = fullEmployeeMap.filter((e) => e.entity === entity);
 
     const built = buildJournal(rows, accountMap, employeeMap);
     const draft: JournalDraft | undefined = built.drafts.find((d) => d.entity === entity);
@@ -242,6 +257,7 @@ async function main(): Promise<void> {
         credits: 0,
         byAccount: new Map(),
         marketingDepartments: new Set(),
+        marketingByDept: new Map(),
       };
     }
 
@@ -283,9 +299,48 @@ async function main(): Promise<void> {
       console.log(`  ${r.acct.slice(0, 55).padEnd(55)} ${fmt(r.ourNet).padStart(14)} ${fmt(r.amyNet).padStart(14)} ${fmt(r.delta).padStart(14)}  ${match}`);
     }
 
+    // ---- Marketing-by-region comparison: our region-split (via the marketer employee-map) vs
+    // Amy's actual per-Department marketing-wage lines from PR 2026.03.27 (probe-marketing-
+    // departments.ts pattern — match on DepartmentRef name). ----
+    const MARKETING_ACCOUNT = 'Payroll Expense -:Marketing Wages - Base';
+    const ourMarketingByDept = new Map<string, number>();
+    for (const line of draft.lines) {
+      if (line.accountName !== MARKETING_ACCOUNT) continue;
+      const dept = line.departmentName ?? '(unassigned)';
+      const signed = line.postingType === 'Debit' ? line.amount : -line.amount;
+      ourMarketingByDept.set(dept, round2((ourMarketingByDept.get(dept) ?? 0) + signed));
+    }
+    const allMarketingDepts = new Set<string>([...ourMarketingByDept.keys(), ...amy.marketingByDept.keys()]);
+    const marketingCmp = [...allMarketingDepts]
+      .map((dept) => {
+        const ours = ourMarketingByDept.get(dept) ?? 0;
+        const theirs = round2(amy.marketingByDept.get(dept) ?? 0);
+        return { dept, ours, theirs, delta: round2(ours - theirs) };
+      })
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+    const ourMarketingAcct = ourByAccount.get(MARKETING_ACCOUNT) ?? { debit: 0, credit: 0 };
+    const amyMarketingAcct = amy.byAccount.get(MARKETING_ACCOUNT) ?? { debit: 0, credit: 0 };
+    const ourMarketingAggTotal = round2(ourMarketingAcct.debit - ourMarketingAcct.credit);
+    const amyMarketingAggTotal = round2(amyMarketingAcct.debit - amyMarketingAcct.credit);
+    const marketingDeltaBeforeSplit = round2(ourMarketingAggTotal - amyMarketingAggTotal);
+    const marketingDeltaAfterSplit = round2(marketingCmp.reduce((s, r) => s + Math.abs(r.delta), 0));
+
+    console.log(`\n  MARKETING-BY-REGION (ours region-split via employee-map vs Amy's per-Department marketing lines):`);
+    console.log(`  ${'region'.padEnd(28)} ${'ours'.padStart(14)} ${'amy'.padStart(14)} ${'delta'.padStart(14)}  match`);
+    for (const r of marketingCmp) {
+      const match = Math.abs(r.delta) < 1 ? 'OK' : 'MISMATCH';
+      console.log(`  ${r.dept.slice(0, 28).padEnd(28)} ${fmt(r.ours).padStart(14)} ${fmt(r.theirs).padStart(14)} ${fmt(r.delta).padStart(14)}  ${match}`);
+    }
     console.log(
-      `\n  MARKETING: booked ${fmt(ourMarketingTotal)} to 'Payroll Expense -:Marketing Wages - Base' (un-split) ` +
-      `vs Amy used ${amy.marketingDepartments.size} distinct Department line(s) for marketing wages.`,
+      `\n  MARKETING TOTAL DELTA — before region-split (aggregate-account level, ours ${fmt(ourMarketingAggTotal)} vs Amy ${fmt(amyMarketingAggTotal)}): ${fmt(marketingDeltaBeforeSplit)}`,
+    );
+    console.log(
+      `  MARKETING TOTAL DELTA — after region-split (sum of |per-region delta| across ${marketingCmp.length} region row(s)): ${fmt(marketingDeltaAfterSplit)}`,
+    );
+    console.log(
+      `  (booked ${fmt(ourMarketingTotal)} to '${MARKETING_ACCOUNT}' now split across ${ourMarketingByDept.size} region(s) ` +
+      `vs Amy's ${amy.marketingDepartments.size} distinct Department line(s) for marketing wages)`,
     );
   }
 
