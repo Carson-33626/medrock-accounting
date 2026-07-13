@@ -1,0 +1,17 @@
+Invoice
+Jun 11, 2025 order
+Order# 2000132-07850010
+Seller
+American Hospital Supply LLC
+Buyer
+MEDROCK PHARMACY
+12540 Race Track Rd, Westchase, FL 33626
+American Hospital Supply Powder-Free Nitrile Medical Gloves Medium Case of 1000 Qty 3 $209.97
+Weiman Stainless Steel Cleaner & Polish Spray for Kitchen and Home Appliances,12 oz, Floral Scent Qty 2 $9.44
+Bowl Fresh Automatic Toilet Bowl Cleaner and Freshener with Borax, 2 Pack Qty 4 $5.12
+Subtotal $224.53
+Free delivery from store $9.95 $0
+Tax $16.84
+Driver tip $4.00
+Total $245.37
+Order# 2000132-07850010
