@@ -75,6 +75,7 @@ interface DrilldownResponse {
   position_id: string;
   name: string;
   pay_date: string;
+  pay_group: string;
   sensitive: Record<string, number | string | null>;
 }
 
@@ -396,6 +397,11 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           </div>
 
           {/* Line editor */}
+          <p className={`text-xs ${subText}`}>
+            Fields marked <span className="text-red-500 font-semibold">*</span> are required to post — a line
+            highlighted <span className="text-red-500 font-semibold">red</span> is missing an account or a positive amount.
+          </p>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <LineGroup
               title="Debits"
@@ -490,9 +496,19 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             )}
             {drilldown && (
               <div className={`rounded-lg border p-3 ${border} space-y-2`}>
-                <p className="text-sm font-semibold">
-                  {drilldown.name} <span className={`font-normal ${subText}`}>· position {drilldown.position_id} · pay date {drilldown.pay_date}</span>
-                </p>
+                {/* Person · Date · Type — lead with the person, not the employee ID. */}
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="text-sm font-semibold">{drilldown.name}</span>
+                  <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>
+                  <span
+                    className={`text-[11px] font-medium rounded-full border px-2 py-0.5 ${
+                      darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {drilldown.pay_group}
+                  </span>
+                </div>
+                {/* Amounts */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                   {Object.entries(drilldown.sensitive).map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-2 border-b border-dashed pb-0.5 last:border-0">
@@ -600,18 +616,30 @@ function LineRow({
   onRemove: (key: number) => void;
 }) {
   const editable = line.origin !== 'generated';
+  // Fields QuickBooks requires for a successful post: an account and a positive amount.
+  const accountMissing = line.accountName.trim() === '';
+  const amountMissing = !(Number(line.amount) > 0);
+  const reqRing = 'border-red-500 ring-1 ring-red-500';
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
       <div className="flex items-start gap-2">
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input
-            type="text"
-            value={line.accountName}
-            onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
-            placeholder="Account"
-            disabled={!editable}
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg} disabled:opacity-70`}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={line.accountName}
+              onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
+              placeholder="Account"
+              disabled={!editable}
+              className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm ${inputBg} disabled:opacity-70 ${accountMissing ? reqRing : ''}`}
+            />
+            <span
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-sm pointer-events-none"
+              title="Required to post"
+            >
+              *
+            </span>
+          </div>
           <input
             type="text"
             value={line.memo}
@@ -646,13 +674,13 @@ function LineRow({
 
       <div className="flex flex-wrap items-center gap-2">
         <label className={`text-xs ${subText} flex items-center gap-1`}>
-          Amount
+          Amount <span className="text-red-500" title="Required to post">*</span>
           <input
             type="number"
             step="0.01"
             value={line.amount}
             onChange={(e) => onUpdate(line._key, { amount: Number(e.target.value) })}
-            className={`w-28 rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg}`}
+            className={`w-28 rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg} ${amountMissing ? reqRing : ''}`}
           />
         </label>
 
