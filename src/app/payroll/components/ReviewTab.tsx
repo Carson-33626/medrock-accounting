@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
+import { MarketerReviewPanel } from './MarketerReviewPanel';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -346,6 +347,21 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
               if (headerId !== null) void runReconcile(headerId);
             }}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
+          />
+
+          {/* Marketers needing region review — inline reassignment worklist, resets per draft via `key`. */}
+          <MarketerReviewPanel
+            key={headerId ?? 'none'}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            subText={subText}
+            border={border}
+            inputBg={inputBg}
+            entity={header.entity}
+            headerId={headerId}
+            onReassigned={() => {
+              if (headerId !== null) void runReconcile(headerId);
+            }}
           />
 
           {/* Live balance banner */}
