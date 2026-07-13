@@ -49,8 +49,13 @@ interface UnmappedColumnsPanelProps {
   inputBg: string;
   /** header.entity from the loaded run — validated at runtime against the Entity union. */
   entity: string;
-  /** From the run's latest reconcile result (built-je's unmappedColumns, surfaced verbatim). */
-  unmappedColumns: string[];
+  /**
+   * From the run's latest reconcile result (built-je's unmappedColumns, surfaced verbatim).
+   * `null` means the reconcile state is UNKNOWN — no reconcile has completed yet, the last
+   * one failed, or an unrelated JE-line Save invalidated it. `null` must never be treated as
+   * "confirmed zero unmapped" — that would render a false all-clear.
+   */
+  unmappedColumns: string[] | null;
   /** Called after a rule saves successfully so the caller can re-run reconcile for this draft. */
   onMapped: () => void;
   /** Called when the accountant wants the full Mappings tab (e.g. an employer double-entry column). */
@@ -72,6 +77,12 @@ interface UnmappedColumnsPanelProps {
  * they've all been resolved in this session, so the accountant gets visible confirmation rather
  * than the panel just vanishing. Give it `key={headerId}` from the caller so it resets cleanly
  * when a different draft loads.
+ *
+ * `unmappedColumns` is `string[] | null` — `null` means the reconcile state is unknown (no
+ * reconcile has completed yet, the last one failed, or an unrelated JE-line Save invalidated
+ * the prior result). The panel renders nothing while `null`; it must never show the green
+ * "all caught up" done state in that case, since that would be a false all-clear (columns may
+ * still be unmapped and nothing was actually confirmed).
  */
 export function UnmappedColumnsPanel({
   darkMode,
@@ -90,11 +101,13 @@ export function UnmappedColumnsPanel({
   const [dimensionsError, setDimensionsError] = useState<string | null>(null);
   const [dimensionsLoading, setDimensionsLoading] = useState(false);
   const [resolved, setResolved] = useState<Set<string>>(new Set());
-  const [everHadColumns, setEverHadColumns] = useState(unmappedColumns.length > 0);
+  // Seeded/updated only from a CONFIRMED (non-null) reading — an unknown reconcile state
+  // (null) must never flip this to "had zero" or otherwise affect it.
+  const [everHadColumns, setEverHadColumns] = useState(unmappedColumns !== null && unmappedColumns.length > 0);
 
   useEffect(() => {
-    if (unmappedColumns.length > 0) setEverHadColumns(true);
-  }, [unmappedColumns.length]);
+    if (unmappedColumns !== null && unmappedColumns.length > 0) setEverHadColumns(true);
+  }, [unmappedColumns]);
 
   useEffect(() => {
     if (!validEntity) return;
@@ -123,7 +136,10 @@ export function UnmappedColumnsPanel({
     };
   }, [validEntity]);
 
-  const visibleColumns = useMemo(() => unmappedColumns.filter((c) => !resolved.has(c)), [unmappedColumns, resolved]);
+  const visibleColumns = useMemo(
+    () => (unmappedColumns ?? []).filter((c) => !resolved.has(c)),
+    [unmappedColumns, resolved],
+  );
 
   const handleResolved = useCallback(
     (adpColumn: string) => {
@@ -133,6 +149,8 @@ export function UnmappedColumnsPanel({
     [onMapped],
   );
 
+  // Unknown reconcile state — never render the done state (or anything) from a null reading.
+  if (unmappedColumns === null) return null;
   if (!everHadColumns) return null;
 
   const allDone = visibleColumns.length === 0;
@@ -187,6 +205,7 @@ export function UnmappedColumnsPanel({
                 entity={validEntity}
                 adpColumn={col}
                 accountOptions={dimensions?.accounts ?? null}
+                dimensionsLoading={dimensionsLoading}
                 onSaved={() => handleResolved(col)}
                 onNavigateToMappings={() => onNavigateToMappings(entity)}
               />
@@ -206,6 +225,7 @@ function UnmappedColumnRow({
   entity,
   adpColumn,
   accountOptions,
+  dimensionsLoading,
   onSaved,
   onNavigateToMappings,
 }: {
@@ -216,6 +236,7 @@ function UnmappedColumnRow({
   entity: Entity | null;
   adpColumn: string;
   accountOptions: string[] | null;
+  dimensionsLoading: boolean;
   onSaved: () => void;
   onNavigateToMappings: () => void;
 }) {
@@ -282,7 +303,16 @@ function UnmappedColumnRow({
           className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
         />
 
-        {accountOptions ? (
+        {dimensionsLoading ? (
+          <input
+            type="text"
+            disabled
+            value=""
+            placeholder="Loading accounts…"
+            title="Waiting on QuickBooks accounts"
+            className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
+          />
+        ) : accountOptions ? (
           <select
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}

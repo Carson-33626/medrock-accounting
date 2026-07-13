@@ -341,7 +341,7 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
             border={border}
             inputBg={inputBg}
             entity={header.entity}
-            unmappedColumns={reconcileResult?.unmappedColumns ?? []}
+            unmappedColumns={reconcileResult ? reconcileResult.unmappedColumns : null}
             onMapped={() => {
               if (headerId !== null) void runReconcile(headerId);
             }}
