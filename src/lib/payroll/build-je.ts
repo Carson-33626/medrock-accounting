@@ -3,6 +3,19 @@ import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
 
 const isTaxableBase = (col: string): boolean => /TAXABLE\s*$/.test(col.trim());
+
+/**
+ * ADP report aggregate / reference columns that are never posted to the general ledger:
+ * hours, subtotals ("… - TOTAL"), grand totals ("TOTAL …"), and the GROSS PAY / RATE AMOUNT
+ * reference figures. They carry no account-map rule by design — mapping them would
+ * double-count the real earning/tax/deduction columns they summarize. Suppressing them keeps
+ * the "new columns detected" worklist to genuinely unmapped columns AND lets a run be postable
+ * (reconcile requires zero unmapped columns). Applied only to columns that DON'T resolve to a
+ * rule, so an explicit account-map rule always still wins.
+ */
+const isReportAggregateColumn = (col: string): boolean =>
+  /\bHOURS\b|-\s*TOTAL\s*$|^TOTAL\b|^GROSS PAY$|^RATE AMOUNT$/.test(col.trim());
+
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
@@ -55,7 +68,12 @@ export function buildJournal(
       if (typeof val !== 'number' || val === 0) continue;
       if (isTaxableBase(col)) continue;
       const res = resolveLine(row, col, acctFor(ent), empFor(ent));
-      if ('unmapped' in res) { unmappedColumns.add(col); continue; }
+      if ('unmapped' in res) {
+        // Only flag genuinely-unmapped columns; ADP report aggregates/hours/reference
+        // figures aren't postable and must not pollute the worklist or block posting.
+        if (!isReportAggregateColumn(col)) unmappedColumns.add(col);
+        continue;
+      }
       for (const t of res.targets) {
         const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? ''].join('¦');
         let b = g.buckets.get(bkey);

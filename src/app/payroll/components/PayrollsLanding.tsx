@@ -87,7 +87,9 @@ interface PayrollsLandingProps {
 export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   const { darkMode } = useDarkMode();
 
-  const [periods, setPeriods] = useState(2);
+  // Show several recent pay dates by default: off-cycle 1-person "Anytime"/bonus runs create
+  // extra pay dates, so a window of 2 would bury the real bi-weekly payroll behind "Show more".
+  const [periods, setPeriods] = useState(6);
   const [headers, setHeaders] = useState<PayrollHeader[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +138,8 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
           review its lines, fix any unmapped items, and post it to QuickBooks.
         </p>
         <p>
-          The two most recent pay periods load automatically. Need an older or brand-new period? Use{' '}
+          Recent pay periods load automatically — including small off-cycle runs (a bonus or a one-off
+          &ldquo;Anytime&rdquo; payment show up as their own 1-person card). Need an older or brand-new period? Use{' '}
           <strong>Import a pay period</strong> below to pull it from ADP.
         </p>
       </DirectionsBanner>

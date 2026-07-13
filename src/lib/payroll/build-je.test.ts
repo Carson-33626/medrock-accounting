@@ -29,6 +29,41 @@ describe('buildJournal', () => {
     expect(d.totalCredits).toBe(1200);
     expect(unmappedColumns).not.toContain('MEDICARE - EE TAXABLE'); // taxable bases excluded
   });
+  it('does not flag ADP report aggregates (hours/totals/gross/rate) as unmapped columns', () => {
+    // These carry no account-map rule by design — they summarize columns already mapped.
+    // They must not pollute the "new columns detected" worklist (reconcile requires zero
+    // unmapped columns to be postable), while a real unmapped column IS still surfaced.
+    const rows = [
+      baseRow({
+        sensitive: {
+          'REGULAR PAY - EARNING': 1000, // mapped
+          'NET PAY': 800, // mapped
+          'GROSS PAY': 1000, // aggregate → ignore
+          'RATE AMOUNT': 25, // reference → ignore
+          'REGULAR PAY - HOURS': 40, // hours → ignore
+          'TOTAL EARNINGS': 1000, // aggregate → ignore
+          'FEDERAL TAX - TOTAL': 100, // subtotal → ignore
+          'TOTAL TAXES - EE': 60, // aggregate → ignore
+          "WORKERS' COMPENSATION INSURANCE - TOTAL": 5, // subtotal → ignore
+          'COMPANY LOAN - EE - PRINCIPAL POST-TAX': 50, // genuinely unmapped → surface
+        },
+      }),
+    ];
+    const { unmappedColumns } = buildJournal(rows, accountMap, empMap);
+    expect(unmappedColumns).toContain('COMPANY LOAN - EE - PRINCIPAL POST-TAX');
+    for (const agg of [
+      'GROSS PAY',
+      'RATE AMOUNT',
+      'REGULAR PAY - HOURS',
+      'TOTAL EARNINGS',
+      'FEDERAL TAX - TOTAL',
+      'TOTAL TAXES - EE',
+      "WORKERS' COMPENSATION INSURANCE - TOTAL",
+    ]) {
+      expect(unmappedColumns).not.toContain(agg);
+    }
+  });
+
   it('excludes FOCS rows from drafts', () => {
     const rows = [baseRow({ pay_group: 'FOCS' })];
     const { drafts, excluded } = buildJournal(rows, accountMap, empMap);
