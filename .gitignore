@@ -46,5 +46,8 @@ scripts/ramp-split-push/out/
 # amazon-enrich preview/live output (contains cardholder PII)
 scripts/amazon-enrich/out/
 
+# walmart-enrich persisted login session (auth cookies — never commit)
+scripts/walmart-enrich/.wm-session/
+
 .vercel
 .env*
