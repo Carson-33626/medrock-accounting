@@ -5,7 +5,7 @@ import type { ParsedReceipt, ParsedItem } from './receipt-parser';
 import type { OcrData } from './client';
 
 const EMPTY: ParsedReceipt = {
-  layout: null, source: 'ocr', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, parsedTotalCents: 0,
+  layout: null, source: 'ocr', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: 0,
 };
 
 export function parseOcr(ocr: OcrData | null): ParsedReceipt {
@@ -23,5 +23,5 @@ export function parseOcr(ocr: OcrData | null): ParsedReceipt {
   const taxCents = (ocr.taxes ?? []).reduce((a, t) => a + (t.tax_amount != null ? Math.round(t.tax_amount * 100) : 0), 0);
   const sum = items.reduce((a, b) => a + b.amountCents, 0) + taxCents;
   // OCR carries no shipping field; a shipping charge (if any) shows up as its own line item.
-  return { layout: 'OCR', source: 'ocr', order: null, glHint: null, items, taxCents, shippingCents: 0, parsedTotalCents: sum };
+  return { layout: 'OCR', source: 'ocr', order: null, glHint: null, items, taxCents, shippingCents: 0, tipCents: 0, parsedTotalCents: sum };
 }

@@ -11,13 +11,14 @@ export interface ParsedItem {
   amountCents: number; // pre-tax line amount
 }
 export interface ParsedReceipt {
-  layout: 'A' | 'B' | 'OCR' | null;
-  source: 'ocr' | 'pdf' | null; // which engine produced this
+  layout: 'A' | 'B' | 'OCR' | 'WMT' | null;
+  source: 'ocr' | 'pdf' | 'walmart' | null; // which engine produced this
   order: string | null;
   glHint: string | null; // "GL code: X" embedded on the receipt (order-level hint)
   items: ParsedItem[];
   taxCents: number;
   shippingCents: number;
+  tipCents: number; // driver tip etc. — distributed like tax; 0 for Amazon
   parsedTotalCents: number; // Σ item + tax + shipping
 }
 
@@ -70,7 +71,7 @@ function parseA(lines: string[]): ParsedReceipt | null {
   }
   if (items.length === 0) return null;
   const sum = items.reduce((a, b) => a + b.amountCents, 0) + taxCents + shippingCents;
-  return { layout: 'A', source: 'pdf', order, glHint: findGlHint(lines), items, taxCents, shippingCents, parsedTotalCents: sum };
+  return { layout: 'A', source: 'pdf', order, glHint: findGlHint(lines), items, taxCents, shippingCents, tipCents: 0, parsedTotalCents: sum };
 }
 
 // ---- Layout B: Amazon order-detail PDF ----
@@ -127,13 +128,13 @@ function parseB(lines: string[]): ParsedReceipt | null {
   const taxCents = grab(/^(?:Sales Tax|Estimated Tax|Tax):\s*\$([\d,]+\.\d{2})/i);
   const shippingCents = grab(/^Shipping & Handling:\s*\$([\d,]+\.\d{2})/i);
   const sum = items.reduce((a, b) => a + b.amountCents, 0) + taxCents + shippingCents;
-  return { layout: 'B', source: 'pdf', order, glHint: findGlHint(lines), items, taxCents, shippingCents, parsedTotalCents: sum };
+  return { layout: 'B', source: 'pdf', order, glHint: findGlHint(lines), items, taxCents, shippingCents, tipCents: 0, parsedTotalCents: sum };
 }
 
 export async function parseReceiptPdf(bytes: Buffer): Promise<ParsedReceipt> {
   const parsed = await pdfParse(bytes);
   const lines = String(parsed.text ?? '').split('\n');
   return parseA(lines) ?? parseB(lines) ?? {
-    layout: null, source: 'pdf', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, parsedTotalCents: 0,
+    layout: null, source: 'pdf', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: 0,
   };
 }

@@ -11,19 +11,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   rampToken, getEligibleAmazonTxns, getReceipt, downloadReceipt, patchSplit,
 } from './client';
-import type { EligibleTxn, PatchLine, ReceiptMeta } from './client';
+import type { EligibleTxn, ReceiptMeta } from './client';
 import { parseReceiptPdf } from './receipt-parser';
 import type { ParsedReceipt } from './receipt-parser';
 import { parseOcr } from './ocr-parser';
-import { classify } from './classifier';
-import { buildGlIndex, resolveGl } from './gl-resolve';
-import type { GlIndex } from './gl-resolve';
+import { buildGlIndex } from './gl-resolve';
+import { buildSplit } from './split';
 import { isBasketMerchant, matchBasketMerchant } from './basket-merchants';
 import type { Entity } from '../ramp-split-push/types';
 
 const SCOPES_READ = 'transactions:read receipts:read accounting:read';
 const SCOPES_WRITE = 'transactions:read transactions:write receipts:read accounting:read';
-const CONF_THRESHOLD = 0.8;
 const CACHE = 'scripts/amazon-enrich/.receipts_cache';
 const OUT = 'scripts/amazon-enrich/out';
 
@@ -66,45 +64,8 @@ async function cachedPdf(rid: string, url: string): Promise<Buffer | null> {
 }
 
 const EMPTY_PDF: ParsedReceipt = {
-  layout: null, source: 'pdf', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, parsedTotalCents: 0,
+  layout: null, source: 'pdf', order: null, glHint: null, items: [], taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: 0,
 };
-
-interface SplitLine extends PatchLine { desc: string; glName: string | null; confidence: number; coded: boolean }
-interface BuiltSplit { lines: SplitLine[]; codedCount: number; suspenseCount: number }
-
-// Distribute tax+shipping across item lines proportionally, absorbing rounding on the last line so
-// Σ line amounts == txn amount EXACTLY (Ramp requires it). Reconcile is already verified by caller.
-function buildSplit(parsed: ParsedReceipt, txnAmountCents: number, index: GlIndex): BuiltSplit | null {
-  if (index.suspenseId === null) return null;
-  const items = parsed.items;
-  const itemsTotal = items.reduce((a, b) => a + b.amountCents, 0);
-  if (itemsTotal <= 0) return null;
-  const extra = parsed.taxCents + parsed.shippingCents;
-  const lines: SplitLine[] = [];
-  let allocated = 0;
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const amount = i === items.length - 1
-      ? txnAmountCents - allocated
-      : it.amountCents + Math.round((extra * it.amountCents) / itemsTotal);
-    allocated += amount;
-    const c = classify(it.desc);
-    const glId = c.confidence >= CONF_THRESHOLD ? resolveGl(index, c.glName, c.acctnum) : null;
-    const coded = glId !== null;
-    lines.push({
-      amount,
-      memo: it.desc.slice(0, 200),
-      accounting_field_selections: [{ field_external_id: 'QuickbooksCategory', field_option_external_id: coded ? glId! : index.suspenseId }],
-      desc: it.desc,
-      glName: coded ? c.glName : 'Suspense',
-      confidence: c.confidence,
-      coded,
-    });
-  }
-  const sum = lines.reduce((a, b) => a + b.amount, 0);
-  if (sum !== txnAmountCents) return null; // paranoia; should never trip
-  return { lines, codedCount: lines.filter((l) => l.coded).length, suspenseCount: lines.filter((l) => !l.coded).length };
-}
 
 function csv(v: unknown): string {
   const s = String(v ?? '');
