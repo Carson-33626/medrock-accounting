@@ -54,12 +54,14 @@ export function buildJournal(
     for (const [col, val] of Object.entries(row.sensitive)) {
       if (typeof val !== 'number' || val === 0) continue;
       if (isTaxableBase(col)) continue;
-      const r = resolveLine(row, col, acctFor(ent), empFor(ent));
-      if ('unmapped' in r) { if (r.unmapped === 'column') unmappedColumns.add(col); else unmappedPositions.add(row.position_id); continue; }
-      const bkey = [r.accountName, r.departmentName ?? '', r.className ?? '', r.postingType, r.creditBucket ?? ''].join('¦');
-      let b = g.buckets.get(bkey);
-      if (!b) { b = { postingType: r.postingType, amount: 0, accountName: r.accountName, departmentName: r.departmentName, className: r.className, creditBucket: r.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
-      b.amount += val; b.rowKeys.add(row.row_key);
+      const res = resolveLine(row, col, acctFor(ent), empFor(ent));
+      if ('unmapped' in res) { unmappedColumns.add(col); continue; }
+      for (const t of res.targets) {
+        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? ''].join('¦');
+        let b = g.buckets.get(bkey);
+        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
+        b.amount += val; b.rowKeys.add(row.row_key);
+      }
     }
   }
 

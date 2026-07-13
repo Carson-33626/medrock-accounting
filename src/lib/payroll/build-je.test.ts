@@ -11,8 +11,8 @@ const baseRow = (over: Partial<PayrollRow>): PayrollRow => ({
   sensitive: { 'REGULAR PAY - EARNING': 1000, 'NET PAY': 800, 'MEDICARE - EE TAXABLE': 1000 }, ...over,
 });
 const accountMap: AccountMapRule[] = [
-  { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
-  { entity: 'MedRock FL', adpColumn: 'NET PAY', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+  { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+  { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
 ];
 const empMap: EmployeeMapRule[] = [{ entity: 'MedRock FL', positionId: '1001', departmentName: null, className: null, cogsOverride: null, active: true }];
 
@@ -57,8 +57,8 @@ describe('buildJournal', () => {
 
   it('resolves each row against only its own entity mapping rules (no cross-entity leakage)', () => {
     const combinedAccountMap: AccountMapRule[] = [
-      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', accountName: 'FL Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
-      { entity: 'MedRock TN', adpColumn: 'REGULAR PAY - EARNING', accountName: 'TN Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'FL Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock TN', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'TN Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
     ];
     const combinedEmpMap: EmployeeMapRule[] = [
       { entity: 'MedRock FL', positionId: '1001', departmentName: null, className: null, cogsOverride: null, active: true },
@@ -74,5 +74,24 @@ describe('buildJournal', () => {
     const tnDraft = drafts.find((d) => d.entity === 'MedRock TN');
     expect(flDraft?.lines[0]?.accountName).toBe('FL Wages');
     expect(tnDraft?.lines[0]?.accountName).toBe('TN Wages');
+  });
+
+  it('emits both a debit line and a credit line from one employer-cost column (cost-center debit + * credit)', () => {
+    const employerAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: 'LAB', accountName: 'COGS - Employer Payroll Taxes', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Taxes', active: true },
+    ];
+    const rows = [baseRow({ sensitive: { 'SOCIAL SECURITY - ER': 100 } })];
+    const { drafts, unmappedColumns } = buildJournal(rows, employerAccountMap, empMap);
+    expect(unmappedColumns).toHaveLength(0);
+    expect(drafts).toHaveLength(1);
+    const d = drafts[0];
+    expect(d.lines).toHaveLength(2);
+    const debit = d.lines.find((l) => l.postingType === 'Debit');
+    const credit = d.lines.find((l) => l.postingType === 'Credit');
+    expect(debit).toMatchObject({ accountName: 'COGS - Employer Payroll Taxes', amount: 100 });
+    expect(credit).toMatchObject({ accountName: 'Payroll Withholdings', amount: 100, creditBucket: 'Taxes' });
+    expect(d.totalDebits).toBe(100);
+    expect(d.totalCredits).toBe(100);
   });
 });

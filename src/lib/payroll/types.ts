@@ -34,7 +34,7 @@ export interface JournalDraft {
 }
 
 export interface AccountMapRule {
-  entity: Entity; adpColumn: string; accountName: string; postingType: PostingType;
+  entity: Entity; adpColumn: string; costCenter: string; accountName: string; postingType: PostingType;
   isCogs: boolean; creditBucket: CreditBucket | null; active: boolean;
 }
 export interface EmployeeMapRule {
@@ -43,7 +43,7 @@ export interface EmployeeMapRule {
 }
 export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;
-  postingType: PostingType; creditBucket: CreditBucket | null;
+  postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;
 }
 export interface ReconcileResult {
   balanced: boolean; variance: number;

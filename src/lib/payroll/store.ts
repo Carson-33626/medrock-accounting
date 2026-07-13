@@ -47,6 +47,7 @@ export function sourceSnapshotHash(rows: PayrollRow[]): string {
 interface AccountMapRow {
   entity: Entity;
   adpColumn: string;
+  costCenter: string;
   accountName: string;
   postingType: PostingType;
   isCogs: boolean;
@@ -56,8 +57,8 @@ interface AccountMapRow {
 
 export async function getAccountMap(entity: Entity): Promise<AccountMapRule[]> {
   const { rows } = await getRdsPool().query<AccountMapRow>(
-    `SELECT entity, adp_column AS "adpColumn", account_name AS "accountName", posting_type AS "postingType",
-            is_cogs AS "isCogs", credit_bucket AS "creditBucket", active
+    `SELECT entity, adp_column AS "adpColumn", cost_center AS "costCenter", account_name AS "accountName",
+            posting_type AS "postingType", is_cogs AS "isCogs", credit_bucket AS "creditBucket", active
      FROM accounting.payroll_account_map WHERE entity=$1 AND active`,
     [entity],
   );
@@ -86,16 +87,14 @@ export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]>
 export async function upsertAccountRule(rule: AccountMapRule): Promise<void> {
   await getRdsPool().query(
     `INSERT INTO accounting.payroll_account_map
-       (entity, adp_column, account_name, posting_type, is_cogs, credit_bucket, active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
-     ON CONFLICT (entity, adp_column) DO UPDATE SET
-       account_name = EXCLUDED.account_name,
-       posting_type = EXCLUDED.posting_type,
+       (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+     ON CONFLICT (entity, adp_column, cost_center, posting_type, account_name) DO UPDATE SET
        is_cogs = EXCLUDED.is_cogs,
        credit_bucket = EXCLUDED.credit_bucket,
        active = EXCLUDED.active,
        updated_at = now()`,
-    [rule.entity, rule.adpColumn, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
+    [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
   );
 }
 
