@@ -1,0 +1,171 @@
+{
+  "generatedFrom": "C:/Users/Carson.D/Documents/GitHub/Active Development/salesforce-conversion/config/territory_mapping.json",
+  "note": "Distilled snapshot: LATEST period per rep_name only (source has one row per rep per quarter; we keep the max period value per rep_name). This file is what scripts/payroll/employee-map-seed-data.ts reads -- NOT a live cross-repo dependency. To refresh after territory changes, regenerate the reps array from the source path above using the same latest-period-per-rep-name derivation as scripts/payroll/probe-region-join.ts.",
+  "reps": [
+    {
+      "repName": "Alan Mayrer",
+      "market": "Ohio Region",
+      "period": 202602
+    },
+    {
+      "repName": "Antoneta Cici",
+      "market": "Jacksonville Region",
+      "period": 202602
+    },
+    {
+      "repName": "Armani Blanton",
+      "market": "Houston Region",
+      "period": 202602
+    },
+    {
+      "repName": "Audrey Freebeck",
+      "market": "Colorado Region",
+      "period": 202602
+    },
+    {
+      "repName": "Brian Hirschmann",
+      "market": "Pennslyvania",
+      "period": 202502
+    },
+    {
+      "repName": "Christina Hargrove",
+      "market": "Tampa Region",
+      "period": 202502
+    },
+    {
+      "repName": "Deonte Sales",
+      "market": "Arizona",
+      "period": 202602
+    },
+    {
+      "repName": "Eileen Hernandez",
+      "market": "Remote",
+      "period": 202504
+    },
+    {
+      "repName": "Frank Brown",
+      "market": "New England",
+      "period": 202503
+    },
+    {
+      "repName": "Frank Browne",
+      "market": "New England",
+      "period": 202602
+    },
+    {
+      "repName": "Gabrielle Sinibaldi",
+      "market": "Remote",
+      "period": 202503
+    },
+    {
+      "repName": "Isabel Babbie",
+      "market": "Michigan",
+      "period": 202602
+    },
+    {
+      "repName": "Kaitlyn Quinn-Crowe",
+      "market": "Illinois",
+      "period": 202602
+    },
+    {
+      "repName": "Kelli Hippenmeyer",
+      "market": "Tampa Region",
+      "period": 202602
+    },
+    {
+      "repName": "Kerry Walker",
+      "market": "North Georgia",
+      "period": 202602
+    },
+    {
+      "repName": "Kyra Skinner",
+      "market": "Maryland",
+      "period": 202501
+    },
+    {
+      "repName": "Mackenzie Brown",
+      "market": "Naples Region",
+      "period": 202502
+    },
+    {
+      "repName": "Marissa Dickie",
+      "market": "Dallas Region",
+      "period": 202602
+    },
+    {
+      "repName": "Matt Rogelstad",
+      "market": "Houston Region",
+      "period": 202503
+    },
+    {
+      "repName": "Megan Vathanavarin",
+      "market": "Colorado Region",
+      "period": 202603
+    },
+    {
+      "repName": "Neta Cici",
+      "market": "Jacksonville Region",
+      "period": 202503
+    },
+    {
+      "repName": "Nicole Fitzgerald",
+      "market": "Remote",
+      "period": 202602
+    },
+    {
+      "repName": "Oanh Nguyen",
+      "market": "Austin Region",
+      "period": 202602
+    },
+    {
+      "repName": "Octavio Zambrano",
+      "market": "Illinois",
+      "period": 202603
+    },
+    {
+      "repName": "Rick Poland",
+      "market": "Ohio Region",
+      "period": 202503
+    },
+    {
+      "repName": "Rob Wilhoit",
+      "market": "Carolina Region",
+      "period": 202602
+    },
+    {
+      "repName": "Rona Ivey",
+      "market": "Maryland",
+      "period": 202602
+    },
+    {
+      "repName": "Shana Vandertoll",
+      "market": "Orlando Region",
+      "period": 202602
+    },
+    {
+      "repName": "Sydney Klinowski",
+      "market": "Tennessee",
+      "period": 202602
+    },
+    {
+      "repName": "Sydney Prestia",
+      "market": "Arizona",
+      "period": 202504
+    },
+    {
+      "repName": "Tiffany Mitchell",
+      "market": "Dallas Region",
+      "period": 202503
+    },
+    {
+      "repName": "Tony Miller",
+      "market": "Tennessee",
+      "period": 202601
+    },
+    {
+      "repName": "Veronica Denha",
+      "market": "Miami Region",
+      "period": 202602
+    }
+  ]
+}
