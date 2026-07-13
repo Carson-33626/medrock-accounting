@@ -26,7 +26,16 @@ export async function fetchInvoices(orderIds: string[]): Promise<FetchedInvoice[
   return withWalmartContext(async (page) => {
     const out: FetchedInvoice[] = [];
     for (const id of orderIds) {
-      try { const f = await fetchInvoice(page, id); if (f) out.push(f); } catch { /* set aside upstream */ }
+      try {
+        const f = await fetchInvoice(page, id);
+        if (f) out.push(f);
+      } catch (e) {
+        console.error(`fetchInvoices: order ${id} failed: ${(e as Error).message}`);
+        if (isLoginWall(page.url())) {
+          console.error('Walmart session expired mid-batch — stopping; re-run bootstrap-login.ts');
+          break;
+        }
+      }
     }
     return out;
   });
