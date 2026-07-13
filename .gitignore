@@ -42,3 +42,9 @@ next-env.d.ts
 
 # ramp-split-push preview output (contains cardholder PII)
 scripts/ramp-split-push/out/
+
+# amazon-enrich preview/live output (contains cardholder PII)
+scripts/amazon-enrich/out/
+
+.vercel
+.env*

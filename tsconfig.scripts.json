@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/ramp-split-push/**/*.ts"]
+  "include": ["scripts/ramp-split-push/**/*.ts", "scripts/amazon-enrich/**/*.ts"]
 }
