@@ -131,6 +131,7 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
   const [dimensions, setDimensions] = useState<DimensionsResponse | null>(null);
   const [dimensionsError, setDimensionsError] = useState<string | null>(null);
   const [dimensionsLoading, setDimensionsLoading] = useState(false);
+  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -176,6 +177,25 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
   useEffect(() => {
     void loadForEntity(entity);
   }, [entity, loadForEntity]);
+
+  // Position-id → name, loaded once (global, not per-entity) so the employee map can show
+  // who each rule refers to. A convenience — failure just leaves rows showing the id only.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/payroll/employee-names');
+        if (!res.ok) return;
+        const body = (await res.json()) as { names?: Record<string, string> };
+        if (!cancelled && body.names) setEmployeeNames(body.names);
+      } catch {
+        // ignore — names are a convenience overlay
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -263,6 +283,7 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
         setRules={setEmployeeRules}
         departmentOptions={dimensions?.departments ?? null}
         classOptions={dimensions?.classes ?? null}
+        employeeNames={employeeNames}
       />
     </div>
   );
@@ -653,6 +674,7 @@ function EmployeeMapEditor({
   setRules,
   departmentOptions,
   classOptions,
+  employeeNames,
 }: {
   darkMode: boolean;
   cardBg: string;
@@ -664,6 +686,7 @@ function EmployeeMapEditor({
   setRules: Dispatch<SetStateAction<Array<EmployeeMapRule & { _key: number }>>>;
   departmentOptions: string[] | null;
   classOptions: string[] | null;
+  employeeNames: Record<string, string>;
 }) {
   const update = useCallback(
     (key: number, patch: Partial<EmployeeMapRule>) => {
@@ -695,10 +718,11 @@ function EmployeeMapEditor({
       (r) =>
         r.id === undefined ||
         r.positionId.toLowerCase().includes(q) ||
+        (employeeNames[r.positionId] ?? '').toLowerCase().includes(q) ||
         (r.departmentName ?? '').toLowerCase().includes(q) ||
         (r.className ?? '').toLowerCase().includes(q),
     );
-  }, [rules, q]);
+  }, [rules, q, employeeNames]);
 
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
@@ -715,7 +739,7 @@ function EmployeeMapEditor({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search position / region…"
+                placeholder="Search name / position / region…"
                 className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
               />
             </div>
@@ -749,6 +773,7 @@ function EmployeeMapEditor({
                 rule={rule}
                 departmentOptions={departmentOptions}
                 classOptions={classOptions}
+                employeeName={employeeNames[rule.positionId] ?? null}
                 onUpdate={update}
                 onRemove={remove}
               />
@@ -768,6 +793,7 @@ function EmployeeRuleRow({
   rule,
   departmentOptions,
   classOptions,
+  employeeName,
   onUpdate,
   onRemove,
 }: {
@@ -778,6 +804,7 @@ function EmployeeRuleRow({
   rule: EmployeeMapRule & { _key: number };
   departmentOptions: string[] | null;
   classOptions: string[] | null;
+  employeeName: string | null;
   onUpdate: (key: number, patch: Partial<EmployeeMapRule>) => void;
   onRemove: (key: number) => void;
 }) {
@@ -841,13 +868,18 @@ function EmployeeRuleRow({
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        <input
-          type="text"
-          value={rule.positionId}
-          onChange={(e) => onUpdate(rule._key, { positionId: e.target.value })}
-          placeholder="Position ID"
-          className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-        />
+        <div>
+          <input
+            type="text"
+            value={rule.positionId}
+            onChange={(e) => onUpdate(rule._key, { positionId: e.target.value })}
+            placeholder="Position ID"
+            className={`w-full rounded-md border px-2 py-1 text-sm ${inputBg}`}
+          />
+          <p className={`mt-0.5 text-[11px] truncate ${subText}`} title={employeeName ?? undefined}>
+            {employeeName ?? 'No matching employee'}
+          </p>
+        </div>
 
         {departmentOptions ? (
           <select
