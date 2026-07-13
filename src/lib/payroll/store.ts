@@ -45,6 +45,7 @@ export function sourceSnapshotHash(rows: PayrollRow[]): string {
 }
 
 interface AccountMapRow {
+  id: number;
   entity: Entity;
   adpColumn: string;
   costCenter: string;
@@ -57,7 +58,7 @@ interface AccountMapRow {
 
 export async function getAccountMap(entity: Entity): Promise<AccountMapRule[]> {
   const { rows } = await getRdsPool().query<AccountMapRow>(
-    `SELECT entity, adp_column AS "adpColumn", cost_center AS "costCenter", account_name AS "accountName",
+    `SELECT id, entity, adp_column AS "adpColumn", cost_center AS "costCenter", account_name AS "accountName",
             posting_type AS "postingType", is_cogs AS "isCogs", credit_bucket AS "creditBucket", active
      FROM accounting.payroll_account_map WHERE entity=$1 AND active`,
     [entity],
@@ -66,6 +67,7 @@ export async function getAccountMap(entity: Entity): Promise<AccountMapRule[]> {
 }
 
 interface EmployeeMapRow {
+  id: number;
   entity: Entity;
   positionId: string;
   departmentName: string | null;
@@ -76,7 +78,7 @@ interface EmployeeMapRow {
 
 export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]> {
   const { rows } = await getRdsPool().query<EmployeeMapRow>(
-    `SELECT entity, position_id AS "positionId", department_name AS "departmentName", class_name AS "className",
+    `SELECT id, entity, position_id AS "positionId", department_name AS "departmentName", class_name AS "className",
             cogs_override AS "cogsOverride", active
      FROM accounting.payroll_employee_map WHERE entity=$1 AND active`,
     [entity],
@@ -84,8 +86,8 @@ export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]>
   return rows;
 }
 
-export async function upsertAccountRule(rule: AccountMapRule): Promise<void> {
-  await getRdsPool().query(
+export async function upsertAccountRule(rule: AccountMapRule): Promise<number> {
+  const { rows } = await getRdsPool().query<{ id: number }>(
     `INSERT INTO accounting.payroll_account_map
        (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
@@ -93,13 +95,15 @@ export async function upsertAccountRule(rule: AccountMapRule): Promise<void> {
        is_cogs = EXCLUDED.is_cogs,
        credit_bucket = EXCLUDED.credit_bucket,
        active = EXCLUDED.active,
-       updated_at = now()`,
+       updated_at = now()
+     RETURNING id`,
     [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
   );
+  return rows[0].id;
 }
 
-export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<void> {
-  await getRdsPool().query(
+export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<number> {
+  const { rows } = await getRdsPool().query<{ id: number }>(
     `INSERT INTO accounting.payroll_employee_map
        (entity, position_id, department_name, class_name, cogs_override, active, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, now())
@@ -108,9 +112,38 @@ export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<void> {
        class_name = EXCLUDED.class_name,
        cogs_override = EXCLUDED.cogs_override,
        active = EXCLUDED.active,
-       updated_at = now()`,
+       updated_at = now()
+     RETURNING id`,
     [rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active],
   );
+  return rows[0].id;
+}
+
+export async function updateAccountRule(id: number, rule: AccountMapRule): Promise<void> {
+  await getRdsPool().query(
+    `UPDATE accounting.payroll_account_map
+     SET entity=$2, adp_column=$3, cost_center=$4, account_name=$5, posting_type=$6, is_cogs=$7,
+         credit_bucket=$8, active=$9, updated_at=now()
+     WHERE id=$1`,
+    [id, rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
+  );
+}
+
+export async function updateEmployeeRule(id: number, rule: EmployeeMapRule): Promise<void> {
+  await getRdsPool().query(
+    `UPDATE accounting.payroll_employee_map
+     SET entity=$2, position_id=$3, department_name=$4, class_name=$5, cogs_override=$6, active=$7, updated_at=now()
+     WHERE id=$1`,
+    [id, rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active],
+  );
+}
+
+export async function deleteAccountRule(id: number): Promise<void> {
+  await getRdsPool().query(`DELETE FROM accounting.payroll_account_map WHERE id=$1`, [id]);
+}
+
+export async function deleteEmployeeRule(id: number): Promise<void> {
+  await getRdsPool().query(`DELETE FROM accounting.payroll_employee_map WHERE id=$1`, [id]);
 }
 
 export async function saveDraft(draft: JournalDraft, snapshotHash: string): Promise<number> {

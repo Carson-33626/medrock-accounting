@@ -46,6 +46,18 @@ describe('resolveLine', () => {
     expect(credit).toMatchObject({ accountName: 'Payroll Withholdings', creditBucket: 'Taxes' });
   });
 
+  it('resolves a column with a cost-center-specific Debit rule AND a * Debit rule to ONE target (cc-specific wins, same-direction duplicate cannot double-book)', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Payroll Expense:COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: '*', accountName: 'Payroll Expense:Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [];
+    const res = resolveLine(row, 'REGULAR PAY - EARNING', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets).toHaveLength(1);
+    expect(res.targets[0]).toMatchObject({ accountName: 'COGS - Payroll Expense:COGS - Lab Wages', postingType: 'Debit' });
+  });
+
   it('still resolves a row whose position has no employee rule, with null department/class (NOT unmapped)', () => {
     const accountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },

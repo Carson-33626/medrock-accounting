@@ -34,10 +34,12 @@ export interface JournalDraft {
 }
 
 export interface AccountMapRule {
+  id?: number;
   entity: Entity; adpColumn: string; costCenter: string; accountName: string; postingType: PostingType;
   isCogs: boolean; creditBucket: CreditBucket | null; active: boolean;
 }
 export interface EmployeeMapRule {
+  id?: number;
   entity: Entity; positionId: string; departmentName: string | null; className: string | null;
   cogsOverride: boolean | null; active: boolean;
 }

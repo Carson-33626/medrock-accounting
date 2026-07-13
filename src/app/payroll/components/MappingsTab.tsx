@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { AlertTriangle, CheckCircle2, Loader2, Plus, Save, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Plus, Save, Trash2, XCircle } from 'lucide-react';
 
 /**
  * Local mirrors of the payroll mapping types (web/src/lib/payroll/types.ts) and the
@@ -15,8 +15,10 @@ type PostingType = 'Debit' | 'Credit';
 type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
 interface AccountMapRule {
+  id?: number;
   entity: Entity;
   adpColumn: string;
+  costCenter: string;
   accountName: string;
   postingType: PostingType;
   isCogs: boolean;
@@ -25,6 +27,7 @@ interface AccountMapRule {
 }
 
 interface EmployeeMapRule {
+  id?: number;
   entity: Entity;
   positionId: string;
   departmentName: string | null;
@@ -60,6 +63,7 @@ function blankAccountRule(entity: Entity): AccountMapRule & { _key: number } {
   return withKey({
     entity,
     adpColumn: '',
+    costCenter: '*',
     accountName: '',
     postingType: 'Debit',
     isCogs: false,
@@ -259,6 +263,13 @@ function AccountMapEditor({
     [setRules],
   );
 
+  const remove = useCallback(
+    (key: number) => {
+      setRules((prev) => prev.filter((r) => r._key !== key));
+    },
+    [setRules],
+  );
+
   const addRow = useCallback(() => {
     setRules((prev) => [...prev, blankAccountRule(entity)]);
   }, [entity, setRules]);
@@ -293,6 +304,7 @@ function AccountMapEditor({
             rule={rule}
             accountOptions={accountOptions}
             onUpdate={update}
+            onRemove={remove}
           />
         ))}
       </div>
@@ -308,6 +320,7 @@ function AccountRuleRow({
   rule,
   accountOptions,
   onUpdate,
+  onRemove,
 }: {
   darkMode: boolean;
   border: string;
@@ -316,10 +329,13 @@ function AccountRuleRow({
   rule: AccountMapRule & { _key: number };
   accountOptions: string[] | null;
   onUpdate: (key: number, patch: Partial<AccountMapRule>) => void;
+  onRemove: (key: number) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -331,8 +347,11 @@ function AccountRuleRow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind: 'account', rule: stripKey(rule) }),
       });
-      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      const body = (await res.json()) as { ok?: boolean; id?: number } & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      if (rule.id === undefined && typeof body.id === 'number') {
+        onUpdate(rule._key, { id: body.id });
+      }
       setSaved(true);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save account rule';
@@ -340,7 +359,31 @@ function AccountRuleRow({
     } finally {
       setSaving(false);
     }
-  }, [rule]);
+  }, [rule, onUpdate]);
+
+  const handleDelete = useCallback(async () => {
+    if (rule.id === undefined) {
+      onRemove(rule._key);
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/payroll/mappings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'account', id: rule.id }),
+      });
+      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      onRemove(rule._key);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to delete account rule';
+      setDeleteError(message);
+    } finally {
+      setDeleting(false);
+    }
+  }, [rule, onRemove]);
 
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
@@ -350,6 +393,14 @@ function AccountRuleRow({
           value={rule.adpColumn}
           onChange={(e) => onUpdate(rule._key, { adpColumn: e.target.value })}
           placeholder="ADP column (e.g. REGULAR PAY - EARNING)"
+          className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
+        />
+
+        <input
+          type="text"
+          value={rule.costCenter}
+          onChange={(e) => onUpdate(rule._key, { costCenter: e.target.value })}
+          placeholder="Cost center ('*' = all roles, or LAB / ADMIN / MARKET…)"
           className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
         />
 
@@ -420,11 +471,22 @@ function AccountRuleRow({
 
         <button
           onClick={() => void handleSave()}
-          disabled={saving || !rule.adpColumn || !rule.accountName}
+          disabled={saving || !rule.adpColumn || !rule.costCenter || !rule.accountName}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Save className="w-3.5 h-3.5" aria-hidden />}
           {saving ? 'Saving…' : 'Save'}
+        </button>
+
+        <button
+          onClick={() => void handleDelete()}
+          disabled={deleting}
+          aria-label="Delete rule"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+            darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+          }`}
+        >
+          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Trash2 className="w-3.5 h-3.5" aria-hidden />}
         </button>
 
         {saved && (
@@ -437,6 +499,12 @@ function AccountRuleRow({
           <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
             <XCircle className="w-3.5 h-3.5" aria-hidden />
             {saveError}
+          </span>
+        )}
+        {deleteError && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+            <XCircle className="w-3.5 h-3.5" aria-hidden />
+            {deleteError}
           </span>
         )}
       </div>
@@ -476,6 +544,13 @@ function EmployeeMapEditor({
     [setRules],
   );
 
+  const remove = useCallback(
+    (key: number) => {
+      setRules((prev) => prev.filter((r) => r._key !== key));
+    },
+    [setRules],
+  );
+
   const addRow = useCallback(() => {
     setRules((prev) => [...prev, blankEmployeeRule(entity)]);
   }, [entity, setRules]);
@@ -511,6 +586,7 @@ function EmployeeMapEditor({
             departmentOptions={departmentOptions}
             classOptions={classOptions}
             onUpdate={update}
+            onRemove={remove}
           />
         ))}
       </div>
@@ -527,6 +603,7 @@ function EmployeeRuleRow({
   departmentOptions,
   classOptions,
   onUpdate,
+  onRemove,
 }: {
   darkMode: boolean;
   border: string;
@@ -536,10 +613,13 @@ function EmployeeRuleRow({
   departmentOptions: string[] | null;
   classOptions: string[] | null;
   onUpdate: (key: number, patch: Partial<EmployeeMapRule>) => void;
+  onRemove: (key: number) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -551,8 +631,11 @@ function EmployeeRuleRow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind: 'employee', rule: stripKey(rule) }),
       });
-      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      const body = (await res.json()) as { ok?: boolean; id?: number } & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      if (rule.id === undefined && typeof body.id === 'number') {
+        onUpdate(rule._key, { id: body.id });
+      }
       setSaved(true);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to save employee rule';
@@ -560,7 +643,31 @@ function EmployeeRuleRow({
     } finally {
       setSaving(false);
     }
-  }, [rule]);
+  }, [rule, onUpdate]);
+
+  const handleDelete = useCallback(async () => {
+    if (rule.id === undefined) {
+      onRemove(rule._key);
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/payroll/mappings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'employee', id: rule.id }),
+      });
+      const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      onRemove(rule._key);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to delete employee rule';
+      setDeleteError(message);
+    } finally {
+      setDeleting(false);
+    }
+  }, [rule, onRemove]);
 
   // Tri-state cogsOverride: '' = unset (null), 'true' = true, 'false' = false.
   const cogsOverrideValue = rule.cogsOverride === null ? '' : String(rule.cogsOverride);
@@ -657,6 +764,17 @@ function EmployeeRuleRow({
           {saving ? 'Saving…' : 'Save'}
         </button>
 
+        <button
+          onClick={() => void handleDelete()}
+          disabled={deleting}
+          aria-label="Delete rule"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+            darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+          }`}
+        >
+          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Trash2 className="w-3.5 h-3.5" aria-hidden />}
+        </button>
+
         {saved && (
           <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`}>
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />
@@ -667,6 +785,12 @@ function EmployeeRuleRow({
           <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
             <XCircle className="w-3.5 h-3.5" aria-hidden />
             {saveError}
+          </span>
+        )}
+        {deleteError && (
+          <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+            <XCircle className="w-3.5 h-3.5" aria-hidden />
+            {deleteError}
           </span>
         )}
       </div>
