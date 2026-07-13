@@ -1,31 +1,50 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { RunsTab } from './RunsTab';
+import { PayrollsLanding } from './PayrollsLanding';
 import { ReviewTab } from './ReviewTab';
 import { MappingsTab } from './MappingsTab';
 import { PostPanel } from './PostPanel';
 
-type TabKey = 'runs' | 'review' | 'mappings';
+type View = 'payrolls' | 'mappings';
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'runs', label: 'Runs' },
-  { key: 'review', label: 'Review' },
+const TABS: Array<{ key: View; label: string }> = [
+  { key: 'payrolls', label: 'Payrolls' },
   { key: 'mappings', label: 'Mappings' },
 ];
 
-/** `/payroll` client shell: tab nav (Runs / Review / Mappings) + page chrome. */
+/**
+ * `/payroll` client shell. Two primary destinations — Payrolls (the landing list) and
+ * Mappings. A specific draft's Review + Post detail opens *in place* when a payroll card
+ * is clicked (not as a tab), with a Back link to the list.
+ */
 export function PayrollTabs() {
   const { darkMode } = useDarkMode();
-  const [tab, setTab] = useState<TabKey>('runs');
+  const [view, setView] = useState<View>('payrolls');
+  const [selectedHeaderId, setSelectedHeaderId] = useState<number | null>(null);
   const [mappingsEntity, setMappingsEntity] = useState<string | undefined>(undefined);
 
-  // "Refine in Mappings →" from the Review tab's unmapped-columns panel: jump to the full
-  // Mappings tab, pre-selecting the run's entity so the accountant isn't re-picking it.
+  // Click a payroll card → open its Review/Post detail.
+  const handleOpen = useCallback((headerId: number) => {
+    setSelectedHeaderId(headerId);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setSelectedHeaderId(null);
+  }, []);
+
+  // "Refine in Mappings →" from the Review detail: jump to Mappings, pre-selecting the entity.
   const handleNavigateToMappings = useCallback((entity: string) => {
     setMappingsEntity(entity);
-    setTab('mappings');
+    setSelectedHeaderId(null);
+    setView('mappings');
+  }, []);
+
+  const switchTab = useCallback((next: View) => {
+    setSelectedHeaderId(null);
+    setView(next);
   }, []);
 
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
@@ -33,6 +52,8 @@ export function PayrollTabs() {
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const headText = darkMode ? 'text-white' : 'text-slate-900';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
+
+  const inDetail = selectedHeaderId !== null;
 
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
@@ -42,32 +63,46 @@ export function PayrollTabs() {
           <h1 className={`text-2xl font-bold ${headText}`}>ADP Payroll Journal Entry</h1>
         </div>
 
-        <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                tab === t.key
-                  ? 'bg-blue-600 text-white'
-                  : darkMode
-                    ? 'text-slate-300 hover:bg-slate-700'
-                    : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'runs' && <RunsTab />}
-        {tab === 'review' && (
-          <div className="space-y-6">
-            <ReviewTab onNavigateToMappings={handleNavigateToMappings} />
-            <PostPanel />
+        {inDetail ? (
+          <button
+            onClick={handleBack}
+            className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+              darkMode ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-700'
+            }`}
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden />
+            Back to payrolls
+          </button>
+        ) : (
+          <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => switchTab(t.key)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  view === t.key
+                    ? 'bg-blue-600 text-white'
+                    : darkMode
+                      ? 'text-slate-300 hover:bg-slate-700'
+                      : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         )}
-        {tab === 'mappings' && <MappingsTab initialEntity={mappingsEntity} />}
+
+        {inDetail ? (
+          <div className="space-y-6">
+            <ReviewTab headerId={selectedHeaderId} onNavigateToMappings={handleNavigateToMappings} />
+            <PostPanel headerId={selectedHeaderId} />
+          </div>
+        ) : view === 'payrolls' ? (
+          <PayrollsLanding onOpen={handleOpen} />
+        ) : (
+          <MappingsTab initialEntity={mappingsEntity} />
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { AlertTriangle, CheckCircle2, Loader2, Plus, Save, Trash2, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
+import { DirectionsBanner } from './DirectionsBanner';
 
 /**
  * Local mirrors of the payroll mapping types (web/src/lib/payroll/types.ts) and the
@@ -167,6 +179,18 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
 
   return (
     <div className="space-y-6">
+      <DirectionsBanner darkMode={darkMode} title="What mappings do">
+        <p>
+          These two tables tell the JE builder how to turn raw ADP data into QuickBooks lines. Edits save
+          permanently and apply to this and every future payroll.
+        </p>
+        <p>
+          <strong>Account map</strong> — each ADP column → a GL account (grouped by column, collapsed; click a group
+          to edit). <strong>Employee map</strong> — each person → their department/class (region). Pick an entity
+          first, then search to find a rule fast.
+        </p>
+      </DirectionsBanner>
+
       {/* Entity selector */}
       <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-end gap-3`}>
         <label className={`text-sm ${subText}`}>
@@ -285,39 +309,132 @@ function AccountMapEditor({
     setRules((prev) => [...prev, blankAccountRule(entity)]);
   }, [entity, setRules]);
 
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Unsaved rows (id === undefined) stay pinned + open at top so a just-added rule is always
+  // visible; saved rows are grouped by ADP column and collapsed by default to tame the list.
+  const newRules = rules.filter((r) => r.id === undefined);
+  const savedRules = rules.filter((r) => r.id !== undefined);
+
+  const q = search.trim().toLowerCase();
+  const groups = useMemo(() => {
+    const matched = q
+      ? savedRules.filter(
+          (r) =>
+            r.adpColumn.toLowerCase().includes(q) ||
+            r.accountName.toLowerCase().includes(q) ||
+            r.costCenter.toLowerCase().includes(q),
+        )
+      : savedRules;
+    const byColumn = new Map<string, Array<AccountMapRule & { _key: number }>>();
+    for (const r of matched) {
+      const list = byColumn.get(r.adpColumn) ?? [];
+      list.push(r);
+      byColumn.set(r.adpColumn, list);
+    }
+    return [...byColumn.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [savedRules, q]);
+
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold">
-          Account map <span className={`font-normal ${subText}`}>({rules.length})</span>
+          Account map <span className={`font-normal ${subText}`}>({rules.length} rules · {groups.length} columns)</span>
         </p>
-        <button
-          onClick={addRow}
-          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
-            darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Plus className="w-3.5 h-3.5" aria-hidden />
-          Add rule
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className={`w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 ${subText}`} aria-hidden />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search column / account…"
+              className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
+            />
+          </div>
+          <button
+            onClick={addRow}
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+              darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden />
+            Add rule
+          </button>
+        </div>
       </div>
 
       {rules.length === 0 && <p className={`text-xs ${subText}`}>No account rules for {entity} yet.</p>}
 
-      <div className="space-y-2">
-        {rules.map((rule) => (
-          <AccountRuleRow
-            key={rule._key}
-            darkMode={darkMode}
-            border={border}
-            inputBg={inputBg}
-            subText={subText}
-            rule={rule}
-            accountOptions={accountOptions}
-            onUpdate={update}
-            onRemove={remove}
-          />
-        ))}
+      {newRules.length > 0 && (
+        <div className="space-y-2">
+          <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>New / unsaved</p>
+          {newRules.map((rule) => (
+            <AccountRuleRow
+              key={rule._key}
+              darkMode={darkMode}
+              border={border}
+              inputBg={inputBg}
+              subText={subText}
+              rule={rule}
+              accountOptions={accountOptions}
+              onUpdate={update}
+              onRemove={remove}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        {groups.map(([column, groupRules]) => {
+          const open = expanded.has(column) || q.length > 0;
+          return (
+            <div key={column} className={`rounded-lg border ${border}`}>
+              <button
+                onClick={() => toggle(column)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                  darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-slate-50'
+                }`}
+              >
+                {open ? <ChevronDown className="w-4 h-4 shrink-0" aria-hidden /> : <ChevronRight className="w-4 h-4 shrink-0" aria-hidden />}
+                <span className="font-medium truncate">{column || '(blank column)'}</span>
+                <span className={`ml-auto text-xs ${subText}`}>
+                  {groupRules.length} rule{groupRules.length === 1 ? '' : 's'}
+                </span>
+              </button>
+              {open && (
+                <div className={`px-3 pb-3 pt-1 space-y-2 border-t ${border}`}>
+                  {groupRules.map((rule) => (
+                    <AccountRuleRow
+                      key={rule._key}
+                      darkMode={darkMode}
+                      border={border}
+                      inputBg={inputBg}
+                      subText={subText}
+                      rule={rule}
+                      accountOptions={accountOptions}
+                      onUpdate={update}
+                      onRemove={remove}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {q.length > 0 && groups.length === 0 && (
+          <p className={`text-xs ${subText}`}>No saved rules match “{search}”.</p>
+        )}
       </div>
     </div>
   );
@@ -562,45 +679,83 @@ function EmployeeMapEditor({
     [setRules],
   );
 
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
   const addRow = useCallback(() => {
     setRules((prev) => [...prev, blankEmployeeRule(entity)]);
+    setOpen(true);
   }, [entity, setRules]);
+
+  const q = search.trim().toLowerCase();
+  const visible = useMemo(() => {
+    if (!q) return rules;
+    // Keep unsaved rows visible regardless of the filter so a just-added rule doesn't hide.
+    return rules.filter(
+      (r) =>
+        r.id === undefined ||
+        r.positionId.toLowerCase().includes(q) ||
+        (r.departmentName ?? '').toLowerCase().includes(q) ||
+        (r.className ?? '').toLowerCase().includes(q),
+    );
+  }, [rules, q]);
 
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 text-sm font-semibold">
+          {open ? <ChevronDown className="w-4 h-4" aria-hidden /> : <ChevronRight className="w-4 h-4" aria-hidden />}
           Employee map <span className={`font-normal ${subText}`}>({rules.length})</span>
-        </p>
-        <button
-          onClick={addRow}
-          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
-            darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Plus className="w-3.5 h-3.5" aria-hidden />
-          Add rule
         </button>
+        <div className="flex items-center gap-2">
+          {open && (
+            <div className="relative">
+              <Search className={`w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 ${subText}`} aria-hidden />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search position / region…"
+                className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
+              />
+            </div>
+          )}
+          <button
+            onClick={addRow}
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+              darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden />
+            Add rule
+          </button>
+        </div>
       </div>
 
-      {rules.length === 0 && <p className={`text-xs ${subText}`}>No employee rules for {entity} yet.</p>}
-
-      <div className="space-y-2">
-        {rules.map((rule) => (
-          <EmployeeRuleRow
-            key={rule._key}
-            darkMode={darkMode}
-            border={border}
-            inputBg={inputBg}
-            subText={subText}
-            rule={rule}
-            departmentOptions={departmentOptions}
-            classOptions={classOptions}
-            onUpdate={update}
-            onRemove={remove}
-          />
-        ))}
-      </div>
+      {open && (
+        <>
+          {rules.length === 0 && <p className={`text-xs ${subText}`}>No employee rules for {entity} yet.</p>}
+          {q.length > 0 && visible.length === 0 && (
+            <p className={`text-xs ${subText}`}>No rules match “{search}”.</p>
+          )}
+          <div className="space-y-2">
+            {visible.map((rule) => (
+              <EmployeeRuleRow
+                key={rule._key}
+                darkMode={darkMode}
+                border={border}
+                inputBg={inputBg}
+                subText={subText}
+                rule={rule}
+                departmentOptions={departmentOptions}
+                classOptions={classOptions}
+                onUpdate={update}
+                onRemove={remove}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

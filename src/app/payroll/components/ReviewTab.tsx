@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import {
   AlertTriangle,
@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Loader2,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Trash2,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
 import { MarketerReviewPanel } from './MarketerReviewPanel';
+import { DirectionsBanner } from './DirectionsBanner';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -114,16 +114,16 @@ function stripKey(line: JournalLine & { _key: number }): JournalLine {
 }
 
 interface ReviewTabProps {
+  /** The draft header to review — chosen by clicking a card on the Payrolls landing. */
+  headerId: number;
   /** Switches PayrollTabs to the Mappings tab (optionally pre-selecting an entity). */
   onNavigateToMappings?: (entity: string) => void;
 }
 
-/** Review tab: load a draft by header id, edit its lines with a live client-side balance, reconcile, and drill into source detail. */
-export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
+/** Review detail: auto-loads the selected draft, edits its lines with a live client-side balance, reconciles, and drills into source detail. */
+export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const { darkMode } = useDarkMode();
 
-  const [draftIdInput, setDraftIdInput] = useState<string>('');
-  const [headerId, setHeaderId] = useState<number | null>(null);
   const [header, setHeader] = useState<PayrollHeader | null>(null);
   const [lines, setLines] = useState<Array<JournalLine & { _key: number }>>([]);
 
@@ -173,39 +173,33 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
       setLoading(true);
       setError(null);
       setReconcileResult(null);
-      let loadedId: number | null = null;
+      let ok = false;
       try {
         const res = await fetch(`/api/payroll/run/${id}`);
         const body = (await res.json()) as DraftResponse & ApiErrorBody;
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         setHeader(body.header);
         setLines(body.lines.map(withKey));
-        setHeaderId(id);
-        loadedId = id;
+        ok = true;
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to load draft';
         setError(message);
         setHeader(null);
         setLines([]);
-        setHeaderId(null);
       } finally {
         setLoading(false);
       }
-      if (loadedId !== null) {
-        await runReconcile(loadedId);
+      if (ok) {
+        await runReconcile(id);
       }
     },
     [runReconcile],
   );
 
-  const handleLoadClick = useCallback(() => {
-    const id = Number(draftIdInput);
-    if (!Number.isFinite(id) || id <= 0) {
-      setError('Enter a valid numeric draft id');
-      return;
-    }
-    void loadDraft(id);
-  }, [draftIdInput, loadDraft]);
+  // Auto-load whenever the selected draft changes (i.e. a different card was clicked).
+  useEffect(() => {
+    void loadDraft(headerId);
+  }, [headerId, loadDraft]);
 
   const updateLine = useCallback((key: number, patch: Partial<JournalLine>) => {
     setLines((prev) => prev.map((l) => (l._key === key ? { ...l, ...patch } : l)));
@@ -237,7 +231,6 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit'), [lines]);
 
   const handleSave = useCallback(async () => {
-    if (headerId === null) return;
     setSaving(true);
     setError(null);
     try {
@@ -260,7 +253,6 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   }, [headerId, lines]);
 
   const handleReconcile = useCallback(() => {
-    if (headerId === null) return;
     void runReconcile(headerId);
   }, [headerId, runReconcile]);
 
@@ -291,32 +283,28 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
 
   return (
     <div className="space-y-6">
-      {/* Draft selector */}
-      <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-end gap-3`}>
-        <label className={`text-sm ${subText}`}>
-          Draft ID
-          <input
-            type="number"
-            min={1}
-            value={draftIdInput}
-            onChange={(e) => setDraftIdInput(e.target.value)}
-            placeholder="e.g. 12"
-            className={`block mt-1 w-32 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
-          />
-        </label>
-        <button
-          onClick={handleLoadClick}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
-          {loading ? 'Loading…' : 'Load'}
-        </button>
+      <DirectionsBanner darkMode={darkMode} title="How to review this payroll">
+        <p>
+          This is one entity&apos;s journal entry. Clear the worklists at the top first — <strong>map any new
+          columns</strong> and <strong>assign any marketers</strong> flagged for a region. Then check the balance,
+          edit lines if needed, and <strong>Save</strong>.
+        </p>
+        <p>
+          When it&apos;s balanced and postable, use the <strong>Post</strong> panel below to preview, approve, and
+          post it to QuickBooks.
+        </p>
+      </DirectionsBanner>
 
-        {header && (
-          <div className={`ml-auto text-sm ${subText}`}>
-            <span className="font-semibold">{header.entity}</span> · {header.pay_date} · {header.pay_group}
+      {/* Loaded-draft summary */}
+      <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-center gap-3`}>
+        {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
+        {header ? (
+          <div className="text-sm">
+            <span className="font-semibold">{header.entity}</span>
+            <span className={subText}> · {header.pay_date} · {header.pay_group}</span>
           </div>
+        ) : (
+          <div className={`text-sm ${subText}`}>{loading ? 'Loading draft…' : 'Draft'}</div>
         )}
       </div>
 
@@ -335,7 +323,7 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
         <>
           {/* New columns detected — inline mapper worklist, resets per draft via `key`. */}
           <UnmappedColumnsPanel
-            key={headerId ?? 'none'}
+            key={headerId}
             darkMode={darkMode}
             cardBg={cardBg}
             subText={subText}
@@ -343,15 +331,13 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
             inputBg={inputBg}
             entity={header.entity}
             unmappedColumns={reconcileResult ? reconcileResult.unmappedColumns : null}
-            onMapped={() => {
-              if (headerId !== null) void runReconcile(headerId);
-            }}
+            onMapped={() => void runReconcile(headerId)}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
           />
 
           {/* Marketers needing region review — inline reassignment worklist, resets per draft via `key`. */}
           <MarketerReviewPanel
-            key={headerId ?? 'none'}
+            key={headerId}
             darkMode={darkMode}
             cardBg={cardBg}
             subText={subText}
@@ -359,9 +345,7 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
             inputBg={inputBg}
             entity={header.entity}
             headerId={headerId}
-            onReassigned={() => {
-              if (headerId !== null) void runReconcile(headerId);
-            }}
+            onReassigned={() => void runReconcile(headerId)}
           />
 
           {/* Live balance banner */}
@@ -525,7 +509,7 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
 
       {!header && !loading && !error && (
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
-          Enter a draft id from the Runs tab and click Load to review its lines.
+          This draft could not be loaded. Go back to Payrolls and pick another.
         </div>
       )}
     </div>

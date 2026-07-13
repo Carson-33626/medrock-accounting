@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { AlertTriangle, Ban, CheckCircle2, Eye, Loader2, RefreshCw, ShieldCheck, XCircle, Zap } from 'lucide-react';
 
@@ -90,7 +90,12 @@ interface ApiErrorBody {
  *
  * Payloads/responses are rendered in the UI but never written to console.log.
  */
-export function PostPanel() {
+interface PostPanelProps {
+  /** The draft selected on the Payrolls landing — auto-loaded; hides the manual id input. */
+  headerId?: number | null;
+}
+
+export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const { darkMode } = useDarkMode();
 
   const [headerIdInput, setHeaderIdInput] = useState<string>('');
@@ -161,6 +166,11 @@ export function PostPanel() {
     }
     void loadHeader(id);
   }, [headerIdInput, loadHeader]);
+
+  // Driven by the selected payroll card: auto-load and keep in sync with the Review view above.
+  useEffect(() => {
+    if (selectedHeaderId != null) void loadHeader(selectedHeaderId);
+  }, [selectedHeaderId, loadHeader]);
 
   const handleReconcile = useCallback(async () => {
     if (headerId === null) return;
@@ -271,35 +281,45 @@ export function PostPanel() {
         <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Post</p>
       </div>
 
-      {/* Header selector */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className={`text-sm ${subText}`}>
-          Draft ID
-          <input
-            type="number"
-            min={1}
-            value={headerIdInput}
-            onChange={(e) => setHeaderIdInput(e.target.value)}
-            placeholder="e.g. 12"
-            className={`block mt-1 w-32 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
-          />
-        </label>
-        <button
-          onClick={handleLoadClick}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
-          {loading ? 'Loading…' : 'Load'}
-        </button>
+      {/* Header selector — hidden when driven by the selected payroll card. */}
+      {selectedHeaderId == null ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className={`text-sm ${subText}`}>
+            Draft ID
+            <input
+              type="number"
+              min={1}
+              value={headerIdInput}
+              onChange={(e) => setHeaderIdInput(e.target.value)}
+              placeholder="e.g. 12"
+              className={`block mt-1 w-32 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
+            />
+          </label>
+          <button
+            onClick={handleLoadClick}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
+            {loading ? 'Loading…' : 'Load'}
+          </button>
 
-        {header && (
-          <div className={`ml-auto text-sm ${subText}`}>
+          {header && (
+            <div className={`ml-auto text-sm ${subText}`}>
+              <span className="font-semibold">{header.entity}</span> · {header.pay_date} · {header.pay_group} ·{' '}
+              <StatusBadge darkMode={darkMode} status={header.status} />
+            </div>
+          )}
+        </div>
+      ) : (
+        header && (
+          <div className={`text-sm ${subText} flex items-center gap-2`}>
+            {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
             <span className="font-semibold">{header.entity}</span> · {header.pay_date} · {header.pay_group} ·{' '}
             <StatusBadge darkMode={darkMode} status={header.status} />
           </div>
-        )}
-      </div>
+        )
+      )}
 
       {error && (
         <div

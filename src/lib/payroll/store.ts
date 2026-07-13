@@ -331,6 +331,30 @@ export async function listHeaders(startISO: string, endISO: string): Promise<Pay
   return rows.map(toHeader);
 }
 
+/**
+ * Headers for the most recent `periods` distinct pay dates (default 2), newest first.
+ * Powers the /payroll landing list — no date range needed; the accountant sees the
+ * last couple of pay periods already populated and clicks straight into a draft.
+ */
+export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
+  const safePeriods = Number.isFinite(periods) && periods > 0 ? Math.min(Math.floor(periods), 24) : 2;
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `WITH recent AS (
+       SELECT DISTINCT to_date(pay_date, 'MM/DD/YYYY') AS d
+       FROM accounting.payroll_journal_headers
+       ORDER BY d DESC
+       LIMIT $1
+     )
+     SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+     FROM accounting.payroll_journal_headers
+     WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+    [safePeriods],
+  );
+  return rows.map(toHeader);
+}
+
 export interface AuditEntry {
   headerId: number | null;
   mode: 'dry_run' | 'live';
