@@ -776,29 +776,28 @@ function LineRow({
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
       <div className="flex items-start gap-2">
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="relative">
-            {editable ? (
-              <input
-                type="text"
-                value={line.accountName}
-                onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
-                placeholder="Account"
-                className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm ${inputBg} ${accountMissing ? reqRing : ''}`}
-              />
-            ) : (
-              // Generated line: account is read-only and often long — marquee it so the full
-              // name is readable without truncation (only animates when it actually overflows).
-              <ScrollingText
-                text={line.accountName}
-                className={`w-full rounded-md border pl-2 pr-5 py-1 text-sm opacity-70 ${inputBg} ${accountMissing ? reqRing : ''}`}
-              />
-            )}
-            <span
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-sm pointer-events-none"
-              title="Required to post"
-            >
+          <div className="flex items-center gap-1">
+            <span className="text-red-500 text-sm leading-none shrink-0" title="Required to post">
               *
             </span>
+            <div className="relative flex-1 min-w-0">
+              {editable ? (
+                <input
+                  type="text"
+                  value={line.accountName}
+                  onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
+                  placeholder="Account"
+                  className={`w-full rounded-md border px-2 py-1 text-sm ${inputBg} ${accountMissing ? reqRing : ''}`}
+                />
+              ) : (
+                // Generated line: account is read-only and often long — marquee it so the full
+                // name is readable without truncation (only animates when it actually overflows).
+                <ScrollingText
+                  text={line.accountName}
+                  className={`w-full rounded-md border px-2 py-1 text-sm opacity-70 ${inputBg} ${accountMissing ? reqRing : ''}`}
+                />
+              )}
+            </div>
           </div>
           <input
             type="text"
