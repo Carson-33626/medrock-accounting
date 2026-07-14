@@ -597,6 +597,19 @@ function AccountRuleRow({
         </select>
       </div>
 
+      <label className="block">
+        <span className={`block text-xs mb-0.5 ${subText}`}>
+          JE line memo — department label on the posted line (prefilled from the seed; edit freely; blank ⇒ uses the credit bucket)
+        </span>
+        <input
+          type="text"
+          value={rule.memo ?? ''}
+          onChange={(e) => onUpdate(rule._key, { memo: e.target.value.trim() === '' ? null : e.target.value })}
+          placeholder="e.g. Accounting Wages · ER Taxes - Admin · WC - Shipping"
+          className={`w-full rounded-md border px-2 py-1 text-sm ${inputBg}`}
+        />
+      </label>
+
       <div className="flex flex-wrap items-center gap-3">
         <select
           value={rule.postingType}
