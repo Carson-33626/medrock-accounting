@@ -37,6 +37,9 @@ interface AccountMapRule {
   isCogs: boolean;
   creditBucket: CreditBucket | null;
   active: boolean;
+  /** Department-labelled JE line memo (seed-driven, e.g. 'Accounting Wages'). Carried through
+   * the edit round-trip so saving an unrelated field doesn't wipe it; null on manual rules. */
+  memo: string | null;
 }
 
 interface EmployeeMapRule {
@@ -91,6 +94,7 @@ function blankAccountRule(entity: Entity): AccountMapRule & { _key: number } {
     isCogs: false,
     creditBucket: null,
     active: true,
+    memo: null,
   });
 }
 

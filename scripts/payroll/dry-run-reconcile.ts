@@ -215,6 +215,16 @@ async function main(): Promise<void> {
 
     console.log(`  Rows: ${rows.length}   Lines: ${draft.lines.length}`);
     console.log(`  OUR   Debits ${fmt(draft.totalDebits)}   Credits ${fmt(draft.totalCredits)}   Variance ${fmt(draft.variance)}`);
+
+    // Department-memo split preview: every DEBIT line with its memo, so accounting can eyeball
+    // that shared accounts (Administrative Wages, Employer Taxes, WC) now break out by department.
+    console.log(`\n  DEBIT LINES BY MEMO (department split):`);
+    console.log(`  ${'memo'.padEnd(24)} ${'amount'.padStart(14)}  account`);
+    for (const l of draft.lines
+      .filter((x) => x.postingType === 'Debit')
+      .sort((a, b) => (a.accountName === b.accountName ? (a.memo < b.memo ? -1 : 1) : a.accountName < b.accountName ? -1 : 1))) {
+      console.log(`  ${(l.memo || '(no memo)').slice(0, 24).padEnd(24)} ${fmt(l.amount).padStart(14)}  ${l.accountName}`);
+    }
     console.log(`  Reconcile: balanced=${result.balanced} netOk=${result.netOk} postable=${result.postable}`);
     if (result.errors.length) console.log(`  Errors: ${result.errors.join(' | ')}`);
     console.log(`  Unmapped columns (${built.unmappedColumns.length}): ${built.unmappedColumns.length ? built.unmappedColumns.sort().join(', ') : '(none)'}`);

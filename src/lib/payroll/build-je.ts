@@ -18,7 +18,7 @@ const isReportAggregateColumn = (col: string): boolean =>
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
+interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
 
 export interface ExcludedGroup { payGroup: string; reason: string; count: number; }
 
@@ -85,9 +85,11 @@ export function buildJournal(
         continue;
       }
       for (const t of res.targets) {
-        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? ''].join('¦');
+        // Memo is part of the bucket key so department-labelled lines that share an account
+        // (e.g. Admin vs Accounting wages both on 'Administrative Wages') stay as distinct lines.
+        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? '', t.memo ?? ''].join('¦');
         let b = g.buckets.get(bkey);
-        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
+        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: t.memo ?? null, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
         b.amount += val; b.rowKeys.add(row.row_key);
       }
     }
@@ -98,7 +100,8 @@ export function buildJournal(
     const lines: JournalLine[] = [...g.buckets.values()].map((b) => ({
       postingType: b.postingType, amount: round2(b.amount), accountName: b.accountName,
       departmentName: b.departmentName, className: b.className,
-      memo: b.creditBucket ?? '', creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
+      // Department memo wins; pooled '*' lines (no memo) fall back to the creditBucket label.
+      memo: b.memo ?? (b.creditBucket ?? ''), creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));

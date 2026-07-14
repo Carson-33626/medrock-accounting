@@ -37,6 +37,10 @@ export interface AccountMapRule {
   id?: number;
   entity: Entity; adpColumn: string; costCenter: string; accountName: string; postingType: PostingType;
   isCogs: boolean; creditBucket: CreditBucket | null; active: boolean;
+  /** Department-labelled JE line memo (e.g. 'Accounting Wages', 'ER Taxes - Admin'). Splits lines
+   * that share an account by department so accounting can read each department's slice. Null on
+   * pooled '*' rules (credits, EE withholdings) — those fall back to the creditBucket memo. */
+  memo?: string | null;
 }
 export interface EmployeeMapRule {
   id?: number;
@@ -46,6 +50,8 @@ export interface EmployeeMapRule {
 export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;
   postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;
+  /** Department-labelled line memo carried from the matched account-map rule (see AccountMapRule.memo). */
+  memo?: string | null;
 }
 
 /** One person who contributed dollars to an unmapped column — name for display, rowKey to

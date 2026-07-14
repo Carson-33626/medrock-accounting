@@ -28,6 +28,7 @@ export function resolveLine(
     postingType: rule.postingType,
     creditBucket: rule.creditBucket,
     isCogs: rule.isCogs,
+    memo: rule.memo ?? null,
   }));
   return { targets };
 }

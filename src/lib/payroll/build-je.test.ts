@@ -144,6 +144,30 @@ describe('buildJournal', () => {
     expect(tnDraft?.lines[0]?.accountName).toBe('TN Wages');
   });
 
+  it('splits a shared account into per-department lines by memo (Admin vs Accounting wages)', () => {
+    // ADMIN and ACCOUN cost-centers both post to the SAME account but carry distinct memos —
+    // Barbara's ask: one readable line per department on 'Administrative Wages', not a lump.
+    const memoAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ADMIN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Admin Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ACCOUN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Accounting Wages' },
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const rows = [
+      baseRow({ position_id: 'a1', row_key: 'admin1', home_department: 'ADMIN-Administration', sensitive: { 'REGULAR PAY - EARNING': 12957.70, 'NET PAY': 9000 } }),
+      baseRow({ position_id: 'c1', row_key: 'acct1', home_department: 'ACCOUN-Accounting', sensitive: { 'REGULAR PAY - EARNING': 4645.17, 'NET PAY': 3000 } }),
+    ];
+    const { drafts } = buildJournal(rows, memoAccountMap, empMap);
+    const wageLines = drafts[0]?.lines.filter((l) => l.accountName === 'Payroll Expense -:Administrative Wages') ?? [];
+    expect(wageLines).toHaveLength(2); // one line per department memo, same account
+    const admin = wageLines.find((l) => l.memo === 'Admin Wages');
+    const accounting = wageLines.find((l) => l.memo === 'Accounting Wages');
+    expect(admin?.amount).toBe(12957.70);
+    expect(accounting?.amount).toBe(4645.17);
+    // Pooled credit line (no memo) still falls back to its creditBucket label.
+    const net = drafts[0]?.lines.find((l) => l.accountName === 'Payroll Withholdings');
+    expect(net?.memo).toBe('Net Pay');
+  });
+
   it('emits both a debit line and a credit line from one employer-cost column (cost-center debit + * credit)', () => {
     const employerAccountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: 'LAB', accountName: 'COGS - Employer Payroll Taxes', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
