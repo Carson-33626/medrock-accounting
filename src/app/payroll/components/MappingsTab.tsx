@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { DirectionsBanner } from './DirectionsBanner';
+import { SearchableSelect } from './SearchableSelect';
 
 /**
  * Local mirrors of the payroll mapping types (web/src/lib/payroll/types.ts) and the
@@ -53,8 +54,13 @@ interface MappingsResponse {
   employeeMap: EmployeeMapRule[];
 }
 
+/** Accounts carry their QB account number (null if none) — shown + searchable in the picker. */
+interface AccountOption {
+  name: string;
+  acctNum: string | null;
+}
 interface DimensionsResponse {
-  accounts: string[];
+  accounts: AccountOption[];
   departments: string[];
   classes: string[];
 }
@@ -310,7 +316,7 @@ function AccountMapEditor({
   entity: Entity;
   rules: Array<AccountMapRule & { _key: number }>;
   setRules: Dispatch<SetStateAction<Array<AccountMapRule & { _key: number }>>>;
-  accountOptions: string[] | null;
+  accountOptions: AccountOption[] | null;
 }) {
   const update = useCallback(
     (key: number, patch: Partial<AccountMapRule>) => {
@@ -476,7 +482,7 @@ function AccountRuleRow({
   inputBg: string;
   subText: string;
   rule: AccountMapRule & { _key: number };
-  accountOptions: string[] | null;
+  accountOptions: AccountOption[] | null;
   onUpdate: (key: number, patch: Partial<AccountMapRule>) => void;
   onRemove: (key: number) => void;
 }) {
@@ -554,18 +560,15 @@ function AccountRuleRow({
         />
 
         {accountOptions ? (
-          <select
+          <SearchableSelect
             value={rule.accountName}
-            onChange={(e) => onUpdate(rule._key, { accountName: e.target.value })}
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          >
-            <option value="">Select account…</option>
-            {accountOptions.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onUpdate(rule._key, { accountName: v })}
+            options={accountOptions.map((a) => ({ value: a.name, label: a.name, hint: a.acctNum }))}
+            placeholder="Select account…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Account"
+          />
         ) : (
           <input
             type="text"
@@ -882,18 +885,15 @@ function EmployeeRuleRow({
         </div>
 
         {departmentOptions ? (
-          <select
+          <SearchableSelect
             value={rule.departmentName ?? ''}
-            onChange={(e) => onUpdate(rule._key, { departmentName: e.target.value || null })}
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          >
-            <option value="">Select department…</option>
-            {departmentOptions.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onUpdate(rule._key, { departmentName: v || null })}
+            options={departmentOptions.map((d) => ({ value: d, label: d }))}
+            placeholder="Select department…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Department"
+          />
         ) : (
           <input
             type="text"
@@ -905,18 +905,15 @@ function EmployeeRuleRow({
         )}
 
         {classOptions ? (
-          <select
+          <SearchableSelect
             value={rule.className ?? ''}
-            onChange={(e) => onUpdate(rule._key, { className: e.target.value || null })}
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          >
-            <option value="">Select class…</option>
-            {classOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onUpdate(rule._key, { className: v || null })}
+            options={classOptions.map((c) => ({ value: c, label: c }))}
+            placeholder="Select class…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Class"
+          />
         ) : (
           <input
             type="text"

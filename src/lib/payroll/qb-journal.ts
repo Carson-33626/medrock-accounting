@@ -2,7 +2,11 @@ import type { JournalDraft, Entity } from './types';
 import type { JsonValue } from './store';
 import { qbQueryAll, qbPost } from '../quickbooks-multi';
 
-export interface Refs { accounts: Record<string, string>; departments: Record<string, string>; classes: Record<string, string>; }
+export interface Refs {
+  accounts: Record<string, string>; departments: Record<string, string>; classes: Record<string, string>;
+  /** account FullyQualifiedName -> QB account number (AcctNum), for accounts that carry one. */
+  accountNums?: Record<string, string>;
+}
 interface QbRefLine { Amount: number; DetailType: 'JournalEntryLineDetail'; Description?: string;
   JournalEntryLineDetail: { PostingType: 'Debit' | 'Credit'; AccountRef: { value: string }; DepartmentRef?: { value: string }; ClassRef?: { value: string }; }; }
 export interface QbJournalEntryPayload { DocNumber: string; TxnDate: string; PrivateNote?: string; Line: QbRefLine[]; }
@@ -24,12 +28,16 @@ export function buildJePayload(draft: JournalDraft, refs: Refs): QbJournalEntryP
 }
 
 interface NameId { Id: string; Name?: string; FullyQualifiedName?: string; }
+interface AccountRow extends NameId { AcctNum?: string; }
 export async function fetchDimensions(entity: Entity): Promise<Refs> {
   const [accounts, departments, classes] = await Promise.all([
-    qbQueryAll<NameId>(entity, 'Account', ''), qbQueryAll<NameId>(entity, 'Department', ''), qbQueryAll<NameId>(entity, 'Class', ''),
+    qbQueryAll<AccountRow>(entity, 'Account', ''), qbQueryAll<NameId>(entity, 'Department', ''), qbQueryAll<NameId>(entity, 'Class', ''),
   ]);
   const idx = (xs: NameId[]): Record<string, string> => Object.fromEntries(xs.map((x) => [x.FullyQualifiedName ?? x.Name ?? '', x.Id]));
-  return { accounts: idx(accounts), departments: idx(departments), classes: idx(classes) };
+  const accountNums: Record<string, string> = Object.fromEntries(
+    accounts.filter((a) => a.AcctNum).map((a) => [a.FullyQualifiedName ?? a.Name ?? '', a.AcctNum as string]),
+  );
+  return { accounts: idx(accounts), departments: idx(departments), classes: idx(classes), accountNums };
 }
 
 export interface PostResult {

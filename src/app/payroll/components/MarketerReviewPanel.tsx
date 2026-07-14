@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Save, Users, XCircle } from 'lucide-react';
+import { SearchableSelect } from './SearchableSelect';
 
 /**
  * Local mirrors of the /api/payroll/marketers response shape (web/src/app/api/payroll/
@@ -37,7 +38,7 @@ interface EmployeeMapRule {
 }
 
 interface DimensionsResponse {
-  accounts: string[];
+  accounts: { name: string; acctNum: string | null }[];
   departments: string[];
   classes: string[];
 }
@@ -403,18 +404,15 @@ function MarketerRow({
             className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
           />
         ) : departmentOptions ? (
-          <select
+          <SearchableSelect
             value={departmentName}
-            onChange={(e) => setDepartmentName(e.target.value)}
-            className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
-          >
-            <option value="">Select department (region)…</option>
-            {departmentOptions.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
+            onChange={setDepartmentName}
+            options={departmentOptions.map((d) => ({ value: d, label: d }))}
+            placeholder="Select department (region)…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Department (region)"
+          />
         ) : (
           <input
             type="text"
@@ -435,18 +433,15 @@ function MarketerRow({
             className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
           />
         ) : classOptions ? (
-          <select
+          <SearchableSelect
             value={className}
-            onChange={(e) => setClassName(e.target.value)}
-            className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
-          >
-            <option value="">Class (optional)…</option>
-            {classOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={setClassName}
+            options={classOptions.map((c) => ({ value: c, label: c }))}
+            placeholder="Class (optional)…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Class"
+          />
         ) : (
           <input
             type="text"

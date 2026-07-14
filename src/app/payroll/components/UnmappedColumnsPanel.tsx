@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Loader2, Save, Sparkles, XCircle } from 'lucide-react';
+import { SearchableSelect } from './SearchableSelect';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -39,8 +40,13 @@ interface AccountMapRule {
   active: boolean;
 }
 
+/** Accounts now carry their QB account number (null if none) — shown + searchable in the picker. */
+interface AccountOption {
+  name: string;
+  acctNum: string | null;
+}
 interface DimensionsResponse {
-  accounts: string[];
+  accounts: AccountOption[];
   departments: string[];
   classes: string[];
 }
@@ -263,7 +269,7 @@ function UnmappedColumnRow({
   adpColumn: string;
   amount: number;
   sources: UnmappedColumnSource[];
-  accountOptions: string[] | null;
+  accountOptions: AccountOption[] | null;
   dimensionsLoading: boolean;
   onSaved: () => void;
   onNavigateToMappings: () => void;
@@ -364,18 +370,15 @@ function UnmappedColumnRow({
             className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
           />
         ) : accountOptions ? (
-          <select
+          <SearchableSelect
             value={accountName}
-            onChange={(e) => setAccountName(e.target.value)}
-            className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
-          >
-            <option value="">Select account…</option>
-            {accountOptions.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+            onChange={setAccountName}
+            options={accountOptions.map((a) => ({ value: a.name, label: a.name, hint: a.acctNum }))}
+            placeholder="Select account…"
+            darkMode={darkMode}
+            inputBg={inputBg}
+            ariaLabel="Account"
+          />
         ) : (
           <input
             type="text"
