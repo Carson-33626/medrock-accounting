@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { loadDraft } from '@/lib/payroll/store';
-import { resolveRepTerritory } from '@/lib/payroll/territory';
+import { resolveRepTerritory, resolveDirector } from '@/lib/payroll/territory';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -96,15 +96,18 @@ export async function GET(request: NextRequest) {
     );
 
     // Enrich each marketer with territory + title from the (plaintext) name -> snapshot join, so
-    // the review panel shows role/territory/title. Unmatched reps (offboarded / not yet in the
-    // snapshot) surface null territory/title rather than blocking — role always comes from payroll.
+    // the review panel shows role/territory/title. Territory reps resolve from the territory
+    // snapshot; marketing leadership (directors — not territory reps) fall back to the directors
+    // map (division shown as territory, leadership title). Anyone matching neither (offboarded /
+    // not yet mapped) surfaces null territory/title rather than blocking — role always comes from
+    // payroll home_department.
     const result: MarketerReviewItem[] = rows.map((r) => {
       const terr = resolveRepTerritory(r.name);
-      return {
-        ...r,
-        territory: terr?.market ?? null,
-        title: terr && terr.title ? terr.title : null,
-      };
+      if (terr) {
+        return { ...r, territory: terr.market, title: terr.title ? terr.title : null };
+      }
+      const dir = resolveDirector(r.name);
+      return { ...r, territory: dir?.division ?? null, title: dir?.title ?? null };
     });
     return NextResponse.json(result);
   } catch (error) {

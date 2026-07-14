@@ -18,14 +18,27 @@ export interface RepTerritory {
   title: string;
 }
 
+export interface Director {
+  /** Division this leader oversees (e.g. "East", "West") — shown as the territory. */
+  division: string;
+  /** Full leadership title (e.g. "Marketing Director East"). */
+  title: string;
+}
+
 interface SnapshotRep {
   repName: string;
   market: string;
   period: number;
   title?: string;
 }
+interface SnapshotDirector {
+  adpName: string;
+  title: string;
+  division: string;
+}
 interface Snapshot {
   reps: SnapshotRep[];
+  directors?: SnapshotDirector[];
 }
 
 // EXACT copy of scripts/payroll/employee-map-seed-data.ts norm()/nameKeys().
@@ -89,4 +102,22 @@ export function resolveRepTerritory(payrollName: string): RepTerritory | null {
     if (hit) return { market: hit.market, title: hit.title };
   }
   return null;
+}
+
+// adp-name norm -> director. Directors are marketing leadership who are NOT territory reps
+// (absent from the reps join above); matched on the ADP payroll `name` directly.
+let directorIndex: Map<string, Director> | null = null;
+function getDirectorIndex(): Map<string, Director> {
+  if (directorIndex) return directorIndex;
+  const idx = new Map<string, Director>();
+  for (const d of (snapshot as Snapshot).directors ?? []) {
+    idx.set(norm(d.adpName), { division: d.division, title: d.title });
+  }
+  directorIndex = idx;
+  return idx;
+}
+
+/** Resolve a payroll `name` to a marketing-leadership title/division, or null if not a director. */
+export function resolveDirector(payrollName: string): Director | null {
+  return getDirectorIndex().get(norm(payrollName)) ?? null;
 }

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "C:/Users/Carson.D/Documents/GitHub/Active Development/salesforce-conversion/config/territory_mapping.json",
-  "note": "Distilled snapshot: LATEST period per rep_name only (source has one row per rep per quarter; we keep the max period value per rep_name). Read by src/lib/payroll/territory.ts (runtime marketer role/territory/title surfacing) AND scripts/payroll/employee-map-seed-data.ts (seed) -- NOT a live cross-repo dependency. `title` is the source territory_mapping title for that rep's period (fallback: rep's latest-period title). To refresh after territory changes, regenerate reps[] from the source path above using the same latest-period-per-rep-name derivation as scripts/payroll/probe-region-join.ts, carrying market + title.",
+  "note": "Distilled snapshot: LATEST period per rep_name only (source has one row per rep per quarter; we keep the max period value per rep_name). Read by src/lib/payroll/territory.ts (runtime marketer role/territory/title surfacing) AND scripts/payroll/employee-map-seed-data.ts (seed, reps[] only) -- NOT a live cross-repo dependency. `title` is the source territory_mapping title for that rep's period (fallback: rep's latest-period title). `directors[]` are marketing leadership who are NOT territory reps (absent from territory_mapping.json); adpName joins the ADP payroll `name`, title/division distilled from salesforce-conversion/config/active_users.json `role` (corrected 2026-07-14: that file had Lockwood/Mitchell's East/West SWAPPED -- fixed at source per Carson; Salesforce itself should be corrected so the next export doesn't re-invert). To refresh, regenerate reps[] (market+title, latest period) and directors[] (active_users role via owner_mapping adp_name).",
   "reps": [
     { "repName": "Alan Mayrer", "market": "Ohio Region", "period": 202602, "title": "Territory Manager" },
     { "repName": "Antoneta Cici", "market": "Jacksonville Region", "period": 202602, "title": "Territory Manager" },
@@ -35,5 +35,9 @@
     { "repName": "Tiffany Mitchell", "market": "Dallas Region", "period": 202503, "title": "Senior Territory Manager" },
     { "repName": "Tony Miller", "market": "Tennessee", "period": 202601, "title": "Principal Territory Manager" },
     { "repName": "Veronica Denha", "market": "Miami Region", "period": 202602, "title": "Senior Territory Manager" }
+  ],
+  "directors": [
+    { "adpName": "Lockwood, Lucas R", "title": "Marketing Director East", "division": "East" },
+    { "adpName": "Mitchell, Tiffany Bell", "title": "Marketing Director West", "division": "West" }
   ]
 }
