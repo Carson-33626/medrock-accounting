@@ -58,6 +58,17 @@ interface DraftResponse {
   lines: JournalLine[];
 }
 
+/** Mirror of src/lib/payroll/types.ts UnmappedColumnDetail (see /api/payroll/reconcile). */
+interface UnmappedColumnSource {
+  rowKey: string;
+  name: string;
+}
+interface UnmappedColumnDetail {
+  column: string;
+  amount: number;
+  sources: UnmappedColumnSource[];
+}
+
 interface ReconcileResult {
   balanced: boolean;
   variance: number;
@@ -66,6 +77,9 @@ interface ReconcileResult {
   taxesEeOk: boolean;
   taxesErOk: boolean;
   unmappedColumns: string[];
+  /** Enriched counterpart to unmappedColumns (amount + contributing people per column). Optional
+   * for resilience against an older reconcile response; a current one always includes it. */
+  unmappedColumnDetails?: UnmappedColumnDetail[];
   unmappedPositions: string[];
   errors: string[];
   postable: boolean;
@@ -162,6 +176,9 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const [drilldownError, setDrilldownError] = useState<string | null>(null);
   const [drilldownKeyNotConfigured, setDrilldownKeyNotConfigured] = useState(false);
   const [drilldown, setDrilldown] = useState<DrilldownResponse | null>(null);
+  // Scroll target for the "Source detail — by person" drill-down, so the New Columns panel can
+  // jump an accountant straight to a contributing person's source detail.
+  const sourceDetailRef = useRef<HTMLDivElement>(null);
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -319,6 +336,15 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
     }
   }, []);
 
+  // From the "New columns detected" panel: open one person's source detail and scroll to it.
+  const jumpToSource = useCallback(
+    (rowKey: string) => {
+      void handleDrilldown(rowKey);
+      sourceDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    [handleDrilldown],
+  );
+
   const filteredRoster = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
     if (!q) return roster;
@@ -392,9 +418,10 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             border={border}
             inputBg={inputBg}
             entity={header.entity}
-            unmappedColumns={reconcileResult ? reconcileResult.unmappedColumns : null}
+            unmappedColumns={reconcileResult ? (reconcileResult.unmappedColumnDetails ?? []) : null}
             onMapped={() => void runReconcile(headerId)}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
+            onJumpToSource={jumpToSource}
           />
 
           {/* Marketers needing region review — inline reassignment worklist, resets per draft via `key`. */}
@@ -498,7 +525,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           )}
 
           {/* Drill-down — pick a person to see their source pay detail. */}
-          <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
+          <div ref={sourceDetailRef} className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Source detail — by person</p>
               {roster.length > 0 && (

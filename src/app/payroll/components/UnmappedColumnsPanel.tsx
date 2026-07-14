@@ -13,6 +13,21 @@ type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
 type PostingType = 'Debit' | 'Credit';
 type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
+/** Mirror of src/lib/payroll/types.ts UnmappedColumnDetail (surfaced by /api/payroll/reconcile).
+ * Per-person amounts are intentionally absent — only the column total is shown; a person's own
+ * figures live behind the decrypt-gated "Source detail" drill-down reached via onJumpToSource. */
+interface UnmappedColumnSource {
+  rowKey: string;
+  name: string;
+}
+interface UnmappedColumnDetail {
+  column: string;
+  amount: number;
+  sources: UnmappedColumnSource[];
+}
+
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
 interface AccountMapRule {
   entity: Entity;
   adpColumn: string;
@@ -50,16 +65,20 @@ interface UnmappedColumnsPanelProps {
   /** header.entity from the loaded run — validated at runtime against the Entity union. */
   entity: string;
   /**
-   * From the run's latest reconcile result (built-je's unmappedColumns, surfaced verbatim).
-   * `null` means the reconcile state is UNKNOWN — no reconcile has completed yet, the last
-   * one failed, or an unrelated JE-line Save invalidated it. `null` must never be treated as
-   * "confirmed zero unmapped" — that would render a false all-clear.
+   * From the run's latest reconcile result (build-je's unmappedColumnDetails, surfaced verbatim:
+   * each column's total dollars + the people who carried them). `null` means the reconcile state
+   * is UNKNOWN — no reconcile has completed yet, the last one failed, or an unrelated JE-line Save
+   * invalidated it. `null` must never be treated as "confirmed zero unmapped" — that would render a
+   * false all-clear.
    */
-  unmappedColumns: string[] | null;
+  unmappedColumns: UnmappedColumnDetail[] | null;
   /** Called after a rule saves successfully so the caller can re-run reconcile for this draft. */
   onMapped: () => void;
   /** Called when the accountant wants the full Mappings tab (e.g. an employer double-entry column). */
   onNavigateToMappings: (entity: string) => void;
+  /** Jump to the "Source detail — by person" drill-down for one contributing person (scrolls to it
+   * and opens their decrypt-gated detail). Wired by ReviewTab to its existing drill-down. */
+  onJumpToSource: (rowKey: string) => void;
 }
 
 /**
@@ -94,6 +113,7 @@ export function UnmappedColumnsPanel({
   unmappedColumns,
   onMapped,
   onNavigateToMappings,
+  onJumpToSource,
 }: UnmappedColumnsPanelProps) {
   const validEntity = isEntity(entity) ? entity : null;
 
@@ -137,7 +157,7 @@ export function UnmappedColumnsPanel({
   }, [validEntity]);
 
   const visibleColumns = useMemo(
-    () => (unmappedColumns ?? []).filter((c) => !resolved.has(c)),
+    () => (unmappedColumns ?? []).filter((c) => !resolved.has(c.column)),
     [unmappedColumns, resolved],
   );
 
@@ -197,17 +217,20 @@ export function UnmappedColumnsPanel({
           <div className="space-y-2">
             {visibleColumns.map((col) => (
               <UnmappedColumnRow
-                key={col}
+                key={col.column}
                 darkMode={darkMode}
                 border={border}
                 inputBg={inputBg}
                 subText={subText}
                 entity={validEntity}
-                adpColumn={col}
+                adpColumn={col.column}
+                amount={col.amount}
+                sources={col.sources}
                 accountOptions={dimensions?.accounts ?? null}
                 dimensionsLoading={dimensionsLoading}
-                onSaved={() => handleResolved(col)}
+                onSaved={() => handleResolved(col.column)}
                 onNavigateToMappings={() => onNavigateToMappings(entity)}
+                onJumpToSource={onJumpToSource}
               />
             ))}
           </div>
@@ -224,10 +247,13 @@ function UnmappedColumnRow({
   subText,
   entity,
   adpColumn,
+  amount,
+  sources,
   accountOptions,
   dimensionsLoading,
   onSaved,
   onNavigateToMappings,
+  onJumpToSource,
 }: {
   darkMode: boolean;
   border: string;
@@ -235,10 +261,13 @@ function UnmappedColumnRow({
   subText: string;
   entity: Entity | null;
   adpColumn: string;
+  amount: number;
+  sources: UnmappedColumnSource[];
   accountOptions: string[] | null;
   dimensionsLoading: boolean;
   onSaved: () => void;
   onNavigateToMappings: () => void;
+  onJumpToSource: (rowKey: string) => void;
 }) {
   const [accountName, setAccountName] = useState('');
   const [postingType, setPostingType] = useState<PostingType>('Debit');
@@ -283,9 +312,31 @@ function UnmappedColumnRow({
 
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
-      <p className="text-xs">
-        New column detected: <code className="font-mono font-semibold">{adpColumn}</code> — where should this map?
-      </p>
+      <div className="space-y-1.5">
+        <p className="text-xs">
+          New column detected: <code className="font-mono font-semibold">{adpColumn}</code> —{' '}
+          <span className="font-semibold tabular-nums">{usd.format(amount)}</span> across {sources.length}{' '}
+          {sources.length === 1 ? 'person' : 'people'}. Where should this map?
+        </p>
+        {sources.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`text-[11px] ${subText}`}>Source:</span>
+            {sources.map((s) => (
+              <button
+                key={s.rowKey}
+                type="button"
+                onClick={() => onJumpToSource(s.rowKey)}
+                title={`Jump to ${s.name}'s source detail`}
+                className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                  darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <input

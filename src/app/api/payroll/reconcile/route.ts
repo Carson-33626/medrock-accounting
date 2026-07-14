@@ -71,7 +71,10 @@ export async function POST(request: NextRequest) {
     const currentHash = sourceSnapshotHash(runRows);
     const hasDrift = !!header.source_snapshot_hash && currentHash !== header.source_snapshot_hash;
 
-    return NextResponse.json({ ...result, sourceDrift: hasDrift });
+    // `unmappedColumnDetails` (amount + contributing people per unmapped column) rides alongside
+    // the bare `result.unmappedColumns` string[] that drives postability — the Review tab's
+    // "new columns detected" panel uses the details to show dollars + jump-to-source.
+    return NextResponse.json({ ...result, sourceDrift: hasDrift, unmappedColumnDetails: built.unmappedColumnDetails });
   } catch (error) {
     console.error('[payroll/reconcile POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to reconcile payroll draft';

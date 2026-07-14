@@ -1,4 +1,4 @@
-import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity } from './types';
+import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail } from './types';
 import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
 
@@ -33,8 +33,12 @@ export function exclusionReason(payGroup: string): string {
 
 export function buildJournal(
   rows: PayrollRow[], accountMap: AccountMapRule[], employeeMap: EmployeeMapRule[],
-): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
+): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedColumnDetails: UnmappedColumnDetail[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
   const unmappedColumns = new Set<string>();
+  // Per unmapped column: running dollar total + the distinct people (rowKey -> name) who carried
+  // it, so the "new columns detected" panel can show the amount and let an accountant jump to the
+  // source. Accumulated in lockstep with `unmappedColumns` below.
+  const unmappedDetails = new Map<string, { amount: number; sources: Map<string, string> }>();
   const unmappedPositions = new Set<string>();
   const excluded = new Map<string, ExcludedGroup>();
   const groups = new Map<string, { entity: Entity; row0: PayrollRow; buckets: Map<string, Bucket> }>();
@@ -71,7 +75,13 @@ export function buildJournal(
       if ('unmapped' in res) {
         // Only flag genuinely-unmapped columns; ADP report aggregates/hours/reference
         // figures aren't postable and must not pollute the worklist or block posting.
-        if (!isReportAggregateColumn(col)) unmappedColumns.add(col);
+        if (!isReportAggregateColumn(col)) {
+          unmappedColumns.add(col);
+          let d = unmappedDetails.get(col);
+          if (!d) { d = { amount: 0, sources: new Map() }; unmappedDetails.set(col, d); }
+          d.amount += val; // val is a nonzero number here (non-number/zero already skipped above)
+          d.sources.set(row.row_key, row.name);
+        }
         continue;
       }
       for (const t of res.targets) {
@@ -102,6 +112,11 @@ export function buildJournal(
   return {
     drafts,
     unmappedColumns: [...unmappedColumns],
+    unmappedColumnDetails: [...unmappedDetails.entries()].map(([column, d]) => ({
+      column,
+      amount: round2(d.amount),
+      sources: [...d.sources.entries()].map(([rowKey, name]) => ({ rowKey, name })),
+    })),
     unmappedPositions: [...unmappedPositions],
     excluded: [...excluded.values()].sort((a, b) => b.count - a.count),
   };

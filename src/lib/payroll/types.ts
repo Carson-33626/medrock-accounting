@@ -47,6 +47,22 @@ export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;
   postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;
 }
+
+/** One person who contributed dollars to an unmapped column — name for display, rowKey to
+ * drill into their (decrypt-gated) source detail. NO per-person amount here: those stay behind
+ * the drill-down decrypt gate; only the column TOTAL is surfaced. */
+export interface UnmappedColumnSource {
+  rowKey: string;
+  name: string;
+}
+/** An unmapped ADP column enriched for the "new columns detected" worklist: its total dollars
+ * across the run + the people who carried them (so the panel can show the amount and jump to
+ * source). Parallel to the bare `unmappedColumns: string[]` reconcile still uses for postability. */
+export interface UnmappedColumnDetail {
+  column: string;
+  amount: number; // total $ across the run for this column, 2dp
+  sources: UnmappedColumnSource[];
+}
 export interface ReconcileResult {
   balanced: boolean; variance: number;
   grossOk: boolean; netOk: boolean; taxesEeOk: boolean; taxesErOk: boolean;
