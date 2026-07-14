@@ -21,6 +21,7 @@ export interface ExtractionStore {
   has(orderId: string): boolean;
   get(orderId: string): ExtractedOrder | undefined;
   put(rec: ExtractedOrder): void;
+  remove(orderId: string): void;
   all(): ExtractedOrder[];
 }
 
@@ -32,6 +33,7 @@ export function loadStore(path: string): ExtractionStore {
     has: (id) => map.has(id),
     get: (id) => map.get(id),
     put: (rec) => { map.set(rec.orderId, rec); flush(); },
+    remove: (id) => { if (map.delete(id)) flush(); },
     all: () => [...map.values()],
   };
 }

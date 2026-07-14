@@ -1,0 +1,46 @@
+{
+  "id": "200014784424593",
+  "displayId": "2000147-84424593",
+  "orderDate": "2026-07-09T09:13:21-04:00",
+  "itemCount": 1,
+  "groups_2101": [
+    {
+      "items": [
+        {
+          "quantity": 1,
+          "productInfo": {
+            "name": "Men's Rogaine 5% Minoxidil Solution 2 Fl oz",
+            "usItemId": "19500277"
+          },
+          "priceInfo": {
+            "linePrice": {
+              "value": 29.97,
+              "displayValue": "$29.97"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "priceDetails": {
+    "subTotal": {
+      "value": 29.97,
+      "displayValue": "$29.97"
+    },
+    "taxTotal": {
+      "value": 2.77,
+      "displayValue": "$2.77"
+    },
+    "grandTotal": {
+      "value": 32.74,
+      "displayValue": "$32.74"
+    },
+    "driverTip": null,
+    "fees": null,
+    "discounts": null,
+    "grandTotalWithTips": {
+      "value": 32.74,
+      "displayValue": "$32.74"
+    }
+  }
+}

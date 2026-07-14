@@ -7,7 +7,7 @@ function order(p: Partial<WalmartOrder>): WalmartOrder {
   return { orderId: '200013207850010', date: '2025-06-11', totalCents: 24537, ...p };
 }
 function rt(p: Partial<RampTxn>): RampTxn {
-  return { id: 'r1', entity: 'FL', amountCents: 24537, date: '2025-06-11', cardId: 'c1', cardHolder: 'A', memo: null, merchantName: 'Walmart', orderNo: null, priorLineItems: null, ...p };
+  return { id: 'r1', entity: 'FL', amountCents: 24537, date: '2025-06-11', cardId: 'c1', cardHolder: 'A', userId: null, memo: null, merchantName: 'Walmart', orderNo: null, priorLineItems: null, ...p };
 }
 
 describe('matchOrders', () => {

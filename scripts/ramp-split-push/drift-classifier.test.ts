@@ -4,7 +4,7 @@ import type { Match, QBEntry, RampTxn } from './types';
 
 function mk(qbRealm: 'FL' | 'TN' | 'TX', cardEntity: 'FL' | 'TN' | 'TX'): Match {
   const qb: QBEntry = { realm: qbRealm, qbEntryId: 'q', docType: 'Purchase', orderNo: '1', txnDate: '2026-03-01', totalCents: 100, vendor: 'Amazon Business', lines: [] };
-  const ramp: RampTxn = { id: 'r', entity: cardEntity, amountCents: 100, date: '2026-03-01', cardId: 'c', cardHolder: null, memo: null, merchantName: 'Amazon', orderNo: '1', priorLineItems: null };
+  const ramp: RampTxn = { id: 'r', entity: cardEntity, amountCents: 100, date: '2026-03-01', cardId: 'c', cardHolder: null, userId: null, memo: null, merchantName: 'Amazon', orderNo: '1', priorLineItems: null };
   return { qb, ramp, tier: 'order_no' };
 }
 

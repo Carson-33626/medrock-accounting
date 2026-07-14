@@ -134,8 +134,11 @@ async function main(): Promise<void> {
     if (mode === 'live') {
       const res = await patchSplit(ENTITY, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token);
       if (res.status < 200 || res.status >= 300) { aside.push([m.order.orderId, 'write_fail', `HTTP ${res.status}`].map(csv).join(',')); continue; }
-      const att = await attachReceipt(ENTITY, m.txn.id, readFileSync(rec.pdfPath), `walmart-${m.order.orderId}.pdf`, token);
-      if (att.status < 200 || att.status >= 300) aside.push([m.order.orderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(','));
+      if (!m.txn.userId) aside.push([m.order.orderId, 'attach_fail', 'no user_id on txn'].map(csv).join(','));
+      else {
+        const att = await attachReceipt(ENTITY, m.txn.id, readFileSync(rec.pdfPath), `walmart-${m.order.orderId}.pdf`, token, m.txn.userId, `walmart-receipt-${m.order.orderId}`);
+        if (att.status < 200 || att.status >= 300) aside.push([m.order.orderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(','));
+      }
       writes++;
       rollback.push({ entity: ENTITY, txn_id: m.txn.id, order_id: m.order.orderId, prior_line_items: m.txn.priorLineItems });
     }

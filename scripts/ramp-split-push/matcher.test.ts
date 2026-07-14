@@ -6,7 +6,7 @@ function qb(p: Partial<QBEntry>): QBEntry {
   return { realm: 'FL', qbEntryId: 'q1', docType: 'Purchase', orderNo: null, txnDate: '2026-03-10', totalCents: 1999, vendor: 'Amazon Business', lines: [], ...p };
 }
 function rt(p: Partial<RampTxn>): RampTxn {
-  return { id: 'r1', entity: 'FL', amountCents: 1999, date: '2026-03-10', cardId: 'c1', cardHolder: 'A', memo: null, merchantName: 'Amazon', orderNo: null, priorLineItems: null, ...p };
+  return { id: 'r1', entity: 'FL', amountCents: 1999, date: '2026-03-10', cardId: 'c1', cardHolder: 'A', userId: null, memo: null, merchantName: 'Amazon', orderNo: null, priorLineItems: null, ...p };
 }
 
 describe('matchEntries', () => {

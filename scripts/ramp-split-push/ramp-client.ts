@@ -39,7 +39,7 @@ interface RawRampTxn {
   amount: number;
   user_transaction_time: string;
   card_id: string | null;
-  card_holder: { first_name?: string; last_name?: string } | null;
+  card_holder: { first_name?: string; last_name?: string; user_id?: string } | null;
   memo: string | null;
   merchant_name: string | null;
   merchant_descriptor: string | null;
@@ -78,6 +78,7 @@ export async function getRampTransactions(entity: Entity, token: string, pages =
         date: (r.user_transaction_time ?? '').slice(0, 10),
         cardId: r.card_id,
         cardHolder: holder || null,
+        userId: r.card_holder?.user_id ?? null,
         memo: r.memo,
         merchantName: r.merchant_name,
         orderNo: parseOrderNo(r.memo, r.merchant_descriptor),
