@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { loadDraft } from '@/lib/payroll/store';
+import { resolveRepTerritory } from '@/lib/payroll/territory';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +12,12 @@ export const runtime = 'nodejs';
 export interface MarketerReviewItem {
   positionId: string;
   name: string;
+  /** Payroll home_department (e.g. "MARKETING") — the role, straight off the payroll row. */
+  role: string | null;
+  /** Territory (market, e.g. "Carolina Region") from the territory snapshot; null if no rep match. */
+  territory: string | null;
+  /** Sales title (e.g. "Senior Territory Manager") from the territory snapshot; null if no match. */
+  title: string | null;
   currentDepartment: string | null;
   currentClass: string | null;
   currentCogsOverride: boolean | null;
@@ -20,6 +27,7 @@ export interface MarketerReviewItem {
 interface MarketerRow {
   positionId: string;
   name: string;
+  role: string | null;
   currentDepartment: string | null;
   currentClass: string | null;
   currentCogsOverride: boolean | null;
@@ -72,6 +80,7 @@ export async function GET(request: NextRequest) {
       `SELECT DISTINCT ON (ph.position_id)
               ph.position_id AS "positionId",
               ph.name AS "name",
+              ph.home_department AS "role",
               pm.department_name AS "currentDepartment",
               pm.class_name AS "currentClass",
               pm.cogs_override AS "currentCogsOverride",
@@ -86,7 +95,17 @@ export async function GET(request: NextRequest) {
       [header.entity, header.pay_date, header.pay_group],
     );
 
-    const result: MarketerReviewItem[] = rows;
+    // Enrich each marketer with territory + title from the (plaintext) name -> snapshot join, so
+    // the review panel shows role/territory/title. Unmatched reps (offboarded / not yet in the
+    // snapshot) surface null territory/title rather than blocking — role always comes from payroll.
+    const result: MarketerReviewItem[] = rows.map((r) => {
+      const terr = resolveRepTerritory(r.name);
+      return {
+        ...r,
+        territory: terr?.market ?? null,
+        title: terr && terr.title ? terr.title : null,
+      };
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error('[payroll/marketers GET]', error);

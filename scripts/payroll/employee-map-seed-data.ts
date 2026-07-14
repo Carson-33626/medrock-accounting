@@ -26,7 +26,9 @@ import { getRdsPool } from '../../src/lib/rds';
 import { entityForPayGroup } from '../../src/lib/payroll/entity';
 import type { EmployeeMapRule } from '../../src/lib/payroll/types';
 
-const SNAPSHOT_FILE = resolve(__dirname, 'territory-snapshot.json');
+// Canonical snapshot now lives under src/ so the /api/payroll/marketers route can import it
+// (see src/lib/payroll/territory.ts). This seeder reads the same single file.
+const SNAPSHOT_FILE = resolve(__dirname, '../../src/lib/payroll/territory-snapshot.json');
 
 interface SnapshotRep { repName: string; market: string; period: number }
 interface Snapshot { generatedFrom: string; note: string; reps: SnapshotRep[] }

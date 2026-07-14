@@ -14,6 +14,12 @@ type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
 interface MarketerReviewItem {
   positionId: string;
   name: string;
+  /** Payroll home_department (role), e.g. "MARKETING". */
+  role: string | null;
+  /** Territory / market from the snapshot, e.g. "Carolina Region"; null if no rep match. */
+  territory: string | null;
+  /** Sales title from the snapshot, e.g. "Senior Territory Manager"; null if no match. */
+  title: string | null;
   currentDepartment: string | null;
   currentClass: string | null;
   currentCogsOverride: boolean | null;
@@ -357,6 +363,19 @@ function MarketerRow({
         )}{' '}
         — confirm or reassign region.
       </p>
+
+      {/* Position context for accounting: role (payroll home_department) · territory (market) · title. */}
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] ${subText}`}>
+        <span>
+          <span className="font-medium">Role:</span> {marketer.role ?? '—'}
+        </span>
+        <span>
+          <span className="font-medium">Territory:</span> {marketer.territory ?? 'unknown'}
+        </span>
+        <span>
+          <span className="font-medium">Title:</span> {marketer.title ?? 'unknown'}
+        </span>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <input
