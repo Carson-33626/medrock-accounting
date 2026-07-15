@@ -42,6 +42,18 @@ function categoryColor(category: string): string {
 
 type SortDir = 'asc' | 'desc';
 
+const BRAND_PURPLE = '#5e3b8d';
+
+function DownloadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
 interface LotColumn {
   key: string;
   label: string;
@@ -249,6 +261,10 @@ export default function InventoryValuation() {
   const inputCls = `rounded-lg border px-3 py-2 text-sm ${
     darkMode ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
   }`;
+  const navBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg border-2 shadow-sm transition-opacity hover:opacity-80';
+  const navBtnStyle = { borderColor: BRAND_PURPLE, color: darkMode ? '#c4b0e6' : BRAND_PURPLE };
+  const exportBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-opacity hover:opacity-85';
+  const exportBtnStyle = { backgroundColor: BRAND_PURPLE };
 
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
@@ -300,17 +316,11 @@ export default function InventoryValuation() {
               </button>
             </div>
             <div className="flex gap-2">
-              <a href="/inventory/as-of" className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+              <a href="/inventory/as-of" className={navBtnCls} style={navBtnStyle}>
                 As-of Value
               </a>
-              <a href="/inventory/qb-links" className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
+              <a href="/inventory/qb-links" className={navBtnCls} style={navBtnStyle}>
                 QB Links
-              </a>
-              <a href={exportHref('summary', 'csv')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
-                CSV
-              </a>
-              <a href={exportHref('summary', 'xlsx')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}>
-                Excel
               </a>
             </div>
           </div>
@@ -350,6 +360,17 @@ export default function InventoryValuation() {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Summary export */}
+        <div className="flex flex-wrap items-center justify-end gap-2 -mt-2">
+          <span className={`text-sm font-medium ${subText}`}>Export summary:</span>
+          <a href={exportHref('summary', 'csv')} className={exportBtnCls} style={exportBtnStyle}>
+            <DownloadIcon /> CSV
+          </a>
+          <a href={exportHref('summary', 'xlsx')} className={exportBtnCls} style={exportBtnStyle}>
+            <DownloadIcon /> Excel
+          </a>
         </div>
 
         {/* Trend chart */}
@@ -435,11 +456,11 @@ export default function InventoryValuation() {
               <option value="fully_used">Fully Used</option>
             </select>
             <div className="ml-auto flex gap-2">
-              <a href={exportHref('lots', 'csv')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder}`}>
-                Export CSV
+              <a href={exportHref('lots', 'csv')} className={exportBtnCls} style={exportBtnStyle}>
+                <DownloadIcon /> Export CSV
               </a>
-              <a href={exportHref('lots', 'xlsx')} className={`px-3 py-2 text-sm rounded-lg border ${rowBorder}`}>
-                Export Excel
+              <a href={exportHref('lots', 'xlsx')} className={exportBtnCls} style={exportBtnStyle}>
+                <DownloadIcon /> Export Excel
               </a>
             </div>
           </div>
