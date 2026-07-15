@@ -29,6 +29,74 @@ describe('buildJournal', () => {
     expect(d.totalCredits).toBe(1200);
     expect(unmappedColumns).not.toContain('MEDICARE - EE TAXABLE'); // taxable bases excluded
   });
+  it('does not flag ADP report aggregates (hours/totals/gross/rate) as unmapped columns', () => {
+    // These carry no account-map rule by design — they summarize columns already mapped.
+    // They must not pollute the "new columns detected" worklist (reconcile requires zero
+    // unmapped columns to be postable), while a real unmapped column IS still surfaced.
+    const rows = [
+      baseRow({
+        sensitive: {
+          'REGULAR PAY - EARNING': 1000, // mapped
+          'NET PAY': 800, // mapped
+          'GROSS PAY': 1000, // aggregate → ignore
+          'RATE AMOUNT': 25, // reference → ignore
+          'REGULAR PAY - HOURS': 40, // hours → ignore
+          'TOTAL EARNINGS': 1000, // aggregate → ignore
+          'FEDERAL TAX - TOTAL': 100, // subtotal → ignore
+          'TOTAL TAXES - EE': 60, // aggregate → ignore
+          "WORKERS' COMPENSATION INSURANCE - TOTAL": 5, // subtotal → ignore
+          'COMPANY LOAN - EE - PRINCIPAL POST-TAX': 50, // genuinely unmapped → surface
+        },
+      }),
+    ];
+    const { unmappedColumns } = buildJournal(rows, accountMap, empMap);
+    expect(unmappedColumns).toContain('COMPANY LOAN - EE - PRINCIPAL POST-TAX');
+    for (const agg of [
+      'GROSS PAY',
+      'RATE AMOUNT',
+      'REGULAR PAY - HOURS',
+      'TOTAL EARNINGS',
+      'FEDERAL TAX - TOTAL',
+      'TOTAL TAXES - EE',
+      "WORKERS' COMPENSATION INSURANCE - TOTAL",
+    ]) {
+      expect(unmappedColumns).not.toContain(agg);
+    }
+  });
+
+  it('enriches unmapped columns with total dollars + contributing people (rowKey/name)', () => {
+    // Two people carry the same unmapped column; the panel shows the column TOTAL and both
+    // people (name + rowKey) so an accountant can jump to each one's source detail.
+    const rows = [
+      baseRow({
+        position_id: '1001', name: 'Doe, Jane', row_key: 'k1',
+        sensitive: { 'REGULAR PAY - EARNING': 1000, 'NET PAY': 800, 'COMPANY LOAN - EE - PRINCIPAL POST-TAX': 200 },
+      }),
+      baseRow({
+        position_id: '2002', name: 'Roe, Rich', row_key: 'k2',
+        sensitive: { 'REGULAR PAY - EARNING': 500, 'NET PAY': 400, 'COMPANY LOAN - EE - PRINCIPAL POST-TAX': 52 },
+      }),
+    ];
+    const { unmappedColumns, unmappedColumnDetails } = buildJournal(rows, accountMap, empMap);
+    expect(unmappedColumns).toEqual(['COMPANY LOAN - EE - PRINCIPAL POST-TAX']);
+    expect(unmappedColumnDetails).toHaveLength(1);
+    const d = unmappedColumnDetails[0];
+    expect(d.column).toBe('COMPANY LOAN - EE - PRINCIPAL POST-TAX');
+    expect(d.amount).toBe(252); // 200 + 52 — the column total across the run
+    expect(d.sources).toEqual([
+      { rowKey: 'k1', name: 'Doe, Jane' },
+      { rowKey: 'k2', name: 'Roe, Rich' },
+    ]);
+    // No per-person amount leaks into the details — only the column total is surfaced.
+    for (const s of d.sources) expect(s).not.toHaveProperty('amount');
+  });
+
+  it('does not surface report aggregates in unmappedColumnDetails', () => {
+    const rows = [baseRow({ sensitive: { 'REGULAR PAY - EARNING': 1000, 'NET PAY': 800, 'GROSS PAY': 1000 } })];
+    const { unmappedColumnDetails } = buildJournal(rows, accountMap, empMap);
+    expect(unmappedColumnDetails).toHaveLength(0);
+  });
+
   it('excludes FOCS rows from drafts', () => {
     const rows = [baseRow({ pay_group: 'FOCS' })];
     const { drafts, excluded } = buildJournal(rows, accountMap, empMap);
@@ -74,6 +142,30 @@ describe('buildJournal', () => {
     const tnDraft = drafts.find((d) => d.entity === 'MedRock TN');
     expect(flDraft?.lines[0]?.accountName).toBe('FL Wages');
     expect(tnDraft?.lines[0]?.accountName).toBe('TN Wages');
+  });
+
+  it('splits a shared account into per-department lines by memo (Admin vs Accounting wages)', () => {
+    // ADMIN and ACCOUN cost-centers both post to the SAME account but carry distinct memos —
+    // Barbara's ask: one readable line per department on 'Administrative Wages', not a lump.
+    const memoAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ADMIN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Admin Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ACCOUN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Accounting Wages' },
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const rows = [
+      baseRow({ position_id: 'a1', row_key: 'admin1', home_department: 'ADMIN-Administration', sensitive: { 'REGULAR PAY - EARNING': 12957.70, 'NET PAY': 9000 } }),
+      baseRow({ position_id: 'c1', row_key: 'acct1', home_department: 'ACCOUN-Accounting', sensitive: { 'REGULAR PAY - EARNING': 4645.17, 'NET PAY': 3000 } }),
+    ];
+    const { drafts } = buildJournal(rows, memoAccountMap, empMap);
+    const wageLines = drafts[0]?.lines.filter((l) => l.accountName === 'Payroll Expense -:Administrative Wages') ?? [];
+    expect(wageLines).toHaveLength(2); // one line per department memo, same account
+    const admin = wageLines.find((l) => l.memo === 'Admin Wages');
+    const accounting = wageLines.find((l) => l.memo === 'Accounting Wages');
+    expect(admin?.amount).toBe(12957.70);
+    expect(accounting?.amount).toBe(4645.17);
+    // Pooled credit line (no memo) still falls back to its creditBucket label.
+    const net = drafts[0]?.lines.find((l) => l.accountName === 'Payroll Withholdings');
+    expect(net?.memo).toBe('Net Pay');
   });
 
   it('emits both a debit line and a credit line from one employer-cost column (cost-center debit + * credit)', () => {

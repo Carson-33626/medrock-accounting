@@ -20,6 +20,27 @@ type CostCenter = (typeof COST_CENTERS)[number];
 // (ADMIN/ACCOUN/CS/DATA/SHIP/MARKET) posts to non-COGS "Payroll Expense -:" accounts.
 const COGS_COST_CENTERS = new Set<CostCenter>(['LAB', 'PHARM', 'RD']);
 
+/**
+ * Department label per cost_center, used to build the JE line MEMO so accounting can read each
+ * department's slice of a shared account (Barbara's ask: memo notes by department, NOT new
+ * accounts). Matches Amy's FL memo vocabulary from PR 2026.03.27 ("Accounting Wages", "Admin
+ * Wages", "CSR Wages", "DE Wages", "Shipping Wages", "Lab Wages", "Pharmacists Wages") and applies
+ * it CONSISTENTLY across all 3 entities (Amy's TN JE lazily memo'd everything "Regular Wages" —
+ * the exact thing this fixes). Splitting is memo-driven: same account, distinct memo -> distinct
+ * line, identical account totals (so the dry-run still reconciles to Amy penny-for-penny).
+ */
+const DEPT_LABEL: Record<CostCenter, string> = {
+  LAB: 'Lab',
+  PHARM: 'Pharmacists',
+  RD: 'R & D',
+  ADMIN: 'Admin',
+  ACCOUN: 'Accounting',
+  CS: 'CSR',
+  DATA: 'DE',
+  SHIP: 'Shipping',
+  MARKET: 'Marketing',
+};
+
 const REGULAR_EARNING_COLUMNS = [
   'REGULAR PAY - EARNING',
   'HOLIDAY PAY - EARNING',
@@ -172,7 +193,13 @@ const EE_WITHHOLDING_RULES: ReadonlyArray<{ column: string; bucket: CreditBucket
   { column: 'NET PAY', bucket: 'Net Pay' },
 ];
 
-/** One Debit rule per cost_center (COGS or non-COGS account) + one Credit rule (cost_center '*'). */
+/**
+ * One Debit rule per cost_center (COGS or non-COGS account) + one Credit rule (cost_center '*').
+ * `memoKind` is the department-agnostic prefix of the Debit line memo ("ER Taxes", "401K", "WC");
+ * each Debit rule's memo becomes "<memoKind> - <Dept>" so an otherwise-shared employer-cost account
+ * (e.g. 'Payroll Expense -:Employer Taxes', which every non-COGS cost_center hits) splits into one
+ * readable line per department. The '*' Credit rule stays memo-less (uses its creditBucket).
+ */
 function addEmployerCostRules(
   rules: AccountMapRule[],
   entity: Entity,
@@ -180,6 +207,7 @@ function addEmployerCostRules(
   cogsAccount: string,
   nonCogsAccount: string,
   bucket: CreditBucket,
+  memoKind: string,
 ): void {
   for (const column of columns) {
     for (const cc of COST_CENTERS) {
@@ -193,6 +221,7 @@ function addEmployerCostRules(
         isCogs,
         creditBucket: null,
         active: true,
+        memo: `${memoKind} - ${DEPT_LABEL[cc]}`,
       });
     }
     rules.push({
@@ -212,8 +241,12 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   const rules: AccountMapRule[] = [];
 
   // --- Wage earnings: Debit, per cost_center ---
+  // All regular-earning columns for a cost_center share one memo ("<Dept> Wages") so they collapse
+  // into a single per-department wage line (matching Amy's one "Admin Wages" / "Accounting Wages"
+  // line that aggregates every earning type); OT columns get "<Dept> Wages - OT".
   for (const cc of COST_CENTERS) {
     const isCogs = COGS_COST_CENTERS.has(cc);
+    const dept = DEPT_LABEL[cc];
     const regularAccount = REGULAR_WAGE_ACCOUNT[cc];
     for (const column of REGULAR_EARNING_COLUMNS) {
       rules.push({
@@ -225,6 +258,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
         isCogs,
         creditBucket: null,
         active: true,
+        memo: `${dept} Wages`,
       });
     }
     const otAccount = OT_WAGE_ACCOUNT[cc];
@@ -239,6 +273,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
           isCogs,
           creditBucket: null,
           active: true,
+          memo: `${dept} Wages - OT`,
         });
       }
     }
@@ -261,6 +296,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     'COGS - Payroll Expense:COGS - Employer Payroll Taxes',
     'Payroll Expense -:Employer Taxes',
     'Taxes',
+    'ER Taxes',
   );
   addEmployerCostRules(
     rules,
@@ -269,6 +305,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     'COGS - Payroll Expense:COGS - 401K Employer Match',
     'Payroll Expense -:401K Employer Match',
     'Retirement',
+    '401K',
   );
   addEmployerCostRules(
     rules,
@@ -276,6 +313,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     [WC_COLUMN[entity]],
     "COGS - Payroll Expense:COGS - Workmen's Compensation Ins",
     "Payroll Expense -:Workmen's Compensation Ins.",
+    'WC',
     'WC',
   );
 

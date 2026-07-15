@@ -1,11 +1,24 @@
-import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity } from './types';
+import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail } from './types';
 import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
 
 const isTaxableBase = (col: string): boolean => /TAXABLE\s*$/.test(col.trim());
+
+/**
+ * ADP report aggregate / reference columns that are never posted to the general ledger:
+ * hours, subtotals ("… - TOTAL"), grand totals ("TOTAL …"), and the GROSS PAY / RATE AMOUNT
+ * reference figures. They carry no account-map rule by design — mapping them would
+ * double-count the real earning/tax/deduction columns they summarize. Suppressing them keeps
+ * the "new columns detected" worklist to genuinely unmapped columns AND lets a run be postable
+ * (reconcile requires zero unmapped columns). Applied only to columns that DON'T resolve to a
+ * rule, so an explicit account-map rule always still wins.
+ */
+const isReportAggregateColumn = (col: string): boolean =>
+  /\bHOURS\b|-\s*TOTAL\s*$|^TOTAL\b|^GROSS PAY$|^RATE AMOUNT$/.test(col.trim());
+
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
+interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
 
 export interface ExcludedGroup { payGroup: string; reason: string; count: number; }
 
@@ -20,8 +33,12 @@ export function exclusionReason(payGroup: string): string {
 
 export function buildJournal(
   rows: PayrollRow[], accountMap: AccountMapRule[], employeeMap: EmployeeMapRule[],
-): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
+): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedColumnDetails: UnmappedColumnDetail[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
   const unmappedColumns = new Set<string>();
+  // Per unmapped column: running dollar total + the distinct people (rowKey -> name) who carried
+  // it, so the "new columns detected" panel can show the amount and let an accountant jump to the
+  // source. Accumulated in lockstep with `unmappedColumns` below.
+  const unmappedDetails = new Map<string, { amount: number; sources: Map<string, string> }>();
   const unmappedPositions = new Set<string>();
   const excluded = new Map<string, ExcludedGroup>();
   const groups = new Map<string, { entity: Entity; row0: PayrollRow; buckets: Map<string, Bucket> }>();
@@ -55,11 +72,24 @@ export function buildJournal(
       if (typeof val !== 'number' || val === 0) continue;
       if (isTaxableBase(col)) continue;
       const res = resolveLine(row, col, acctFor(ent), empFor(ent));
-      if ('unmapped' in res) { unmappedColumns.add(col); continue; }
+      if ('unmapped' in res) {
+        // Only flag genuinely-unmapped columns; ADP report aggregates/hours/reference
+        // figures aren't postable and must not pollute the worklist or block posting.
+        if (!isReportAggregateColumn(col)) {
+          unmappedColumns.add(col);
+          let d = unmappedDetails.get(col);
+          if (!d) { d = { amount: 0, sources: new Map() }; unmappedDetails.set(col, d); }
+          d.amount += val; // val is a nonzero number here (non-number/zero already skipped above)
+          d.sources.set(row.row_key, row.name);
+        }
+        continue;
+      }
       for (const t of res.targets) {
-        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? ''].join('¦');
+        // Memo is part of the bucket key so department-labelled lines that share an account
+        // (e.g. Admin vs Accounting wages both on 'Administrative Wages') stay as distinct lines.
+        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? '', t.memo ?? ''].join('¦');
         let b = g.buckets.get(bkey);
-        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
+        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: t.memo ?? null, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
         b.amount += val; b.rowKeys.add(row.row_key);
       }
     }
@@ -70,7 +100,8 @@ export function buildJournal(
     const lines: JournalLine[] = [...g.buckets.values()].map((b) => ({
       postingType: b.postingType, amount: round2(b.amount), accountName: b.accountName,
       departmentName: b.departmentName, className: b.className,
-      memo: b.creditBucket ?? '', creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
+      // Department memo wins; pooled '*' lines (no memo) fall back to the creditBucket label.
+      memo: b.memo ?? (b.creditBucket ?? ''), creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
@@ -84,6 +115,11 @@ export function buildJournal(
   return {
     drafts,
     unmappedColumns: [...unmappedColumns],
+    unmappedColumnDetails: [...unmappedDetails.entries()].map(([column, d]) => ({
+      column,
+      amount: round2(d.amount),
+      sources: [...d.sources.entries()].map(([rowKey, name]) => ({ rowKey, name })),
+    })),
     unmappedPositions: [...unmappedPositions],
     excluded: [...excluded.values()].sort((a, b) => b.count - a.count),
   };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import {
   AlertTriangle,
@@ -8,13 +8,15 @@ import {
   CheckCircle2,
   Loader2,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Trash2,
+  X,
   XCircle,
 } from 'lucide-react';
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
+import { MarketerReviewPanel } from './MarketerReviewPanel';
+import { DirectionsBanner } from './DirectionsBanner';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -56,6 +58,17 @@ interface DraftResponse {
   lines: JournalLine[];
 }
 
+/** Mirror of src/lib/payroll/types.ts UnmappedColumnDetail (see /api/payroll/reconcile). */
+interface UnmappedColumnSource {
+  rowKey: string;
+  name: string;
+}
+interface UnmappedColumnDetail {
+  column: string;
+  amount: number;
+  sources: UnmappedColumnSource[];
+}
+
 interface ReconcileResult {
   balanced: boolean;
   variance: number;
@@ -64,6 +77,9 @@ interface ReconcileResult {
   taxesEeOk: boolean;
   taxesErOk: boolean;
   unmappedColumns: string[];
+  /** Enriched counterpart to unmappedColumns (amount + contributing people per column). Optional
+   * for resilience against an older reconcile response; a current one always includes it. */
+  unmappedColumnDetails?: UnmappedColumnDetail[];
   unmappedPositions: string[];
   errors: string[];
   postable: boolean;
@@ -74,7 +90,17 @@ interface DrilldownResponse {
   position_id: string;
   name: string;
   pay_date: string;
+  pay_group: string;
   sensitive: Record<string, number | string | null>;
+}
+
+/** Mirror of /api/payroll/roster RosterItem — plaintext only, no amounts. */
+interface RosterItem {
+  rowKey: string;
+  name: string;
+  positionId: string;
+  payDate: string;
+  payGroup: string;
 }
 
 interface ApiErrorBody {
@@ -86,6 +112,17 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 const fmtMoney = (n: number): string => usd.format(n);
 
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
+
+/**
+ * Drill-down source values are raw ADP numbers that carry floating-point tails
+ * (12.639999999999999). Round to 4 dp then strip trailing zeros — kills the noise on
+ * dollars (→ 12.64) while preserving genuine sub-cent precision on hours (0.0901, -0.0033).
+ */
+function fmtDetailValue(v: number | string | null): string {
+  if (v === null) return '—';
+  if (typeof v === 'number') return String(Number(v.toFixed(4)));
+  return v;
+}
 
 let nextTempId = 0;
 function withKey(line: JournalLine): JournalLine & { _key: number } {
@@ -113,16 +150,16 @@ function stripKey(line: JournalLine & { _key: number }): JournalLine {
 }
 
 interface ReviewTabProps {
+  /** The draft header to review — chosen by clicking a card on the Payrolls landing. */
+  headerId: number;
   /** Switches PayrollTabs to the Mappings tab (optionally pre-selecting an entity). */
   onNavigateToMappings?: (entity: string) => void;
 }
 
-/** Review tab: load a draft by header id, edit its lines with a live client-side balance, reconcile, and drill into source detail. */
-export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
+/** Review detail: auto-loads the selected draft, edits its lines with a live client-side balance, reconciles, and drills into source detail. */
+export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const { darkMode } = useDarkMode();
 
-  const [draftIdInput, setDraftIdInput] = useState<string>('');
-  const [headerId, setHeaderId] = useState<number | null>(null);
   const [header, setHeader] = useState<PayrollHeader | null>(null);
   const [lines, setLines] = useState<Array<JournalLine & { _key: number }>>([]);
 
@@ -132,11 +169,16 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
 
-  const [rowKeyInput, setRowKeyInput] = useState<string>('');
+  const [roster, setRoster] = useState<RosterItem[]>([]);
+  const [personSearch, setPersonSearch] = useState<string>('');
+  const [activeRowKey, setActiveRowKey] = useState<string | null>(null);
   const [drilldownLoading, setDrilldownLoading] = useState(false);
   const [drilldownError, setDrilldownError] = useState<string | null>(null);
   const [drilldownKeyNotConfigured, setDrilldownKeyNotConfigured] = useState(false);
   const [drilldown, setDrilldown] = useState<DrilldownResponse | null>(null);
+  // Scroll target for the "Source detail — by person" drill-down, so the New Columns panel can
+  // jump an accountant straight to a contributing person's source detail.
+  const sourceDetailRef = useRef<HTMLDivElement>(null);
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -167,44 +209,52 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
     }
   }, []);
 
+  const loadRoster = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`/api/payroll/roster?headerId=${id}`);
+      if (!res.ok) return; // roster is a convenience — never block the draft on it
+      const body = (await res.json()) as RosterItem[];
+      setRoster(body);
+    } catch {
+      // ignore — the drill-down just won't offer a picker
+    }
+  }, []);
+
   const loadDraft = useCallback(
     async (id: number) => {
       setLoading(true);
       setError(null);
       setReconcileResult(null);
-      let loadedId: number | null = null;
+      setRoster([]);
+      setDrilldown(null);
+      setActiveRowKey(null);
+      let ok = false;
       try {
         const res = await fetch(`/api/payroll/run/${id}`);
         const body = (await res.json()) as DraftResponse & ApiErrorBody;
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         setHeader(body.header);
         setLines(body.lines.map(withKey));
-        setHeaderId(id);
-        loadedId = id;
+        ok = true;
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to load draft';
         setError(message);
         setHeader(null);
         setLines([]);
-        setHeaderId(null);
       } finally {
         setLoading(false);
       }
-      if (loadedId !== null) {
-        await runReconcile(loadedId);
+      if (ok) {
+        await Promise.all([runReconcile(id), loadRoster(id)]);
       }
     },
-    [runReconcile],
+    [runReconcile, loadRoster],
   );
 
-  const handleLoadClick = useCallback(() => {
-    const id = Number(draftIdInput);
-    if (!Number.isFinite(id) || id <= 0) {
-      setError('Enter a valid numeric draft id');
-      return;
-    }
-    void loadDraft(id);
-  }, [draftIdInput, loadDraft]);
+  // Auto-load whenever the selected draft changes (i.e. a different card was clicked).
+  useEffect(() => {
+    void loadDraft(headerId);
+  }, [headerId, loadDraft]);
 
   const updateLine = useCallback((key: number, patch: Partial<JournalLine>) => {
     setLines((prev) => prev.map((l) => (l._key === key ? { ...l, ...patch } : l)));
@@ -236,7 +286,6 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit'), [lines]);
 
   const handleSave = useCallback(async () => {
-    if (headerId === null) return;
     setSaving(true);
     setError(null);
     try {
@@ -259,13 +308,12 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
   }, [headerId, lines]);
 
   const handleReconcile = useCallback(() => {
-    if (headerId === null) return;
     void runReconcile(headerId);
   }, [headerId, runReconcile]);
 
-  const handleDrilldown = useCallback(async () => {
-    const rowKey = rowKeyInput.trim();
+  const handleDrilldown = useCallback(async (rowKey: string) => {
     if (!rowKey) return;
+    setActiveRowKey(rowKey);
     setDrilldownLoading(true);
     setDrilldownError(null);
     setDrilldownKeyNotConfigured(false);
@@ -286,36 +334,65 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
     } finally {
       setDrilldownLoading(false);
     }
-  }, [rowKeyInput]);
+  }, []);
+
+  // From the "New columns detected" panel: open one person's source detail and scroll to it.
+  const jumpToSource = useCallback(
+    (rowKey: string) => {
+      void handleDrilldown(rowKey);
+      sourceDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    [handleDrilldown],
+  );
+
+  const filteredRoster = useMemo(() => {
+    const q = personSearch.trim().toLowerCase();
+    if (!q) return roster;
+    return roster.filter((p) => p.name.toLowerCase().includes(q) || p.positionId.toLowerCase().includes(q));
+  }, [roster, personSearch]);
 
   return (
     <div className="space-y-6">
-      {/* Draft selector */}
-      <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-end gap-3`}>
-        <label className={`text-sm ${subText}`}>
-          Draft ID
-          <input
-            type="number"
-            min={1}
-            value={draftIdInput}
-            onChange={(e) => setDraftIdInput(e.target.value)}
-            placeholder="e.g. 12"
-            className={`block mt-1 w-32 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
-          />
-        </label>
-        <button
-          onClick={handleLoadClick}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
-          {loading ? 'Loading…' : 'Load'}
-        </button>
+      <DirectionsBanner darkMode={darkMode} title="How to review this payroll">
+        <p>
+          This is one entity&apos;s journal entry. Clear the worklists at the top first — <strong>map any new
+          columns</strong> and <strong>assign any marketers</strong> flagged for a region. Then check the balance,
+          edit lines if needed, and <strong>Save</strong>.
+        </p>
+        <p>
+          When it&apos;s balanced and postable, use the <strong>Post</strong> panel below to preview, approve, and
+          post it to QuickBooks.
+        </p>
+      </DirectionsBanner>
 
-        {header && (
-          <div className={`ml-auto text-sm ${subText}`}>
-            <span className="font-semibold">{header.entity}</span> · {header.pay_date} · {header.pay_group}
-          </div>
+      {/* Loaded-draft summary — what this JE is + who it pays. */}
+      <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-2`}>
+        <div className="flex flex-wrap items-center gap-3">
+          {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}
+          {header ? (
+            <div className="text-sm">
+              <span className="font-semibold">{header.entity}</span>
+              <span className={subText}> · {header.pay_date} · {header.pay_group}</span>
+            </div>
+          ) : (
+            <div className={`text-sm ${subText}`}>{loading ? 'Loading draft…' : 'Draft'}</div>
+          )}
+          {roster.length > 0 && (
+            <span
+              className={`text-xs rounded-full border px-2 py-0.5 ${
+                darkMode ? 'border-slate-600 text-slate-300' : 'border-slate-300 text-slate-600'
+              }`}
+            >
+              {roster.length} {roster.length === 1 ? 'person' : 'people'} paid
+            </span>
+          )}
+        </div>
+        {header && roster.length > 0 && (
+          <p className={`text-xs ${subText}`}>
+            <span className="font-medium">Paying:</span>{' '}
+            {roster.slice(0, 12).map((p) => p.name).join(', ')}
+            {roster.length > 12 ? `, +${roster.length - 12} more` : ''}
+          </p>
         )}
       </div>
 
@@ -334,18 +411,30 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
         <>
           {/* New columns detected — inline mapper worklist, resets per draft via `key`. */}
           <UnmappedColumnsPanel
-            key={headerId ?? 'none'}
+            key={headerId}
             darkMode={darkMode}
             cardBg={cardBg}
             subText={subText}
             border={border}
             inputBg={inputBg}
             entity={header.entity}
-            unmappedColumns={reconcileResult ? reconcileResult.unmappedColumns : null}
-            onMapped={() => {
-              if (headerId !== null) void runReconcile(headerId);
-            }}
+            unmappedColumns={reconcileResult ? (reconcileResult.unmappedColumnDetails ?? []) : null}
+            onMapped={() => void runReconcile(headerId)}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
+            onJumpToSource={jumpToSource}
+          />
+
+          {/* Marketers needing region review — inline reassignment worklist, resets per draft via `key`. */}
+          <MarketerReviewPanel
+            key={headerId}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            subText={subText}
+            border={border}
+            inputBg={inputBg}
+            entity={header.entity}
+            headerId={headerId}
+            onReassigned={() => void runReconcile(headerId)}
           />
 
           {/* Live balance banner */}
@@ -396,6 +485,11 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
           </div>
 
           {/* Line editor */}
+          <p className={`text-xs ${subText}`}>
+            Fields marked <span className="text-red-500 font-semibold">*</span> are required to post — a line
+            highlighted <span className="text-red-500 font-semibold">red</span> is missing an account or a positive amount.
+          </p>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <LineGroup
               title="Debits"
@@ -430,50 +524,61 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
             <ReconcilePanel darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} result={reconcileResult} />
           )}
 
-          {/* Drill-down */}
-          <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
-            <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Source detail (drill-down)</p>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className={`text-sm ${subText} flex-1 min-w-[240px]`}>
-                Row key
-                <input
-                  type="text"
-                  value={rowKeyInput}
-                  onChange={(e) => setRowKeyInput(e.target.value)}
-                  placeholder="e.g. 1001|06/18/2026|06/01/2026|06/14/2026|Bi-Weekly Payroll"
-                  className={`block mt-1 w-full rounded-md border px-2 py-1.5 text-sm font-mono ${inputBg}`}
-                />
-              </label>
-              <button
-                onClick={() => void handleDrilldown()}
-                disabled={drilldownLoading || !rowKeyInput.trim()}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {drilldownLoading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Search className="w-4 h-4" aria-hidden />}
-                {drilldownLoading ? 'Loading…' : 'Look up'}
-              </button>
-              {lines.some((l) => l.sourceRowKeys.length > 0) && (
-                <p className={`text-xs w-full ${subText}`}>
-                  Row keys on this draft&apos;s lines: click one to look it up, or paste a key above.
-                </p>
+          {/* Drill-down — pick a person to see their source pay detail. */}
+          <div ref={sourceDetailRef} className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Source detail — by person</p>
+              {roster.length > 0 && (
+                <div className="relative">
+                  <Search className={`w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 ${subText}`} aria-hidden />
+                  <input
+                    type="text"
+                    value={personSearch}
+                    onChange={(e) => setPersonSearch(e.target.value)}
+                    placeholder="Search person…"
+                    className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
+                  />
+                </div>
               )}
             </div>
 
-            {lines.some((l) => l.sourceRowKeys.length > 0) && (
+            {roster.length === 0 ? (
+              <p className={`text-xs ${subText}`}>
+                {loading ? 'Loading people…' : 'No people found for this run.'}
+              </p>
+            ) : (
               <div className="flex flex-wrap gap-1.5">
-                {[...new Set(lines.flatMap((l) => l.sourceRowKeys))].slice(0, 24).map((rk) => (
-                  <button
-                    key={rk}
-                    onClick={() => setRowKeyInput(rk)}
-                    className={`text-[11px] font-mono px-1.5 py-0.5 rounded border truncate max-w-[220px] ${
-                      darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
-                    }`}
-                    title={rk}
-                  >
-                    {rk}
-                  </button>
-                ))}
+                {filteredRoster.map((p) => {
+                  const active = p.rowKey === activeRowKey;
+                  return (
+                    <button
+                      key={p.rowKey}
+                      onClick={() => void handleDrilldown(p.rowKey)}
+                      disabled={drilldownLoading}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                        active
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : darkMode
+                            ? 'border-slate-600 hover:bg-slate-700'
+                            : 'border-slate-300 hover:bg-slate-100'
+                      }`}
+                      title={`${p.name} · ${p.payGroup}`}
+                    >
+                      {p.name}
+                    </button>
+                  );
+                })}
+                {filteredRoster.length === 0 && (
+                  <p className={`text-xs ${subText}`}>No one matches “{personSearch}”.</p>
+                )}
               </div>
+            )}
+
+            {drilldownLoading && (
+              <p className={`text-xs flex items-center gap-2 ${subText}`}>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                Loading source detail…
+              </p>
             )}
 
             {drilldownKeyNotConfigured && (
@@ -490,14 +595,37 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
             )}
             {drilldown && (
               <div className={`rounded-lg border p-3 ${border} space-y-2`}>
-                <p className="text-sm font-semibold">
-                  {drilldown.name} <span className={`font-normal ${subText}`}>· position {drilldown.position_id} · pay date {drilldown.pay_date}</span>
-                </p>
+                {/* Person · Date · Type — lead with the person, not the employee ID. */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-sm font-semibold">{drilldown.name}</span>
+                    <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>
+                    <span
+                      className={`text-[11px] font-medium rounded-full border px-2 py-0.5 ${
+                        darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {drilldown.pay_group}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDrilldown(null);
+                      setActiveRowKey(null);
+                    }}
+                    aria-label="Close source detail"
+                    title="Close"
+                    className={`p-1 rounded-md shrink-0 ${darkMode ? 'text-slate-400 hover:bg-slate-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                  >
+                    <X className="w-4 h-4" aria-hidden />
+                  </button>
+                </div>
+                {/* Amounts */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                   {Object.entries(drilldown.sensitive).map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-2 border-b border-dashed pb-0.5 last:border-0">
                       <span className={subText}>{k}</span>
-                      <span className="tabular-nums font-medium">{v === null ? '—' : String(v)}</span>
+                      <span className="tabular-nums font-medium">{fmtDetailValue(v)}</span>
                     </div>
                   ))}
                 </div>
@@ -509,7 +637,7 @@ export function ReviewTab({ onNavigateToMappings }: ReviewTabProps = {}) {
 
       {!header && !loading && !error && (
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
-          Enter a draft id from the Runs tab and click Load to review its lines.
+          This draft could not be loaded. Go back to Payrolls and pick another.
         </div>
       )}
     </div>
@@ -582,6 +710,75 @@ function LineGroup({
   );
 }
 
+/**
+ * Read-only text that marquees when it overflows: sits at the start for 2s, scrolls to the
+ * end at a constant speed, holds 2s, snaps back to the start, repeats. Static (no animation,
+ * no timers) when the text fits. Re-measures on text change and window resize.
+ */
+function ScrollingText({ text, className }: { text: string; className: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const [style, setStyle] = useState<{ x: number; dur: number }>({ x: 0, dur: 0 });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const span = spanRef.current;
+    if (!container || !span) return;
+
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const clear = (): void => {
+      for (const t of timers) clearTimeout(t);
+      timers.length = 0;
+    };
+
+    const HOLD = 2000; // pause at each end (ms)
+    const run = (): void => {
+      clear();
+      // scrollWidth - clientWidth is the exact max scroll distance, correctly accounting for
+      // the field's padding (transforms don't affect layout, so this is stable mid-animation).
+      const overflow = Math.ceil(container.scrollWidth - container.clientWidth);
+      if (overflow <= 1) {
+        setStyle({ x: 0, dur: 0 });
+        return;
+      }
+      const travel = Math.max(1200, overflow * 14); // constant ~70px/s
+      const cycle = (): void => {
+        setStyle({ x: 0, dur: 0 }); // at start
+        timers.push(
+          setTimeout(() => {
+            setStyle({ x: -overflow, dur: travel }); // scroll to end
+            // wait for the scroll to finish + hold at the end, then snap back and repeat
+            timers.push(setTimeout(cycle, travel + HOLD));
+          }, HOLD),
+        );
+      };
+      cycle();
+    };
+
+    run();
+    window.addEventListener('resize', run);
+    return () => {
+      clear();
+      window.removeEventListener('resize', run);
+    };
+  }, [text]);
+
+  return (
+    <div ref={containerRef} className={`overflow-hidden whitespace-nowrap ${className}`} title={text}>
+      <span
+        ref={spanRef}
+        className="inline-block align-middle will-change-transform"
+        style={{
+          transform: `translateX(${style.x}px)`,
+          transition: style.dur ? `transform ${style.dur}ms linear` : 'none',
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
 function LineRow({
   darkMode,
   border,
@@ -600,18 +797,37 @@ function LineRow({
   onRemove: (key: number) => void;
 }) {
   const editable = line.origin !== 'generated';
+  // Fields QuickBooks requires for a successful post: an account and a positive amount.
+  const accountMissing = line.accountName.trim() === '';
+  const amountMissing = !(Number(line.amount) > 0);
+  const reqRing = 'border-red-500 ring-1 ring-red-500';
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
       <div className="flex items-start gap-2">
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input
-            type="text"
-            value={line.accountName}
-            onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
-            placeholder="Account"
-            disabled={!editable}
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg} disabled:opacity-70`}
-          />
+          <div className="flex items-center gap-1">
+            <span className="text-red-500 text-sm leading-none shrink-0" title="Required to post">
+              *
+            </span>
+            <div className="relative flex-1 min-w-0">
+              {editable ? (
+                <input
+                  type="text"
+                  value={line.accountName}
+                  onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
+                  placeholder="Account"
+                  className={`w-full rounded-md border px-2 py-1 text-sm ${inputBg} ${accountMissing ? reqRing : ''}`}
+                />
+              ) : (
+                // Generated line: account is read-only and often long — marquee it so the full
+                // name is readable without truncation (only animates when it actually overflows).
+                <ScrollingText
+                  text={line.accountName}
+                  className={`w-full rounded-md border px-2 py-1 text-sm opacity-70 ${inputBg} ${accountMissing ? reqRing : ''}`}
+                />
+              )}
+            </div>
+          </div>
           <input
             type="text"
             value={line.memo}
@@ -646,13 +862,13 @@ function LineRow({
 
       <div className="flex flex-wrap items-center gap-2">
         <label className={`text-xs ${subText} flex items-center gap-1`}>
-          Amount
+          Amount <span className="text-red-500" title="Required to post">*</span>
           <input
             type="number"
             step="0.01"
             value={line.amount}
             onChange={(e) => onUpdate(line._key, { amount: Number(e.target.value) })}
-            className={`w-28 rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg}`}
+            className={`w-28 rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg} ${amountMissing ? reqRing : ''}`}
           />
         </label>
 

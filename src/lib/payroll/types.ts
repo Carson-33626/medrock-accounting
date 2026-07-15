@@ -37,6 +37,10 @@ export interface AccountMapRule {
   id?: number;
   entity: Entity; adpColumn: string; costCenter: string; accountName: string; postingType: PostingType;
   isCogs: boolean; creditBucket: CreditBucket | null; active: boolean;
+  /** Department-labelled JE line memo (e.g. 'Accounting Wages', 'ER Taxes - Admin'). Splits lines
+   * that share an account by department so accounting can read each department's slice. Null on
+   * pooled '*' rules (credits, EE withholdings) — those fall back to the creditBucket memo. */
+  memo?: string | null;
 }
 export interface EmployeeMapRule {
   id?: number;
@@ -46,6 +50,24 @@ export interface EmployeeMapRule {
 export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;
   postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;
+  /** Department-labelled line memo carried from the matched account-map rule (see AccountMapRule.memo). */
+  memo?: string | null;
+}
+
+/** One person who contributed dollars to an unmapped column — name for display, rowKey to
+ * drill into their (decrypt-gated) source detail. NO per-person amount here: those stay behind
+ * the drill-down decrypt gate; only the column TOTAL is surfaced. */
+export interface UnmappedColumnSource {
+  rowKey: string;
+  name: string;
+}
+/** An unmapped ADP column enriched for the "new columns detected" worklist: its total dollars
+ * across the run + the people who carried them (so the panel can show the amount and jump to
+ * source). Parallel to the bare `unmappedColumns: string[]` reconcile still uses for postability. */
+export interface UnmappedColumnDetail {
+  column: string;
+  amount: number; // total $ across the run for this column, 2dp
+  sources: UnmappedColumnSource[];
 }
 export interface ReconcileResult {
   balanced: boolean; variance: number;

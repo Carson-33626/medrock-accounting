@@ -27,8 +27,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const refs = await fetchDimensions(entity);
+    const acctNums = refs.accountNums ?? {};
     return NextResponse.json({
-      accounts: Object.keys(refs.accounts),
+      // Accounts carry their QB account number (null when the account has none) — the mapping
+      // dropdowns show + search on it, since the accounting team works by account number.
+      accounts: Object.keys(refs.accounts).map((name) => ({ name, acctNum: acctNums[name] ?? null })),
       departments: Object.keys(refs.departments),
       classes: Object.keys(refs.classes),
     });

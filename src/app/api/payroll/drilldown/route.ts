@@ -12,6 +12,7 @@ interface DrilldownRow {
   position_id: string;
   name: string;
   pay_date: string;
+  pay_group: string;
   sensitive_encrypted: string;
 }
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { rows } = await getRdsPool().query<DrilldownRow>(
-      `SELECT row_key, position_id, name, pay_date, sensitive_encrypted
+      `SELECT row_key, position_id, name, pay_date, pay_group, sensitive_encrypted
        FROM source.payroll_history
        WHERE row_key = $1`,
       [rowKey],
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
       position_id: row.position_id,
       name: row.name,
       pay_date: row.pay_date,
+      pay_group: row.pay_group,
       sensitive,
     });
   } catch (error) {

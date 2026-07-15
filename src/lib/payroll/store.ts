@@ -54,12 +54,13 @@ interface AccountMapRow {
   isCogs: boolean;
   creditBucket: CreditBucket | null;
   active: boolean;
+  memo: string | null;
 }
 
 export async function getAccountMap(entity: Entity): Promise<AccountMapRule[]> {
   const { rows } = await getRdsPool().query<AccountMapRow>(
     `SELECT id, entity, adp_column AS "adpColumn", cost_center AS "costCenter", account_name AS "accountName",
-            posting_type AS "postingType", is_cogs AS "isCogs", credit_bucket AS "creditBucket", active
+            posting_type AS "postingType", is_cogs AS "isCogs", credit_bucket AS "creditBucket", active, memo
      FROM accounting.payroll_account_map WHERE entity=$1 AND active`,
     [entity],
   );
@@ -89,15 +90,16 @@ export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]>
 export async function upsertAccountRule(rule: AccountMapRule): Promise<number> {
   const { rows } = await getRdsPool().query<{ id: number }>(
     `INSERT INTO accounting.payroll_account_map
-       (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, memo, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
      ON CONFLICT (entity, adp_column, cost_center, posting_type, account_name) DO UPDATE SET
        is_cogs = EXCLUDED.is_cogs,
        credit_bucket = EXCLUDED.credit_bucket,
        active = EXCLUDED.active,
+       memo = EXCLUDED.memo,
        updated_at = now()
      RETURNING id`,
-    [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
+    [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
   );
   return rows[0].id;
 }
@@ -123,9 +125,9 @@ export async function updateAccountRule(id: number, rule: AccountMapRule): Promi
   await getRdsPool().query(
     `UPDATE accounting.payroll_account_map
      SET entity=$2, adp_column=$3, cost_center=$4, account_name=$5, posting_type=$6, is_cogs=$7,
-         credit_bucket=$8, active=$9, updated_at=now()
+         credit_bucket=$8, active=$9, memo=$10, updated_at=now()
      WHERE id=$1`,
-    [id, rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active],
+    [id, rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
   );
 }
 
@@ -253,7 +255,10 @@ interface HeaderRow {
 
 function toHeader(r: HeaderRow): PayrollHeader {
   return {
-    id: r.id,
+    // `id` is a bigint — node-postgres returns bigint as a string. Coerce so every
+    // consumer (reconcile/approve/post routes require typeof headerId === 'number')
+    // gets a real number. IDs are far below Number.MAX_SAFE_INTEGER, so this is safe.
+    id: Number(r.id),
     entity: r.entity,
     pay_date: r.pay_date,
     pay_group: r.pay_group,
@@ -327,6 +332,30 @@ export async function listHeaders(startISO: string, endISO: string): Promise<Pay
      WHERE to_date(pay_date, 'MM/DD/YYYY') BETWEEN $1::date AND $2::date
      ORDER BY pay_date, entity`,
     [startISO, endISO],
+  );
+  return rows.map(toHeader);
+}
+
+/**
+ * Headers for the most recent `periods` distinct pay dates (default 2), newest first.
+ * Powers the /payroll landing list — no date range needed; the accountant sees the
+ * last couple of pay periods already populated and clicks straight into a draft.
+ */
+export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
+  const safePeriods = Number.isFinite(periods) && periods > 0 ? Math.min(Math.floor(periods), 24) : 2;
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `WITH recent AS (
+       SELECT DISTINCT to_date(pay_date, 'MM/DD/YYYY') AS d
+       FROM accounting.payroll_journal_headers
+       ORDER BY d DESC
+       LIMIT $1
+     )
+     SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+     FROM accounting.payroll_journal_headers
+     WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+    [safePeriods],
   );
   return rows.map(toHeader);
 }

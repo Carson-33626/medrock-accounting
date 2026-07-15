@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
-import { getAccountMap, getEmployeeMap, saveDraft, sourceSnapshotHash, listHeaders } from '@/lib/payroll/store';
+import { getAccountMap, getEmployeeMap, saveDraft, sourceSnapshotHash, listHeaders, listRecentHeaders } from '@/lib/payroll/store';
 import type { AccountMapRule, EmployeeMapRule } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -52,12 +52,23 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** GET /api/payroll/runs?start=&end= — list persisted headers in the range. */
+/**
+ * GET /api/payroll/runs
+ *   ?recent=N   → headers for the N most recent distinct pay periods (landing default)
+ *   ?start=&end= → persisted headers in an explicit date range
+ */
 export async function GET(request: NextRequest) {
   await requireAdmin();
 
   try {
     const sp = request.nextUrl.searchParams;
+    const recentParam = sp.get('recent');
+    if (recentParam !== null) {
+      const periods = Number(recentParam);
+      const headers = await listRecentHeaders(Number.isFinite(periods) ? periods : 2);
+      return NextResponse.json({ headers });
+    }
+
     const start = sp.get('start');
     const end = sp.get('end');
     if (!start || !end || !ISO_DATE_RE.test(start) || !ISO_DATE_RE.test(end)) {
