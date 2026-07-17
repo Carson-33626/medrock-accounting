@@ -187,3 +187,18 @@ describe('buildJournal', () => {
     expect(d.totalCredits).toBe(100);
   });
 });
+
+describe('pay-date drafts unchanged by accrual/allocation work', () => {
+  it('tags pay-date drafts kind:"pay_date" and carries no special overrides', () => {
+    // Reuse the same fixture/setup as the first buildJournal test above.
+    const rows = [baseRow({}), baseRow({ position_id: '1001', row_key: 'k2', sensitive: { 'REGULAR PAY - EARNING': 500, 'NET PAY': 400 } })];
+    const { drafts } = buildJournal(rows, accountMap, empMap);
+    expect(drafts.length).toBeGreaterThan(0);
+    for (const d of drafts) {
+      expect(d.kind).toBe('pay_date');
+      expect(d.docNumber).toBeUndefined();
+      expect(d.txnDate).toBeUndefined();
+      expect(d.privateNote).toBeUndefined();
+    }
+  });
+});
