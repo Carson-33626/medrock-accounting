@@ -72,6 +72,28 @@ interface ApiErrorBody {
   error?: string;
 }
 
+/**
+ * Local mirror of AllocationRule (web/src/lib/payroll/types.ts) for the same reason as the
+ * mapping types above — src/lib/payroll/* pulls in the RDS pool and must never land in a
+ * client bundle.
+ */
+interface AllocRuleView {
+  id?: number;
+  targetEntity: Entity;
+  percent: number;
+  effectiveFrom: string;
+  active: boolean;
+}
+
+interface AllocationRulesResponse {
+  rules: AllocRuleView[];
+}
+
+interface AllocationSaveResponse {
+  ok?: boolean;
+  error?: string;
+}
+
 const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 
@@ -113,6 +135,16 @@ function stripKey<T extends { _key: number }>(rule: T): Omit<T, '_key'> {
   const { _key: _unused, ...rest } = rule;
   void _unused;
   return rest;
+}
+
+/** Fresh 1/3 split shown until an ADMIN rule set has actually been saved. */
+function defaultAllocationRows(): AllocRuleView[] {
+  return ENTITIES.map((ent, i) => ({
+    targetEntity: ent,
+    percent: i === ENTITIES.length - 1 ? 33.3334 : 33.3333,
+    effectiveFrom: '',
+    active: true,
+  }));
 }
 
 /**
@@ -221,6 +253,8 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
         </p>
       </DirectionsBanner>
 
+      <AllocationPanel darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} inputBg={inputBg} />
+
       {/* Entity selector */}
       <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-end gap-3`}>
         <label className={`text-sm ${subText}`}>
@@ -295,6 +329,200 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
         classOptions={dimensions?.classes ?? null}
         employeeNames={employeeNames}
       />
+    </div>
+  );
+}
+
+// ── Admin allocation panel ──────────────────────────────────────────────────
+
+/**
+ * ADMIN wage-allocation editor: splits ADMIN regular wages across the three companies by
+ * percent, dated by effective_from. Reads/writes GET/POST /api/payroll/allocation-rules
+ * (Task 10). The three target entities are a fixed set (ENTITIES), so a plain read-only
+ * label per row is enough — no SearchableSelect needed.
+ */
+function AllocationPanel({
+  darkMode,
+  cardBg,
+  subText,
+  border,
+  inputBg,
+}: {
+  darkMode: boolean;
+  cardBg: string;
+  subText: string;
+  border: string;
+  inputBg: string;
+}) {
+  const [rows, setRows] = useState<AllocRuleView[]>([]);
+  const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch('/api/payroll/allocation-rules?costCenter=ADMIN');
+        const body = (await res.json()) as AllocationRulesResponse & ApiErrorBody;
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        if (cancelled) return;
+        // Rules come back ordered effective_from DESC, so [0] is the latest date — but only
+        // trust it if all three entities are present for that date; otherwise start fresh.
+        const latest = body.rules[0]?.effectiveFrom;
+        const current = latest ? body.rules.filter((r) => r.effectiveFrom === latest) : [];
+        if (current.length === ENTITIES.length) {
+          setRows(current);
+          setEffectiveFrom(latest ?? '');
+        } else {
+          setRows(defaultAllocationRows());
+          setEffectiveFrom('');
+        }
+      } catch (e) {
+        if (cancelled) return;
+        const message = e instanceof Error ? e.message : 'Failed to load allocation rules';
+        setLoadError(message);
+        setRows(defaultAllocationRows());
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const sum = rows.reduce((s, r) => s + (Number.isFinite(r.percent) ? r.percent : 0), 0);
+  const balanced = Math.abs(sum - 100) <= 0.0001;
+
+  const setPct = useCallback((ent: Entity, value: string) => {
+    const parsed = parseFloat(value);
+    setRows((prev) => prev.map((r) => (r.targetEntity === ent ? { ...r, percent: parsed } : r)));
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const res = await fetch('/api/payroll/allocation-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          costCenter: 'ADMIN',
+          effectiveFrom,
+          rules: rows.map((r) => ({ ...r, costCenter: 'ADMIN', effectiveFrom })),
+        }),
+      });
+      const body = (await res.json()) as AllocationSaveResponse;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setSaved(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to save allocation rules';
+      setSaveError(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [rows, effectiveFrom]);
+
+  const canSave = balanced && effectiveFrom.length > 0 && !saving;
+
+  return (
+    <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
+      <div>
+        <p className="text-sm font-semibold">Admin wage allocation (ADMIN)</p>
+        <p className={`text-xs ${subText}`}>
+          Splits ADMIN regular wages across the three companies. Must sum to 100%. Effective from the
+          first of a month; applies to that month onward and never backdates prior closes.
+        </p>
+      </div>
+
+      {loading && (
+        <span className={`flex items-center gap-1.5 text-xs ${subText}`}>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+          Loading allocation…
+        </span>
+      )}
+
+      {loadError && (
+        <div
+          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <p>{loadError} — showing a fresh 1/3 split; confirm the numbers before saving.</p>
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          <label className={`block text-sm ${subText}`}>
+            Effective from
+            <input
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+              className={`block mt-1 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {rows.map((row) => (
+              <label key={row.targetEntity} className={`text-xs ${subText}`}>
+                {row.targetEntity}
+                <div className={`flex items-center mt-1 rounded-md border ${inputBg}`}>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={Number.isFinite(row.percent) ? row.percent : ''}
+                    onChange={(e) => setPct(row.targetEntity, e.target.value)}
+                    className="w-full bg-transparent px-2 py-1 text-sm"
+                  />
+                  <span className="pr-2">%</span>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <div className={`flex flex-wrap items-center gap-3 pt-1 border-t ${border}`}>
+            <span
+              className={`text-xs font-medium ${
+                balanced ? (darkMode ? 'text-emerald-300' : 'text-emerald-600') : darkMode ? 'text-red-300' : 'text-red-700'
+              }`}
+            >
+              Sum: {sum.toFixed(4)}% {balanced ? '✓' : '— must be 100.0000'}
+            </span>
+
+            <button
+              onClick={() => void handleSave()}
+              disabled={!canSave}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Save className="w-3.5 h-3.5" aria-hidden />}
+              {saving ? 'Saving…' : 'Save allocation'}
+            </button>
+
+            {saved && (
+              <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`}>
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />
+                Saved
+              </span>
+            )}
+            {saveError && (
+              <span className={`flex items-center gap-1 text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                <XCircle className="w-3.5 h-3.5" aria-hidden />
+                {saveError}
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
