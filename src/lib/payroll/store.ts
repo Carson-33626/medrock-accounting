@@ -11,6 +11,7 @@ import type {
   JournalLine,
   AccountMapRule,
   EmployeeMapRule,
+  AllocationRule,
   Entity,
   PostingType,
   CreditBucket,
@@ -410,4 +411,58 @@ export async function setHeaderStatus(
      WHERE id = $1`,
     [id, status, qb?.entryId ?? null, qb?.docNumber ?? null],
   );
+}
+
+interface AllocationRuleRow {
+  id: number; cost_center: string; target_entity: Entity; percent: string; effective_from: string; active: boolean;
+}
+function toAllocationRule(r: AllocationRuleRow): AllocationRule {
+  return { id: Number(r.id), costCenter: r.cost_center, targetEntity: r.target_entity, percent: Number(r.percent), effectiveFrom: r.effective_from, active: r.active };
+}
+
+export async function getAllocationRules(costCenter?: string): Promise<AllocationRule[]> {
+  const { rows } = costCenter === undefined
+    ? await getRdsPool().query<AllocationRuleRow>(
+        `SELECT id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
+         FROM accounting.payroll_allocation_rule ORDER BY cost_center, effective_from DESC, target_entity`)
+    : await getRdsPool().query<AllocationRuleRow>(
+        `SELECT id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
+         FROM accounting.payroll_allocation_rule WHERE cost_center=$1 ORDER BY effective_from DESC, target_entity`,
+        [costCenter]);
+  return rows.map(toAllocationRule);
+}
+
+export async function getEffectiveAllocationRules(costCenter: string, monthStartIso: string): Promise<AllocationRule[]> {
+  const { rows } = await getRdsPool().query<AllocationRuleRow>(
+    `SELECT DISTINCT ON (target_entity)
+            id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
+     FROM accounting.payroll_allocation_rule
+     WHERE cost_center=$1 AND active AND effective_from <= $2::date
+     ORDER BY target_entity, effective_from DESC`,
+    [costCenter, monthStartIso]);
+  return rows.map(toAllocationRule);
+}
+
+/** Validate sum-to-100 then upsert the rule set for one (cost_center, effective_from) in a txn. */
+export async function saveAllocationRuleSet(costCenter: string, effectiveFrom: string, rules: AllocationRule[]): Promise<void> {
+  const { assertSharesSumTo100 } = await import('./allocation');
+  assertSharesSumTo100(rules.map((r) => r.percent));
+  const pool = getRdsPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const r of rules) {
+      await client.query(
+        `INSERT INTO accounting.payroll_allocation_rule (cost_center, target_entity, percent, effective_from, active, updated_at)
+         VALUES ($1,$2,$3,$4::date,$5, now())
+         ON CONFLICT (cost_center, target_entity, effective_from) DO UPDATE SET
+           percent = EXCLUDED.percent, active = EXCLUDED.active, updated_at = now()`,
+        [costCenter, r.targetEntity, r.percent, effectiveFrom, r.active]);
+    }
+    await client.query('COMMIT');
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+export async function setAllocationRuleActive(id: number, active: boolean): Promise<void> {
+  await getRdsPool().query(`UPDATE accounting.payroll_allocation_rule SET active=$2, updated_at=now() WHERE id=$1`, [id, active]);
 }
