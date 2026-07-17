@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
-const save = vi.fn(async () => undefined);
-const list = vi.fn(async () => []);
+const save = vi.fn(async (..._a: unknown[]) => undefined);
+const list = vi.fn(async (..._a: unknown[]) => []);
 vi.mock('@/lib/payroll/store', () => ({
   getAllocationRules: (...a: unknown[]) => list(...a),
   saveAllocationRuleSet: (...a: unknown[]) => save(...a),
