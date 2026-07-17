@@ -28,3 +28,41 @@ describe('buildJePayload', () => {
     expect(p.TxnDate).toBe('2026-06-01');
   });
 });
+
+describe('buildJePayload overrides (accrual/allocation)', () => {
+  const refs = {
+    accounts: { 'Accrued Payroll Liability': '900', 'Payroll Expense -:Administrative Wages': '910' },
+    departments: {}, classes: {},
+  };
+  const base = {
+    entity: 'MedRock TN' as const, payDate: '06/30/2026', payGroup: '', periodStart: '06/01/2026',
+    periodEnd: '06/30/2026', totalDebits: 100, totalCredits: 100, variance: 0, rowKeys: [],
+  };
+  it('uses the per-draft DocNumber/TxnDate/PrivateNote when present', () => {
+    const draft = {
+      ...base, kind: 'accrual' as const, docNumber: 'PR Accru 2026.06',
+      txnDate: '2026-06-30', privateNote: 'Payroll accrual — June 2026',
+      lines: [
+        { postingType: 'Debit' as const, amount: 100, accountName: 'Payroll Expense -:Administrative Wages', departmentName: null, className: null, memo: 'Admin Wages - Jun Accrual', creditBucket: null, origin: 'generated' as const, sourceRowKeys: [] },
+        { postingType: 'Credit' as const, amount: 100, accountName: 'Accrued Payroll Liability', departmentName: null, className: null, memo: 'Admin Wages - Jun Accrual', creditBucket: null, origin: 'generated' as const, sourceRowKeys: [] },
+      ],
+    };
+    const p = buildJePayload(draft, refs);
+    expect(p.DocNumber).toBe('PR Accru 2026.06');
+    expect(p.TxnDate).toBe('2026-06-30');
+    expect(p.PrivateNote).toBe('Payroll accrual — June 2026');
+  });
+  it('falls back to the pay-date derivation when no overrides (unchanged)', () => {
+    const draft = {
+      ...base, payDate: '03/27/2026', payGroup: 'MRX',
+      lines: [
+        { postingType: 'Debit' as const, amount: 100, accountName: 'Payroll Expense -:Administrative Wages', departmentName: null, className: null, memo: '', creditBucket: null, origin: 'generated' as const, sourceRowKeys: [] },
+        { postingType: 'Credit' as const, amount: 100, accountName: 'Accrued Payroll Liability', departmentName: null, className: null, memo: '', creditBucket: null, origin: 'generated' as const, sourceRowKeys: [] },
+      ],
+    };
+    const p = buildJePayload(draft, refs);
+    expect(p.DocNumber).toBe('PR 2026.03.27');
+    expect(p.TxnDate).toBe('2026-03-27');
+    expect(p.PrivateNote).toBe('Auto payroll JE — MRX 03/27/2026');
+  });
+});

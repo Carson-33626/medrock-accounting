@@ -11,6 +11,7 @@ export interface PayrollRow {
 export type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
 export type PostingType = 'Debit' | 'Credit';
 export type LineOrigin = 'generated' | 'manual' | 'inter_entity';
+export type JeKind = 'pay_date' | 'accrual' | 'reversal' | 'allocation';
 export type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
 export interface JournalLine {
@@ -31,6 +32,14 @@ export interface JournalDraft {
   lines: JournalLine[];
   totalDebits: number; totalCredits: number; variance: number;
   rowKeys: string[];
+  /** Which of the four JE kinds this draft is. Absent === 'pay_date' (the original path). */
+  kind?: JeKind;
+  /** Per-draft QB overrides for the special (accrual/reversal/allocation) JEs. When present,
+   *  buildJePayload uses these verbatim instead of deriving from payDate — so those JEs get
+   *  Amy's DocNumber/TxnDate scheme while the pay-date path stays byte-identical. */
+  docNumber?: string;
+  txnDate?: string;    // ISO YYYY-MM-DD
+  privateNote?: string;
 }
 
 export interface AccountMapRule {

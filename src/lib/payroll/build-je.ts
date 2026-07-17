@@ -106,6 +106,7 @@ export function buildJournal(
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
     drafts.push({
+      kind: 'pay_date',
       entity: g.entity, payDate: g.row0.pay_date, payGroup: g.row0.pay_group,
       periodStart: g.row0.period_start_date, periodEnd: g.row0.period_end_date,
       lines, totalDebits, totalCredits, variance: round2(totalDebits - totalCredits),

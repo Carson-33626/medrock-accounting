@@ -24,7 +24,12 @@ export function buildJePayload(draft: JournalDraft, refs: Refs): QbJournalEntryP
     if (l.className) { const cls = refs.classes[l.className]; if (!cls) throw new Error(`unresolved class: ${l.className}`); detail.ClassRef = { value: cls }; }
     return { Amount: l.amount, DetailType: 'JournalEntryLineDetail', Description: l.memo || undefined, JournalEntryLineDetail: detail };
   });
-  return { DocNumber: docNumber(draft.payDate), TxnDate: txnDate(draft.payDate), PrivateNote: `Auto payroll JE — ${draft.payGroup} ${draft.payDate}`, Line };
+  return {
+    DocNumber: draft.docNumber ?? docNumber(draft.payDate),
+    TxnDate: draft.txnDate ?? txnDate(draft.payDate),
+    PrivateNote: draft.privateNote ?? `Auto payroll JE — ${draft.payGroup} ${draft.payDate}`,
+    Line,
+  };
 }
 
 interface NameId { Id: string; Name?: string; FullyQualifiedName?: string; }
