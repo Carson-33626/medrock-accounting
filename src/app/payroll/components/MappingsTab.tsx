@@ -398,7 +398,8 @@ function AllocationPanel({
   }, []);
 
   const sum = rows.reduce((s, r) => s + (Number.isFinite(r.percent) ? r.percent : 0), 0);
-  const balanced = Math.abs(sum - 100) <= 0.0001;
+  const allFinite = rows.every((r) => Number.isFinite(r.percent));
+  const balanced = allFinite && Math.abs(sum - 100) <= 0.0001;
 
   const setPct = useCallback((ent: Entity, value: string) => {
     const parsed = parseFloat(value);
