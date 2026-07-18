@@ -7,6 +7,7 @@ import { PayrollsLanding } from './PayrollsLanding';
 import { ReviewTab } from './ReviewTab';
 import { MappingsTab } from './MappingsTab';
 import { PostPanel } from './PostPanel';
+import { AccrualAllocationNotes } from './AccrualAllocationNotes';
 
 type View = 'payrolls' | 'mappings';
 
@@ -62,6 +63,8 @@ export function PayrollTabs() {
           <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Payroll</p>
           <h1 className={`text-2xl font-bold ${headText}`}>ADP Payroll Journal Entry</h1>
         </div>
+
+        <AccrualAllocationNotes darkMode={darkMode} />
 
         {inDetail ? (
           <button
