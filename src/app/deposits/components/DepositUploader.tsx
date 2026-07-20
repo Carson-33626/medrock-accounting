@@ -58,19 +58,29 @@ export function DepositUploader({ defaultLocation }: Props) {
 
   const fileInput = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Incremented on every fetch kickoff (initial load or a "Try again" retry)
+  // and again on unmount, so an in-flight response can tell it's gone stale
+  // and skip applying itself — the same "cancelled" guarantee the old local
+  // closure flag gave, but shared across repeated calls.
+  const locationsRequestRef = useRef(0);
+
+  const loadLocations = useCallback(() => {
+    const requestId = ++locationsRequestRef.current;
+    setLocationsStatus('loading');
     void (async () => {
       try {
-        const response = await fetch('/api/deposits/locations');
-        if (cancelled) return;
+        // 10s timeout: a hung connection must land in "unavailable" (with a
+        // retry option) rather than leaving the form disabled forever.
+        const response = await fetch('/api/deposits/locations', { signal: AbortSignal.timeout(10_000) });
+        if (locationsRequestRef.current !== requestId) return;
         if (!response.ok) {
           setLocationsStatus('unavailable');
           return;
         }
         const body = (await response.json()) as { locations?: string[] };
-        if (cancelled) return;
+        if (locationsRequestRef.current !== requestId) return;
         const list = body.locations ?? [];
         if (list.length === 0) {
           setLocationsStatus('unavailable');
@@ -83,11 +93,22 @@ export function DepositUploader({ defaultLocation }: Props) {
         // to an explicit unselected state instead.
         setLocation((current) => (current && list.includes(current) ? current : ''));
       } catch {
-        if (!cancelled) setLocationsStatus('unavailable');
+        if (locationsRequestRef.current === requestId) setLocationsStatus('unavailable');
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    loadLocations();
     return () => {
-      cancelled = true;
+      locationsRequestRef.current += 1;
+    };
+  }, [loadLocations]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
     };
   }, []);
 
@@ -121,6 +142,7 @@ export function DepositUploader({ defaultLocation }: Props) {
 
       const response = await fetch('/api/deposits/upload', { method: 'POST', body: form });
       const body = (await response.json()) as { results?: UploadResult[]; error?: string };
+      if (!mountedRef.current) return;
 
       if (!response.ok) {
         setError(body.error ?? 'Upload failed.');
@@ -130,9 +152,9 @@ export function DepositUploader({ defaultLocation }: Props) {
       setFiles([]);
       if (fileInput.current) fileInput.current.value = '';
     } catch {
-      setError('Upload failed — check your connection and try again.');
+      if (mountedRef.current) setError('Upload failed — check your connection and try again.');
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }, [locationsStatus, location, date, type, amount, files]);
 
@@ -155,6 +177,7 @@ export function DepositUploader({ defaultLocation }: Props) {
         body: JSON.stringify({ fileId, removalToken: result.removalToken }),
       });
       const body = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!mountedRef.current) return;
 
       if (response.ok && body.ok) {
         setRemovedIds((current) => new Set(current).add(fileId));
@@ -162,16 +185,20 @@ export function DepositUploader({ defaultLocation }: Props) {
         setRemoveErrors((current) => ({ ...current, [fileId]: body.error ?? 'Could not remove this file.' }));
       }
     } catch {
-      setRemoveErrors((current) => ({
-        ...current,
-        [fileId]: 'Could not remove this file — check your connection.',
-      }));
+      if (mountedRef.current) {
+        setRemoveErrors((current) => ({
+          ...current,
+          [fileId]: 'Could not remove this file — check your connection.',
+        }));
+      }
     } finally {
-      setRemovingIds((current) => {
-        const next = new Set(current);
-        next.delete(fileId);
-        return next;
-      });
+      if (mountedRef.current) {
+        setRemovingIds((current) => {
+          const next = new Set(current);
+          next.delete(fileId);
+          return next;
+        });
+      }
     }
   }, []);
 
@@ -209,8 +236,19 @@ export function DepositUploader({ defaultLocation }: Props) {
               Locations couldn&apos;t be loaded
             </p>
             <p className={`text-sm mt-1 ${darkMode ? 'text-amber-200' : 'text-amber-700'}`}>
-              Please contact IT before uploading — the portal can&apos;t find any locations to file this under.
+              This is often a weak connection — tap Try again. If it keeps failing, contact IT before uploading.
             </p>
+            <button
+              type="button"
+              onClick={() => loadLocations()}
+              className={`mt-3 rounded-lg border px-3 py-2 text-sm font-semibold ${
+                darkMode
+                  ? 'bg-amber-900/40 border-amber-700 text-amber-200'
+                  : 'bg-white border-amber-300 text-amber-800'
+              }`}
+            >
+              Try again
+            </button>
           </div>
         )}
 
@@ -240,12 +278,13 @@ export function DepositUploader({ defaultLocation }: Props) {
           </div>
 
           <div>
-            <span className={`block text-sm font-medium mb-1 ${text}`}>Type</span>
-            <div className="grid grid-cols-2 gap-2">
+            <span id="type-label" className={`block text-sm font-medium mb-1 ${text}`}>Type</span>
+            <div role="group" aria-labelledby="type-label" className="grid grid-cols-2 gap-2">
               {(['Deposit', 'Check'] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
+                  aria-pressed={type === option}
                   onClick={() => setType(option)}
                   className={`rounded-lg border px-3 py-3 text-base font-medium ${
                     type === option
