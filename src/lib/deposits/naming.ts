@@ -202,6 +202,68 @@ function toIsoDate(month: string, day: string, year: string): string {
   return `${yyyy}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+export interface PortalNameParts {
+  isoDate: string | null;
+  type: DepositType | null;
+  amount: string | null;
+  uploader: string | null;
+}
+
+const NULL_PORTAL_NAME: PortalNameParts = { isoDate: null, type: null, amount: null, uploader: null };
+
+function isPortalType(value: string): value is DepositType {
+  return value === 'Deposit' || value === 'Check';
+}
+
+/**
+ * Inverse of `buildFileName`. Must round-trip for all four combinations of
+ * amount/uploader presence (see naming.test.ts): splitting on `_` always
+ * yields `isoDate, type, [amount], [uploader], seq` in that order, never
+ * dropped or reordered by `buildFileName`.
+ *
+ * Disambiguating the single-middle-segment case (amount XOR uploader
+ * present) relies on `formatAmount` always producing a leading `$` and
+ * `formatUploader` never producing one (its output is letters, digits, and
+ * hyphens only, from `NON_ALNUM` stripping) — so "starts with $" cleanly
+ * tells the two apart.
+ *
+ * Returns all nulls for anything not shaped like this module's own output,
+ * including legacy pre-migration names — see `parseLegacyName` for those.
+ */
+export function parsePortalName(name: string): PortalNameParts {
+  const base = name.replace(/\.[^.]+$/, '');
+  const tokens = base.split('_');
+
+  // isoDate, type, [amount], [uploader], seq — minimum 3 tokens.
+  if (tokens.length < 3) return NULL_PORTAL_NAME;
+
+  const [isoDate, type, ...rest] = tokens;
+  if (!ISO_DATE.test(isoDate)) return NULL_PORTAL_NAME;
+  if (!isPortalType(type)) return NULL_PORTAL_NAME;
+
+  const seqToken = rest[rest.length - 1];
+  if (!/^\d+$/.test(seqToken)) return NULL_PORTAL_NAME;
+
+  const middle = rest.slice(0, -1);
+  if (middle.length > 2) return NULL_PORTAL_NAME;
+
+  let amount: string | null = null;
+  let uploader: string | null = null;
+
+  if (middle.length === 1) {
+    if (middle[0].startsWith('$')) amount = middle[0];
+    else uploader = middle[0];
+  } else if (middle.length === 2) {
+    // buildFileName's push order is always amount THEN uploader — a
+    // two-segment match that doesn't fit that shape isn't this convention.
+    if (!middle[0].startsWith('$')) return NULL_PORTAL_NAME;
+    amount = middle[0];
+    uploader = middle[1];
+  }
+
+  return { isoDate, type, amount, uploader };
+}
+
 /** Best-effort extraction from a pre-migration filename. Nulls where unknowable. */
 export function parseLegacyName(name: string): LegacyName {
   const base = name.replace(/\.[^.]+$/, '');
