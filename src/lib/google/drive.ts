@@ -38,21 +38,43 @@ async function driveFetch<T>(url: string, init?: RequestInit): Promise<T> {
     headers: { ...(await authHeaders()), ...(init?.headers ?? {}) },
   });
 
-  if (response.status === 204) return {} as T;
-
-  const body: unknown = await response.json();
-  if (!response.ok) {
-    const message =
-      typeof body === 'object' && body !== null && 'error' in body
-        ? JSON.stringify((body as { error: unknown }).error)
-        : String(response.status);
-    throw new Error(`Drive API ${response.status}: ${message}`);
+  // 204 (e.g. trash PATCH with no fields) has an empty body — never attempt
+  // to parse it as JSON.
+  if (response.status === 204) {
+    if (!response.ok) {
+      throw new Error(`Drive API ${response.status}: (no body)`);
+    }
+    return {} as T;
   }
-  return body as T;
+
+  const raw = await response.text();
+  let parsed: unknown;
+  let parseFailed = false;
+  try {
+    parsed = raw === '' ? {} : JSON.parse(raw);
+  } catch {
+    parseFailed = true;
+  }
+
+  if (!response.ok) {
+    const detail =
+      !parseFailed && typeof parsed === 'object' && parsed !== null && 'error' in parsed
+        ? JSON.stringify((parsed as { error: unknown }).error)
+        : `non-JSON body: ${raw.slice(0, 200)}`;
+    throw new Error(`Drive API ${response.status}: ${detail}`);
+  }
+
+  return parsed as T;
 }
 
-/** Drive query strings are single-quoted; a literal quote must be escaped. */
-const escapeQuery = (value: string): string => value.replace(/'/g, "\\'");
+/**
+ * Drive query strings are single-quoted; both `\` and `'` are special inside
+ * them. Escape the backslash FIRST, then the quote — reversing the order
+ * would re-escape the backslashes just inserted for the quote, corrupting
+ * the literal. Do not "simplify" this to a single replace.
+ */
+const escapeQuery = (value: string): string =>
+  value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 export async function findFolder(parentId: string, name: string): Promise<DriveFile | null> {
   const q = encodeURIComponent(
@@ -95,7 +117,7 @@ export async function listChildren(parentId: string): Promise<DriveFile[]> {
     const url =
       `${API}?q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true` +
       `&fields=nextPageToken,files(id,name,mimeType)&pageSize=200&orderBy=name` +
-      (pageToken ? `&pageToken=${pageToken}` : '');
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
 
     const page = await driveFetch<DriveListResponse>(url);
     files.push(...(page.files ?? []));
@@ -126,7 +148,7 @@ export async function uploadFile(
     {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-      body: new Uint8Array(body),
+      body,
     }
   );
 }
