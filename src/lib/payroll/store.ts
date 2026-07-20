@@ -331,10 +331,29 @@ export async function listHeaders(startISO: string, endISO: string): Promise<Pay
             total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
      FROM accounting.payroll_journal_headers
      WHERE to_date(pay_date, 'MM/DD/YYYY') BETWEEN $1::date AND $2::date
-     ORDER BY pay_date, entity`,
+     -- Order by the parsed date, not the MM/DD/YYYY string: lexicographic sorting
+     -- puts 12/01/2025 after 03/13/2026. Newest-first matches the landing list.
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
     [startISO, endISO],
   );
   return rows.map(toHeader);
+}
+
+/**
+ * Upper bound on how many distinct pay dates the landing will page through.
+ * Sized well above real history (33 built pay dates as of 2026-07, growing ~26/yr
+ * plus off-cycle runs) so "Show more" reaches the oldest draft rather than
+ * silently flat-lining. Still bounded so a bad `?recent=` can't table-scan.
+ */
+export const MAX_RECENT_PAY_PERIODS = 400;
+
+/** How many distinct pay dates have built drafts — lets the UI know when it has them all. */
+export async function countDistinctPayDates(): Promise<number> {
+  const { rows } = await getRdsPool().query<{ n: string }>(
+    `SELECT count(DISTINCT to_date(pay_date, 'MM/DD/YYYY'))::text AS n
+     FROM accounting.payroll_journal_headers`,
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /**
@@ -343,7 +362,8 @@ export async function listHeaders(startISO: string, endISO: string): Promise<Pay
  * last couple of pay periods already populated and clicks straight into a draft.
  */
 export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
-  const safePeriods = Number.isFinite(periods) && periods > 0 ? Math.min(Math.floor(periods), 24) : 2;
+  const safePeriods =
+    Number.isFinite(periods) && periods > 0 ? Math.min(Math.floor(periods), MAX_RECENT_PAY_PERIODS) : 2;
   const { rows } = await getRdsPool().query<HeaderRow>(
     `WITH recent AS (
        SELECT DISTINCT to_date(pay_date, 'MM/DD/YYYY') AS d

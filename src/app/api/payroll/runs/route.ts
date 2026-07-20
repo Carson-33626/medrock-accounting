@@ -3,7 +3,15 @@ import { requireAdmin } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
-import { getAccountMap, getEmployeeMap, saveDraft, sourceSnapshotHash, listHeaders, listRecentHeaders } from '@/lib/payroll/store';
+import {
+  getAccountMap,
+  getEmployeeMap,
+  saveDraft,
+  sourceSnapshotHash,
+  listHeaders,
+  listRecentHeaders,
+  countDistinctPayDates,
+} from '@/lib/payroll/store';
 import type { AccountMapRule, EmployeeMapRule } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -65,8 +73,13 @@ export async function GET(request: NextRequest) {
     const recentParam = sp.get('recent');
     if (recentParam !== null) {
       const periods = Number(recentParam);
-      const headers = await listRecentHeaders(Number.isFinite(periods) ? periods : 2);
-      return NextResponse.json({ headers });
+      // totalPayDates lets the landing hide "Show more" once it has every pay date,
+      // instead of offering a button that silently returns nothing.
+      const [headers, totalPayDates] = await Promise.all([
+        listRecentHeaders(Number.isFinite(periods) ? periods : 2),
+        countDistinctPayDates(),
+      ]);
+      return NextResponse.json({ headers, totalPayDates });
     }
 
     const start = sp.get('start');
