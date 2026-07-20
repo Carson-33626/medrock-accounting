@@ -356,6 +356,24 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     });
   }
 
+  // Company-loan repayment (Barbara, 2026-07-20): a post-tax deduction that repays an employee
+  // advance, so it does NOT belong in the 'Payroll Withholdings' liability pool like every other
+  // EE withholding — it retires an asset. Credits QBO 1215 'Employee Advances' (Other Current
+  // Asset; verified present under that exact name in all three companies via
+  // probe-account-1215.ts), reducing the receivable as the employee pays it down.
+  // This column was previously unmapped, which dropped its credit line while NET PAY already
+  // reflected the deduction — the direct cause of the FL ~$250 / TN $1,391.35 residuals.
+  rules.push({
+    entity,
+    adpColumn: 'COMPANY LOAN - EE - PRINCIPAL POST-TAX',
+    costCenter: '*',
+    accountName: 'Employee Advances',
+    postingType: 'Credit',
+    isCogs: false,
+    creditBucket: 'Other',
+    active: true,
+  });
+
   // --- Real-dollar "specials" confirmed against Amy's actual 03/27/2026 JE (Debit-only, like
   // wage-earning columns — their Credit-side offset is already captured by the generic NET PAY
   // credit rule above, since these amounts flow through to the employee's take-home pay). Fixed

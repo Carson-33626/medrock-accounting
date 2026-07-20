@@ -5,6 +5,7 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import {
   AlertTriangle,
   Ban,
+  CalendarRange,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -48,6 +49,14 @@ interface RunsBuildResponse {
 
 interface RecentResponse {
   headers: PayrollHeader[];
+  /** Distinct pay dates with built drafts. Absent on the explicit-range response. */
+  totalPayDates?: number;
+}
+
+/** An explicit date range the list is pinned to, instead of the recent-N window. */
+interface DateRange {
+  start: string;
+  end: string;
 }
 
 interface ApiErrorBody {
@@ -64,6 +73,19 @@ function firstOfMonthIso(): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Sort key for an ADP MM/DD/YYYY pay_date string. NaN-safe: unparseable sorts last. */
+function payDateMs(payDate: string): number {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(payDate);
+  if (!m) return Number.NEGATIVE_INFINITY;
+  return new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2])).getTime();
+}
+
+/** MM/DD/YYYY for display of an ISO YYYY-MM-DD range bound. */
+function isoToUs(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : iso;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -91,6 +113,11 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   // extra pay dates, so a window of 2 would bury the real bi-weekly payroll behind "Show more".
   const [periods, setPeriods] = useState(6);
   const [headers, setHeaders] = useState<PayrollHeader[]>([]);
+  const [totalPayDates, setTotalPayDates] = useState<number | null>(null);
+  // When set, the list shows exactly this range instead of the recent-N window.
+  // Importing an older pay period pins the list to it — otherwise the drafts build
+  // fine but fall outside the recency window, so the list below appears unchanged.
+  const [range, setRange] = useState<DateRange | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,16 +125,20 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
 
-  const loadRecent = useCallback(async (n: number) => {
+  const load = useCallback(async (n: number, r: DateRange | null) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/payroll/runs?recent=${n}`);
+      const url = r
+        ? `/api/payroll/runs?start=${encodeURIComponent(r.start)}&end=${encodeURIComponent(r.end)}`
+        : `/api/payroll/runs?recent=${n}`;
+      const res = await fetch(url);
       const body = (await res.json()) as RecentResponse & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setHeaders(body.headers);
+      setTotalPayDates(body.totalPayDates ?? null);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to load recent payrolls';
+      const message = e instanceof Error ? e.message : 'Failed to load payrolls';
       setError(message);
       setHeaders([]);
     } finally {
@@ -116,10 +147,12 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   }, []);
 
   useEffect(() => {
-    void loadRecent(periods);
-  }, [periods, loadRecent]);
+    void load(periods, range);
+  }, [periods, range, load]);
 
-  // Group headers by pay_date (already newest-first from the API).
+  // Group headers by pay_date. The API already sorts newest-first, but sort here too
+  // rather than depending on SQL order surviving JSON — pay_date is an MM/DD/YYYY
+  // string, so it must be parsed, not compared lexicographically.
   const groups = useMemo(() => {
     const byDate = new Map<string, PayrollHeader[]>();
     for (const h of headers) {
@@ -127,8 +160,13 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
       list.push(h);
       byDate.set(h.pay_date, list);
     }
-    return [...byDate.entries()];
+    return [...byDate.entries()].sort(
+      ([a], [b]) => payDateMs(b) - payDateMs(a),
+    );
   }, [headers]);
+
+  // In recent-N mode we page until we hold every pay date that has drafts.
+  const hasMore = range === null && totalPayDates !== null && groups.length < totalPayDates;
 
   return (
     <div className="space-y-6">
@@ -144,7 +182,28 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
         </p>
       </DirectionsBanner>
 
-      <ImportPanel darkMode={darkMode} onImported={() => void loadRecent(periods)} />
+      <ImportPanel darkMode={darkMode} onImported={(start, end) => setRange({ start, end })} />
+
+      {range && (
+        <div
+          className={`rounded-xl border p-3 flex flex-wrap gap-2 items-center text-sm ${
+            darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-blue-50 border-blue-200 text-blue-900'
+          }`}
+        >
+          <CalendarRange className="w-4 h-4 shrink-0" aria-hidden />
+          <span>
+            Showing imported pay periods <strong>{isoToUs(range.start)}</strong> –{' '}
+            <strong>{isoToUs(range.end)}</strong>
+            {!loading && ` · ${groups.length} pay date${groups.length === 1 ? '' : 's'}`}
+          </span>
+          <button
+            onClick={() => setRange(null)}
+            className={`ml-auto underline underline-offset-2 ${darkMode ? 'text-slate-300' : 'text-blue-800'}`}
+          >
+            Back to recent payrolls
+          </button>
+        </div>
+      )}
 
       {error && (
         <div
@@ -164,7 +223,16 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
         </div>
       ) : groups.length === 0 ? (
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
-          No payrolls yet. Use <strong>Import a pay period</strong> above to build your first draft.
+          {range ? (
+            <>
+              No drafts built for {isoToUs(range.start)} – {isoToUs(range.end)}. ADP may have no pay dates in
+              that range — widen it and build again.
+            </>
+          ) : (
+            <>
+              No payrolls yet. Use <strong>Import a pay period</strong> above to build your first draft.
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -192,17 +260,27 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
             </div>
           ))}
 
-          <div className="flex justify-center">
-            <button
-              onClick={() => setPeriods((p) => p + 2)}
-              disabled={loading}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border disabled:opacity-50 ${
-                darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <ChevronDown className="w-4 h-4" aria-hidden />}
-              Show more pay periods
-            </button>
+          <div className={`flex flex-col items-center gap-2 text-xs ${subText}`}>
+            {hasMore ? (
+              <button
+                onClick={() => setPeriods((p) => p + 6)}
+                disabled={loading}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                  darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <ChevronDown className="w-4 h-4" aria-hidden />}
+                Show more pay periods
+              </button>
+            ) : null}
+            {range === null && totalPayDates !== null && (
+              <p>
+                {hasMore
+                  ? `Showing ${groups.length} of ${totalPayDates} pay dates with drafts.`
+                  : `Showing all ${totalPayDates} pay date${totalPayDates === 1 ? '' : 's'} that have drafts.`}
+                {' '}Older period not listed? Use <strong>Import a pay period</strong> above to pull it from ADP.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -212,7 +290,14 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
 
 // ── Import / build panel (collapsed by default) ─────────────────────────────
 
-function ImportPanel({ darkMode, onImported }: { darkMode: boolean; onImported: () => void }) {
+function ImportPanel({
+  darkMode,
+  onImported,
+}: {
+  darkMode: boolean;
+  /** Pins the landing list to the range just imported, so the new drafts are visible. */
+  onImported: (start: string, end: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState<string>(firstOfMonthIso());
   const [end, setEnd] = useState<string>(todayIso());
@@ -237,7 +322,7 @@ function ImportPanel({ darkMode, onImported }: { darkMode: boolean; onImported: 
       const body = (await res.json()) as RunsBuildResponse & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setResult(body);
-      onImported();
+      onImported(start, end);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to import pay period';
       setError(message);
