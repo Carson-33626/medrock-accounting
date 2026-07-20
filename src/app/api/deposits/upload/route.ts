@@ -10,6 +10,9 @@ import {
   formatUploader,
   nextSequence,
   InvalidAmountError,
+  NotACalendarDateError,
+  FutureDateError,
+  DateTooOldError,
   type DepositType,
 } from '@/lib/deposits/naming';
 
@@ -200,8 +203,14 @@ export async function POST(request: NextRequest) {
     let segments: string[];
     try {
       segments = buildFolderSegments(location, isoDate);
-    } catch {
-      return NextResponse.json({ error: 'Date must be a valid calendar date' }, { status: 400 });
+    } catch (error: unknown) {
+      // Fixed, safe strings per-reason — never the raw Error message, which
+      // may echo the raw client-supplied date string back verbatim.
+      let message = 'Date must be a valid calendar date';
+      if (error instanceof FutureDateError) message = 'Date cannot be in the future';
+      else if (error instanceof DateTooOldError) message = 'Date is too far in the past';
+      else if (error instanceof NotACalendarDateError) message = 'Date is not a valid calendar date';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
     const folderId = await ensurePath(root, segments);

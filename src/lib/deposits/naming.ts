@@ -40,13 +40,79 @@ export class InvalidAmountError extends Error {
   }
 }
 
+/** Shape-valid (`YYYY-MM-DD`) but not an actual calendar date, e.g. `2026-02-30`. */
+export class NotACalendarDateError extends Error {
+  constructor(raw: string) {
+    super(`Not a real calendar date: ${JSON.stringify(raw)}`);
+    this.name = 'NotACalendarDateError';
+  }
+}
+
+/** A deposit slip cannot be dated after today (plus a one-day clock-skew grace). */
+export class FutureDateError extends Error {
+  constructor(raw: string) {
+    super(`Date is in the future: ${JSON.stringify(raw)}`);
+    this.name = 'FutureDateError';
+  }
+}
+
+/** Before the earliest date any legitimate record can have. */
+export class DateTooOldError extends Error {
+  constructor(raw: string) {
+    super(`Date is too far in the past: ${JSON.stringify(raw)}`);
+    this.name = 'DateTooOldError';
+  }
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Nothing legitimate predates this — the migrated historical records start in
+// 2021 — and it catches a fat-fingered year (e.g. `0000-00-00`, `1500-01-01`).
+const EARLIEST_ISO_DATE = '2020-01-01';
+
+// A deposit slip can't be from tomorrow. One day of grace absorbs a phone or
+// server clock that is slightly ahead so a legitimate upload isn't blocked.
+const FUTURE_GRACE_DAYS = 1;
+
 /** `Deposit Slips / {Location} / {YYYY} / {YYYY-MM-DD}` */
-export function buildFolderSegments(location: string, isoDate: string): string[] {
+export function buildFolderSegments(
+  location: string,
+  isoDate: string,
+  now: Date = new Date()
+): string[] {
   if (!ISO_DATE.test(isoDate)) {
     throw new Error(`Expected an ISO date (YYYY-MM-DD), got ${JSON.stringify(isoDate)}`);
   }
+
+  const [yearStr, monthStr, dayStr] = isoDate.split('-');
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  const day = Number.parseInt(dayStr, 10);
+
+  // Round-trip through Date.UTC to reject shape-valid but non-existent dates
+  // like `2026-02-30` or `9999-99-99`. `new Date(string)` is deliberately
+  // avoided — its parsing behaviour is inconsistent across engines/inputs.
+  const asUtc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    asUtc.getUTCFullYear() !== year ||
+    asUtc.getUTCMonth() + 1 !== month ||
+    asUtc.getUTCDate() !== day
+  ) {
+    throw new NotACalendarDateError(isoDate);
+  }
+
+  if (isoDate < EARLIEST_ISO_DATE) {
+    throw new DateTooOldError(isoDate);
+  }
+
+  // Compare calendar dates only (UTC, no time-of-day) so the grace window is
+  // exactly FUTURE_GRACE_DAYS full days, not sensitive to what time "now" is.
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const latestAllowedUtc = todayUtc + FUTURE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  if (asUtc.getTime() > latestAllowedUtc) {
+    throw new FutureDateError(isoDate);
+  }
+
   const trimmed = location.trim();
   if (!trimmed) throw new Error('Location is required');
   return [trimmed, isoDate.slice(0, 4), isoDate];

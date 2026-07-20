@@ -10,16 +10,54 @@ import {
 } from './naming';
 
 describe('buildFolderSegments', () => {
+  const FIXED_NOW = new Date('2026-07-14T12:00:00Z');
+
   it('returns location, year, iso date', () => {
-    expect(buildFolderSegments('Florida', '2026-07-14')).toEqual(['Florida', '2026', '2026-07-14']);
+    expect(buildFolderSegments('Florida', '2026-07-14', FIXED_NOW)).toEqual(['Florida', '2026', '2026-07-14']);
   });
 
   it('handles a January date without off-by-one', () => {
-    expect(buildFolderSegments('Texas', '2026-01-01')).toEqual(['Texas', '2026', '2026-01-01']);
+    expect(buildFolderSegments('Texas', '2026-01-01', FIXED_NOW)).toEqual(['Texas', '2026', '2026-01-01']);
   });
 
   it('rejects a malformed date', () => {
-    expect(() => buildFolderSegments('Florida', '7/14/26')).toThrow();
+    expect(() => buildFolderSegments('Florida', '7/14/26', FIXED_NOW)).toThrow();
+  });
+
+  it('rejects a shape-valid date that does not exist on the calendar (Feb 30)', () => {
+    expect(() => buildFolderSegments('Florida', '2026-02-30', FIXED_NOW)).toThrow();
+  });
+
+  it('rejects 9999-99-99', () => {
+    expect(() => buildFolderSegments('Florida', '9999-99-99', FIXED_NOW)).toThrow();
+  });
+
+  it('rejects 0000-00-00', () => {
+    expect(() => buildFolderSegments('Florida', '0000-00-00', FIXED_NOW)).toThrow();
+  });
+
+  it('accepts a valid leap day', () => {
+    expect(buildFolderSegments('Florida', '2024-02-29', FIXED_NOW)).toEqual(['Florida', '2024', '2024-02-29']);
+  });
+
+  it('rejects an invalid leap day (2023 is not a leap year)', () => {
+    expect(() => buildFolderSegments('Florida', '2023-02-29', FIXED_NOW)).toThrow();
+  });
+
+  it('rejects a future date', () => {
+    expect(() => buildFolderSegments('Florida', '2026-07-16', FIXED_NOW)).toThrow();
+  });
+
+  it('accepts a date within the one-day clock-skew grace', () => {
+    expect(buildFolderSegments('Florida', '2026-07-15', FIXED_NOW)).toEqual(['Florida', '2026', '2026-07-15']);
+  });
+
+  it('rejects a date before 2020-01-01', () => {
+    expect(() => buildFolderSegments('Florida', '2019-12-31', FIXED_NOW)).toThrow();
+  });
+
+  it('accepts an ordinary valid date (regression)', () => {
+    expect(buildFolderSegments('Texas', '2025-11-03', FIXED_NOW)).toEqual(['Texas', '2025', '2025-11-03']);
   });
 });
 
