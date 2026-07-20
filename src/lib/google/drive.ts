@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getAccessToken } from './serviceAccount';
+import type { JsonValue } from '../payroll/store';
 
 /**
  * Minimal Google Drive v3 client for the deposit portal.
@@ -48,18 +49,18 @@ async function driveFetch<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   const raw = await response.text();
-  let parsed: unknown;
+  let parsed: JsonValue = null;
   let parseFailed = false;
   try {
-    parsed = raw === '' ? {} : JSON.parse(raw);
+    parsed = raw === '' ? {} : (JSON.parse(raw) as JsonValue);
   } catch {
     parseFailed = true;
   }
 
   if (!response.ok) {
     const detail =
-      !parseFailed && typeof parsed === 'object' && parsed !== null && 'error' in parsed
-        ? JSON.stringify((parsed as { error: unknown }).error)
+      !parseFailed && typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && 'error' in parsed
+        ? JSON.stringify(parsed.error)
         : `non-JSON body: ${raw.slice(0, 200)}`;
     throw new Error(`Drive API ${response.status}: ${detail}`);
   }
