@@ -147,6 +147,16 @@ export async function middleware(request: NextRequest) {
 
     // Handle access denied
     if (accessCheck.status === 403) {
+      // A user without the `accounting` slug is not an error case at the app
+      // root — they are a deposit-portal user. `/deposits` is exempt from
+      // this very check (see AUTH_ONLY_EXACT above), so sending them there
+      // lands them somewhere they can actually use instead of a dead-end
+      // 403 page. Every other gated path still gets the Access Denied page
+      // exactly as before — this redirect is scoped to `/` only.
+      if (pathname === '/') {
+        return NextResponse.redirect(new URL('/deposits', request.url));
+      }
+
       const data = await accessCheck.json().catch(() => ({}));
       const reason = data.reason || 'You do not have permission to access this application.';
 
