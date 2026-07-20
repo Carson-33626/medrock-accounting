@@ -252,16 +252,26 @@ export function DepositUploader({ defaultLocation }: Props) {
   const okCount = results.filter((r) => r.status === 'ok').length;
   const errorCount = results.length - okCount;
 
+  // The lockup's wordmark is dark (#231f20) and disappears against this
+  // page's dark background, so it always sits on a forced-white
+  // .logo-container panel (see globals.css / Sidebar.tsx). On a light page
+  // that same white panel can read as an empty box, so it gets a subtle
+  // border/shadow there — dark mode relies on the surrounding contrast
+  // instead.
+  const logoPanel = `logo-container mx-auto mb-4 w-fit rounded-lg p-3 border ${
+    darkMode ? 'border-slate-700' : 'border-slate-200 shadow-sm'
+  }`;
+
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
       <div className="max-w-xl mx-auto space-y-6">
         <div>
-          <div className="logo-container mx-auto mb-4 w-fit rounded-lg p-3">
+          <div className={logoPanel}>
             <Image
-              src="/medrock-logo.png"
+              src="/medrock-pharmacy-centered.png"
               alt="MedRock Pharmacy"
-              width={160}
-              height={52}
+              width={176}
+              height={143}
               priority
               className="mx-auto"
             />
