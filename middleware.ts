@@ -23,6 +23,18 @@ const SELF_AUTH_ROUTES = [
   '/api/coupons', // Uses internal data, no user auth needed
 ];
 
+// Routes that require a valid session but NOT the `accounting` app entitlement.
+// The deposit portal is for all staff; granting them the accounting slug would
+// also expose payroll, sales tax, and AP. See spec §6.
+//
+// EXACT match for the page, prefix only for its own API namespace. Do NOT make
+// the page an open prefix: a future `/deposits/<anything>` would silently
+// inherit this exemption and skip the accounting gate. The accounting-side
+// review page is `/deposit-review` for exactly this reason — see
+// docs/superpowers/specs/2026-07-20-deposit-review-page-design.md §3.
+const AUTH_ONLY_EXACT = ['/deposits'];
+const AUTH_ONLY_PREFIXES = ['/api/deposits'];
+
 // Static files and Next.js internals to skip
 const EXCLUDED_PREFIXES = [
   '/_next',
@@ -109,6 +121,17 @@ export async function middleware(request: NextRequest) {
     const currentUrl = request.url;
     const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}`;
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Session is valid — auth-only routes stop here, before the app-slug check.
+  const isAuthOnly =
+    AUTH_ONLY_EXACT.includes(pathname) ||
+    AUTH_ONLY_PREFIXES.some(route => pathname === route || pathname.startsWith(route + '/'));
+
+  if (isAuthOnly) {
+    const response = NextResponse.next();
+    response.headers.set('x-url', request.url);
+    return response;
   }
 
   // Check app access using Bearer token (avoids cookie forwarding issues)
