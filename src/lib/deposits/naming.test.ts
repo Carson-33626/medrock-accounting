@@ -110,6 +110,12 @@ describe('buildFileName', () => {
     expect(buildFileName({ ...parts, seq: 10 })).toContain('_10.jpg');
     expect(buildFileName({ ...parts, seq: 123 })).toContain('_123.jpg');
   });
+
+  it('omits both amount and uploader when both are null', () => {
+    expect(
+      buildFileName({ isoDate: '2026-07-14', type: 'Deposit', amount: null, uploader: null, seq: 4, ext: '.jpg' })
+    ).toBe('2026-07-14_Deposit_04.jpg');
+  });
 });
 
 describe('nextSequence', () => {
@@ -126,7 +132,19 @@ describe('nextSequence', () => {
   });
 
   it('handles sequences above 99', () => {
-    expect(nextSequence(['x_100.jpg'])).toBe(101);
+    expect(nextSequence(['2026-07-14_Deposit_A-B_100.jpg'])).toBe(101);
+  });
+
+  it('ignores legacy names when mixed with convention names', () => {
+    expect(
+      nextSequence([
+        'IMG_7389.jpeg',
+        'Receipt_12.jpg',
+        'Deposit 05_26_23   $5,381 64.jpg',
+        '2026-07-14_Deposit_A-B_01.jpg',
+        '2026-07-14_Check_A-B_02.jpg',
+      ])
+    ).toBe(3);
   });
 });
 

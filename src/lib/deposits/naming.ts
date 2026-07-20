@@ -105,9 +105,14 @@ export function buildFileName(parts: FileNameParts): string {
   return `${segments.join('_')}${ext.startsWith('.') ? ext : `.${ext}`}`;
 }
 
-// Capped at 3 digits: real portal sequences are NN/NNN, and the cap keeps this
-// from mistaking a phone's 4-digit shot counter (e.g. "IMG_7389.jpeg") for one.
-const SEQ_SUFFIX = /_(\d{1,3})\.[^.]+$/;
+// Anchored on the leading ISO-date token rather than capping digit width.
+// Requiring the date prefix positively identifies a name THIS module generated
+// (date_body_NN.ext) instead of guessing from how many digits the sequence
+// has — a digit cap only narrows which accidental filenames collide (it still
+// misreads "Receipt_12.jpg" as seq 12, and breaks once a folder legitimately
+// reaches a 4+-digit sequence). Names like "IMG_7389.jpeg" have no ISO date
+// prefix and so never match, with no cap needed.
+const SEQ_SUFFIX = /^\d{4}-\d{2}-\d{2}_.*_(\d+)\.[^.]+$/;
 
 /** Highest trailing `_NN` in the folder, plus one. */
 export function nextSequence(existingNames: string[]): number {
