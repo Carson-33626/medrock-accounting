@@ -190,6 +190,20 @@ function planTargets(
   const seqByFolder = new Map(initialSeqByFolder);
 
   for (const entry of entries) {
+    // An already-moved entry's targetPath/targetName describe exactly where
+    // the file sits on Drive right now — recomputing here would overwrite
+    // the manifest's only record of where it actually went with a fresh,
+    // higher name that no longer matches reality. Still bump its folder's
+    // sequence counter so a sibling being planned fresh in the same folder
+    // can't be assigned a name that collides with it.
+    if (entry.outcome === 'moved') {
+      if (entry.targetPath !== null) {
+        const seq = (seqByFolder.get(entry.targetPath) ?? 0) + 1;
+        seqByFolder.set(entry.targetPath, seq);
+      }
+      continue;
+    }
+
     entry.targetPath = null;
     entry.targetName = null;
 
@@ -342,16 +356,6 @@ async function runExecute(rootId: string): Promise<void> {
     throw new Error('No manifest found. Run without --execute first, then review it.');
   }
 
-  // (Fix 4) The pre-execute state must survive even if the run is killed
-  // mid-way, independent of persistManifest's atomic per-entry writes below —
-  // this is the one copy that always reflects "before anything moved".
-  const backupPath = path.join(
-    path.dirname(MANIFEST_PATH),
-    `migration-manifest.pre-execute-${Date.now()}.json`
-  );
-  copyFileSync(MANIFEST_PATH, backupPath);
-  console.log(`Pre-execute backup written to ${backupPath}`);
-
   const entries = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as ManifestEntry[];
 
   // Recompute targetPath/targetName fresh, from the human-supplied type/
@@ -386,6 +390,21 @@ async function runExecute(rootId: string): Promise<void> {
   }
 
   assertUniqueTargets(ready);
+
+  // (Fix 4) The pre-execute state must survive even if the run is killed
+  // mid-way, independent of persistManifest's atomic per-entry writes below —
+  // this is the one copy that always reflects "before anything moved".
+  // Deliberately placed here, after the readiness gate and the uniqueness
+  // assertion have both passed, and immediately before the first Drive write
+  // (preCreateFolders below) — a doomed --execute attempt (missing type/date
+  // on some entries, or a collision) exits 1 above without ever dropping a
+  // backup file into docs/deposits/.
+  const backupPath = path.join(
+    path.dirname(MANIFEST_PATH),
+    `migration-manifest.pre-execute-${Date.now()}.json`
+  );
+  copyFileSync(MANIFEST_PATH, backupPath);
+  console.log(`Pre-execute backup written to ${backupPath}`);
 
   console.log(`Pre-creating target folders for ${ready.length} files (sequential, one at a time)...`);
   const folderIds = await preCreateFolders(rootId, ready);
