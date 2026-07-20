@@ -156,7 +156,7 @@ export async function uploadFile(
 
 /** Trash — never permanent delete. See the module note above. */
 export async function trashFile(fileId: string): Promise<void> {
-  await driveFetch<DriveFile>(`${API}/${fileId}?supportsAllDrives=true&fields=id,name,mimeType`, {
+  await driveFetch<DriveFile>(`${API}/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,name,mimeType`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ trashed: true }),
