@@ -1,11 +1,17 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, renameSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
-import { listChildren, ensurePath } from '../../src/lib/google/drive';
+import { listChildren, ensurePath, findFolder } from '../../src/lib/google/drive';
 import { getAccessToken } from '../../src/lib/google/serviceAccount';
-import { parseLegacyName, buildFileName, type DepositType } from '../../src/lib/deposits/naming';
+import {
+  parseLegacyName,
+  buildFileName,
+  buildFolderSegments,
+  nextSequence,
+  type DepositType,
+} from '../../src/lib/deposits/naming';
 
 /**
  * One-off migration of the 49 legacy files under Deposit Slips/ into the new
@@ -16,10 +22,18 @@ import { parseLegacyName, buildFileName, type DepositType } from '../../src/lib/
  * is passed (it may hold human-entered types and is the only revert record for
  * anything already migrated).
  *
+ * `--plan` loads the EXISTING manifest from disk (never re-collects from
+ * Drive, never overwrites it) and previews exactly what `--execute` would do:
+ * the same blocking gate, the same `planTargets`/`assertUniqueTargets`. It
+ * makes zero Drive calls and exits without touching anything. This is the only
+ * way a human can see the final plan for entries they just filled in a `type`
+ * for — the dry run refuses to overwrite the manifest, and `--force` would
+ * re-collect from Drive and discard their edits.
+ *
  * `--execute` performs the actual moves/renames, and REFUSES to run unless
- * every manifest entry already has a date and a type (see `needsHumanInput`
- * below) — targetPath/targetName are always recomputed by `planTargets` at
- * execute time, never taken from the manifest as written.
+ * every manifest entry already has a valid date and type (see
+ * `hasValidHumanInput` below) — targetPath/targetName are always recomputed by
+ * `planTargets` at execute time, never taken from the manifest as written.
  *
  * Folder creation order matters: `ensurePath` is find-then-create per segment,
  * which is TOCTOU-unsafe under concurrency — two callers that both see a
@@ -30,18 +44,27 @@ import { parseLegacyName, buildFileName, type DepositType } from '../../src/lib/
  * ensurePath, and no in-process promise-map memoization trick either — that
  * would only guard against concurrent calls within this one process, and
  * would do nothing if the script were ever invoked twice at once. Strict
- * sequencing is the only fix that actually holds.
+ * sequencing is the only fix that actually holds. The same discipline applies
+ * to `seedSequences` below, for the same reason.
  */
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const ROOT = process.env.DEPOSIT_SLIPS_FOLDER_ID;
 const EXECUTE = process.argv.includes('--execute');
+const PLAN = process.argv.includes('--plan');
 // Only permits runDryRun to overwrite an existing manifest. See runDryRun.
 const FORCE = process.argv.includes('--force');
 const TARGET_LOCATION = 'Florida';
 // The new top-level location folders are the migration's DESTINATION, not
 // input — they must never be walked as sources, only skipped at the root.
 const LOCATION_FOLDERS = new Set(['Florida', 'Tennessee', 'Texas']);
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Whatever a real file on Drive could plausibly be. Anything else (a typo, a
+// junk suffix) falls back to `.jpg` in resolveExtension rather than being
+// trusted verbatim.
+const KNOWN_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.pdf', '.heic', '.heif', '.webp']);
 
 const MANIFEST_PATH = path.resolve(
   __dirname,
@@ -75,14 +98,35 @@ function isReady(entry: ManifestEntry): entry is ReadyEntry {
 }
 
 /**
- * What a HUMAN must supply before --execute may touch an entry: a parsed date
- * and a type. targetPath/targetName are deliberately NOT part of this check —
- * those are machine-derived by planTargets (called from runExecute below) and
- * must never be hand-authored, so their presence or absence says nothing about
+ * Runtime validation of what a HUMAN must supply before --execute may touch
+ * an entry: an exact `'Deposit'` or `'Check'` type, and a `parsedDate` that is
+ * actually shaped like `YYYY-MM-DD`. The manifest is `JSON.parse`d with no
+ * schema check, so without this, a typo — lowercase `"deposit"`, `"Cash"`, a
+ * hand-typed `"7/14/26"` — flows straight through to a live Drive write.
+ * `targetPath`/`targetName` are deliberately NOT part of this check — those
+ * are machine-derived by planTargets (called from runExecute below) and must
+ * never be hand-authored, so their presence or absence says nothing about
  * whether the entry is ready.
  */
+function hasValidHumanInput(
+  entry: ManifestEntry
+): entry is ManifestEntry & { parsedDate: string; type: DepositType } {
+  return (
+    (entry.type === 'Deposit' || entry.type === 'Check') &&
+    entry.parsedDate !== null &&
+    ISO_DATE_RE.test(entry.parsedDate)
+  );
+}
+
+/** Convenience negation of hasValidHumanInput, for filter() readability at call sites. */
 function needsHumanInput(entry: ManifestEntry): boolean {
-  return entry.parsedDate === null || entry.type === '';
+  return !hasValidHumanInput(entry);
+}
+
+function resolveExtension(originalName: string): string {
+  const match = /\.[^.]+$/.exec(originalName);
+  const ext = (match ? match[0] : '.jpg').toLowerCase();
+  return KNOWN_EXTENSIONS.has(ext) ? ext : '.jpg';
 }
 
 async function collect(folderId: string, prefix: string, out: ManifestEntry[]): Promise<void> {
@@ -125,19 +169,59 @@ async function collect(folderId: string, prefix: string, out: ManifestEntry[]): 
   }
 }
 
-function planTargets(entries: ManifestEntry[]): void {
-  const seqByFolder = new Map<string, number>();
+/**
+ * Derives targetPath/targetName for every entry, in place. Always the ONLY
+ * place targets are derived — never trust whatever a human (or a stale
+ * manifest) wrote into those fields directly.
+ *
+ * `initialSeqByFolder` seeds each target folder's running sequence counter
+ * (Fix 5) — used by runExecute (only) to account for files already sitting in
+ * a target folder from a prior partial run. --plan and the dry run always
+ * call this with no seed, i.e. every folder is assumed empty.
+ *
+ * Idempotent and side-effect-free beyond mutating the passed entries: safe to
+ * call more than once on the same array (runExecute does, once unseeded to
+ * discover folders, once seeded with real Drive-derived starting numbers).
+ */
+function planTargets(
+  entries: ManifestEntry[],
+  initialSeqByFolder: ReadonlyMap<string, number> = new Map()
+): void {
+  const seqByFolder = new Map(initialSeqByFolder);
 
   for (const entry of entries) {
-    if (!entry.parsedDate || !entry.type) {
+    entry.targetPath = null;
+    entry.targetName = null;
+
+    if (!hasValidHumanInput(entry)) {
       if (!entry.note) {
-        entry.note = !entry.type
-          ? 'TYPE MISSING — set "Deposit" or "Check" before --execute'
-          : 'DATE NOT PARSED — fill parsedDate manually';
+        const typeInvalid = entry.type !== 'Deposit' && entry.type !== 'Check';
+        const dateInvalid = entry.parsedDate === null || !ISO_DATE_RE.test(entry.parsedDate);
+        if (typeInvalid && dateInvalid) {
+          entry.note =
+            'TYPE AND DATE INVALID — type must be exactly "Deposit" or "Check"; parsedDate must be YYYY-MM-DD';
+        } else if (typeInvalid) {
+          entry.note = `TYPE INVALID (${JSON.stringify(entry.type)}) — must be exactly "Deposit" or "Check"`;
+        } else {
+          entry.note = `DATE INVALID (${JSON.stringify(entry.parsedDate)}) — must be YYYY-MM-DD`;
+        }
       }
       continue;
     }
-    const folder = `${TARGET_LOCATION}/${entry.parsedDate.slice(0, 4)}/${entry.parsedDate}`;
+
+    // buildFolderSegments carries the real validation (calendar-real date,
+    // not in the future, not before 2020) — route through it instead of
+    // hand-concatenating a path, so a garbage hand-typed date can never turn
+    // into a garbage Drive path.
+    let segments: string[];
+    try {
+      segments = buildFolderSegments(TARGET_LOCATION, entry.parsedDate);
+    } catch (error: unknown) {
+      entry.note = error instanceof Error ? error.message : String(error);
+      continue;
+    }
+
+    const folder = segments.join('/');
     const seq = (seqByFolder.get(folder) ?? 0) + 1;
     seqByFolder.set(folder, seq);
 
@@ -148,7 +232,7 @@ function planTargets(entries: ManifestEntry[]): void {
       amount: entry.parsedAmount,
       uploader: null, // unrecoverable for historical files — Drive `owners` is empty on a Shared Drive
       seq,
-      ext: (/\.[^.]+$/.exec(entry.originalName) ?? ['.jpg'])[0],
+      ext: resolveExtension(entry.originalName),
     });
   }
 }
@@ -200,38 +284,104 @@ async function preCreateFolders(
   return folderIds;
 }
 
+/**
+ * (Fix 5) Looks up, per distinct target folder, how far its sequence counter
+ * already is on Drive — read-only, never creates anything. Only meaningful
+ * (and only ever called) from runExecute: a re-run after a partial failure
+ * can find files already sitting in a target folder (Fix 3 skips re-moving
+ * them, but planTargets still needs to not reissue their sequence numbers to
+ * the entries still pending).
+ *
+ * A folder that doesn't exist yet needs no seed — 0 (i.e. "start at 1") is
+ * already correct in that case.
+ *
+ * Sequential by the same discipline as preCreateFolders/ensurePath above: one
+ * folder looked up at a time, no Promise.all/map(async).
+ */
+async function seedSequences(
+  rootId: string,
+  entries: ReadonlyArray<Pick<ReadyEntry, 'targetPath'>>
+): Promise<Map<string, number>> {
+  const seeds = new Map<string, number>();
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    if (seen.has(entry.targetPath)) continue;
+    seen.add(entry.targetPath);
+
+    const segments = entry.targetPath.split('/');
+    let parentId: string | null = rootId;
+    for (const segment of segments) {
+      if (parentId === null) break;
+      const found = await findFolder(parentId, segment);
+      parentId = found ? found.id : null;
+    }
+    if (parentId === null) continue; // folder doesn't exist yet — 0 is already correct
+
+    const children = await listChildren(parentId);
+    seeds.set(entry.targetPath, nextSequence(children.map((child) => child.name)) - 1);
+  }
+
+  return seeds;
+}
+
+/**
+ * (Fix 4) Writes to a temp file in the same directory, then renames over the
+ * target — rename is atomic on the same volume, so a kill mid-write can never
+ * truncate the manifest (the only revert record once files start moving).
+ */
 function persistManifest(entries: ManifestEntry[]): void {
-  writeFileSync(MANIFEST_PATH, JSON.stringify(entries, null, 2), 'utf-8');
+  const dir = path.dirname(MANIFEST_PATH);
+  const tempPath = path.join(dir, `.migration-manifest.${process.pid}.${Date.now()}.tmp`);
+  writeFileSync(tempPath, JSON.stringify(entries, null, 2), 'utf-8');
+  renameSync(tempPath, MANIFEST_PATH);
 }
 
 async function runExecute(rootId: string): Promise<void> {
   if (!existsSync(MANIFEST_PATH)) {
     throw new Error('No manifest found. Run without --execute first, then review it.');
   }
+
+  // (Fix 4) The pre-execute state must survive even if the run is killed
+  // mid-way, independent of persistManifest's atomic per-entry writes below —
+  // this is the one copy that always reflects "before anything moved".
+  const backupPath = path.join(
+    path.dirname(MANIFEST_PATH),
+    `migration-manifest.pre-execute-${Date.now()}.json`
+  );
+  copyFileSync(MANIFEST_PATH, backupPath);
+  console.log(`Pre-execute backup written to ${backupPath}`);
+
   const entries = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as ManifestEntry[];
 
-  // Gate on what a HUMAN had to supply — parsedDate and type. targetPath/
-  // targetName are never a gating input: they are recomputed below by
-  // planTargets so they can never be stale or hand-authored.
-  const blocked = entries.filter(needsHumanInput);
+  // Recompute targetPath/targetName fresh, from the human-supplied type/
+  // parsedDate only. This is the ONLY place targets are derived for --execute
+  // — never trust whatever a human (or a stale manifest) wrote into those
+  // fields directly. First pass is unseeded: its only job here is to surface,
+  // via isReady, every reason an entry isn't ready — invalid type/date shape
+  // (Fix 2) as well as buildFolderSegments rejecting a shape-valid but
+  // impossible/future/too-old date.
+  planTargets(entries);
+
+  const blocked = entries.filter((entry) => !isReady(entry));
   if (blocked.length > 0) {
-    console.error(`${blocked.length} entries are missing a date or type. Fill them in, then re-run.`);
+    console.error(`${blocked.length} entries are not ready for --execute. Fix them, then re-run:`);
     for (const entry of blocked) console.error(`  ${entry.originalPath} — ${entry.note}`);
     process.exit(1);
     return;
   }
 
-  // Recompute targetPath/targetName fresh, from the human-supplied type/
-  // parsedDate only. This is the ONLY place targets are derived for --execute
-  // — never trust whatever a human (or a stale manifest) wrote into those
-  // fields directly.
-  planTargets(entries);
+  // (Fix 5) Seed each target folder's starting sequence number from what's
+  // already on Drive, then recompute with the real starting numbers. Only
+  // runExecute ever does this Drive read — --plan and the dry run stay
+  // read-light/write-free and assume every folder starts empty.
+  const seeds = await seedSequences(rootId, entries.filter(isReady));
+  planTargets(entries, seeds);
 
   const ready = entries.filter(isReady);
   if (ready.length !== entries.length) {
     throw new Error(
-      `internal error: ${entries.length - ready.length} entries passed the human-input gate but planTargets ` +
-        'did not produce a target for them.'
+      `internal error: ${entries.length - ready.length} entries became blocked between planning passes`
     );
   }
 
@@ -241,8 +391,19 @@ async function runExecute(rootId: string): Promise<void> {
   const folderIds = await preCreateFolders(rootId, ready);
   console.log(`${folderIds.size} distinct target folders ready.`);
 
+  let skipped = 0;
+
   try {
     for (const entry of ready) {
+      // (Fix 3) An already-moved entry's currentParentId is stale — it is no
+      // longer the file's actual parent on Drive. Re-attempting the move
+      // would be rejected by Drive and flip outcome from 'moved' back to
+      // 'failed', corrupting the only revert record.
+      if (entry.outcome === 'moved') {
+        skipped++;
+        continue;
+      }
+
       const folderId = folderIds.get(entry.targetPath);
       if (!folderId) {
         entry.outcome = 'failed';
@@ -292,7 +453,8 @@ async function runExecute(rootId: string): Promise<void> {
     persistManifest(entries);
   }
 
-  console.log('\nDone. Old year folders are now empty — trash them in Drive manually.');
+  console.log(`\n${skipped} entries already moved were skipped.`);
+  console.log('Done. Old year folders are now empty — trash them in Drive manually.');
   console.log('The service account cannot permanently delete; a Manager must empty the trash.');
 }
 
@@ -332,12 +494,74 @@ async function runDryRun(rootId: string): Promise<void> {
 
   const needsType = entries.filter((e) => !e.type).length;
   const needsDate = entries.filter((e) => e.parsedDate === null).length;
-  const blocked = entries.filter(needsHumanInput).length;
+  const blocked = entries.filter((e) => !isReady(e)).length;
   console.log(`DRY RUN — ${entries.length} files inventoried`);
   console.log(`manifest: ${MANIFEST_PATH}`);
   console.log(`${blocked} entries blocked before --execute (${needsType} missing type, ${needsDate} missing date)`);
   console.log('\nNothing was written to Drive. Review the manifest, fill in blanks, then:');
+  console.log('  npx tsx scripts/deposits/migrate.ts --plan     (preview the final plan, no Drive writes)');
   console.log('  npx tsx scripts/deposits/migrate.ts --execute');
+}
+
+/**
+ * (Fix 1) Loads the manifest exactly as --execute would, runs the identical
+ * blocking gate and the identical planTargets/assertUniqueTargets, and prints
+ * the result — WITHOUT ever writing to Drive or to the manifest on disk.
+ *
+ * Never re-collects from Drive (so it can never discard a human's edits the
+ * way --force does), and unlike runExecute it does not abort early when some
+ * entries are blocked — showing both the ready plan and the blocked list
+ * together is the entire point of a preview.
+ *
+ * Makes zero Drive calls: planTargets (unseeded) and assertUniqueTargets are
+ * both pure, in-memory functions. See the printed note about Fix 5's
+ * execute-only sequence seeding for the one way this preview's exact
+ * filenames can differ from what --execute actually assigns.
+ */
+function runPlan(): void {
+  if (!existsSync(MANIFEST_PATH)) {
+    console.error(`No manifest found at ${MANIFEST_PATH}.`);
+    console.error('Run the script with no flags first to inventory the tree, fill in blanks, then --plan.');
+    process.exit(1);
+    return;
+  }
+
+  const entries = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8')) as ManifestEntry[];
+
+  // Same machinery --execute uses to derive targets — reused, not
+  // reimplemented, so --plan can never drift from what --execute will
+  // actually do (only the sequence-number seeding differs; see the note
+  // printed below).
+  planTargets(entries);
+
+  const ready = entries.filter(isReady);
+  const blocked = entries.filter((entry) => !isReady(entry));
+
+  assertUniqueTargets(ready);
+
+  console.log(`PLAN — ${entries.length} entries: ${ready.length} ready, ${blocked.length} blocked\n`);
+
+  for (const entry of ready) {
+    console.log(`${entry.originalPath}  ->  ${entry.targetPath}/${entry.targetName}`);
+  }
+
+  console.log(`\n${ready.length} planned moves.`);
+
+  if (blocked.length > 0) {
+    console.log(`\n${blocked.length} blocked entries:`);
+    for (const entry of blocked) {
+      console.log(`  ${entry.originalPath} — ${entry.note}`);
+    }
+  }
+
+  console.log(
+    '\nNote (Fix 5): sequence numbers above assume every target folder starts empty. --execute instead ' +
+      "seeds each folder's starting sequence from what already exists on Drive (a read that only " +
+      '--execute performs) — so if a target folder is non-empty when --execute actually runs (e.g. a ' +
+      'prior partial run already moved files into it), the real filenames --execute assigns can differ ' +
+      'from this preview.'
+  );
+  console.log('\n--plan made no changes to Drive or to the manifest on disk.');
 }
 
 async function main(): Promise<void> {
@@ -345,6 +569,11 @@ async function main(): Promise<void> {
 
   if (EXECUTE) {
     await runExecute(ROOT);
+    return;
+  }
+
+  if (PLAN) {
+    runPlan();
     return;
   }
 
