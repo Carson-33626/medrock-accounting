@@ -26,8 +26,29 @@ describe('removal token', () => {
 
   it('rejects a tampered signature', () => {
     const token = signRemovalToken(FILE, USER);
+    const [issuedAt, sig] = token.split('.');
+    const flipped = (sig[0] === 'a' ? 'b' : 'a') + sig.slice(1);
+    expect(verifyRemovalToken(`${issuedAt}.${flipped}`, FILE, USER)).toBe(false);
+  });
+
+  it('rejects a signature of the wrong length', () => {
+    const token = signRemovalToken(FILE, USER);
     const [issuedAt] = token.split('.');
     expect(verifyRemovalToken(`${issuedAt}.deadbeef`, FILE, USER)).toBe(false);
+  });
+
+  it('rejects non-canonical issuedAt encodings', () => {
+    const token = signRemovalToken(FILE, USER, 1_000_000);
+    const [, sig] = token.split('.');
+    for (const variant of ['01000000', ' 1000000', '+1000000', '1000000xyz']) {
+      expect(verifyRemovalToken(`${variant}.${sig}`, FILE, USER, 1_000_100)).toBe(false);
+    }
+  });
+
+  it('rejects signatures with trailing junk', () => {
+    const token = signRemovalToken(FILE, USER);
+    expect(verifyRemovalToken(`${token}zzzz`, FILE, USER)).toBe(false);
+    expect(verifyRemovalToken(`${token}a`, FILE, USER)).toBe(false);
   });
 
   it('rejects a tampered issuedAt', () => {
@@ -46,6 +67,12 @@ describe('removal token', () => {
     const issuedAt = 1_000_000;
     const token = signRemovalToken(FILE, USER, issuedAt);
     expect(verifyRemovalToken(token, FILE, USER, issuedAt + REMOVAL_TOKEN_TTL_MS - 1)).toBe(true);
+  });
+
+  it('treats exactly-TTL as expired', () => {
+    const issuedAt = 1_000_000;
+    const token = signRemovalToken(FILE, USER, issuedAt);
+    expect(verifyRemovalToken(token, FILE, USER, issuedAt + REMOVAL_TOKEN_TTL_MS)).toBe(false);
   });
 
   it('rejects malformed tokens without throwing', () => {

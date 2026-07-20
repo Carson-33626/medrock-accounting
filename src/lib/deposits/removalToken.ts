@@ -9,6 +9,10 @@ import crypto from 'node:crypto';
  * HMAC from the *session's* user id and refuses anything that does not match.
  *
  * Token format: `{issuedAt}.{hex hmac}` — self-proving, so no DB table is needed.
+ * Both fields must be canonical (issuedAt: decimal digits with no leading
+ * zeros, sign, or whitespace; hmac: exactly 64 lowercase hex chars) — no
+ * trailing junk either — so a given issued token has exactly one valid
+ * string representation.
  */
 
 export const REMOVAL_TOKEN_TTL_MS = 3_600_000; // 1 hour
@@ -36,10 +40,15 @@ export function verifyRemovalToken(
   userId: string,
   now: number = Date.now()
 ): boolean {
+  if (typeof token !== 'string') return false;
+
   const parts = token.split('.');
   if (parts.length !== 2) return false;
 
   const [issuedAtRaw, provided] = parts;
+  if (!/^(0|[1-9]\d*)$/.test(issuedAtRaw)) return false;
+  if (!/^[0-9a-f]{64}$/.test(provided)) return false;
+
   const issuedAt = Number.parseInt(issuedAtRaw, 10);
   if (!Number.isFinite(issuedAt)) return false;
 
