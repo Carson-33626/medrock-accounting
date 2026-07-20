@@ -23,6 +23,33 @@ const SELF_AUTH_ROUTES = [
   '/api/coupons', // Uses internal data, no user auth needed
 ];
 
+// Routes that require a valid session but NOT the `accounting` app entitlement.
+// The deposit portal is for all staff; granting them the accounting slug would
+// also expose payroll, sales tax, and AP. See spec §6.
+//
+// EXACT match for the page, prefix only for its own API namespace. Do NOT make
+// the page an open prefix: a future `/deposits/<anything>` would silently
+// inherit this exemption and skip the accounting gate. The accounting-side
+// review page is `/deposit-review` for exactly this reason — see
+// docs/superpowers/specs/2026-07-20-deposit-review-page-design.md §3.
+const AUTH_ONLY_EXACT = ['/deposits', '/deposits/'];
+const AUTH_ONLY_PREFIXES = ['/api/deposits'];
+
+/**
+ * True if `pathname` falls under the auth-only exemption: a valid session is
+ * required, but the `accounting` app-slug entitlement check is skipped.
+ *
+ * Exact match for AUTH_ONLY_EXACT entries; prefix match (with a `/` separator)
+ * for AUTH_ONLY_PREFIXES entries. The `+ '/'` separator is load-bearing: it is
+ * what stops `/api/deposits` from matching `/api/deposits-secret`.
+ */
+export function isAuthOnlyRoute(pathname: string): boolean {
+  return (
+    AUTH_ONLY_EXACT.includes(pathname) ||
+    AUTH_ONLY_PREFIXES.some(route => pathname === route || pathname.startsWith(route + '/'))
+  );
+}
+
 // Static files and Next.js internals to skip
 const EXCLUDED_PREFIXES = [
   '/_next',
@@ -111,6 +138,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Session is valid — auth-only routes stop here, before the app-slug check.
+  if (isAuthOnlyRoute(pathname)) {
+    const response = NextResponse.next();
+    response.headers.set('x-url', request.url);
+    return response;
+  }
+
   // Check app access using Bearer token (avoids cookie forwarding issues)
   try {
     const accessCheck = await fetch(
@@ -124,6 +158,16 @@ export async function middleware(request: NextRequest) {
 
     // Handle access denied
     if (accessCheck.status === 403) {
+      // A user without the `accounting` slug is not an error case at the app
+      // root — they are a deposit-portal user. `/deposits` is exempt from
+      // this very check (see AUTH_ONLY_EXACT above), so sending them there
+      // lands them somewhere they can actually use instead of a dead-end
+      // 403 page. Every other gated path still gets the Access Denied page
+      // exactly as before — this redirect is scoped to `/` only.
+      if (pathname === '/') {
+        return NextResponse.redirect(new URL('/deposits', request.url));
+      }
+
       const data = await accessCheck.json().catch(() => ({}));
       const reason = data.reason || 'You do not have permission to access this application.';
 

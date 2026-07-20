@@ -70,6 +70,15 @@ export function Sidebar() {
     return null;
   }
 
+  // Hide sidebar on the deposit portal. That route is reachable by any
+  // authenticated staff member without the accounting entitlement (see
+  // middleware AUTH_ONLY_EXACT), so rendering the accounting nav there would
+  // show links most of them cannot open — both confusing and an information
+  // leak. Exact + own-prefix match only, matching the middleware exemption.
+  if (pathname === '/deposits' || pathname?.startsWith('/deposits/')) {
+    return null;
+  }
+
   return (
     <>
       {/* Mobile hamburger button */}
