@@ -32,8 +32,23 @@ const SELF_AUTH_ROUTES = [
 // inherit this exemption and skip the accounting gate. The accounting-side
 // review page is `/deposit-review` for exactly this reason — see
 // docs/superpowers/specs/2026-07-20-deposit-review-page-design.md §3.
-const AUTH_ONLY_EXACT = ['/deposits'];
+const AUTH_ONLY_EXACT = ['/deposits', '/deposits/'];
 const AUTH_ONLY_PREFIXES = ['/api/deposits'];
+
+/**
+ * True if `pathname` falls under the auth-only exemption: a valid session is
+ * required, but the `accounting` app-slug entitlement check is skipped.
+ *
+ * Exact match for AUTH_ONLY_EXACT entries; prefix match (with a `/` separator)
+ * for AUTH_ONLY_PREFIXES entries. The `+ '/'` separator is load-bearing: it is
+ * what stops `/api/deposits` from matching `/api/deposits-secret`.
+ */
+export function isAuthOnlyRoute(pathname: string): boolean {
+  return (
+    AUTH_ONLY_EXACT.includes(pathname) ||
+    AUTH_ONLY_PREFIXES.some(route => pathname === route || pathname.startsWith(route + '/'))
+  );
+}
 
 // Static files and Next.js internals to skip
 const EXCLUDED_PREFIXES = [
@@ -124,11 +139,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Session is valid — auth-only routes stop here, before the app-slug check.
-  const isAuthOnly =
-    AUTH_ONLY_EXACT.includes(pathname) ||
-    AUTH_ONLY_PREFIXES.some(route => pathname === route || pathname.startsWith(route + '/'));
-
-  if (isAuthOnly) {
+  if (isAuthOnlyRoute(pathname)) {
     const response = NextResponse.next();
     response.headers.set('x-url', request.url);
     return response;
