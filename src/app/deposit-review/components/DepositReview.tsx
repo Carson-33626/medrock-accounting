@@ -153,28 +153,55 @@ function DepositReviewContent({
   headBg: string;
   rowBorder: string;
 }) {
+  const driveLink = (
+    <a
+      href={DRIVE_FOLDER_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center justify-between rounded-xl shadow-sm p-5 ${cardBg} border ${border} hover:opacity-90 transition-opacity`}
+    >
+      <div>
+        <p className="font-semibold">Open Deposit Slips in Google Drive</p>
+        <p className={`text-sm mt-0.5 ${subText}`}>
+          Browse, preview, search, and share files directly — this page is read-only.
+        </p>
+      </div>
+      <span
+        className="flex-shrink-0 ml-4 px-4 py-2 rounded-lg text-sm font-medium text-white"
+        style={{ backgroundColor: '#5e3b8d' }}
+      >
+        Open Drive →
+      </span>
+    </a>
+  );
+
+  if (data.totalFiles === 0) {
+    return (
+      <div className="space-y-6">
+        {driveLink}
+        <div className={`rounded-xl shadow-sm p-6 ${cardBg} border ${border}`}>
+          <p className="font-semibold">Nothing here yet</p>
+          <p className={`text-sm mt-2 ${subText}`}>
+            No deposit slips have been filed into the new folder structure yet, so there is nothing to show on
+            this page. This is expected, not an error.
+          </p>
+          <p className={`text-sm mt-2 ${subText}`}>
+            Existing deposit slips are still sitting in the previous folder layout in Drive — they have not
+            disappeared. They will start showing up here once those files have been moved into the new
+            structure.
+          </p>
+          <p className={`text-sm mt-2 ${subText}`}>
+            Any new deposit slip uploaded through the portal from now on will appear here immediately.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Drive link */}
-      <a
-        href={DRIVE_FOLDER_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`flex items-center justify-between rounded-xl shadow-sm p-5 ${cardBg} border ${border} hover:opacity-90 transition-opacity`}
-      >
-        <div>
-          <p className="font-semibold">Open Deposit Slips in Google Drive</p>
-          <p className={`text-sm mt-0.5 ${subText}`}>
-            Browse, preview, search, and share files directly — this page is read-only.
-          </p>
-        </div>
-        <span
-          className="flex-shrink-0 ml-4 px-4 py-2 rounded-lg text-sm font-medium text-white"
-          style={{ backgroundColor: '#5e3b8d' }}
-        >
-          Open Drive →
-        </span>
-      </a>
+      {driveLink}
 
       {/* Summary tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
