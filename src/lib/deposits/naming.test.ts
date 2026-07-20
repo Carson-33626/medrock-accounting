@@ -6,7 +6,9 @@ import {
   buildFileName,
   nextSequence,
   parseLegacyName,
+  parsePortalName,
   InvalidAmountError,
+  type FileNameParts,
 } from './naming';
 
 describe('buildFolderSegments', () => {
@@ -229,5 +231,97 @@ describe('parseLegacyName', () => {
 
   it('returns nulls for a raw phone filename', () => {
     expect(parseLegacyName('IMG_7389.jpeg')).toEqual({ isoDate: null, amount: null, type: null });
+  });
+});
+
+describe('parsePortalName', () => {
+  // Round-trip against buildFileName for all four amount/uploader combinations.
+  const CASES: FileNameParts[] = [
+    { isoDate: '2026-07-14', type: 'Deposit', amount: '$1409.36', uploader: 'Carson-D', seq: 1, ext: '.jpeg' },
+    { isoDate: '2026-07-14', type: 'Check', amount: null, uploader: 'Carson-D', seq: 2, ext: '.jpeg' },
+    { isoDate: '2023-05-26', type: 'Deposit', amount: '$5381.64', uploader: null, seq: 3, ext: '.jpg' },
+    { isoDate: '2026-07-14', type: 'Deposit', amount: null, uploader: null, seq: 4, ext: '.jpg' },
+  ];
+
+  for (const parts of CASES) {
+    it(`round-trips buildFileName(amount=${parts.amount}, uploader=${parts.uploader})`, () => {
+      const built = buildFileName(parts);
+      expect(parsePortalName(built)).toEqual({
+        isoDate: parts.isoDate,
+        type: parts.type,
+        amount: parts.amount,
+        uploader: parts.uploader,
+      });
+    });
+  }
+
+  it('disambiguates a single uploader-only segment from an amount-only segment', () => {
+    // Same shape (one middle segment) — only the leading `$` tells them apart.
+    expect(parsePortalName('2026-07-14_Check_Carson-D_02.jpeg')).toEqual({
+      isoDate: '2026-07-14',
+      type: 'Check',
+      amount: null,
+      uploader: 'Carson-D',
+    });
+    expect(parsePortalName('2026-07-14_Check_$45.00_02.jpeg')).toEqual({
+      isoDate: '2026-07-14',
+      type: 'Check',
+      amount: '$45.00',
+      uploader: null,
+    });
+  });
+
+  it('handles an uploader with no last initial (first name alone)', () => {
+    expect(parsePortalName('2026-07-14_Deposit_Carson_05.jpg')).toEqual({
+      isoDate: '2026-07-14',
+      type: 'Deposit',
+      amount: null,
+      uploader: 'Carson',
+    });
+  });
+
+  it('rejects a two-segment name in the wrong order (uploader before amount)', () => {
+    expect(parsePortalName('2026-07-14_Deposit_Carson-D_$1409.36_01.jpg')).toEqual({
+      isoDate: null,
+      type: null,
+      amount: null,
+      uploader: null,
+    });
+  });
+
+  it('returns nulls for a legacy filename', () => {
+    expect(parsePortalName('Deposit 05_26_23   $5,381 64.jpg')).toEqual({
+      isoDate: null,
+      type: null,
+      amount: null,
+      uploader: null,
+    });
+  });
+
+  it('returns nulls for a raw phone filename matching no convention', () => {
+    expect(parsePortalName('IMG_7389.jpeg')).toEqual({
+      isoDate: null,
+      type: null,
+      amount: null,
+      uploader: null,
+    });
+  });
+
+  it('returns nulls when the type token is not Deposit or Check', () => {
+    expect(parsePortalName('2026-07-14_Withdrawal_Carson-D_01.jpg')).toEqual({
+      isoDate: null,
+      type: null,
+      amount: null,
+      uploader: null,
+    });
+  });
+
+  it('returns nulls when the date shape is wrong', () => {
+    expect(parsePortalName('2026-7-14_Deposit_Carson-D_01.jpg')).toEqual({
+      isoDate: null,
+      type: null,
+      amount: null,
+      uploader: null,
+    });
   });
 });

@@ -128,6 +128,40 @@ export async function listChildren(parentId: string): Promise<DriveFile[]> {
   return files;
 }
 
+export interface DriveFileWithLink extends DriveFile {
+  webViewLink: string;
+}
+
+interface DriveListResponseWithLinks {
+  files?: DriveFileWithLink[];
+  nextPageToken?: string;
+}
+
+/**
+ * Like `listChildren`, but also requests `webViewLink`. Kept as a separate,
+ * narrowly-scoped function — used only by the deposit-review summary route —
+ * rather than adding the field to `listChildren`'s shape, since the upload
+ * and migration callers depend on `DriveFile` having exactly `id/name/mimeType`.
+ */
+export async function listChildrenWithLinks(parentId: string): Promise<DriveFileWithLink[]> {
+  const files: DriveFileWithLink[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const q = encodeURIComponent(`'${escapeQuery(parentId)}' in parents and trashed=false`);
+    const url =
+      `${API}?q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+      `&fields=nextPageToken,files(id,name,mimeType,webViewLink)&pageSize=200&orderBy=name` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+
+    const page = await driveFetch<DriveListResponseWithLinks>(url);
+    files.push(...(page.files ?? []));
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  return files;
+}
+
 export async function uploadFile(
   parentId: string,
   name: string,

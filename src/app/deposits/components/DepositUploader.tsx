@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import type { DepositType } from '@/lib/deposits/naming';
@@ -33,6 +34,26 @@ function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+// A single camera capture and a multi-select gallery pick both feed this same
+// list. Defensively de-duped on name+size+lastModified so re-tapping a picker
+// (or the same file surfacing from both inputs) doesn't double up an item.
+function fileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function mergeFiles(existing: File[], incoming: File[]): File[] {
+  const seen = new Set(existing.map(fileKey));
+  const merged = [...existing];
+  for (const file of incoming) {
+    const key = fileKey(file);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(file);
+    }
+  }
+  return merged;
+}
+
 export function DepositUploader({ defaultLocation }: Props) {
   const { darkMode } = useDarkMode();
 
@@ -57,6 +78,7 @@ export function DepositUploader({ defaultLocation }: Props) {
   const [removeErrors, setRemoveErrors] = useState<Record<string, string>>({});
 
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
 
@@ -122,6 +144,21 @@ export function DepositUploader({ defaultLocation }: Props) {
     }
   }, [results]);
 
+  // Fed by both the camera-capture input and the gallery/file-picker input —
+  // selecting from one after the other must accumulate, since a camera
+  // capture only ever returns a single file and staff photograph checks one
+  // at a time.
+  const addFiles = useCallback((incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    setFiles((current) => mergeFiles(current, Array.from(incoming)));
+  }, []);
+
+  const clearFiles = useCallback(() => {
+    setFiles([]);
+    if (fileInput.current) fileInput.current.value = '';
+    if (cameraInput.current) cameraInput.current.value = '';
+  }, []);
+
   const onSubmit = useCallback(async () => {
     setError(null);
     if (locationsStatus !== 'ready') return setError('Locations are not available yet — see the notice above.');
@@ -151,6 +188,7 @@ export function DepositUploader({ defaultLocation }: Props) {
       setResults(body.results ?? []);
       setFiles([]);
       if (fileInput.current) fileInput.current.value = '';
+      if (cameraInput.current) cameraInput.current.value = '';
     } catch {
       if (mountedRef.current) setError('Upload failed — check your connection and try again.');
     } finally {
@@ -214,13 +252,35 @@ export function DepositUploader({ defaultLocation }: Props) {
   const okCount = results.filter((r) => r.status === 'ok').length;
   const errorCount = results.length - okCount;
 
+  // The lockup's wordmark is dark (#231f20) and disappears against this
+  // page's dark background, so it always sits on a forced-white
+  // .logo-container panel (see globals.css / Sidebar.tsx). On a light page
+  // that same white panel can read as an empty box, so it gets a subtle
+  // border/shadow there — dark mode relies on the surrounding contrast
+  // instead.
+  const logoPanel = `logo-container mx-auto mb-4 w-fit rounded-lg p-3 border ${
+    darkMode ? 'border-slate-700' : 'border-slate-200 shadow-sm'
+  }`;
+
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
       <div className="max-w-xl mx-auto space-y-6">
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>MedRock Accounting</p>
-          <h1 className={`text-2xl font-bold ${text}`}>Upload Deposits &amp; Checks</h1>
-          <p className={`text-sm mt-2 ${subText}`}>
+          <div className={logoPanel}>
+            <Image
+              src="/medrock-pharmacy-centered.png"
+              alt="MedRock Pharmacy"
+              width={176}
+              height={143}
+              priority
+              className="mx-auto"
+            />
+          </div>
+          <p className={`text-xs font-semibold uppercase tracking-wider text-center ${subText}`}>
+            MedRock Accounting
+          </p>
+          <h1 className={`text-2xl font-bold text-center ${text}`}>Upload Deposits &amp; Checks</h1>
+          <p className={`text-sm mt-2 text-center ${subText}`}>
             Take a photo or pick files. They are filed automatically — you do not need to rename anything.
           </p>
         </div>
@@ -316,17 +376,65 @@ export function DepositUploader({ defaultLocation }: Props) {
           </div>
 
           <div>
-            <label className={`block text-sm font-medium mb-1 ${text}`} htmlFor="files">Photos</label>
-            <input
-              id="files"
-              ref={fileInput}
-              type="file"
-              accept="image/*,application/pdf"
-              multiple
-              className={field}
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-            />
-            {files.length > 0 && <p className={`text-sm mt-2 ${subText}`}>{files.length} file(s) ready</p>}
+            <span className={`block text-sm font-medium mb-1 ${text}`}>Photos</span>
+            <p className={`text-sm mb-2 ${subText}`}>
+              One deposit slip or check per photo, please — take a separate photo for each.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <label
+                htmlFor="camera-files"
+                className="flex items-center justify-center rounded-lg border border-[#5e3b8d] bg-[#5e3b8d] px-3 py-4 text-center text-base font-semibold text-white cursor-pointer"
+              >
+                Take Photo
+              </label>
+              <input
+                id="camera-files"
+                ref={cameraInput}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+
+              <label
+                htmlFor="files"
+                className={`flex items-center justify-center rounded-lg border px-3 py-4 text-center text-base font-semibold cursor-pointer ${
+                  darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              >
+                Choose Files
+              </label>
+              <input
+                id="files"
+                ref={fileInput}
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                className="sr-only"
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+
+            {files.length > 0 && (
+              <div className="flex items-center justify-between mt-2">
+                <p className={`text-sm ${subText}`}>{files.length} file(s) ready</p>
+                <button
+                  type="button"
+                  onClick={clearFiles}
+                  className="text-sm font-medium text-red-500 underline"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
           </div>
 
           {error && (
