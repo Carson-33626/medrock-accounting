@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import type { DepositType } from '@/lib/deposits/naming';
+import { toOcrReadyFile } from '@/lib/deposits/toOcrReadyFile';
+import type { DepositSuggestions } from '@/lib/deposits/extractDepositFields';
 
 interface UploadResult {
   originalName: string;
@@ -72,6 +74,10 @@ export function DepositUploader({ defaultLocation }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  // Which fields currently show a value pulled from the last scan; drives the
+  // "please verify" banner. Cleared when the user edits a field or after upload.
+  const [scannedFields, setScannedFields] = useState<Set<'date' | 'type' | 'amount'>>(new Set());
   const [results, setResults] = useState<UploadResult[]>([]);
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
@@ -153,6 +159,50 @@ export function DepositUploader({ defaultLocation }: Props) {
     setFiles((current) => mergeFiles(current, Array.from(incoming)));
   }, []);
 
+  // Single capture/pick → normalize (HEIC/WebP→JPEG), OCR, pre-fill fields.
+  // Best-effort: any failure just leaves the fields for manual entry and queues
+  // the (converted) file for a normal upload.
+  const scanSingle = useCallback(async (incoming: FileList | null) => {
+    const first = incoming?.[0];
+    if (!first) return;
+
+    setError(null);
+    setScanning(true);
+    try {
+      const ready = await toOcrReadyFile(first);
+      setFiles([ready]);
+
+      const form = new FormData();
+      form.set('file', ready);
+      const response = await fetch('/api/deposits/ocr', { method: 'POST', body: form });
+      if (!mountedRef.current) return;
+
+      const body = (await response.json().catch(() => null)) as { suggestions?: DepositSuggestions } | null;
+      const suggestions = body?.suggestions;
+      if (!suggestions) return;
+
+      const applied = new Set<'date' | 'type' | 'amount'>();
+      if (suggestions.date) {
+        setDate(suggestions.date);
+        applied.add('date');
+      }
+      if (suggestions.type) {
+        setType(suggestions.type);
+        applied.add('type');
+      }
+      if (suggestions.amount) {
+        // The amount text field holds a bare number; the upload route re-parses it.
+        setAmount(suggestions.amount.replace(/^\$/, ''));
+        applied.add('amount');
+      }
+      if (mountedRef.current) setScannedFields(applied);
+    } catch {
+      // Non-fatal — the file is still queued; the user fills the fields manually.
+    } finally {
+      if (mountedRef.current) setScanning(false);
+    }
+  }, []);
+
   const clearFiles = useCallback(() => {
     setFiles([]);
     if (fileInput.current) fileInput.current.value = '';
@@ -187,6 +237,7 @@ export function DepositUploader({ defaultLocation }: Props) {
       }
       setResults(body.results ?? []);
       setFiles([]);
+      setScannedFields(new Set());
       if (fileInput.current) fileInput.current.value = '';
       if (cameraInput.current) cameraInput.current.value = '';
     } catch {
@@ -312,7 +363,20 @@ export function DepositUploader({ defaultLocation }: Props) {
           </div>
         )}
 
+        {scanning && (
+          <div role="status" className={`rounded-xl border p-3 text-sm ${cardBg} ${subText}`}>
+            Reading your photo…
+          </div>
+        )}
+
         <div className={`rounded-xl border p-4 space-y-4 ${cardBg}`}>
+          {scannedFields.size > 0 && !scanning && (
+            <p className={`text-sm rounded-lg px-3 py-2 ${
+              darkMode ? 'bg-indigo-950/40 text-indigo-200' : 'bg-indigo-50 text-indigo-700'
+            }`}>
+              We filled these in from your photo — please check them before uploading.
+            </p>
+          )}
           <div>
             <label className={`block text-sm font-medium mb-1 ${text}`} htmlFor="location">Location</label>
             <select
@@ -334,7 +398,16 @@ export function DepositUploader({ defaultLocation }: Props) {
 
           <div>
             <label className={`block text-sm font-medium mb-1 ${text}`} htmlFor="date">Date</label>
-            <input id="date" type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} />
+            <input
+              id="date"
+              type="date"
+              className={field}
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setScannedFields((s) => { const n = new Set(s); n.delete('date'); return n; });
+              }}
+            />
           </div>
 
           <div>
@@ -345,7 +418,10 @@ export function DepositUploader({ defaultLocation }: Props) {
                   key={option}
                   type="button"
                   aria-pressed={type === option}
-                  onClick={() => setType(option)}
+                  onClick={() => {
+                    setType(option);
+                    setScannedFields((s) => { const n = new Set(s); n.delete('type'); return n; });
+                  }}
                   className={`rounded-lg border px-3 py-3 text-base font-medium ${
                     type === option
                       ? 'bg-[#5e3b8d] text-white border-[#5e3b8d]'
@@ -371,7 +447,10 @@ export function DepositUploader({ defaultLocation }: Props) {
               placeholder="1,409.36"
               className={field}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setScannedFields((s) => { const n = new Set(s); n.delete('amount'); return n; });
+              }}
             />
           </div>
 
@@ -396,7 +475,7 @@ export function DepositUploader({ defaultLocation }: Props) {
                 capture="environment"
                 className="sr-only"
                 onChange={(e) => {
-                  addFiles(e.target.files);
+                  void scanSingle(e.target.files);
                   e.target.value = '';
                 }}
               />
@@ -417,7 +496,12 @@ export function DepositUploader({ defaultLocation }: Props) {
                 multiple
                 className="sr-only"
                 onChange={(e) => {
-                  addFiles(e.target.files);
+                  const picked = e.target.files;
+                  if (picked && picked.length === 1) {
+                    void scanSingle(picked);
+                  } else {
+                    addFiles(picked);
+                  }
                   e.target.value = '';
                 }}
               />
