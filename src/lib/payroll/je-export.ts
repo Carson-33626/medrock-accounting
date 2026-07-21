@@ -35,8 +35,11 @@ export interface JeExportSheet {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+// Account # sits right before Account so the two read together — the accounting team works by
+// account number, and Barbara asked the export to show the QBO account NAME and NUMBER it maps to.
 const COLUMNS: ExportColumn[] = [
   { header: 'Type', key: 'type' },
+  { header: 'Account #', key: 'acctNum' },
   { header: 'Account', key: 'account' },
   { header: 'Memo', key: 'memo' },
   { header: 'Department', key: 'department' },
@@ -46,12 +49,22 @@ const COLUMNS: ExportColumn[] = [
   { header: 'Origin', key: 'origin' },
 ];
 
-export function buildJeExportSheet(header: JeExportHeader, lines: JournalLine[]): JeExportSheet {
+/**
+ * @param accountNums FullyQualifiedName -> QB account number (AcctNum), as returned by
+ *   fetchDimensions().accountNums. Optional and best-effort: when absent (offline export, or an
+ *   account with no number) the Account # cell is left blank rather than failing the export.
+ */
+export function buildJeExportSheet(
+  header: JeExportHeader,
+  lines: JournalLine[],
+  accountNums?: Record<string, string>,
+): JeExportSheet {
   // Group by account then memo (same order as the review table + builder) so the exported
   // sheet is readable; sort a copy so the caller's array is never mutated.
   const ordered = [...lines].sort(compareJournalLines);
   const rows: Record<string, CellValue>[] = ordered.map((l) => ({
     type: l.postingType,
+    acctNum: accountNums?.[l.accountName] ?? '',
     account: l.accountName,
     memo: l.memo ?? '',
     department: l.departmentName ?? '',
@@ -63,7 +76,7 @@ export function buildJeExportSheet(header: JeExportHeader, lines: JournalLine[])
 
   const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
   const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
-  rows.push({ type: 'TOTAL', account: '', memo: '', department: '', className: '', debit: totalDebits, credit: totalCredits, origin: '' });
+  rows.push({ type: 'TOTAL', acctNum: '', account: '', memo: '', department: '', className: '', debit: totalDebits, credit: totalCredits, origin: '' });
 
   const docNumber = header.qb_doc_number ?? deriveDocNumber(header.pay_date);
   const txnDate = deriveTxnDate(header.pay_date);
