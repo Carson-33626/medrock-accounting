@@ -107,10 +107,11 @@ export function buildForecastModel(
         if (p.sortKey === anchorSk) connectValue = p.count;
       }
       for (const p of ef.projected) {
-        // Authoritative split: anchor < sk < currentMonth -> hold-out (est);
-        // sk >= currentMonth -> strictly-future (future).
-        if (anchorSk < p.sortKey && p.sortKey < cmk) est[p.label] = p.count;
-        else if (p.sortKey >= cmk) future[p.label] = p.count;
+        // Authoritative split: sk <= currentMonth -> hold-out + current-partial
+        // (est, the dual actual+est cell); sk > currentMonth -> strictly-future
+        // (future).
+        if (p.sortKey <= cmk) est[p.label] = p.count;
+        else future[p.label] = p.count;
       }
     }
     return {
@@ -136,12 +137,9 @@ export function buildForecastModel(
   const allSk = [...keySet].sort((a, b) => a - b);
   const allMonths = allSk.map(sortKeyToYm);
   const completedMonths = allSk.filter((k) => k < cmk).map(sortKeyToYm);
-  const futureMonths = allSk.filter((k) => k >= cmk).map(sortKeyToYm);
-  const provisionalMonths = allSk.filter((k) => anchorSk < k && k < cmk).map(sortKeyToYm);
+  const futureMonths = allSk.filter((k) => k > cmk).map(sortKeyToYm);
+  const provisionalMonths = allSk.filter((k) => anchorSk < k && k <= cmk).map(sortKeyToYm);
   const currentKey = data.currentMonthKey;
-  if (currentKey && !provisionalMonths.includes(currentKey) && keySet.has(ymToSortKey(currentKey))) {
-    provisionalMonths.push(currentKey);
-  }
 
   return {
     completedMonths,

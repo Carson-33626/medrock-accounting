@@ -34,6 +34,11 @@ describe('buildForecastModel', () => {
     expect(Object.keys(fl.future).length).toBeGreaterThan(0);
     expect(model.showProjection).toBe(true);
     expect(model.scores.length).toBe(2 * 5);
+
+    const cm = model.currentMonthKey!;
+    expect(fl.est[cm]).toBeGreaterThan(0);          // current-month estimate present
+    expect(model.provisionalMonths).toContain(cm);
+    expect(model.futureMonths).not.toContain(cm);   // no provisional/future overlap
   });
   it('hides projection when method = none but still returns history + scores', () => {
     const model = buildForecastModel(resp(), 'revenue', 6, 'none');
