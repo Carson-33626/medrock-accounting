@@ -9,6 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import { chartTheme, locationColor, usd, usd0 } from './chartTheme';
 import type { ForecastModel } from './forecastModel';
@@ -30,6 +31,12 @@ export function ForecastChart({
   metricLabel: string;
 }) {
   const theme = chartTheme(darkMode);
+
+  const lastCompleteMonth = model.completedMonths[model.completedMonths.length - 1];
+  const hasHoldOut =
+    model.provisionalMonths.length > 0 &&
+    lastCompleteMonth !== undefined &&
+    model.anchorMonth < lastCompleteMonth;
 
   const provisionalSet = new Set(model.provisionalMonths);
   const rows: Row[] = model.allMonths.map((month) => {
@@ -64,6 +71,14 @@ export function ForecastChart({
             />
             <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} contentStyle={theme.tooltipStyle} />
             <Legend />
+            {hasHoldOut && (
+              <ReferenceLine
+                x={model.anchorMonth}
+                stroke={theme.axisStroke}
+                strokeDasharray="2 2"
+                label={{ value: 'forecast start', fontSize: 10 }}
+              />
+            )}
             {model.locations.flatMap((loc) => [
               <Line
                 key={loc.qbLocation}
@@ -74,17 +89,21 @@ export function ForecastChart({
                 dot={false}
                 connectNulls
               />,
-              <Line
-                key={`${loc.qbLocation}-f`}
-                type="monotone"
-                dataKey={`${loc.label} (forecast)`}
-                stroke={locationColor(loc.state)}
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={false}
-                legendType="none"
-                connectNulls
-              />,
+              ...(model.showProjection
+                ? [
+                    <Line
+                      key={`${loc.qbLocation}-f`}
+                      type="monotone"
+                      dataKey={`${loc.label} (forecast)`}
+                      stroke={locationColor(loc.state)}
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      legendType="none"
+                      connectNulls
+                    />,
+                  ]
+                : []),
             ])}
           </LineChart>
         </ResponsiveContainer>
