@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { usd0 } from './chartTheme';
 import type { ForecastLocation, ForecastModel } from './forecastModel';
 
@@ -52,6 +52,42 @@ function methodBadge(method: string, darkMode: boolean): string {
   return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
 }
 
+/** Aggregate one month across all locations for the Total column. */
+function totalCell(model: ForecastModel, month: string): CellView {
+  let actualSum = 0;
+  let estSum = 0;
+  let projSum = 0;
+  let kind: CellKind = 'empty';
+  for (const loc of model.locations) {
+    const c = cellFor(loc, month, model);
+    if (c.kind === 'actual') {
+      actualSum += c.value;
+      kind = 'actual';
+    } else if (c.kind === 'dual') {
+      actualSum += c.value;
+      estSum += c.estValue ?? 0;
+      kind = 'dual';
+    } else if (c.kind === 'projected') {
+      projSum += c.value;
+      kind = 'projected';
+    }
+  }
+  if (kind === 'dual') return { kind, value: actualSum, estValue: estSum };
+  if (kind === 'projected') return { kind, value: projSum, estValue: null };
+  return { kind, value: actualSum, estValue: null };
+}
+
+/** Sort key: a location's qbLocation, or 'total' for the Total column, or 'month' (chronological). */
+const MONTH_SORT_KEY = 'month';
+const TOTAL_SORT_KEY = 'total';
+
+/** Numeric value used to sort a month row by a given column key. */
+function sortValueFor(model: ForecastModel, month: string, key: string): number {
+  if (key === TOTAL_SORT_KEY) return totalCell(model, month).value;
+  const loc = model.locations.find((l) => l.qbLocation === key);
+  return loc ? cellFor(loc, month, model).value : 0;
+}
+
 /** CMGR (%) from last-actual to final-forecast for an arbitrary summed series. */
 function cmgrFrom(lastActual: number, finalForecast: number, horizon: number): number {
   if (horizon <= 0 || lastActual <= 0 || finalForecast <= 0) return 0;
@@ -100,29 +136,29 @@ export function ForecastTable({
     return cmgrFrom(lastActual, finalForecast, periods);
   }, [model]);
 
-  // Aggregate one month across locations for the Total column.
-  const totalCell = (month: string): CellView => {
-    let actualSum = 0;
-    let estSum = 0;
-    let projSum = 0;
-    let kind: CellKind = 'empty';
-    for (const loc of model.locations) {
-      const c = cellFor(loc, month, model);
-      if (c.kind === 'actual') {
-        actualSum += c.value;
-        kind = 'actual';
-      } else if (c.kind === 'dual') {
-        actualSum += c.value;
-        estSum += c.estValue ?? 0;
-        kind = 'dual';
-      } else if (c.kind === 'projected') {
-        projSum += c.value;
-        kind = 'projected';
-      }
+  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
+
+  const sortedMonths = useMemo(() => {
+    if (!sort) return monthsDesc;
+    const { key, dir } = sort;
+    return [...monthsDesc].sort((a, b) => (sortValueFor(model, a, key) - sortValueFor(model, b, key)) * dir);
+  }, [monthsDesc, sort, model]);
+
+  const handleSortClick = (key: string): void => {
+    if (key === MONTH_SORT_KEY) {
+      setSort(null);
+      return;
     }
-    if (kind === 'dual') return { kind, value: actualSum, estValue: estSum };
-    if (kind === 'projected') return { kind, value: projSum, estValue: null };
-    return { kind, value: actualSum, estValue: null };
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: -1 };
+      return { key, dir: prev.dir === -1 ? 1 : -1 };
+    });
+  };
+
+  const sortIndicator = (key: string): string => {
+    if (key === MONTH_SORT_KEY) return sort === null ? ' ▼' : '';
+    if (!sort || sort.key !== key) return '';
+    return sort.dir === -1 ? ' ▼' : ' ▲';
   };
 
   const renderCell = (c: CellView, keyId: string) => {
@@ -149,8 +185,8 @@ export function ForecastTable({
       <div className={`p-4 border-b ${rowBorder}`}>
         <p className="text-sm font-semibold">{metricLabel} — actuals &amp; forecast by month</p>
         <p className={`text-xs ${subText}`}>
-          Latest month first · plain = actual · shaded = projected · the current month shows actual-to-date with
-          an estimate.
+          Latest month first · plain = actual · shaded = projected · dual cell = model estimate vs actual (hold-out
+          / current month). Click a column header to sort.
         </p>
         {/* Forecast-method highlight strip */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -175,14 +211,32 @@ export function ForecastTable({
         <table className="w-full text-xs">
           <thead>
             <tr className={tableHead}>
-              <th className={`sticky left-0 z-10 ${tableHead} px-3 py-2 text-left font-medium`}>Month</th>
+              <th
+                className={`sticky left-0 z-10 ${tableHead} px-3 py-2 text-left font-medium cursor-pointer select-none`}
+                onClick={() => handleSortClick(MONTH_SORT_KEY)}
+                title="Sort chronologically (latest first)"
+              >
+                Month{sortIndicator(MONTH_SORT_KEY)}
+              </th>
               {model.locations.map((loc) => (
-                <th key={loc.qbLocation} className="px-3 py-2 text-right font-medium">
+                <th
+                  key={loc.qbLocation}
+                  className="px-3 py-2 text-right font-medium cursor-pointer select-none"
+                  onClick={() => handleSortClick(loc.qbLocation)}
+                  title={`Sort by ${loc.label}`}
+                >
                   {loc.label}
                   {!loc.connected && <span className={`ml-1 text-[10px] uppercase ${subText}`}>n/c</span>}
+                  {sortIndicator(loc.qbLocation)}
                 </th>
               ))}
-              <th className="px-3 py-2 text-right font-medium">Total</th>
+              <th
+                className="px-3 py-2 text-right font-medium cursor-pointer select-none"
+                onClick={() => handleSortClick(TOTAL_SORT_KEY)}
+                title="Sort by Total"
+              >
+                Total{sortIndicator(TOTAL_SORT_KEY)}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -198,8 +252,8 @@ export function ForecastTable({
                 <Cmgr value={totalCmgr} />
               </td>
             </tr>
-            {/* Month rows, latest first */}
-            {monthsDesc.map((month) => {
+            {/* Month rows — chronological (latest first) unless a column sort is active */}
+            {sortedMonths.map((month) => {
               const rowBg = isProvisional(month) ? dualRow : isFuture(month) ? projRow : '';
               const tag = isProvisional(month) ? 'prov' : isFuture(month) ? 'proj' : '';
               return (
@@ -221,7 +275,7 @@ export function ForecastTable({
                     }
                     return renderCell(cellFor(loc, month, model), keyId);
                   })}
-                  {renderCell(totalCell(month), `total-${month}`)}
+                  {renderCell(totalCell(model, month), `total-${month}`)}
                 </tr>
               );
             })}
