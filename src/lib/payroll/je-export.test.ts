@@ -61,4 +61,29 @@ describe('buildJeExportSheet', () => {
     expect(filename).toContain('MedRock_FL');
     expect(filename).toContain('PR_2026.07.01');
   });
+
+  it('adds an Account # column resolved from the QB account-number map (Barbara: show the mapped account name AND number)', () => {
+    const acctNums = { 'COGS - Lab Wages': '5010', 'Payroll Withholdings': '2100' };
+    const lines = [
+      line({ accountName: 'COGS - Lab Wages' }),
+      line({ postingType: 'Credit', accountName: 'Payroll Withholdings', creditBucket: 'Net Pay' }),
+    ];
+    const { columns, rows } = buildJeExportSheet(header, lines, acctNums);
+    expect(columns.map((c) => c.key)).toEqual([
+      'type', 'acctNum', 'account', 'memo', 'department', 'className', 'debit', 'credit', 'origin',
+    ]);
+    expect(rows.find((r) => r.account === 'COGS - Lab Wages')?.acctNum).toBe('5010');
+    expect(rows.find((r) => r.account === 'Payroll Withholdings')?.acctNum).toBe('2100');
+  });
+
+  it('leaves Account # blank for accounts with no number and on the TOTAL row', () => {
+    const { rows } = buildJeExportSheet(header, [line({ accountName: 'COGS - Lab Wages' })], {});
+    expect(rows.find((r) => r.account === 'COGS - Lab Wages')?.acctNum).toBe('');
+    expect(rows[rows.length - 1].acctNum).toBe('');
+  });
+
+  it('omits account numbers gracefully when no map is supplied (offline export still works)', () => {
+    const { rows } = buildJeExportSheet(header, [line({})]);
+    expect(rows[0].acctNum).toBe('');
+  });
 });

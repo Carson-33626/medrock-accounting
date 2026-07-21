@@ -795,6 +795,117 @@ function ScrollingText({ text, className }: { text: string; className: string })
   );
 }
 
+/** One decrypted source row returned by /api/payroll/drilldown. */
+interface DrilldownRowDetail {
+  row_key: string;
+  position_id: string;
+  name: string;
+  pay_date: string;
+  pay_group: string;
+  sensitive: Record<string, number | string | null>;
+}
+
+/** The non-zero dollar columns of a decrypted row, so the drill-down shows WHICH earnings/
+ * deductions fed this JE line (not a wall of zeros). */
+function nonZeroDollars(sensitive: Record<string, number | string | null>): Array<[string, string]> {
+  return Object.entries(sensitive)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0)
+    .map(([k, v]) => [k, usd.format(v)]);
+}
+
+/**
+ * Barbara's request: click "N source rows" on a JE line and route down to the underlying
+ * payroll records so she can see WHERE a line's dollars come from (e.g. why "MedRock TX" carries
+ * a "Puerto Rico Region" line — it's a marketer whose region maps to that QB department, not an
+ * actual PR employee). Read-only + decrypt-gated: hits /api/payroll/drilldown, which re-decrypts
+ * each row server-side on demand and never persists or logs the plaintext.
+ */
+function SourceRowsPanel({
+  rowKeys,
+  subText,
+  border,
+}: {
+  rowKeys: string[];
+  subText: string;
+  border: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<DrilldownRowDetail[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = useCallback(async () => {
+    const next = !open;
+    setOpen(next);
+    if (!next || rows !== null || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        rowKeys.map(async (k) => {
+          const res = await fetch(`/api/payroll/drilldown?rowKey=${encodeURIComponent(k)}`);
+          if (!res.ok) {
+            const body: { error?: string } = await res.json().catch(() => ({}));
+            throw new Error(body.error ?? `drilldown failed (${res.status})`);
+          }
+          return (await res.json()) as DrilldownRowDetail;
+        }),
+      );
+      setRows(results);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load source rows');
+    } finally {
+      setLoading(false);
+    }
+  }, [open, rows, loading, rowKeys]);
+
+  const n = rowKeys.length;
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className={`inline-flex items-center gap-1 text-[11px] ${subText} hover:underline`}
+      >
+        {loading ? (
+          <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
+        ) : (
+          <Search className="w-3 h-3" aria-hidden />
+        )}
+        {n} source row{n === 1 ? '' : 's'}
+      </button>
+      {open && (
+        <div className={`mt-1.5 rounded-md border p-2 text-[11px] space-y-1.5 ${border}`}>
+          {error && <p className="text-red-500">{error}</p>}
+          {rows?.map((r) => {
+            const dollars = nonZeroDollars(r.sensitive);
+            return (
+              <div key={r.row_key} className="space-y-0.5">
+                <div className="font-medium">
+                  {r.name} · {r.position_id}
+                </div>
+                <div className={`flex flex-wrap gap-x-3 gap-y-0.5 ${subText}`}>
+                  {dollars.length > 0 ? (
+                    dollars.map(([k, v]) => (
+                      <span key={k} className="tabular-nums">
+                        {k}: {v}
+                      </span>
+                    ))
+                  ) : (
+                    <span>no dollar detail</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {rows && rows.length === 0 && <p className={subText}>No source rows.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineRow({
   darkMode,
   border,
@@ -913,7 +1024,7 @@ function LineRow({
         </select>
 
         {line.sourceRowKeys.length > 0 && (
-          <span className={`text-[11px] ${subText}`}>{line.sourceRowKeys.length} source row{line.sourceRowKeys.length === 1 ? '' : 's'}</span>
+          <SourceRowsPanel rowKeys={line.sourceRowKeys} subText={subText} border={border} />
         )}
       </div>
     </div>
