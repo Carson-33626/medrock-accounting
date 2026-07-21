@@ -46,8 +46,10 @@ export function ForecastChart({
   const rows: Row[] = model.allMonths.map((month) => {
     const row: Row = { month };
     for (const loc of model.locations) {
-      // Actual line: fully-closed completed months only (provisional/current omitted to avoid a false spike).
-      row[loc.label] = month in loc.actual && !provisionalSet.has(month) ? loc.actual[month] : null;
+      // Actual line: every completed month, including back-tested hold-out months (so moving the
+      // forecast start back keeps the solid actuals visible under the dashed forecast, like MRPBI).
+      // Only the in-progress current month is omitted — its partial value would draw a false spike.
+      row[loc.label] = month in loc.actual && month !== model.currentMonthKey ? loc.actual[month] : null;
       // Forecast line: connect from last trained actual, through provisional + current estimates, into the future.
       let f: number | null = null;
       if (month === loc.lastTrainMonth) f = loc.connectValue;
