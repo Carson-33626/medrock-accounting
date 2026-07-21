@@ -91,6 +91,9 @@ export async function GET(request: NextRequest) {
        WHERE ph.pay_date = $2 AND ph.pay_group = $3
          AND ph.home_department ILIKE 'MARKET%'
          AND (pm.department_name = '% Allocation' OR pm.department_name IS NULL)
+         -- Once an accountant confirms the assignment (incl. deliberately keeping '% Allocation'),
+         -- reviewed = true drops the marketer off this worklist instead of re-flagging forever.
+         AND pm.reviewed IS NOT TRUE
        ORDER BY ph.position_id`,
       [header.entity, header.pay_date, header.pay_group],
     );

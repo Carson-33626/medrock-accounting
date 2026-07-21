@@ -44,6 +44,9 @@ const DEPT_LABEL: Record<CostCenter, string> = {
 const REGULAR_EARNING_COLUMNS = [
   'REGULAR PAY - EARNING',
   'HOLIDAY PAY - EARNING',
+  // PTHOLIDAY (paid holiday) is a wage earning like HOLIDAY PAY — it was missing from the seed,
+  // so it kept surfacing as a "new column detected" that couldn't be cleared (Barbara 2026-07-21).
+  'PTHOLIDAY - EARNING',
   'PTO - EARNING',
   'PTO CASHOUT - EARNING',
   'PREM PAY - EARNING',

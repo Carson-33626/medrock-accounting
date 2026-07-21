@@ -69,6 +69,23 @@ describe('pooled debit specials split by department memo', () => {
     }
   });
 
+  it('maps PTHOLIDAY - EARNING as a per-department wage earning (fixes the re-flagging column)', () => {
+    // PTHOLIDAY (paid holiday) is a wage earning like HOLIDAY PAY - EARNING — it was missing from
+    // the seed, so it kept surfacing as "new column detected". It should map per cost center to the
+    // regular wage account with a "<Dept> Wages" memo, exactly like the other earning columns.
+    for (const entity of POSTABLE_ENTITIES) {
+      const rules = buildSeedAccountMap(entity).filter((r) => r.adpColumn === 'PTHOLIDAY - EARNING');
+      const perDept = rules.filter((r) => r.postingType === 'Debit' && r.costCenter !== '*');
+      expect(perDept.length, entity).toBe(NINE_COST_CENTERS);
+      const lab = perDept.find((r) => r.costCenter === 'LAB');
+      expect(lab?.accountName).toBe('COGS - Payroll Expense:COGS - Lab Wages');
+      expect(lab?.memo).toBe('Lab Wages');
+      const admin = perDept.find((r) => r.costCenter === 'ADMIN');
+      expect(admin?.accountName).toBe('Payroll Expense -:Administrative Wages');
+      expect(admin?.memo).toBe('Admin Wages');
+    }
+  });
+
   it('MEDICAL - ER keeps its single * Health credit to the withholdings pool (credit side unchanged)', () => {
     for (const entity of POSTABLE_ENTITIES) {
       const credits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === 'MEDICAL - ER' && r.postingType === 'Credit');

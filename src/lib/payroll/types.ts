@@ -55,6 +55,9 @@ export interface EmployeeMapRule {
   id?: number;
   entity: Entity; positionId: string; departmentName: string | null; className: string | null;
   cogsOverride: boolean | null; active: boolean;
+  /** An accountant has reviewed this marketer's region (incl. deliberately keeping '% Allocation'),
+   * so the "Marketers needing region review" worklist stops surfacing them. Defaults false. */
+  reviewed?: boolean;
 }
 export interface AllocationRule {
   id?: number;

@@ -35,6 +35,9 @@ interface EmployeeMapRule {
   className: string | null;
   cogsOverride: boolean | null;
   active: boolean;
+  /** Set true on save so a confirmed marketer (incl. one deliberately kept on '% Allocation')
+   * drops off the review worklist instead of re-flagging forever. */
+  reviewed?: boolean;
 }
 
 interface DimensionsResponse {
@@ -260,8 +263,9 @@ export function MarketerReviewPanel({
             </p>
           )}
           <p className={`text-[11px] ${subText}`}>
-            &apos;% Allocation&apos; is the inter-entity catch-all default — it can be kept as-is if this marketer
-            genuinely has no single region yet.
+            &apos;% Allocation&apos; is the inter-entity catch-all default — keep it as-is if this marketer
+            genuinely has no single region yet. Either way, click <strong>Save</strong> to confirm: that
+            marks them reviewed so they stop reappearing here (even when kept on &apos;% Allocation&apos;).
           </p>
 
           <div className="space-y-2">
@@ -334,6 +338,9 @@ function MarketerRow({
         // shortcut panel only edits region/class, so it must not clobber that field.
         cogsOverride: marketer.currentCogsOverride,
         active: true,
+        // Saving from this panel IS the review — mark it confirmed so the marketer drops off the
+        // worklist, even when the accountant deliberately keeps '% Allocation' (e.g. a director).
+        reviewed: true,
       };
       const res = await fetch('/api/payroll/mappings', {
         method: 'POST',
