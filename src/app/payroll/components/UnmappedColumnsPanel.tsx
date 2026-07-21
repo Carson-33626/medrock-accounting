@@ -57,6 +57,10 @@ interface ApiErrorBody {
 
 const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
+// Valid cost centers ('*' = all roles) — a constrained dropdown, NOT free text: a free-text field
+// let a stray value like '*PHARM' (default '*' + typed 'PHARM') save a rule that matched neither the
+// row's cost center nor '*', so the column never resolved and kept re-flagging (Barbara 2026-07-21).
+const COST_CENTER_OPTIONS = ['*', 'LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET'] as const;
 
 function isEntity(value: string): value is Entity {
   return (ENTITIES as string[]).includes(value);
@@ -417,15 +421,19 @@ function UnmappedColumnRow({
 
         <label className={`text-xs ${subText}`}>
           Cost center
-          <input
-            type="text"
+          <select
             value={costCenter}
             onChange={(e) => setCostCenter(e.target.value)}
-            placeholder="*"
             className={`block mt-0.5 w-28 rounded-md border px-2 py-1 text-xs ${inputBg}`}
-          />
+          >
+            {COST_CENTER_OPTIONS.map((cc) => (
+              <option key={cc} value={cc}>
+                {cc === '*' ? '*  (all roles)' : cc}
+              </option>
+            ))}
+          </select>
         </label>
-        <p className={`text-[11px] ${subText} max-w-[220px]`}>Default &apos;*&apos; = all roles. Use LAB / ADMIN / MARKET… to scope one role.</p>
+        <p className={`text-[11px] ${subText} max-w-[220px]`}>Default &apos;*&apos; = all roles. Pick LAB / ADMIN / MARKET… to scope one role.</p>
 
         <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
           <input type="checkbox" checked={isCogs} onChange={(e) => setIsCogs(e.target.checked)} />
