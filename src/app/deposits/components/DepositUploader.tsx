@@ -7,6 +7,7 @@ import type { DepositType } from '@/lib/deposits/naming';
 import { toOcrReadyFile } from '@/lib/deposits/toOcrReadyFile';
 import type { DepositSuggestions } from '@/lib/deposits/extractDepositFields';
 import { INITIAL_FLOW, reduceFlow } from '@/lib/deposits/depositFlow';
+import { MAX_FILE_BYTES } from '@/lib/deposits/fileValidation';
 
 interface UploadResult {
   originalName: string;
@@ -235,6 +236,12 @@ export function DepositUploader({ defaultLocation }: Props) {
     if (!location) return 'Pick a location.';
     if (files.length === 0) return 'Add at least one photo.';
     if (files.length > MAX_FILES) return `Send at most ${MAX_FILES} files at a time.`;
+    // Per-file 25 MB ceiling mirrors the server's MAX_FILE_BYTES — caught here
+    // so an oversize photo fails fast instead of coming back as a 200-with-error
+    // the photo path would otherwise have to unpack.
+    if (files.some((file) => file.size > MAX_FILE_BYTES)) {
+      return 'One of those files is over 25 MB — take a new photo or pick a smaller file.';
+    }
     const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
     if (totalBytes > MAX_TOTAL_BYTES) return 'Those files are too large together — send fewer at a time.';
     return null;
@@ -268,12 +275,19 @@ export function DepositUploader({ defaultLocation }: Props) {
     try {
       const res = await runUpload();
       if (!mountedRef.current) return;
-      if (!res.ok) {
-        setError(res.error ?? 'Upload failed.');
+      // The upload route returns HTTP 200 with per-file { status: 'error' }
+      // for file-level failures (oversize, bad type, Drive hiccup), so an ok
+      // HTTP status is NOT proof the deposit was filed. The photo path sends
+      // exactly one file — inspect its status before declaring success, or the
+      // green "filed successfully" modal would lie and the deposit would be
+      // silently lost.
+      const filed = res.results[0];
+      if (!res.ok || !filed || filed.status !== 'ok') {
+        setError(filed?.error ?? res.error ?? 'Upload failed — please try again.');
         dispatchFlow({ type: 'SUBMIT_ERROR' });
         return;
       }
-      setResults((prev) => [...res.results, ...prev]);
+      setResults((prev) => [filed, ...prev]);
       dispatchFlow({ type: 'SUBMIT_SUCCESS' });
     } catch {
       if (mountedRef.current) {
@@ -487,7 +501,7 @@ export function DepositUploader({ defaultLocation }: Props) {
             const removeError = fileId ? removeErrors[fileId] : undefined;
 
             return (
-              <div key={`${result.originalName}-${index}`} className="flex items-center justify-between gap-3">
+              <div key={result.fileId ?? `${result.originalName}-${index}`} className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className={`text-sm truncate ${result.status === 'ok' ? text : 'text-red-500'}`}>
                     {result.status === 'ok'
