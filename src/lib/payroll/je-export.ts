@@ -11,6 +11,7 @@
 import type { JournalLine } from './types';
 import type { ExportColumn, CellValue } from '../inventory-export';
 import { docNumber as deriveDocNumber, txnDate as deriveTxnDate } from './qb-journal';
+import { compareJournalLines } from './line-order';
 
 /** Minimal header shape the export needs — a subset of store.PayrollHeader. */
 export interface JeExportHeader {
@@ -46,7 +47,10 @@ const COLUMNS: ExportColumn[] = [
 ];
 
 export function buildJeExportSheet(header: JeExportHeader, lines: JournalLine[]): JeExportSheet {
-  const rows: Record<string, CellValue>[] = lines.map((l) => ({
+  // Group by account then memo (same order as the review table + builder) so the exported
+  // sheet is readable; sort a copy so the caller's array is never mutated.
+  const ordered = [...lines].sort(compareJournalLines);
+  const rows: Record<string, CellValue>[] = ordered.map((l) => ({
     type: l.postingType,
     account: l.accountName,
     memo: l.memo ?? '',
