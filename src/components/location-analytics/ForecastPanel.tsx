@@ -10,6 +10,7 @@ import { MethodAccuracyStrip } from './MethodAccuracyStrip';
 import { buildForecastModel } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
+import { ManualForecastTab } from './ManualForecastTab';
 import { exportForecastCsv, exportForecastXlsx, exportForecastPdf } from '@/lib/forecast/forecast-export';
 
 /**
@@ -31,6 +32,7 @@ export function ForecastPanel({
   subText: string;
   rowBorder: string;
 }) {
+  const [subTab, setSubTab] = useState<'forecast' | 'manual'>('forecast');
   const [metric, setMetric] = useState<TrendMetric>('revenue');
   const [horizon, setHorizon] = useState<number>(6);
   const [method, setMethod] = useState<MethodSelection>(DEFAULT_METHOD);
@@ -76,6 +78,28 @@ export function ForecastPanel({
 
   return (
     <div className="space-y-4">
+      {/* Sub-tab switch */}
+      <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
+        <button
+          onClick={() => setSubTab('forecast')}
+          className={toggleBase(subTab === 'forecast')}
+          style={subTab === 'forecast' ? { backgroundColor: '#5e3b8d' } : undefined}
+        >
+          Forecast
+        </button>
+        <button
+          onClick={() => setSubTab('manual')}
+          className={toggleBase(subTab === 'manual')}
+          style={subTab === 'manual' ? { backgroundColor: '#5e3b8d' } : undefined}
+        >
+          Manual Forecasts
+        </button>
+      </div>
+
+      {subTab === 'manual' ? (
+        <ManualForecastTab forecast={forecast} darkMode={darkMode} cardBg={cardBg} subText={subText} rowBorder={rowBorder} />
+      ) : (
+        <>
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
@@ -188,6 +212,8 @@ export function ForecastPanel({
           metricLabel={metricLabel}
         />
       </div>
+        </>
+      )}
     </div>
   );
 }
