@@ -28,7 +28,7 @@ export function MethodAccuracyStrip({
               <button
                 key={r.method}
                 onClick={() => onPick(r.method)}
-                className="px-3 py-1.5 text-xs rounded-lg border"
+                className={`px-3 py-1.5 text-xs rounded-lg border${r.recommended && !selected ? ' ring-1 ring-emerald-500' : ''}`}
                 style={selected ? { backgroundColor: '#5e3b8d', color: 'white' } : undefined}
               >
                 <span className="font-medium">{r.method}</span>{' '}
