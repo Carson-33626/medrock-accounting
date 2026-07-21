@@ -104,3 +104,20 @@ body {
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
 }
+
+/* Forecast panel PDF export: print only the chart + table region. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #forecast-print-region,
+  #forecast-print-region * {
+    visibility: visible;
+  }
+  #forecast-print-region {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

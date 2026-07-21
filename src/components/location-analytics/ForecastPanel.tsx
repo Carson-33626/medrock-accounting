@@ -10,6 +10,7 @@ import { MethodAccuracyStrip } from './MethodAccuracyStrip';
 import { buildForecastModel } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
+import { exportForecastCsv, exportForecastXlsx, exportForecastPdf } from '@/lib/forecast/forecast-export';
 
 /**
  * Forecast tab body. Owns the metric clicker (Revenue / Gross Profit / Net
@@ -61,25 +62,12 @@ export function ForecastPanel({
     }
   }, [recommended]);
 
-  const handleExport = () => {
-    const header = ['Location', ...model.allMonths, 'Method', 'CMGR %'];
-    const lines = [header.join(',')];
-    for (const loc of model.locations) {
-      const vals = model.allMonths.map((m) => {
-        if (model.provisionalMonths.includes(m)) return loc.est[m] ?? loc.actual[m] ?? '';
-        if (m in loc.future) return loc.future[m];
-        if (m in loc.actual) return loc.actual[m];
-        return '';
-      });
-      lines.push([loc.label, ...vals, loc.method, loc.cmgr.toFixed(1)].join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `location-forecast_${metric}_${horizon}mo.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+  const exportFilename = `location-forecast_${metric}_${horizon}mo`;
+  const handleExportCsv = () => exportForecastCsv(model, metricLabel, exportFilename);
+  const handleExportXlsx = () => {
+    void exportForecastXlsx(model, metricLabel, exportFilename);
   };
+  const handleExportPdf = () => exportForecastPdf();
 
   const toggleBase = (active: boolean): string =>
     `px-4 py-2 text-sm font-medium transition-colors ${
@@ -147,12 +135,26 @@ export function ForecastPanel({
             <button className={toggleBase(false)} onClick={() => stepAnchor(1)} aria-label="Later">›</button>
           </div>
         </div>
-        <button
-          onClick={handleExport}
-          className={`ml-auto px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}
-        >
-          CSV
-        </button>
+        <div className={`ml-auto inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
+          <button
+            onClick={handleExportCsv}
+            className={`px-3 py-2 text-sm border-r ${rowBorder} ${cardBg}`}
+          >
+            CSV
+          </button>
+          <button
+            onClick={handleExportXlsx}
+            className={`px-3 py-2 text-sm border-r ${rowBorder} ${cardBg}`}
+          >
+            XLSX
+          </button>
+          <button
+            onClick={handleExportPdf}
+            className={`px-3 py-2 text-sm ${cardBg}`}
+          >
+            PDF
+          </button>
+        </div>
       </div>
 
       <MetricLegend subText={subText} />
@@ -175,15 +177,17 @@ export function ForecastPanel({
         cardBg={cardBg}
       />
 
-      <ForecastChart model={model} darkMode={darkMode} cardBg={cardBg} subText={subText} metricLabel={metricLabel} />
-      <ForecastTable
-        model={model}
-        darkMode={darkMode}
-        cardBg={cardBg}
-        subText={subText}
-        rowBorder={rowBorder}
-        metricLabel={metricLabel}
-      />
+      <div id="forecast-print-region" className="space-y-4">
+        <ForecastChart model={model} darkMode={darkMode} cardBg={cardBg} subText={subText} metricLabel={metricLabel} />
+        <ForecastTable
+          model={model}
+          darkMode={darkMode}
+          cardBg={cardBg}
+          subText={subText}
+          rowBorder={rowBorder}
+          metricLabel={metricLabel}
+        />
+      </div>
     </div>
   );
 }
