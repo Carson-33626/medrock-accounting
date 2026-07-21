@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth';
 import { ensurePath, listChildren, uploadFile } from '@/lib/google/drive';
 import { listLocations } from '@/lib/deposits/locations';
 import { signRemovalToken } from '@/lib/deposits/removalToken';
+import { ALLOWED_MIME, extensionForMime, matchesMagicBytes, MAX_FILE_BYTES } from '@/lib/deposits/fileValidation';
 import {
   buildFolderSegments,
   buildFileName,
@@ -19,10 +20,8 @@ import {
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB — phone photos land well under this
 const MAX_FILES = 20;
 const MAX_TOTAL_BYTES = 60 * 1024 * 1024; // whole-request ceiling
-const ALLOWED_MIME = /^(image\/(jpeg|png|heic|heif|webp)|application\/pdf)$/;
 
 export interface UploadResult {
   originalName: string;
@@ -33,22 +32,6 @@ export interface UploadResult {
   error?: string;
 }
 
-// Extension is derived from the validated MIME type, never the client-supplied
-// filename — an unbounded, unfiltered `extensionOf(name)` let a filename like
-// `evil.jpg/../../../etc/passwd` land arbitrary bytes in the stored name.
-const EXT_BY_MIME: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/heic': '.heic',
-  'image/heif': '.heif',
-  'image/webp': '.webp',
-  'application/pdf': '.pdf',
-};
-
-function extensionForMime(mimeType: string): string {
-  return EXT_BY_MIME[mimeType] ?? '.jpg';
-}
-
 // Per-file failure categories. `file.type` and `file.size` are client-supplied
 // and trivially forged, and Drive/Google errors carry file/folder ids and the
 // service-account identity — none of that may reach the client. The route's
@@ -57,56 +40,6 @@ function extensionForMime(mimeType: string): string {
 class OversizeFileError extends Error {}
 class UnsupportedTypeError extends Error {}
 class ContentMismatchError extends Error {}
-
-/**
- * Checks the leading "magic bytes" of a file against its declared (and
- * already ALLOWED_MIME-validated) MIME type. `file.type` is client-supplied
- * and trivially forged; this is a cheap, in-memory check against bytes we
- * already have.
- */
-function matchesMagicBytes(mimeType: string, bytes: Buffer): boolean {
-  switch (mimeType) {
-    case 'image/jpeg':
-      return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-    case 'image/png':
-      return (
-        bytes.length >= 8 &&
-        bytes[0] === 0x89 &&
-        bytes[1] === 0x50 &&
-        bytes[2] === 0x4e &&
-        bytes[3] === 0x47 &&
-        bytes[4] === 0x0d &&
-        bytes[5] === 0x0a &&
-        bytes[6] === 0x1a &&
-        bytes[7] === 0x0a
-      );
-    case 'application/pdf':
-      return (
-        bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
-      );
-    case 'image/webp':
-      return (
-        bytes.length >= 12 &&
-        bytes[0] === 0x52 &&
-        bytes[1] === 0x49 &&
-        bytes[2] === 0x46 &&
-        bytes[3] === 0x46 &&
-        bytes[8] === 0x57 &&
-        bytes[9] === 0x45 &&
-        bytes[10] === 0x42 &&
-        bytes[11] === 0x50
-      );
-    case 'image/heic':
-    case 'image/heif':
-      // The brand at bytes 8-11 varies (heic, heix, mif1, msf1, ...) — only
-      // the `ftyp` box tag at offset 4 is stable across HEIC/HEIF variants.
-      return (
-        bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
-      );
-    default:
-      return false;
-  }
-}
 
 // Type guard rather than an `as DepositType` assertion — matches the
 // `isEntity(value): value is Entity` convention already used across the
