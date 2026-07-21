@@ -1,6 +1,7 @@
 import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail } from './types';
 import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
+import { compareJournalLines } from './line-order';
 
 const isTaxableBase = (col: string): boolean => /TAXABLE\s*$/.test(col.trim());
 
@@ -115,6 +116,9 @@ export function buildJournal(
       // Department memo wins; pooled '*' lines (no memo) fall back to the creditBucket label.
       memo: b.memo ?? (b.creditBucket ?? ''), creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
+    // Group lines by account then memo so same-account department lines (e.g. Admin/Accounting
+    // Wages) sit adjacent instead of in arbitrary bucket-first-appearance order.
+    lines.sort(compareJournalLines);
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
     drafts.push({

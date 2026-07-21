@@ -168,6 +168,29 @@ describe('buildJournal', () => {
     expect(net?.memo).toBe('Net Pay');
   });
 
+  it('orders lines by account then memo so same-account department lines are adjacent', () => {
+    // Barbara could not see the Accounting Wages line — it landed far below Admin Wages in the
+    // arbitrary bucket order. Lines must come out grouped: Accounting Wages next to Admin Wages,
+    // Accounting first (alphabetical memo), regardless of which employee was iterated first.
+    const memoAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ADMIN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Admin Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ACCOUN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Accounting Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'CS', accountName: 'Payroll Expense -:Customer Service Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'CSR Wages' },
+    ];
+    // Admin employee iterated FIRST — so without sorting, Admin Wages would precede Accounting Wages.
+    const rows = [
+      baseRow({ position_id: 'a1', row_key: 'admin1', home_department: 'ADMIN-Administration', sensitive: { 'REGULAR PAY - EARNING': 12957.70 } }),
+      baseRow({ position_id: 'cs1', row_key: 'cs1', home_department: 'CS-Customer Service', sensitive: { 'REGULAR PAY - EARNING': 5000 } }),
+      baseRow({ position_id: 'c1', row_key: 'acct1', home_department: 'ACCOUN-Accounting', sensitive: { 'REGULAR PAY - EARNING': 4645.17 } }),
+    ];
+    const lines = buildJournal(rows, memoAccountMap, empMap).drafts[0]?.lines ?? [];
+    const memos = lines.map((l) => l.memo);
+    const acctIdx = memos.indexOf('Accounting Wages');
+    const adminIdx = memos.indexOf('Admin Wages');
+    expect(acctIdx).toBeGreaterThanOrEqual(0);
+    expect(adminIdx).toBe(acctIdx + 1); // adjacent, Accounting immediately before Admin
+  });
+
   it('emits both a debit line and a credit line from one employer-cost column (cost-center debit + * credit)', () => {
     const employerAccountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: 'LAB', accountName: 'COGS - Employer Payroll Taxes', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },

@@ -17,6 +17,9 @@ import {
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
 import { MarketerReviewPanel } from './MarketerReviewPanel';
 import { DirectionsBanner } from './DirectionsBanner';
+// Pure comparator (no server deps — safe in a client bundle) so the review table groups
+// same-account department lines the same way the builder + Excel export do.
+import { compareJournalLines } from '@/lib/payroll/line-order';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -291,8 +294,10 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   const balanced = totals.variance === 0;
 
-  const debitLines = useMemo(() => lines.filter((l) => l.postingType === 'Debit'), [lines]);
-  const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit'), [lines]);
+  // Sort a filtered COPY (filter() returns a new array; never mutate `lines`) so debit/credit
+  // lines display grouped by account then memo — Accounting Wages sits next to Admin Wages.
+  const debitLines = useMemo(() => lines.filter((l) => l.postingType === 'Debit').sort(compareJournalLines), [lines]);
+  const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit').sort(compareJournalLines), [lines]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
