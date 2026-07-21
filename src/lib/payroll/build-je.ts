@@ -31,6 +31,18 @@ export function exclusionReason(payGroup: string): string {
   return `unknown pay group: ${payGroup}`;
 }
 
+/**
+ * Merge a freshly-rebuilt generated line set into an existing draft's lines when a mapping
+ * changes (rebuild-on-map). Every `generated` line is replaced by the rebuild — so a column
+ * that was just mapped now flows its dollars into the JE and the balance reflects it — while
+ * lines the accountant authored by hand (`manual`) or inter-entity companions (`inter_entity`)
+ * are preserved untouched. Rebuilt generated lines come first, hand-authored lines after.
+ */
+export function mergeRebuiltLines(existing: JournalLine[], rebuiltGenerated: JournalLine[]): JournalLine[] {
+  const preserved = existing.filter((l) => l.origin !== 'generated');
+  return [...rebuiltGenerated, ...preserved];
+}
+
 export function buildJournal(
   rows: PayrollRow[], accountMap: AccountMapRule[], employeeMap: EmployeeMapRule[],
 ): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedColumnDetails: UnmappedColumnDetail[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {

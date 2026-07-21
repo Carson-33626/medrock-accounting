@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildJournal } from './build-je';
-import type { PayrollRow, AccountMapRule, EmployeeMapRule } from './types';
+import { buildJournal, mergeRebuiltLines } from './build-je';
+import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalLine } from './types';
 
 const baseRow = (over: Partial<PayrollRow>): PayrollRow => ({
   position_id: '1001', name: 'Doe, Jane', status: 'Active', worker_classification: 'W-2 General Employee',
@@ -185,6 +185,44 @@ describe('buildJournal', () => {
     expect(credit).toMatchObject({ accountName: 'Payroll Withholdings', amount: 100, creditBucket: 'Taxes' });
     expect(d.totalDebits).toBe(100);
     expect(d.totalCredits).toBe(100);
+  });
+});
+
+describe('mergeRebuiltLines (rebuild-on-map: refresh generated lines, keep hand-authored ones)', () => {
+  const line = (over: Partial<JournalLine>): JournalLine => ({
+    postingType: 'Debit', amount: 100, accountName: 'COGS - Lab Wages', departmentName: null,
+    className: null, memo: '', creditBucket: null, origin: 'generated', sourceRowKeys: ['k1'], ...over,
+  });
+
+  it('replaces every generated line with the freshly-rebuilt set', () => {
+    // The draft was built BEFORE a column was mapped, so its generated lines are stale/short.
+    const existing = [line({ accountName: 'COGS - Lab Wages', amount: 1000 })];
+    // After mapping the missing column, the rebuild produces MORE/updated generated lines.
+    const rebuilt = [
+      line({ accountName: 'COGS - Lab Wages', amount: 1000 }),
+      line({ accountName: 'Employee Advances', amount: 216, postingType: 'Credit', creditBucket: 'Other' }),
+    ];
+    const merged = mergeRebuiltLines(existing, rebuilt);
+    // Old generated lines are gone; the rebuilt set is authoritative for generated lines.
+    expect(merged.filter((l) => l.origin === 'generated')).toEqual(rebuilt);
+    expect(merged.some((l) => l.accountName === 'Employee Advances')).toBe(true);
+  });
+
+  it('preserves accountant-authored manual and inter_entity lines through a rebuild', () => {
+    const existing = [
+      line({ accountName: 'COGS - Lab Wages', amount: 1000, origin: 'generated' }),
+      line({ accountName: 'Payroll Withholdings', amount: 216, postingType: 'Credit', creditBucket: 'Other', memo: 'Variance', origin: 'manual' }),
+      line({ accountName: 'Due To MedRock TX', amount: 50, postingType: 'Credit', origin: 'inter_entity' }),
+    ];
+    const rebuilt = [line({ accountName: 'COGS - Lab Wages', amount: 1200, origin: 'generated' })];
+    const merged = mergeRebuiltLines(existing, rebuilt);
+    // Rebuilt generated line replaces the stale one...
+    expect(merged.find((l) => l.origin === 'generated')?.amount).toBe(1200);
+    // ...but the hand-authored manual + inter_entity lines survive untouched.
+    const manual = merged.find((l) => l.origin === 'manual');
+    const ie = merged.find((l) => l.origin === 'inter_entity');
+    expect(manual).toMatchObject({ accountName: 'Payroll Withholdings', amount: 216, memo: 'Variance' });
+    expect(ie).toMatchObject({ accountName: 'Due To MedRock TX', amount: 50 });
   });
 });
 
