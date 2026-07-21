@@ -48,8 +48,8 @@ function isPreOpening(openedMonth: string | null, month: string): boolean {
 }
 
 function methodBadge(method: string, darkMode: boolean): string {
-  if (method === 'Capped growth') return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
-  return darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600';
+  if (method.includes('→')) return darkMode ? 'bg-slate-500/20 text-slate-300' : 'bg-slate-200 text-slate-600';
+  return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
 }
 
 /** CMGR (%) from last-actual to final-forecast for an arbitrary summed series. */
