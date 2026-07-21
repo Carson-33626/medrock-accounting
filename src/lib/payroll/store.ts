@@ -76,12 +76,13 @@ interface EmployeeMapRow {
   className: string | null;
   cogsOverride: boolean | null;
   active: boolean;
+  reviewed: boolean;
 }
 
 export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]> {
   const { rows } = await getRdsPool().query<EmployeeMapRow>(
     `SELECT id, entity, position_id AS "positionId", department_name AS "departmentName", class_name AS "className",
-            cogs_override AS "cogsOverride", active
+            cogs_override AS "cogsOverride", active, reviewed
      FROM accounting.payroll_employee_map WHERE entity=$1 AND active`,
     [entity],
   );
@@ -108,16 +109,19 @@ export async function upsertAccountRule(rule: AccountMapRule): Promise<number> {
 export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<number> {
   const { rows } = await getRdsPool().query<{ id: number }>(
     `INSERT INTO accounting.payroll_employee_map
-       (entity, position_id, department_name, class_name, cogs_override, active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, now())
+       (entity, position_id, department_name, class_name, cogs_override, active, reviewed, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (entity, position_id) DO UPDATE SET
        department_name = EXCLUDED.department_name,
        class_name = EXCLUDED.class_name,
        cogs_override = EXCLUDED.cogs_override,
        active = EXCLUDED.active,
+       -- Sticky: once confirmed, a re-seed (which passes reviewed=false) must not un-confirm a
+       -- marketer an accountant already reviewed. Un-reviewing is only possible via updateEmployeeRule.
+       reviewed = payroll_employee_map.reviewed OR EXCLUDED.reviewed,
        updated_at = now()
      RETURNING id`,
-    [rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active],
+    [rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active, rule.reviewed ?? false],
   );
   return rows[0].id;
 }
@@ -135,9 +139,9 @@ export async function updateAccountRule(id: number, rule: AccountMapRule): Promi
 export async function updateEmployeeRule(id: number, rule: EmployeeMapRule): Promise<void> {
   await getRdsPool().query(
     `UPDATE accounting.payroll_employee_map
-     SET entity=$2, position_id=$3, department_name=$4, class_name=$5, cogs_override=$6, active=$7, updated_at=now()
+     SET entity=$2, position_id=$3, department_name=$4, class_name=$5, cogs_override=$6, active=$7, reviewed=$8, updated_at=now()
      WHERE id=$1`,
-    [id, rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active],
+    [id, rule.entity, rule.positionId, rule.departmentName, rule.className, rule.cogsOverride, rule.active, rule.reviewed ?? false],
   );
 }
 

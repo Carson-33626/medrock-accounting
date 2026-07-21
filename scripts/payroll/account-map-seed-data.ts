@@ -44,6 +44,9 @@ const DEPT_LABEL: Record<CostCenter, string> = {
 const REGULAR_EARNING_COLUMNS = [
   'REGULAR PAY - EARNING',
   'HOLIDAY PAY - EARNING',
+  // PTHOLIDAY (paid holiday) is a wage earning like HOLIDAY PAY — it was missing from the seed,
+  // so it kept surfacing as a "new column detected" that couldn't be cleared (Barbara 2026-07-21).
+  'PTHOLIDAY - EARNING',
   'PTO - EARNING',
   'PTO CASHOUT - EARNING',
   'PREM PAY - EARNING',
@@ -237,6 +240,30 @@ function addEmployerCostRules(
   }
 }
 
+/**
+ * Split a pooled '*' debit special (a single fixed account, no COGS/non-COGS split) into one
+ * memo-labelled line per department, PLUS a memo-less '*' fallback. resolveLine picks the
+ * cost-center rule over '*' within a direction, so a known-department row gets its `<memoKind> -
+ * <Dept>` line and only a blank/unknown-department row falls back to the pooled '*' line — no
+ * double-count, and no column becomes newly unmapped. This is Barbara's "the memo line should
+ * reflect the department" ask (2026-07-21) applied to the previously memo-less pooled lines
+ * (MEDICAL - ER / CAR ALLOWANCE / REIMBURSEMENT / BONUS), same idea as addEmployerCostRules.
+ */
+function addPerDeptDebitSpecial(
+  rules: AccountMapRule[], entity: Entity, column: string, accountName: string, memoKind: string,
+): void {
+  for (const cc of COST_CENTERS) {
+    rules.push({
+      entity, adpColumn: column, costCenter: cc, accountName, postingType: 'Debit',
+      isCogs: false, creditBucket: null, active: true, memo: `${memoKind} - ${DEPT_LABEL[cc]}`,
+    });
+  }
+  rules.push({
+    entity, adpColumn: column, costCenter: '*', accountName, postingType: 'Debit',
+    isCogs: false, creditBucket: null, active: true,
+  });
+}
+
 export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   const rules: AccountMapRule[] = [];
 
@@ -318,17 +345,9 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   );
 
   // MEDICAL - ER is special-cased in the addendum: a single fixed Debit account
-  // (Accrued Payroll Liability) regardless of cost_center, not a COGS/non-COGS split.
-  rules.push({
-    entity,
-    adpColumn: 'MEDICAL - ER',
-    costCenter: '*',
-    accountName: 'Accrued Payroll Liability',
-    postingType: 'Debit',
-    isCogs: false,
-    creditBucket: null,
-    active: true,
-  });
+  // (Accrued Payroll Liability) regardless of cost_center, not a COGS/non-COGS split. Split per
+  // department by memo (Barbara 2026-07-21) — the credit stays one pooled '*' Health line below.
+  addPerDeptDebitSpecial(rules, entity, 'MEDICAL - ER', 'Accrued Payroll Liability', 'ER Medical');
   rules.push({
     entity,
     adpColumn: 'MEDICAL - ER',
@@ -377,12 +396,14 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   // --- Real-dollar "specials" confirmed against Amy's actual 03/27/2026 JE (Debit-only, like
   // wage-earning columns — their Credit-side offset is already captured by the generic NET PAY
   // credit rule above, since these amounts flow through to the employee's take-home pay). Fixed
-  // single account regardless of cost_center, matching the same pattern as MEDICAL - ER above. ---
-  const SPECIAL_EARNING_COLUMNS: ReadonlyArray<{ column: string; accountName: string }> = [
-    { column: 'CAR ALLOWANCE - EARNING', accountName: 'Accrued Payroll Liability' },
+  // single account regardless of cost_center; now split per department by memo (Barbara
+  // 2026-07-21), same as MEDICAL - ER above, with a '*' fallback for blank-department rows. ---
+  const SPECIAL_DEBIT_COLUMNS: ReadonlyArray<{ column: string; accountName: string; memoKind: string }> = [
+    { column: 'CAR ALLOWANCE - EARNING', accountName: 'Accrued Payroll Liability', memoKind: 'Car Allowance' },
     {
       column: 'REIMBURSEMENT - REIMBURSEMENT NON-TAXABLE NON TAXABLE REIMBURSEMENT',
       accountName: 'Payroll Reimbursement Liabilities',
+      memoKind: 'Reimbursement',
     },
     // NOTE: confirmed in Amy's FL JE ("Bonus - Marketing" -> Payroll Expense -:Bonus Wages,
     // single non-COGS account, not per-cost-center) and matches TX's real 'BONUS - EARNING'
@@ -391,19 +412,10 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     // dollar amount is NOT sourced from this ADP column/date's row set (likely a separate
     // off-cycle bonus run not captured by this fetch) and remains an unresolved residual;
     // this rule is still correct/needed for TX and any future FL data with real BONUS $.
-    { column: 'BONUS - EARNING', accountName: 'Payroll Expense -:Bonus Wages' },
+    { column: 'BONUS - EARNING', accountName: 'Payroll Expense -:Bonus Wages', memoKind: 'Bonus' },
   ];
-  for (const { column, accountName } of SPECIAL_EARNING_COLUMNS) {
-    rules.push({
-      entity,
-      adpColumn: column,
-      costCenter: '*',
-      accountName,
-      postingType: 'Debit',
-      isCogs: false,
-      creditBucket: null,
-      active: true,
-    });
+  for (const { column, accountName, memoKind } of SPECIAL_DEBIT_COLUMNS) {
+    addPerDeptDebitSpecial(rules, entity, column, accountName, memoKind);
   }
 
   return rules;

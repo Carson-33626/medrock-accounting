@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
-import { AlertTriangle, Ban, CheckCircle2, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Download, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/store.ts
@@ -112,6 +112,9 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const [previewPayload, setPreviewPayload] = useState<QbJournalEntryPayload | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
 
@@ -214,6 +217,37 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       setPreviewError(message);
     } finally {
       setPreviewing(false);
+    }
+  }, [headerId]);
+
+  // Download the draft JE as an .xlsx (dry-run artifact to review/circulate before posting).
+  const handleExport = useCallback(async () => {
+    if (headerId === null) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch(`/api/payroll/export?headerId=${headerId}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const match = /filename="?([^"]+)"?/.exec(cd);
+      const filename = match?.[1] ?? `payroll-je-${headerId}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to export journal entry';
+      setExportError(message);
+    } finally {
+      setExporting(false);
     }
   }, [headerId]);
 
@@ -391,22 +425,41 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           <div className={`rounded-lg border p-3 space-y-2 ${border}`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm font-semibold">2. Preview (dry-run)</p>
-              <button
-                onClick={() => void handlePreview()}
-                disabled={previewing}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
-                  darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {previewing ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Eye className="w-4 h-4" aria-hidden />}
-                {previewing ? 'Building…' : 'Preview (dry-run)'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void handleExport()}
+                  disabled={exporting}
+                  title="Download this JE as an Excel file to review before posting"
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                    darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />}
+                  {exporting ? 'Exporting…' : 'Download Excel'}
+                </button>
+                <button
+                  onClick={() => void handlePreview()}
+                  disabled={previewing}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                    darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {previewing ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Eye className="w-4 h-4" aria-hidden />}
+                  {previewing ? 'Building…' : 'Preview (dry-run)'}
+                </button>
+              </div>
             </div>
 
             {previewError && (
               <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
                 <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
                 {previewError}
+              </p>
+            )}
+            {exportError && (
+              <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                {exportError}
               </p>
             )}
 

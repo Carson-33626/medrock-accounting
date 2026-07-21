@@ -17,6 +17,9 @@ import {
 import { UnmappedColumnsPanel } from './UnmappedColumnsPanel';
 import { MarketerReviewPanel } from './MarketerReviewPanel';
 import { DirectionsBanner } from './DirectionsBanner';
+// Pure comparator (no server deps — safe in a client bundle) so the review table groups
+// same-account department lines the same way the builder + Excel export do.
+import { compareJournalLines } from '@/lib/payroll/line-order';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
@@ -188,17 +191,26 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   // Shared by the manual "Reconcile" button and the automatic post-load reconcile below, so
   // unmapped columns (and the "New columns detected" panel) surface as soon as a run is loaded
   // rather than only after the accountant clicks Reconcile.
-  const runReconcile = useCallback(async (id: number) => {
+  //
+  // `rebuild` (fired after a mapping/region change) asks the server to regenerate this draft's
+  // generated lines from the current mappings so a just-mapped column's dollars flow into the JE
+  // and the balance updates. The server returns the refreshed draft in `rebuiltDraft`, which we
+  // apply to `header`/`lines` so the on-screen JE matches what postability now sees.
+  const runReconcile = useCallback(async (id: number, rebuild = false) => {
     setReconciling(true);
     setError(null);
     try {
       const res = await fetch('/api/payroll/reconcile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headerId: id }),
+        body: JSON.stringify({ headerId: id, rebuild }),
       });
-      const body = (await res.json()) as ReconcileResult & ApiErrorBody;
+      const body = (await res.json()) as ReconcileResult & { rebuiltDraft?: DraftResponse } & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      if (body.rebuiltDraft) {
+        setHeader(body.rebuiltDraft.header);
+        setLines(body.rebuiltDraft.lines.map(withKey));
+      }
       setReconcileResult(body);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to reconcile draft';
@@ -282,8 +294,10 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   const balanced = totals.variance === 0;
 
-  const debitLines = useMemo(() => lines.filter((l) => l.postingType === 'Debit'), [lines]);
-  const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit'), [lines]);
+  // Sort a filtered COPY (filter() returns a new array; never mutate `lines`) so debit/credit
+  // lines display grouped by account then memo — Accounting Wages sits next to Admin Wages.
+  const debitLines = useMemo(() => lines.filter((l) => l.postingType === 'Debit').sort(compareJournalLines), [lines]);
+  const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit').sort(compareJournalLines), [lines]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -419,7 +433,8 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             inputBg={inputBg}
             entity={header.entity}
             unmappedColumns={reconcileResult ? (reconcileResult.unmappedColumnDetails ?? []) : null}
-            onMapped={() => void runReconcile(headerId)}
+            // Mapping a column changes the account map — rebuild so its dollars enter the JE.
+            onMapped={() => void runReconcile(headerId, true)}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
             onJumpToSource={jumpToSource}
           />
@@ -434,7 +449,8 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             inputBg={inputBg}
             entity={header.entity}
             headerId={headerId}
-            onReassigned={() => void runReconcile(headerId)}
+            // A region reassignment changes the employee map — rebuild so the line re-dimensions.
+            onReassigned={() => void runReconcile(headerId, true)}
           />
 
           {/* Live balance banner */}
@@ -779,6 +795,117 @@ function ScrollingText({ text, className }: { text: string; className: string })
   );
 }
 
+/** One decrypted source row returned by /api/payroll/drilldown. */
+interface DrilldownRowDetail {
+  row_key: string;
+  position_id: string;
+  name: string;
+  pay_date: string;
+  pay_group: string;
+  sensitive: Record<string, number | string | null>;
+}
+
+/** The non-zero dollar columns of a decrypted row, so the drill-down shows WHICH earnings/
+ * deductions fed this JE line (not a wall of zeros). */
+function nonZeroDollars(sensitive: Record<string, number | string | null>): Array<[string, string]> {
+  return Object.entries(sensitive)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0)
+    .map(([k, v]) => [k, usd.format(v)]);
+}
+
+/**
+ * Barbara's request: click "N source rows" on a JE line and route down to the underlying
+ * payroll records so she can see WHERE a line's dollars come from (e.g. why "MedRock TX" carries
+ * a "Puerto Rico Region" line — it's a marketer whose region maps to that QB department, not an
+ * actual PR employee). Read-only + decrypt-gated: hits /api/payroll/drilldown, which re-decrypts
+ * each row server-side on demand and never persists or logs the plaintext.
+ */
+function SourceRowsPanel({
+  rowKeys,
+  subText,
+  border,
+}: {
+  rowKeys: string[];
+  subText: string;
+  border: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<DrilldownRowDetail[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = useCallback(async () => {
+    const next = !open;
+    setOpen(next);
+    if (!next || rows !== null || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        rowKeys.map(async (k) => {
+          const res = await fetch(`/api/payroll/drilldown?rowKey=${encodeURIComponent(k)}`);
+          if (!res.ok) {
+            const body: { error?: string } = await res.json().catch(() => ({}));
+            throw new Error(body.error ?? `drilldown failed (${res.status})`);
+          }
+          return (await res.json()) as DrilldownRowDetail;
+        }),
+      );
+      setRows(results);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load source rows');
+    } finally {
+      setLoading(false);
+    }
+  }, [open, rows, loading, rowKeys]);
+
+  const n = rowKeys.length;
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className={`inline-flex items-center gap-1 text-[11px] ${subText} hover:underline`}
+      >
+        {loading ? (
+          <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
+        ) : (
+          <Search className="w-3 h-3" aria-hidden />
+        )}
+        {n} source row{n === 1 ? '' : 's'}
+      </button>
+      {open && (
+        <div className={`mt-1.5 rounded-md border p-2 text-[11px] space-y-1.5 ${border}`}>
+          {error && <p className="text-red-500">{error}</p>}
+          {rows?.map((r) => {
+            const dollars = nonZeroDollars(r.sensitive);
+            return (
+              <div key={r.row_key} className="space-y-0.5">
+                <div className="font-medium">
+                  {r.name} · {r.position_id}
+                </div>
+                <div className={`flex flex-wrap gap-x-3 gap-y-0.5 ${subText}`}>
+                  {dollars.length > 0 ? (
+                    dollars.map(([k, v]) => (
+                      <span key={k} className="tabular-nums">
+                        {k}: {v}
+                      </span>
+                    ))
+                  ) : (
+                    <span>no dollar detail</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {rows && rows.length === 0 && <p className={subText}>No source rows.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineRow({
   darkMode,
   border,
@@ -897,7 +1024,7 @@ function LineRow({
         </select>
 
         {line.sourceRowKeys.length > 0 && (
-          <span className={`text-[11px] ${subText}`}>{line.sourceRowKeys.length} source row{line.sourceRowKeys.length === 1 ? '' : 's'}</span>
+          <SourceRowsPanel rowKeys={line.sourceRowKeys} subText={subText} border={border} />
         )}
       </div>
     </div>

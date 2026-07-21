@@ -1,6 +1,7 @@
 import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail } from './types';
 import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
+import { compareJournalLines } from './line-order';
 
 const isTaxableBase = (col: string): boolean => /TAXABLE\s*$/.test(col.trim());
 
@@ -29,6 +30,18 @@ export function exclusionReason(payGroup: string): string {
   if (g === '1099') return '1099 contractor — separate handling, not a W-2 payroll JE';
   if (g === '') return 'blank pay group';
   return `unknown pay group: ${payGroup}`;
+}
+
+/**
+ * Merge a freshly-rebuilt generated line set into an existing draft's lines when a mapping
+ * changes (rebuild-on-map). Every `generated` line is replaced by the rebuild — so a column
+ * that was just mapped now flows its dollars into the JE and the balance reflects it — while
+ * lines the accountant authored by hand (`manual`) or inter-entity companions (`inter_entity`)
+ * are preserved untouched. Rebuilt generated lines come first, hand-authored lines after.
+ */
+export function mergeRebuiltLines(existing: JournalLine[], rebuiltGenerated: JournalLine[]): JournalLine[] {
+  const preserved = existing.filter((l) => l.origin !== 'generated');
+  return [...rebuiltGenerated, ...preserved];
 }
 
 export function buildJournal(
@@ -103,6 +116,9 @@ export function buildJournal(
       // Department memo wins; pooled '*' lines (no memo) fall back to the creditBucket label.
       memo: b.memo ?? (b.creditBucket ?? ''), creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
+    // Group lines by account then memo so same-account department lines (e.g. Admin/Accounting
+    // Wages) sit adjacent instead of in arbitrary bucket-first-appearance order.
+    lines.sort(compareJournalLines);
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
     drafts.push({

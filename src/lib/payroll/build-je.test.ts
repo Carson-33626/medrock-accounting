@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildJournal } from './build-je';
-import type { PayrollRow, AccountMapRule, EmployeeMapRule } from './types';
+import { buildJournal, mergeRebuiltLines } from './build-je';
+import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalLine } from './types';
 
 const baseRow = (over: Partial<PayrollRow>): PayrollRow => ({
   position_id: '1001', name: 'Doe, Jane', status: 'Active', worker_classification: 'W-2 General Employee',
@@ -168,6 +168,29 @@ describe('buildJournal', () => {
     expect(net?.memo).toBe('Net Pay');
   });
 
+  it('orders lines by account then memo so same-account department lines are adjacent', () => {
+    // Barbara could not see the Accounting Wages line — it landed far below Admin Wages in the
+    // arbitrary bucket order. Lines must come out grouped: Accounting Wages next to Admin Wages,
+    // Accounting first (alphabetical memo), regardless of which employee was iterated first.
+    const memoAccountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ADMIN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Admin Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'ACCOUN', accountName: 'Payroll Expense -:Administrative Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Accounting Wages' },
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'CS', accountName: 'Payroll Expense -:Customer Service Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'CSR Wages' },
+    ];
+    // Admin employee iterated FIRST — so without sorting, Admin Wages would precede Accounting Wages.
+    const rows = [
+      baseRow({ position_id: 'a1', row_key: 'admin1', home_department: 'ADMIN-Administration', sensitive: { 'REGULAR PAY - EARNING': 12957.70 } }),
+      baseRow({ position_id: 'cs1', row_key: 'cs1', home_department: 'CS-Customer Service', sensitive: { 'REGULAR PAY - EARNING': 5000 } }),
+      baseRow({ position_id: 'c1', row_key: 'acct1', home_department: 'ACCOUN-Accounting', sensitive: { 'REGULAR PAY - EARNING': 4645.17 } }),
+    ];
+    const lines = buildJournal(rows, memoAccountMap, empMap).drafts[0]?.lines ?? [];
+    const memos = lines.map((l) => l.memo);
+    const acctIdx = memos.indexOf('Accounting Wages');
+    const adminIdx = memos.indexOf('Admin Wages');
+    expect(acctIdx).toBeGreaterThanOrEqual(0);
+    expect(adminIdx).toBe(acctIdx + 1); // adjacent, Accounting immediately before Admin
+  });
+
   it('emits both a debit line and a credit line from one employer-cost column (cost-center debit + * credit)', () => {
     const employerAccountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: 'LAB', accountName: 'COGS - Employer Payroll Taxes', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
@@ -185,6 +208,44 @@ describe('buildJournal', () => {
     expect(credit).toMatchObject({ accountName: 'Payroll Withholdings', amount: 100, creditBucket: 'Taxes' });
     expect(d.totalDebits).toBe(100);
     expect(d.totalCredits).toBe(100);
+  });
+});
+
+describe('mergeRebuiltLines (rebuild-on-map: refresh generated lines, keep hand-authored ones)', () => {
+  const line = (over: Partial<JournalLine>): JournalLine => ({
+    postingType: 'Debit', amount: 100, accountName: 'COGS - Lab Wages', departmentName: null,
+    className: null, memo: '', creditBucket: null, origin: 'generated', sourceRowKeys: ['k1'], ...over,
+  });
+
+  it('replaces every generated line with the freshly-rebuilt set', () => {
+    // The draft was built BEFORE a column was mapped, so its generated lines are stale/short.
+    const existing = [line({ accountName: 'COGS - Lab Wages', amount: 1000 })];
+    // After mapping the missing column, the rebuild produces MORE/updated generated lines.
+    const rebuilt = [
+      line({ accountName: 'COGS - Lab Wages', amount: 1000 }),
+      line({ accountName: 'Employee Advances', amount: 216, postingType: 'Credit', creditBucket: 'Other' }),
+    ];
+    const merged = mergeRebuiltLines(existing, rebuilt);
+    // Old generated lines are gone; the rebuilt set is authoritative for generated lines.
+    expect(merged.filter((l) => l.origin === 'generated')).toEqual(rebuilt);
+    expect(merged.some((l) => l.accountName === 'Employee Advances')).toBe(true);
+  });
+
+  it('preserves accountant-authored manual and inter_entity lines through a rebuild', () => {
+    const existing = [
+      line({ accountName: 'COGS - Lab Wages', amount: 1000, origin: 'generated' }),
+      line({ accountName: 'Payroll Withholdings', amount: 216, postingType: 'Credit', creditBucket: 'Other', memo: 'Variance', origin: 'manual' }),
+      line({ accountName: 'Due To MedRock TX', amount: 50, postingType: 'Credit', origin: 'inter_entity' }),
+    ];
+    const rebuilt = [line({ accountName: 'COGS - Lab Wages', amount: 1200, origin: 'generated' })];
+    const merged = mergeRebuiltLines(existing, rebuilt);
+    // Rebuilt generated line replaces the stale one...
+    expect(merged.find((l) => l.origin === 'generated')?.amount).toBe(1200);
+    // ...but the hand-authored manual + inter_entity lines survive untouched.
+    const manual = merged.find((l) => l.origin === 'manual');
+    const ie = merged.find((l) => l.origin === 'inter_entity');
+    expect(manual).toMatchObject({ accountName: 'Payroll Withholdings', amount: 216, memo: 'Variance' });
+    expect(ie).toMatchObject({ accountName: 'Due To MedRock TX', amount: 50 });
   });
 });
 
