@@ -17,7 +17,10 @@ describe('runOcr', () => {
 
   it('posts base64 with the x-api-key header and returns the parsed body', async () => {
     vi.stubEnv('OCR_API_KEY', 'secret-key');
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify(OK_BODY), { status: 200 }));
+    const fetchMock = vi.fn(
+      async (_url: string | URL | Request, _init: RequestInit): Promise<Response> =>
+        new Response(JSON.stringify(OK_BODY), { status: 200 }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await runOcr(Buffer.from('abc'));
