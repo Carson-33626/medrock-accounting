@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
 import { METHOD_OPTIONS, HORIZONS, DEFAULT_METHOD, type MethodSelection } from '@/lib/forecast/types';
+import { rankMethods, accuracyLabel } from '@/lib/forecast/scores';
 import { METRIC_OPTIONS } from './chartTheme';
 import { MetricLegend } from './MetricLegend';
+import { MethodAccuracyStrip } from './MethodAccuracyStrip';
 import { buildForecastModel } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
@@ -31,12 +33,33 @@ export function ForecastPanel({
   const [metric, setMetric] = useState<TrendMetric>('revenue');
   const [horizon, setHorizon] = useState<number>(6);
   const [method, setMethod] = useState<MethodSelection>(DEFAULT_METHOD);
+  const [anchor, setAnchor] = useState<string | undefined>(undefined);
   const metricLabel = METRIC_OPTIONS.find((m) => m.key === metric)?.label ?? '';
 
   const model = useMemo(
-    () => buildForecastModel(forecast, metric, horizon, method),
-    [forecast, metric, horizon, method],
+    () => buildForecastModel(forecast, metric, horizon, method, anchor),
+    [forecast, metric, horizon, method, anchor],
   );
+
+  const months = model.completedMonths;
+  const stepAnchor = (dir: -1 | 1) => {
+    const idx = months.indexOf(model.anchorMonth);
+    const next = Math.min(months.length - 1, Math.max(0, (idx < 0 ? months.length - 1 : idx) + dir));
+    setAnchor(next === months.length - 1 ? undefined : months[next]);
+  };
+
+  const ranked = useMemo(() => rankMethods(model.scores, new Set()), [model.scores]);
+  const anyScored = ranked.some((r) => r.wape !== null);
+  const recommended = ranked.find((r) => r.recommended)?.method;
+
+  // Auto-adopt the backtest-recommended method until the user explicitly picks one
+  // (via the dropdown or the accuracy strip).
+  const userPickedRef = useRef(false);
+  useEffect(() => {
+    if (!userPickedRef.current && recommended) {
+      setMethod(recommended);
+    }
+  }, [recommended]);
 
   const handleExport = () => {
     const header = ['Location', ...model.allMonths, 'Method', 'CMGR %'];
@@ -101,13 +124,28 @@ export function ForecastPanel({
           <span className={`text-xs uppercase tracking-wide ${subText}`}>Method</span>
           <select
             value={method}
-            onChange={(e) => setMethod(e.target.value as MethodSelection)}
+            onChange={(e) => {
+              userPickedRef.current = true;
+              setMethod(e.target.value as MethodSelection);
+            }}
             className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}
           >
-            {METHOD_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            {METHOD_OPTIONS.map((o) => {
+              const ranking = o.value === 'none' ? undefined : ranked.find((r) => r.method === o.value);
+              const suffix = ranking ? accuracyLabel(ranking, anyScored) : '';
+              return (
+                <option key={o.value} value={o.value}>{o.label}{suffix}</option>
+              );
+            })}
           </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs uppercase tracking-wide ${subText}`}>Forecast start</span>
+          <div className={`inline-flex items-center rounded-lg border overflow-hidden ${rowBorder}`}>
+            <button className={toggleBase(false)} onClick={() => stepAnchor(-1)} aria-label="Earlier">‹</button>
+            <span className="px-3 py-2 text-sm">{model.anchorMonth}</span>
+            <button className={toggleBase(false)} onClick={() => stepAnchor(1)} aria-label="Later">›</button>
+          </div>
         </div>
         <button
           onClick={handleExport}
@@ -125,6 +163,17 @@ export function ForecastPanel({
         history. <strong>CMGR</strong> = the compounded monthly growth rate implied by the projection. Read-only
         estimate — not financial guidance.
       </div>
+
+      <MethodAccuracyStrip
+        scores={model.scores}
+        selectedMethod={method}
+        onPick={(m) => {
+          userPickedRef.current = true;
+          setMethod(m);
+        }}
+        subText={subText}
+        cardBg={cardBg}
+      />
 
       <ForecastChart model={model} darkMode={darkMode} cardBg={cardBg} subText={subText} metricLabel={metricLabel} />
       <ForecastTable
