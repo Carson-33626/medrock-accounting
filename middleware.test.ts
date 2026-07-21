@@ -12,6 +12,7 @@ describe('isAuthOnlyRoute', () => {
     { label: 'deposits api upload', pathname: '/api/deposits/upload' },
     { label: 'deposits api remove', pathname: '/api/deposits/remove' },
     { label: 'deposits api locations', pathname: '/api/deposits/locations' },
+    { label: 'deposits api ocr', pathname: '/api/deposits/ocr' },
   ];
 
   for (const { label, pathname } of exemptCases) {
