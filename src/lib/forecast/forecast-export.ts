@@ -22,6 +22,9 @@ export function buildExportModel(model: ForecastModel, metricLabel: string): Exp
   const rows: Cell[][] = model.locations.map((loc) => {
     const cells: Cell[] = model.allMonths.map((m) => {
       if (provisionalSet.has(m)) {
+        // Deliberately differs from computeVariance (which uses `actual` for
+        // completed hold-out months): this export column mirrors the model
+        // estimate, while the variance table compares against known actuals.
         const v = loc.est[m] ?? loc.actual[m];
         return v === undefined ? '' : v;
       }

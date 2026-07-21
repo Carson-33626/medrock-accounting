@@ -70,10 +70,11 @@ export function ForecastPanel({
     };
   }, []);
 
-  // A metric switch can strand the selected overlay (its metric no longer matches) — drop it.
+  // A metric switch (or a basis mismatch vs. the current view) can strand the
+  // selected overlay — drop it.
   useEffect(() => {
-    setOverlay((prev) => (prev && prev.metric !== metric ? null : prev));
-  }, [metric]);
+    setOverlay((prev) => (prev && (prev.metric !== metric || prev.basis !== forecast.basis) ? null : prev));
+  }, [metric, forecast.basis]);
 
   const model = useMemo(
     () => buildForecastModel(forecast, metric, horizon, method, anchor),
@@ -227,13 +228,21 @@ export function ForecastPanel({
           >
             <option value="">None</option>
             {savedForecasts.map((o) => {
-              const mismatched = o.metric !== metric;
+              const metricMismatch = o.metric !== metric;
+              const basisMismatch = o.basis !== forecast.basis;
+              const mismatched = metricMismatch || basisMismatch;
+              let title: string | undefined;
+              if (metricMismatch) {
+                title = `Saved for ${labelForMetric(o.metric)} — switch metric to use it`;
+              } else if (basisMismatch) {
+                title = `Different basis (${o.basis} vs ${forecast.basis}) — not comparable`;
+              }
               return (
                 <option
                   key={o.id}
                   value={o.id}
                   disabled={mismatched}
-                  title={mismatched ? `Saved for ${labelForMetric(o.metric)} — switch metric to use it` : undefined}
+                  title={title}
                 >
                   {o.name}
                 </option>

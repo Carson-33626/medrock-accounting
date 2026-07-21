@@ -85,7 +85,8 @@ export function buildForecastModel(
     if (pts.length) seriesMap.set(s.qbLocation, pts);
   }
 
-  const engineMethod = method === 'none' ? FETCH_METHOD_FOR_NONE : method;
+  const isNone = method === 'none';
+  const engineMethod = isNone ? FETCH_METHOD_FOR_NONE : method;
   const anchorKey = anchorMonth ? ymToSortKey(anchorMonth) : undefined;
   const result = buildForecastResult(seriesMap, horizon, engineMethod, now, anchorKey);
 
@@ -106,12 +107,17 @@ export function buildForecastModel(
         actual[p.label] = p.count;
         if (p.sortKey === anchorSk) connectValue = p.count;
       }
-      for (const p of ef.projected) {
-        // Authoritative split: sk <= currentMonth -> hold-out + current-partial
-        // (est, the dual actual+est cell); sk > currentMonth -> strictly-future
-        // (future).
-        if (p.sortKey <= cmk) est[p.label] = p.count;
-        else future[p.label] = p.count;
+      // method === 'none' means "no projection" everywhere downstream (chart,
+      // table, export) — leave est/future empty rather than mapping the
+      // engine's (FETCH_METHOD_FOR_NONE) projected points into them.
+      if (!isNone) {
+        for (const p of ef.projected) {
+          // Authoritative split: sk <= currentMonth -> hold-out + current-partial
+          // (est, the dual actual+est cell); sk > currentMonth -> strictly-future
+          // (future).
+          if (p.sortKey <= cmk) est[p.label] = p.count;
+          else future[p.label] = p.count;
+        }
       }
     }
     return {
@@ -128,17 +134,23 @@ export function buildForecastModel(
     };
   });
 
-  // Month axis: union of every location's historical + projected keys, ascending.
+  // Month axis: union of every location's historical (+ projected, unless
+  // method === 'none') keys, ascending. For 'none' the axis is historical-only
+  // so no future months/columns appear anywhere downstream.
   const keySet = new Set<number>();
   for (const e of result.entities) {
     for (const p of e.historical) keySet.add(p.sortKey);
-    for (const p of e.projected) keySet.add(p.sortKey);
+    if (!isNone) {
+      for (const p of e.projected) keySet.add(p.sortKey);
+    }
   }
   const allSk = [...keySet].sort((a, b) => a - b);
   const allMonths = allSk.map(sortKeyToYm);
   const completedMonths = allSk.filter((k) => k < cmk).map(sortKeyToYm);
-  const futureMonths = allSk.filter((k) => k > cmk).map(sortKeyToYm);
-  const provisionalMonths = allSk.filter((k) => anchorSk < k && k <= cmk).map(sortKeyToYm);
+  const futureMonths = isNone ? [] : allSk.filter((k) => k > cmk).map(sortKeyToYm);
+  const provisionalMonths = isNone
+    ? []
+    : allSk.filter((k) => anchorSk < k && k <= cmk).map(sortKeyToYm);
   const currentKey = data.currentMonthKey;
 
   return {
@@ -150,6 +162,6 @@ export function buildForecastModel(
     locations,
     scores,
     anchorMonth: sortKeyToYm(anchorSk),
-    showProjection: method !== 'none',
+    showProjection: !isNone,
   };
 }
