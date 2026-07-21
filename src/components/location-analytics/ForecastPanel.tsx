@@ -2,16 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
+import type { ManualForecast } from '@/types/manual-forecast';
 import { METHOD_OPTIONS, HORIZONS, DEFAULT_METHOD, type MethodSelection } from '@/lib/forecast/types';
 import { rankMethods, accuracyLabel } from '@/lib/forecast/scores';
+import { skToYm } from '@/lib/forecast/engine';
+import { computeVariance } from '@/lib/forecast/manual-forecast-variance';
 import { METRIC_OPTIONS } from './chartTheme';
 import { MetricLegend } from './MetricLegend';
 import { MethodAccuracyStrip } from './MethodAccuracyStrip';
 import { buildForecastModel } from './forecastModel';
 import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
+import { VarianceTable } from './VarianceTable';
 import { ManualForecastTab } from './ManualForecastTab';
 import { exportForecastCsv, exportForecastXlsx, exportForecastPdf } from '@/lib/forecast/forecast-export';
+
+function labelForMetric(metric: TrendMetric): string {
+  return METRIC_OPTIONS.find((m) => m.key === metric)?.label ?? metric;
+}
 
 /**
  * Forecast tab body. Owns the metric clicker (Revenue / Gross Profit / Net
@@ -39,9 +47,57 @@ export function ForecastPanel({
   const [anchor, setAnchor] = useState<string | undefined>(undefined);
   const metricLabel = METRIC_OPTIONS.find((m) => m.key === metric)?.label ?? '';
 
+  // Manual-overlay selection — loaded from the same saved-forecast list the Manual
+  // Forecasts sub-tab manages. Only forecasts matching the current metric are selectable.
+  const [savedForecasts, setSavedForecasts] = useState<ManualForecast[]>([]);
+  const [overlay, setOverlay] = useState<ManualForecast | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/location-analytics/manual-forecast')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load manual forecasts (${res.status})`);
+        return res.json() as Promise<ManualForecast[]>;
+      })
+      .then((data) => {
+        if (!cancelled) setSavedForecasts(data);
+      })
+      .catch(() => {
+        // Overlay is an optional assist — a failed load just leaves the selector at "None".
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A metric switch can strand the selected overlay (its metric no longer matches) — drop it.
+  useEffect(() => {
+    setOverlay((prev) => (prev && prev.metric !== metric ? null : prev));
+  }, [metric]);
+
   const model = useMemo(
     () => buildForecastModel(forecast, metric, horizon, method, anchor),
     [forecast, metric, horizon, method, anchor],
+  );
+
+  // Overlay entries (sortKey-keyed, per qbLocation) -> chart rows (YYYY-MM-keyed, per label).
+  const overlayByLabel = useMemo((): Record<string, Record<string, number>> | undefined => {
+    if (!overlay) return undefined;
+    const labelByQbLocation = new Map(model.locations.map((l) => [l.qbLocation, l.label]));
+    const byLabel: Record<string, Record<string, number>> = {};
+    for (const entry of overlay.entries) {
+      const label = labelByQbLocation.get(entry.location);
+      if (!label) continue;
+      const { y, m } = skToYm(entry.sortKey);
+      const ym = `${y}-${String(m).padStart(2, '0')}`;
+      (byLabel[label] ??= {})[ym] = entry.amount;
+    }
+    return byLabel;
+  }, [overlay, model.locations]);
+
+  const varianceGroups = useMemo(
+    () => (overlay ? computeVariance(model, overlay, { showProjected: model.showProjection }) : null),
+    [overlay, model],
   );
 
   const months = model.completedMonths;
@@ -159,6 +215,32 @@ export function ForecastPanel({
             <button className={toggleBase(false)} onClick={() => stepAnchor(1)} aria-label="Later">›</button>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs uppercase tracking-wide ${subText}`}>Manual overlay</span>
+          <select
+            value={overlay ? String(overlay.id) : ''}
+            onChange={(e) => {
+              const id = e.target.value;
+              setOverlay(id ? savedForecasts.find((o) => String(o.id) === id) ?? null : null);
+            }}
+            className={`px-3 py-2 text-sm rounded-lg border ${rowBorder} ${cardBg}`}
+          >
+            <option value="">None</option>
+            {savedForecasts.map((o) => {
+              const mismatched = o.metric !== metric;
+              return (
+                <option
+                  key={o.id}
+                  value={o.id}
+                  disabled={mismatched}
+                  title={mismatched ? `Saved for ${labelForMetric(o.metric)} — switch metric to use it` : undefined}
+                >
+                  {o.name}
+                </option>
+              );
+            })}
+          </select>
+        </div>
         <div className={`ml-auto inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
           <button
             onClick={handleExportCsv}
@@ -202,7 +284,14 @@ export function ForecastPanel({
       />
 
       <div id="forecast-print-region" className="space-y-4">
-        <ForecastChart model={model} darkMode={darkMode} cardBg={cardBg} subText={subText} metricLabel={metricLabel} />
+        <ForecastChart
+          model={model}
+          darkMode={darkMode}
+          cardBg={cardBg}
+          subText={subText}
+          metricLabel={metricLabel}
+          overlayByLabel={overlayByLabel}
+        />
         <ForecastTable
           model={model}
           darkMode={darkMode}
@@ -211,6 +300,16 @@ export function ForecastPanel({
           rowBorder={rowBorder}
           metricLabel={metricLabel}
         />
+        {varianceGroups && (
+          <VarianceTable
+            groups={varianceGroups}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            subText={subText}
+            rowBorder={rowBorder}
+            metricLabel={metricLabel}
+          />
+        )}
       </div>
         </>
       )}

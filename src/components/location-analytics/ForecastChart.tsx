@@ -23,12 +23,16 @@ export function ForecastChart({
   cardBg,
   subText,
   metricLabel,
+  overlayByLabel,
 }: {
   model: ForecastModel;
   darkMode: boolean;
   cardBg: string;
   subText: string;
   metricLabel: string;
+  /** Manual-overlay values, month ('YYYY-MM') → amount, keyed by location label. Renders a
+   * third dotted series per location when provided — see `ForecastPanel`'s overlay selector. */
+  overlayByLabel?: Record<string, Record<string, number>>;
 }) {
   const theme = chartTheme(darkMode);
 
@@ -50,6 +54,7 @@ export function ForecastChart({
       else if (provisionalSet.has(month)) f = loc.est[month] ?? null;
       else if (month in loc.future) f = loc.future[month];
       row[`${loc.label} (forecast)`] = f;
+      row[`${loc.label} (manual)`] = overlayByLabel?.[loc.label]?.[month] ?? null;
     }
     return row;
   });
@@ -57,7 +62,9 @@ export function ForecastChart({
   return (
     <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
       <p className="text-sm font-semibold">{metricLabel} forecast</p>
-      <p className={`text-xs mb-3 ${subText}`}>Solid = actual · dashed = projected</p>
+      <p className={`text-xs mb-3 ${subText}`}>
+        Solid = actual · dashed = projected{overlayByLabel ? ' · dotted = manual overlay' : ''}
+      </p>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows}>
@@ -99,6 +106,21 @@ export function ForecastChart({
                       strokeWidth={2}
                       strokeDasharray="6 4"
                       dot={false}
+                      legendType="none"
+                      connectNulls
+                    />,
+                  ]
+                : []),
+              ...(overlayByLabel
+                ? [
+                    <Line
+                      key={`${loc.qbLocation}-manual`}
+                      type="monotone"
+                      dataKey={`${loc.label} (manual)`}
+                      stroke={locationColor(loc.state)}
+                      strokeWidth={1.5}
+                      strokeDasharray="2 2"
+                      dot={{ r: 2 }}
                       legendType="none"
                       connectNulls
                     />,
