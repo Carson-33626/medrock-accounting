@@ -10,7 +10,8 @@
     "test": "vitest run",
     "ramp:migrate": "tsx scripts/ramp-split-push/run-migration.ts scripts/migrations/create_ramp_split_push_audit.sql",
     "ramp:preview": "tsx scripts/ramp-split-push/preview.ts",
-    "payroll:migrate": "tsx scripts/payroll/run-migration.ts"
+    "payroll:migrate": "tsx scripts/payroll/run-migration.ts",
+    "forecast:migrate": "tsx scripts/forecast/run-migration.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",

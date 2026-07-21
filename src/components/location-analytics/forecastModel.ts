@@ -1,125 +1,167 @@
 /**
- * Pure transform: 24-month QB history → a per-location forecast model for the
- * selected metric + horizon. Runs the capped-growth math and arranges actual /
- * estimate / future-projection values for the chart and table.
+ * Adapter: 24-month QB history (+ optional current partial month) → a
+ * per-location forecast model for the selected metric + horizon, on top of
+ * the sortKey/count forecast engine (`@/lib/forecast/engine`).
  *
- * Two kinds of months are held out of forecast training:
- *  - pre-opening months (before a location's openedMonth) — build-out costs.
- *  - the most recent `closeLag` completed months — not fully closed yet, so
- *    their expenses are understated (net income looks inflated). They are shown
- *    as a provisional "actual + estimate" cell, like the current partial month.
+ * This is the seam that keeps the existing string-month ('YYYY-MM') chart/table
+ * working on top of the engine, which speaks numeric sortKeys internally. It:
+ *  1. Converts each location's `LocationForecastSeries` for the selected metric
+ *     into a `DataPoint[]` (sortKey = year*100+month, count = point[metric]),
+ *     dropping pre-opening months (month < openedMonth).
+ *  2. Runs `buildForecastResult` (engine) to get history + projection per
+ *     location, and `buildScores` (backtest) to get per-(entity, method) WAPE
+ *     scores — the engine itself always returns `scores: []` to avoid an
+ *     engine <-> backtest import cycle, so the adapter computes them.
+ *  3. Maps the result back onto `ForecastModel`/`ForecastLocation`: completed
+ *     (actual) months, hold-out + current-partial (est) months, and
+ *     strictly-future (future) months, keyed by 'YYYY-MM' string.
  */
 
-import { forecastSeries, type ForecastMethod } from '@/lib/forecast/growthModel';
+import {
+  buildForecastResult, skToYm, currentMonthKey as cmkFromDate,
+} from '@/lib/forecast/engine';
+import { buildScores } from '@/lib/forecast/backtest';
+import type {
+  DataPoint, EntityMethodScore, MethodSelection,
+} from '@/lib/forecast/types';
+import { FETCH_METHOD_FOR_NONE } from '@/lib/forecast/types';
 import type { LocationForecastResponse, TrendMetric } from '@/types/location-analytics';
-
-/**
- * How many of the most recent completed months are treated as "not yet closed"
- * for the expense-dependent metrics (gross profit, net income). Bump to 2 if the
- * monthly close runs longer. Revenue ignores this (it posts in real time).
- */
-export const CLOSE_LAG_MONTHS: number = 0;
 
 export interface ForecastLocation {
   qbLocation: string;
   label: string;
   state: string;
   connected: boolean;
-  openedMonth: string | null; // months before this are pre-opening (excluded from the forecast)
-  method: ForecastMethod;
+  openedMonth: string | null;
+  method: string;                    // resolved engine label (may include "→ fallback")
   cmgr: number;
-  actual: Record<string, number>; // all completed months (+ current partial month)
-  est: Record<string, number>; // provisional months (last closeLag completed + current) → modeled estimate
-  future: Record<string, number>; // future month → projected value
-  connectValue: number; // last trained (non-provisional) completed actual — chart connector
-  lastTrainMonth: string | null;
+  actual: Record<string, number>;    // completed months (< current), YYYY-MM → value
+  est: Record<string, number>;       // hold-out + current-partial months → modeled estimate
+  future: Record<string, number>;    // future months → projection
+  connectValue: number;              // value at the anchor/last-complete month (chart connector)
+  lastTrainMonth: string | null;     // the anchor month (YYYY-MM)
 }
 
 export interface ForecastModel {
   completedMonths: string[];
   currentMonthKey: string | null;
-  provisionalMonths: string[]; // dual "actual + est" cells: last closeLag completed + current partial
+  provisionalMonths: string[];       // hold-out months + current partial (dual actual+est cells)
   futureMonths: string[];
-  allMonths: string[]; // history (incl. current) + future
+  allMonths: string[];
   locations: ForecastLocation[];
+  scores: EntityMethodScore[];
+  anchorMonth: string;               // YYYY-MM
+  showProjection: boolean;           // false when method = 'none'
 }
 
-function shiftMonth(month: string, delta: number): string {
-  const [year, m] = month.split('-').map(Number);
-  const zero = year * 12 + (m - 1) + delta;
-  return `${Math.floor(zero / 12)}-${String((zero % 12) + 1).padStart(2, '0')}`;
+function ymToSortKey(ym: string): number {
+  const [y, m] = ym.split('-').map(Number);
+  return y * 100 + m;
+}
+function sortKeyToYm(sk: number): string {
+  const { y, m } = skToYm(sk);
+  return `${y}-${String(m).padStart(2, '0')}`;
 }
 
 export function buildForecastModel(
   data: LocationForecastResponse,
   metric: TrendMetric,
   horizon: number,
-  closeLag: number,
+  method: MethodSelection,
+  anchorMonth?: string,
 ): ForecastModel {
-  const currentMonthKey = data.currentMonthKey;
-  const completedMonths = data.months.filter((m) => m !== currentMonthKey);
+  const now = new Date(`${data.currentMonthKey ?? data.months[data.months.length - 1]}-15T00:00:00`);
+  const cmk = cmkFromDate(now);
 
-  // Most recent completed months treated as not-yet-closed (provisional).
-  const provisionalCompleted = closeLag > 0 ? completedMonths.slice(-closeLag) : [];
-  const provisionalSet = new Set(provisionalCompleted);
-  // Ordered oldest→newest: provisional completed, then the current partial month.
-  const provisionalMonths = currentMonthKey
-    ? [...provisionalCompleted, currentMonthKey]
-    : [...provisionalCompleted];
-
-  const futureMonths: string[] = [];
-  if (currentMonthKey) {
-    for (let i = 1; i <= horizon; i++) futureMonths.push(shiftMonth(currentMonthKey, i));
+  // Build the engine input: one DataPoint[] per location, pre-opening months dropped.
+  const seriesMap = new Map<string, DataPoint[]>();
+  for (const s of data.series) {
+    const pts: DataPoint[] = [];
+    for (const p of s.points) {
+      if (s.openedMonth && p.month < s.openedMonth) continue;
+      pts.push({ label: p.month, sortKey: ymToSortKey(p.month), count: p[metric], isProjected: false });
+    }
+    pts.sort((a, b) => a.sortKey - b.sortKey);
+    if (pts.length) seriesMap.set(s.qbLocation, pts);
   }
-  const allMonths = [...data.months, ...futureMonths];
+
+  const isNone = method === 'none';
+  const engineMethod = isNone ? FETCH_METHOD_FOR_NONE : method;
+  const anchorKey = anchorMonth ? ymToSortKey(anchorMonth) : undefined;
+  const result = buildForecastResult(seriesMap, horizon, engineMethod, now, anchorKey);
+
+  const anchorSk = result.anchorKey;
+  // The engine deliberately returns scores: [] (avoids an engine<->backtest import
+  // cycle) — the adapter computes them itself.
+  const scores = buildScores(seriesMap, result.anchorKey, cmk);
+  const byLoc = new Map(result.entities.map((e) => [e.entity, e]));
 
   const locations: ForecastLocation[] = data.series.map((s) => {
-    const histMap: Record<string, number> = {};
-    s.points.forEach((p) => {
-      histMap[p.month] = p[metric];
-    });
-
-    // Train on completed months that are post-opening AND fully closed (not provisional).
-    const trainingMonths = completedMonths.filter(
-      (m) => (!s.openedMonth || m >= s.openedMonth) && !provisionalSet.has(m),
-    );
-    const history = trainingMonths.map((m) => histMap[m] ?? 0);
-    const lastTrainMonth = trainingMonths[trainingMonths.length - 1] ?? null;
-
-    // Forecast covers: each provisional month, then each future month.
-    const steps = provisionalMonths.length + horizon;
-    const { method, forecast, cmgr } = forecastSeries(history, steps);
-
+    const ef = byLoc.get(s.qbLocation);
     const actual: Record<string, number> = {};
-    completedMonths.forEach((m) => {
-      actual[m] = histMap[m] ?? 0;
-    });
-    if (currentMonthKey) actual[currentMonthKey] = histMap[currentMonthKey] ?? 0;
-
     const est: Record<string, number> = {};
-    provisionalMonths.forEach((m, i) => {
-      est[m] = forecast[i] ?? 0;
-    });
     const future: Record<string, number> = {};
-    futureMonths.forEach((m, i) => {
-      future[m] = forecast[provisionalMonths.length + i] ?? 0;
-    });
-
+    let connectValue = 0;
+    if (ef) {
+      for (const p of ef.historical) {
+        actual[p.label] = p.count;
+        if (p.sortKey === anchorSk) connectValue = p.count;
+      }
+      // method === 'none' means "no projection" everywhere downstream (chart,
+      // table, export) — leave est/future empty rather than mapping the
+      // engine's (FETCH_METHOD_FOR_NONE) projected points into them.
+      if (!isNone) {
+        for (const p of ef.projected) {
+          // Authoritative split: sk <= currentMonth -> hold-out + current-partial
+          // (est, the dual actual+est cell); sk > currentMonth -> strictly-future
+          // (future).
+          if (p.sortKey <= cmk) est[p.label] = p.count;
+          else future[p.label] = p.count;
+        }
+      }
+    }
     return {
       qbLocation: s.qbLocation,
       label: s.label,
       state: s.state,
       connected: s.connected,
       openedMonth: s.openedMonth,
-      method,
-      cmgr,
-      actual,
-      est,
-      future,
-      connectValue: lastTrainMonth ? (histMap[lastTrainMonth] ?? 0) : 0,
-      lastTrainMonth,
+      method: ef?.forecastMethod ?? 'n/a',
+      cmgr: ef?.cmgr ?? 0,
+      actual, est, future,
+      connectValue,
+      lastTrainMonth: sortKeyToYm(anchorSk),
     };
   });
 
-  return { completedMonths, currentMonthKey, provisionalMonths, futureMonths, allMonths, locations };
+  // Month axis: union of every location's historical (+ projected, unless
+  // method === 'none') keys, ascending. For 'none' the axis is historical-only
+  // so no future months/columns appear anywhere downstream.
+  const keySet = new Set<number>();
+  for (const e of result.entities) {
+    for (const p of e.historical) keySet.add(p.sortKey);
+    if (!isNone) {
+      for (const p of e.projected) keySet.add(p.sortKey);
+    }
+  }
+  const allSk = [...keySet].sort((a, b) => a - b);
+  const allMonths = allSk.map(sortKeyToYm);
+  const completedMonths = allSk.filter((k) => k < cmk).map(sortKeyToYm);
+  const futureMonths = isNone ? [] : allSk.filter((k) => k > cmk).map(sortKeyToYm);
+  const provisionalMonths = isNone
+    ? []
+    : allSk.filter((k) => anchorSk < k && k <= cmk).map(sortKeyToYm);
+  const currentKey = data.currentMonthKey;
+
+  return {
+    completedMonths,
+    currentMonthKey: currentKey,
+    provisionalMonths,
+    futureMonths,
+    allMonths,
+    locations,
+    scores,
+    anchorMonth: sortKeyToYm(anchorSk),
+    showProjection: !isNone,
+  };
 }
