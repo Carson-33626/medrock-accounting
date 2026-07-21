@@ -279,3 +279,63 @@ export function parseLegacyName(name: string): LegacyName {
 
   return { isoDate, amount, type };
 }
+
+// Like LEGACY_DATE but also allows "/" — filenames never contain a slash (it's a
+// path separator) so LEGACY_DATE omits it, but OCR text on slips/checks is full
+// of MM/DD/YYYY dates. Separate regex so parseLegacyName's filename behavior is
+// untouched.
+const OCR_DATE = /(\d{1,2})[-_./](\d{1,2})[-_./](\d{2,4})/;
+
+/**
+ * Finds the first date-shaped token in free OCR text and returns it as a
+ * validated ISO date, or null. Accepts `-`, `_`, `.`, and `/` separators, then
+ * applies the same real-calendar / not-future / not-too-old guards as
+ * `buildFolderSegments` (a slip can't be dated tomorrow or before the earliest
+ * legitimate record).
+ */
+export function parseOcrDate(text: string, now: Date = new Date()): string | null {
+  const match = OCR_DATE.exec(text);
+  if (!match) return null;
+
+  const iso = toIsoDate(match[1], match[2], match[3]);
+  if (!ISO_DATE.test(iso)) return null;
+
+  const [year, month, day] = iso.split('-').map((s) => Number.parseInt(s, 10));
+  const asUtc = new Date(Date.UTC(year, month - 1, day));
+  if (asUtc.getUTCFullYear() !== year || asUtc.getUTCMonth() + 1 !== month || asUtc.getUTCDate() !== day) {
+    return null;
+  }
+  if (iso < EARLIEST_ISO_DATE) return null;
+
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const latestAllowedUtc = todayUtc + FUTURE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  if (asUtc.getTime() > latestAllowedUtc) return null;
+
+  return iso;
+}
+
+/**
+ * Finds the first `$`-tagged currency token in free OCR text and normalizes it
+ * to `$1234.56`. Requiring the `$` is deliberately conservative — it avoids
+ * grabbing a random number (a check count, an account fragment) as the amount.
+ */
+export function parseOcrAmount(text: string): string | null {
+  const match = LEGACY_AMOUNT.exec(text);
+  if (!match) return null;
+  return `$${match[1].replace(/,/g, '')}.${match[2]}`;
+}
+
+const OCR_HAS_DEPOSIT = /\bdeposit\b/i;
+const OCR_HAS_CHECK = /\bcheck\b/i;
+
+/**
+ * Best-effort Deposit-vs-Check inference from OCR text. When both words appear,
+ * prefers Deposit — a deposit slip commonly enumerates the checks it contains.
+ */
+export function inferDepositType(text: string): DepositType | null {
+  const hasDeposit = OCR_HAS_DEPOSIT.test(text);
+  const hasCheck = OCR_HAS_CHECK.test(text);
+  if (hasDeposit) return 'Deposit';
+  if (hasCheck) return 'Check';
+  return null;
+}

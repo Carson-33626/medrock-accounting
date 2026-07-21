@@ -7,6 +7,9 @@ import {
   nextSequence,
   parseLegacyName,
   parsePortalName,
+  parseOcrDate,
+  parseOcrAmount,
+  inferDepositType,
   InvalidAmountError,
   type FileNameParts,
 } from './naming';
@@ -323,5 +326,55 @@ describe('parsePortalName', () => {
       amount: null,
       uploader: null,
     });
+  });
+});
+
+describe('parseOcrDate', () => {
+  const NOW = new Date('2026-07-14T12:00:00Z');
+
+  it('reads a US slash date and returns ISO', () => {
+    expect(parseOcrDate('Deposit date 07/14/2026 total', NOW)).toBe('2026-07-14');
+  });
+  it('reads a 2-digit-year date', () => {
+    expect(parseOcrDate('7-14-26', NOW)).toBe('2026-07-14');
+  });
+  it('returns null when there is no date', () => {
+    expect(parseOcrDate('no dates here', NOW)).toBeNull();
+  });
+  it('rejects a future date', () => {
+    expect(parseOcrDate('12/31/2026', NOW)).toBeNull();
+  });
+  it('rejects an impossible calendar date', () => {
+    expect(parseOcrDate('02/30/2026', NOW)).toBeNull();
+  });
+  it('rejects a date before the earliest allowed', () => {
+    expect(parseOcrDate('01/01/2019', NOW)).toBeNull();
+  });
+});
+
+describe('parseOcrAmount', () => {
+  it('reads a dollar amount with a comma', () => {
+    expect(parseOcrAmount('TOTAL $1,491.86')).toBe('$1491.86');
+  });
+  it('reads a dollar amount with a space after the sign', () => {
+    expect(parseOcrAmount('$ 82.50')).toBe('$82.50');
+  });
+  it('returns null when nothing is dollar-tagged', () => {
+    expect(parseOcrAmount('1491.86 with no sign')).toBeNull();
+  });
+});
+
+describe('inferDepositType', () => {
+  it('detects a deposit', () => {
+    expect(inferDepositType('MEDROCK DEPOSIT TICKET')).toBe('Deposit');
+  });
+  it('detects a check', () => {
+    expect(inferDepositType('PAY TO THE ORDER OF — CHECK 1042')).toBe('Check');
+  });
+  it('prefers Deposit when both words appear (a slip lists checks)', () => {
+    expect(inferDepositType('Deposit ticket — 3 checks enclosed')).toBe('Deposit');
+  });
+  it('returns null when neither word appears', () => {
+    expect(inferDepositType('some unrelated text')).toBeNull();
   });
 });
