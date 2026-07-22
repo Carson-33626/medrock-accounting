@@ -32,10 +32,19 @@ describe('matchCharges', () => {
     expect(r.ambiguous).toHaveLength(1);
     expect(r.confident).toHaveLength(0);
   });
-  it('does not reuse a txn across two charges', () => {
+  it('routes two charges competing for one txn to ambiguous, never a greedy pick', () => {
     const r = matchCharges([charge({ paymentRef: 'P1' }), charge({ paymentRef: 'P2' })], [txn({ id: 'A' })]);
-    expect(r.confident).toHaveLength(1);
-    expect(r.unmatched).toHaveLength(1);
+    expect(r.confident).toHaveLength(0);
+    expect(r.ambiguous).toHaveLength(2);
+    expect(r.unmatched).toHaveLength(0);
+  });
+  it('matches two distinct charges to their two distinct txns', () => {
+    const r = matchCharges(
+      [charge({ paymentRef: 'P1', chargeCents: 100 }), charge({ paymentRef: 'P2', chargeCents: 200 })],
+      [txn({ id: 'A', amountCents: 100 }), txn({ id: 'B', amountCents: 200 })],
+    );
+    expect(r.confident).toHaveLength(2);
+    expect(r.ambiguous).toHaveLength(0);
   });
   it('unmatched when amount differs', () => {
     const r = matchCharges([charge({ chargeCents: 9999 })], [txn({})]);

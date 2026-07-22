@@ -83,13 +83,13 @@ async function main(): Promise<void> {
     if (mode === 'live') {
       const res = await patchSplit(m.txn.entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token[m.txn.entity]);
       if (res.status < 200 || res.status >= 300) { aside.push([c.paymentRef, c.primaryOrderId, 'write_fail', `HTTP ${res.status}`].map(csv).join(',')); continue; }
-      // Attach the cached Amazon invoice PDF; fall back to a generated itemized PDF if missing.
-      const cachedPdf = pdfByRef.get(c.paymentRef);
-      const pdf = cachedPdf && existsSync(cachedPdf)
-        ? readFileSync(cachedPdf)
-        : Buffer.from(await buildReceiptPdf({ orderId: c.primaryOrderId, date: c.payDate, totalCents: c.chargeCents, items: c.items, taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: c.itemsTotalCents, pdfPath: '', fetchedAt: '' }));
       if (!m.txn.userId) { aside.push([c.paymentRef, c.primaryOrderId, 'attach_fail', 'no user_id'].map(csv).join(',')); attachFails++; }
       else {
+        // Attach the cached Amazon invoice PDF; fall back to a generated itemized PDF if missing.
+        const cachedPdf = pdfByRef.get(c.paymentRef);
+        const pdf = cachedPdf && existsSync(cachedPdf)
+          ? readFileSync(cachedPdf)
+          : Buffer.from(await buildReceiptPdf({ orderId: c.primaryOrderId, date: c.payDate, totalCents: c.chargeCents, items: c.items, taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: c.itemsTotalCents, pdfPath: '', fetchedAt: '' }));
         const att = await attachReceipt(m.txn.entity, m.txn.id, pdf, `amazon-${c.primaryOrderId}.pdf`, token[m.txn.entity], m.txn.userId, `amazon-csv-receipt-${c.primaryOrderId}`);
         if (att.status < 200 || att.status >= 300) { aside.push([c.paymentRef, c.primaryOrderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(',')); attachFails++; }
       }
