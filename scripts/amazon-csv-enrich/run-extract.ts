@@ -37,20 +37,24 @@ async function main(): Promise<void> {
     const charges = parseAmazonCsv(csv);
     console.log(`[${account}] parsed ${charges.length} charges from CSV`);
 
-    let fetched = 0, cached = 0, failed = 0, i = 0;
+    let fetched = 0, cached = 0, failed = 0;
     for (const charge of charges) {
-      if (limit && i >= limit) break;
-      i++;
-      if (store.has(charge.paymentRef)) { cached++; continue; }
-      let pdfPath: string | null = null;
-      if (!skipInvoices) {
+      if (limit && fetched >= limit) break; // bound by actual invoice fetches, not charges scanned
+      const existing = store.get(charge.paymentRef);
+      let pdfPath: string | null = existing?.invoicePdfPath ?? null;
+      if (!skipInvoices && !pdfPath) {
         try {
           const pdf = await fetchInvoicePdf(page, charge.primaryOrderId);
           pdfPath = `${PDF_DIR}/amazon-${charge.primaryOrderId}.pdf`;
           writeFileSync(pdfPath, pdf);
           fetched++;
-          await sleep(1500); // polite pacing
-        } catch (e) { console.error(`  invoice ${charge.primaryOrderId} failed: ${(e as Error).message}`); failed++; }
+        } catch (e) {
+          console.error(`  invoice ${charge.primaryOrderId} failed: ${(e as Error).message}`);
+          failed++;
+        }
+        await sleep(1500); // polite pacing, after success OR failure
+      } else if (pdfPath) {
+        cached++;
       }
       store.put({ charge, invoicePdfPath: pdfPath, fetchedAt: now });
     }
