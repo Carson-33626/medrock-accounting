@@ -4,16 +4,16 @@
 //   npx tsx scripts/amazon-csv-enrich/run-split.ts [--accounts fl,tx,grp1] [--ramp-pages 60] [--live] [--cap N]
 import './../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import { sharedPdfPath } from './paths';
 import { loadChargeStore } from './extraction-store';
 import type { CachedCharge } from './extraction-store';
 import { matchCharges } from './matcher';
 import { chargeToParsed } from './split-adapter';
-import { getUnenrichedAmazonTxns, patchSplit, rampToken } from './client';
+import { getUnenrichedAmazonTxns, patchSplit, patchMemo, rampToken } from './client';
 import { buildGlIndex } from '../amazon-enrich/gl-resolve';
 import type { GlIndex } from '../amazon-enrich/gl-resolve';
 import { buildSplit } from '../amazon-enrich/split';
 import { attachReceipt } from '../walmart-enrich/ramp-receipts';
-import { buildReceiptPdf } from '../walmart-enrich/receipt-pdf';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
 
@@ -21,6 +21,9 @@ const ROOT = 'scripts/amazon-csv-enrich/out';
 const OUT = `${ROOT}/_split`;
 const SCOPES_READ = 'transactions:read accounting:read';
 const SCOPES_WRITE = 'transactions:read transactions:write receipts:write accounting:read';
+// Receipt idempotency keys are stable per order, so Ramp dedupes re-uploads. Bump this when a corrected
+// PDF must replace a prior upload (e.g. the clipped/generated receipts from the first cap-10 test run).
+const RECEIPT_KEY_VERSION = 'v2';
 
 function argVal(flag: string): string | null { const i = process.argv.indexOf(flag); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : null; }
 const has = (flag: string): boolean => process.argv.includes(flag);
@@ -35,6 +38,7 @@ async function main(): Promise<void> {
   const live = has('--live');
   const cap = Number(argVal('--cap') ?? '0') || 0;
   const rampPages = Number(argVal('--ramp-pages') ?? '60') || 60;
+  const onlyTxns = new Set((argVal('--txns')?.split(',').map((s) => s.trim()).filter(Boolean)) ?? []);
   const accounts = (argVal('--accounts')?.split(',').map((s) => s.trim()).filter(Boolean)) ?? discoverAccounts();
   if (!accounts.length) throw new Error(`No extraction caches under ${ROOT}. Run run-extract.ts first.`);
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
@@ -63,7 +67,6 @@ async function main(): Promise<void> {
 
   const charges = cached.map((r) => r.charge);
   const match = matchCharges(charges, pooledTxns);
-  const pdfByRef = new Map(cached.map((r) => [r.charge.paymentRef, r.invoicePdfPath] as const));
 
   const preview: string[] = ['payment_ref,order_id,txn_id,entity,txn_date,amount,line_desc,split_amount,gl_name,confidence,coded,mode'];
   const aside: string[] = ['payment_ref,order_id,reason,detail'];
@@ -73,6 +76,7 @@ async function main(): Promise<void> {
 
   let writes = 0, attachFails = 0;
   for (const m of match.confident) {
+    if (onlyTxns.size && !onlyTxns.has(m.txn.id)) continue; // targeted re-run (e.g. finalize a prior batch)
     const c = m.charge;
     if (c.itemsTotalCents !== m.txn.amountCents) { aside.push([c.paymentRef, c.primaryOrderId, 'no_reconcile', `items=${c.itemsTotalCents} txn=${m.txn.amountCents}`].map(csv).join(',')); continue; }
     const built = buildSplit(chargeToParsed(c), m.txn.amountCents, gl[m.txn.entity]);
@@ -83,14 +87,19 @@ async function main(): Promise<void> {
     if (mode === 'live') {
       const res = await patchSplit(m.txn.entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token[m.txn.entity]);
       if (res.status < 200 || res.status >= 300) { aside.push([c.paymentRef, c.primaryOrderId, 'write_fail', `HTTP ${res.status}`].map(csv).join(',')); continue; }
+
+      // Transaction-level memo (separate PATCH — a memo failure must not undo the split).
+      const memo = `Amazon order# ${c.primaryOrderId} (${c.items.length} item${c.items.length === 1 ? '' : 's'})`;
+      const mres = await patchMemo(m.txn.entity, m.txn.id, memo, token[m.txn.entity]);
+      if (mres.status < 200 || mres.status >= 300) aside.push([c.paymentRef, c.primaryOrderId, 'memo_fail', `HTTP ${mres.status}`].map(csv).join(','));
+
+      // Attach the REAL cached Amazon invoice PDF only — no generated fallback (accounting needs the
+      // genuine invoice). If it isn't cached yet, keep the split + memo and flag for invoice backfill.
+      const cachedPdf = sharedPdfPath(c.primaryOrderId);
       if (!m.txn.userId) { aside.push([c.paymentRef, c.primaryOrderId, 'attach_fail', 'no user_id'].map(csv).join(',')); attachFails++; }
+      else if (!existsSync(cachedPdf)) { aside.push([c.paymentRef, c.primaryOrderId, 'no_invoice', 'real invoice not cached; run fetch-invoices'].map(csv).join(',')); attachFails++; }
       else {
-        // Attach the cached Amazon invoice PDF; fall back to a generated itemized PDF if missing.
-        const cachedPdf = pdfByRef.get(c.paymentRef);
-        const pdf = cachedPdf && existsSync(cachedPdf)
-          ? readFileSync(cachedPdf)
-          : Buffer.from(await buildReceiptPdf({ orderId: c.primaryOrderId, date: c.payDate, totalCents: c.chargeCents, items: c.items, taxCents: 0, shippingCents: 0, tipCents: 0, parsedTotalCents: c.itemsTotalCents, pdfPath: '', fetchedAt: '' }));
-        const att = await attachReceipt(m.txn.entity, m.txn.id, pdf, `amazon-${c.primaryOrderId}.pdf`, token[m.txn.entity], m.txn.userId, `amazon-csv-receipt-${c.primaryOrderId}`);
+        const att = await attachReceipt(m.txn.entity, m.txn.id, readFileSync(cachedPdf), `amazon-${c.primaryOrderId}.pdf`, token[m.txn.entity], m.txn.userId, `amazon-csv-receipt-${c.primaryOrderId}-${RECEIPT_KEY_VERSION}`);
         if (att.status < 200 || att.status >= 300) { aside.push([c.paymentRef, c.primaryOrderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(',')); attachFails++; }
       }
       writes++;

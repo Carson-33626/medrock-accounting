@@ -64,4 +64,4 @@ export async function getUnenrichedAmazonTxns(entity: Entity, token: string, pag
   return out;
 }
 
-export { patchSplit, rampToken } from '../amazon-enrich/client';
+export { patchSplit, patchMemo, rampToken } from '../amazon-enrich/client';

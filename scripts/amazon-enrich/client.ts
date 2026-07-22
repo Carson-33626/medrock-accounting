@@ -168,4 +168,28 @@ export async function patchSplit(
   return { status: res.status, body };
 }
 
+// Set the transaction-level memo (separate PATCH from the split so a memo failure never breaks the
+// itemized line_items write). Ramp's txn object carries a top-level `memo` string; format mirrors
+// ramp-split-push's buildMemo: "Amazon order# <order> (<N> items)".
+export async function patchMemo(
+  entity: Entity,
+  txnId: string,
+  memo: string,
+  token: string,
+): Promise<{ status: number; body: unknown }> {
+  void entity; // entity is encoded in the token; kept for call-site symmetry
+  const res = await fetch(`${BASE}/transactions/${txnId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memo }),
+  });
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  return { status: res.status, body };
+}
+
 export { rampToken, BASE };
