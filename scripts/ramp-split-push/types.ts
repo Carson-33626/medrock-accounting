@@ -38,6 +38,7 @@ export interface RampTxn {
   date: string;               // 'YYYY-MM-DD' (user_transaction_time)
   cardId: string | null;
   cardHolder: string | null;
+  cardLast4?: string | null;  // card_last_four when available; matching tiebreaker only
   userId: string | null;      // card_holder.user_id — required to upload a receipt (POST /receipts)
   memo: string | null;
   merchantName: string | null;
