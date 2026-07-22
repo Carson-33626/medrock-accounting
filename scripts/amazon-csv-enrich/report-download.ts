@@ -12,14 +12,17 @@
 import type { Page } from '@playwright/test';
 
 export type DateSpan = 'PAST_12_MONTHS' | 'YEAR_TO_DATE' | 'MONTH_TO_DATE';
+// items_report_1 = order/line items (order-level). transactions_report = the ACTUAL card charges
+// (batched) with the order number(s) each charge reconciles to — what pairs 1:1 with Ramp txns.
+export type ReportType = 'items_report_1' | 'transactions_report';
 
-export function reportUrl(span: DateSpan): string {
-  return `https://www.amazon.com/b2b/aba/reports?reportType=items_report_1&dateSpanSelection=${span}`;
+export function reportUrl(span: DateSpan, reportType: ReportType = 'items_report_1'): string {
+  return `https://www.amazon.com/b2b/aba/reports?reportType=${reportType}&dateSpanSelection=${span}`;
 }
 
-export async function downloadItemsReportCsv(page: Page, span: DateSpan, opts: { timeoutMs?: number } = {}): Promise<string> {
+export async function downloadItemsReportCsv(page: Page, span: DateSpan, opts: { timeoutMs?: number; reportType?: ReportType } = {}): Promise<string> {
   const timeoutMs = opts.timeoutMs ?? 180_000;
-  await page.goto(reportUrl(span), { waitUntil: 'domcontentloaded' });
+  await page.goto(reportUrl(span, opts.reportType ?? 'items_report_1'), { waitUntil: 'domcontentloaded' });
 
   // Arm the listener first, then generate + dismiss the modal fast so the on-page download is captured.
   const downloadPromise = page.waitForEvent('download', { timeout: timeoutMs });
