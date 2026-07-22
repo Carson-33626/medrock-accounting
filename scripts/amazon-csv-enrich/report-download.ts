@@ -1,7 +1,14 @@
-// Drive the Amazon Business "Items" order-history report console: navigate, Generate (async), poll the
-// Download history, and return the finished CSV text. Selectors validated against the live console
-// snapshot (docs/amazon-receipt-capture/Business Analytics.mhtml); the Download-history ready-state
-// selector is confirmed + hardened during the EXTRACT smoke (Task 10).
+// Drive the Amazon Business "Items" order-history report console and return the CSV text.
+// Flow (validated live 2026-07-22 against the authenticated console):
+//   1. Navigate the Items report page for the chosen date span.
+//   2. Arm the Playwright download listener BEFORE generating (download capture works over CDP-attached
+//      real Chrome — confirmed live).
+//   3. Click "Generate report" (#download-csv-file-button). A "report generating" modal appears; dismiss
+//      its OK button ([data-testid="ok-btn"]) immediately. For a report this size Amazon finishes in
+//      seconds and the download then fires directly on the page (no Download-history round-trip needed).
+//   4. Await the download and read it.
+// If Amazon ever routes a slow/large report to Download history instead of an on-page download, the
+// awaited download simply times out — raise opts.timeoutMs or split the range.
 import type { Page } from '@playwright/test';
 
 export type DateSpan = 'PAST_12_MONTHS' | 'YEAR_TO_DATE' | 'MONTH_TO_DATE';
@@ -11,28 +18,19 @@ export function reportUrl(span: DateSpan): string {
 }
 
 export async function downloadItemsReportCsv(page: Page, span: DateSpan, opts: { timeoutMs?: number } = {}): Promise<string> {
-  const timeoutMs = opts.timeoutMs ?? 300_000;
+  const timeoutMs = opts.timeoutMs ?? 180_000;
   await page.goto(reportUrl(span), { waitUntil: 'domcontentloaded' });
 
-  // Kick off generation, then capture the CSV via the browser's download event from Download history.
-  await page.locator('#download-csv-file-button').click();
+  // Arm the listener first, then generate + dismiss the modal fast so the on-page download is captured.
+  const downloadPromise = page.waitForEvent('download', { timeout: timeoutMs });
+  await page.locator('#download-csv-file-button').first().click();
+  const ok = page.locator('[data-testid="ok-btn"]');
+  await ok.waitFor({ state: 'visible', timeout: 15_000 }).then(() => ok.click()).catch(() => undefined);
 
-  // Poll Download history for the newest report's ready "Download" control, then trigger + read the file.
-  const deadline = Date.now() + timeoutMs;
-  // NOTE (smoke): open Download history, wait for the top row to reach a ready state, click its download.
-  await page.getByTestId('download_history').click().catch(() => undefined);
-  let csv = '';
-  while (Date.now() < deadline) {
-    const dl = await page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
-    if (dl) {
-      const stream = await dl.createReadStream();
-      if (stream) { csv = await streamToString(stream); break; }
-    }
-    // re-open / refresh Download history between polls if no download fired yet
-    await page.getByTestId('download_history').click().catch(() => undefined);
-  }
-  if (!csv) throw new Error('Report did not become downloadable within the timeout.');
-  return csv;
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error('Report download produced no readable stream.');
+  return streamToString(stream);
 }
 
 function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
