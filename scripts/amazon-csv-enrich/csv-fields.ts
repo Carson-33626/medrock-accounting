@@ -5,6 +5,7 @@ export function unwrapExcel(raw: string): string {
   const m = /^="(.*)"$/.exec(s);
   if (m) return m[1];
   if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1);
+  if (s.startsWith('=')) s = s.slice(1); // Excel formula prefix left after the tokenizer consumed the quotes
   return s;
 }
 

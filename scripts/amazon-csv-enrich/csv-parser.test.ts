@@ -6,10 +6,10 @@ const HEADER = 'Order Date,Order ID,Account Group,Payment Reference ID,Payment D
 const rows = [
   HEADER,
   // order O1 / payref P1 — two items, Visa, card 9985
-  '07/21/2026,O1,MedRock Florida,P1,07/22/2026,"53.24",Visa,"=""9985""","Widget, blue","23.26"',
-  '07/21/2026,O1,MedRock Florida,P1,07/22/2026,"53.24",Visa,"=""9985""","Gadget ""XL""","29.98"',
+  '07/21/2026,O1,MedRock Florida,P1,07/22/2026,"53.24",Visa,="9985","Widget, blue","23.26"',
+  '07/21/2026,O1,MedRock Florida,P1,07/22/2026,"53.24",Visa,="9985","Gadget ""XL""","29.98"',
   // order O2 / payref P2 — embedded comma in Account Group
-  '07/20/2026,O2,"Medrock Pharmacy, LLC",P2,07/21/2026,"10.00",American Express,"=""1006""","Thing","10.00"',
+  '07/20/2026,O2,"Medrock Pharmacy, LLC",P2,07/21/2026,"10.00",American Express,="1006","Thing","10.00"',
   // skipped: Business Credit Account
   '07/19/2026,O3,MedRock Texas,P3,07/20/2026,"5.00",Business Credit Account,N/A,"Skip me","5.00"',
   // skipped: N/A payment instrument
