@@ -1,7 +1,9 @@
 // EXTRACT (run once per Amazon Business login): CDP-attach the signed-in Chrome, download the Items
 // order-history CSV, parse to per-charge groups, fetch each order's invoice PDF, and write through the
 // per-login resumable cache. No Ramp calls, no writes outside the local cache + index CSV.
-//   npx tsx scripts/amazon-csv-enrich/run-extract.ts --account <label> [--span PAST_12_MONTHS] [--limit N] [--skip-invoices]
+//   npx tsx scripts/amazon-csv-enrich/run-extract.ts --account <label> [--business "<name>"] [--no-switch] [--span PAST_12_MONTHS] [--limit N] [--skip-invoices]
+// For FL/TN/TX labels the target business is auto-switched in the one signed-in session; override with
+// --business "<customerName>", or --no-switch to export whatever business is currently active.
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { withAmazonPage } from './amazon-cdp';
 import { downloadItemsReportCsv } from './report-download';
@@ -9,6 +11,7 @@ import type { DateSpan } from './report-download';
 import { parseAmazonCsv } from './csv-parser';
 import { fetchInvoicePdf } from './invoice-fetch';
 import { loadChargeStore } from './extraction-store';
+import { switchToBusiness, BUSINESS_BY_ACCOUNT } from './account-switcher';
 
 function arg(flag: string, def: string): string {
   const i = process.argv.indexOf(flag);
@@ -23,6 +26,8 @@ async function main(): Promise<void> {
   const span = arg('--span', 'PAST_12_MONTHS') as DateSpan;
   const limit = Number(arg('--limit', '0')) || 0;
   const skipInvoices = has('--skip-invoices');
+  const noSwitch = has('--no-switch');
+  const targetBusiness = arg('--business', '') || BUSINESS_BY_ACCOUNT[account] || '';
 
   const OUT = `scripts/amazon-csv-enrich/out/${account}`;
   const PDF_DIR = `scripts/amazon-csv-enrich/.receipts_cache/${account}`;
@@ -32,6 +37,10 @@ async function main(): Promise<void> {
   const now = new Date().toISOString();
 
   const stats = await withAmazonPage(async (page) => {
+    if (targetBusiness && !noSwitch) {
+      console.log(`[${account}] switching active business to "${targetBusiness}"...`);
+      await switchToBusiness(page, targetBusiness);
+    }
     console.log(`[${account}] downloading items report (${span})...`);
     const csv = await downloadItemsReportCsv(page, span);
     const charges = parseAmazonCsv(csv);
