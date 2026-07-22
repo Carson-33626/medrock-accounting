@@ -45,4 +45,21 @@ describe('matchCharges', () => {
     const r = matchCharges([charge({ payDate: '2026-07-01' })], [txn({ date: '2026-07-22' })]);
     expect(r.unmatched).toHaveLength(1);
   });
+  it('flags ambiguous when candidates have null last-4 (the real Ramp case) and cannot be separated', () => {
+    // Ramp never populates card_last_four in practice, so both same-amount/same-date candidates carry
+    // null. Narrowing cannot separate them; the charge must go to ambiguous, never a wrong confident pick
+    // and never silently unmatched. Guards the `if (narrowed.length >= 1)` fallback against refactors.
+    const r = matchCharges([charge({ cardLast4: '9985' })], [
+      txn({ id: 'A', cardLast4: null }), txn({ id: 'B', cardLast4: null }),
+    ]);
+    expect(r.ambiguous).toHaveLength(1);
+    expect(r.confident).toHaveLength(0);
+    expect(r.unmatched).toHaveLength(0);
+  });
+  it('matches at exactly the window boundary and not one day past it', () => {
+    const atEdge = matchCharges([charge({ payDate: '2026-07-22' })], [txn({ id: 'A', date: '2026-07-25' })]); // 3 days
+    expect(atEdge.confident).toHaveLength(1);
+    const pastEdge = matchCharges([charge({ payDate: '2026-07-22' })], [txn({ id: 'B', date: '2026-07-26' })]); // 4 days
+    expect(pastEdge.unmatched).toHaveLength(1);
+  });
 });
