@@ -482,8 +482,8 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
           {/* Line editor */}
           <p className={`text-xs ${subText}`}>
-            Fields marked <span className="text-red-500 font-semibold">*</span> are required to post — a line
-            highlighted <span className="text-red-500 font-semibold">red</span> is missing an account or a positive amount.
+            A line highlighted <span className="text-red-500 font-semibold">red</span> is missing an account or a
+            positive amount — both are required to post.
           </p>
 
           <JournalGrid

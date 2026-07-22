@@ -150,6 +150,7 @@ function JournalGridRow({
   onRemove: (key: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [sourceRows, setSourceRows] = useState<DrilldownRowDetail[] | null>(null);
   const editable = line.origin !== 'generated';
   const amountMissing = !(Number(line.amount) > 0);
   const reqRing = 'border-red-500 ring-1 ring-red-500';
@@ -197,6 +198,7 @@ function JournalGridRow({
             step="0.01"
             value={debitVal}
             onChange={(e) => editAmount('Debit', e.target.value)}
+            readOnly={!editable && line.postingType !== 'Debit'}
             className={`${numInput} ${line.postingType === 'Debit' && amountMissing ? reqRing : ''}`}
           />
         </td>
@@ -206,6 +208,7 @@ function JournalGridRow({
             step="0.01"
             value={creditVal}
             onChange={(e) => editAmount('Credit', e.target.value)}
+            readOnly={!editable && line.postingType !== 'Credit'}
             className={`${numInput} ${line.postingType === 'Credit' && amountMissing ? reqRing : ''}`}
           />
         </td>
@@ -291,7 +294,13 @@ function JournalGridRow({
         <tr>
           <td className={cell}></td>
           <td className={cell} colSpan={8}>
-            <SourceRowsDetail rowKeys={line.sourceRowKeys} subText={subText} border={border} />
+            <SourceRowsDetail
+              rowKeys={line.sourceRowKeys}
+              subText={subText}
+              border={border}
+              cached={sourceRows}
+              onLoaded={setSourceRows}
+            />
           </td>
         </tr>
       )}
@@ -321,9 +330,20 @@ function nonZeroDollars(sensitive: Record<string, number | string | null>): Arra
  * Read-only + decrypt-gated: hits /api/payroll/drilldown, which re-decrypts each row
  * server-side and never persists or logs the plaintext. Do NOT log the response.
  */
-function SourceRowsDetail({ rowKeys, subText, border }: { rowKeys: string[]; subText: string; border: string }) {
+function SourceRowsDetail({
+  rowKeys,
+  subText,
+  border,
+  cached,
+  onLoaded,
+}: {
+  rowKeys: string[];
+  subText: string;
+  border: string;
+  cached: DrilldownRowDetail[] | null;
+  onLoaded: (rows: DrilldownRowDetail[]) => void;
+}) {
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<DrilldownRowDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
@@ -341,19 +361,21 @@ function SourceRowsDetail({ rowKeys, subText, border }: { rowKeys: string[]; sub
           return (await res.json()) as DrilldownRowDetail;
         }),
       );
-      setRows(results);
+      // Do NOT log `results` — it carries decrypted per-employee detail.
+      onLoaded(results);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load source rows');
     } finally {
       setLoading(false);
     }
-  }, [rowKeys]);
+  }, [rowKeys, onLoaded]);
 
   useEffect(() => {
+    if (cached !== null) return; // already cached by the parent — no re-fetch on re-expand
     if (startedRef.current) return;
     startedRef.current = true;
     void load();
-  }, [load]);
+  }, [load, cached]);
 
   return (
     <div className={`rounded-md border p-2 text-[11px] space-y-1.5 ${border}`}>
@@ -364,7 +386,7 @@ function SourceRowsDetail({ rowKeys, subText, border }: { rowKeys: string[]; sub
         </p>
       )}
       {error && <p className="text-red-500">{error}</p>}
-      {rows?.map((r) => {
+      {cached?.map((r) => {
         const dollars = nonZeroDollars(r.sensitive);
         return (
           <div key={r.row_key} className="space-y-0.5">
@@ -385,7 +407,7 @@ function SourceRowsDetail({ rowKeys, subText, border }: { rowKeys: string[]; sub
           </div>
         );
       })}
-      {rows && rows.length === 0 && <p className={subText}>No source rows.</p>}
+      {cached && cached.length === 0 && <p className={subText}>No source rows.</p>}
     </div>
   );
 }
