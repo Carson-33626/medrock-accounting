@@ -24,6 +24,13 @@ describe('parseCsvRows', () => {
     expect(parsed[1]['Title']).toBe('Gadget "XL"');
     expect(parsed[2]['Account Group']).toBe('Medrock Pharmacy, LLC');
   });
+  it('preserves CRLF row endings and newlines embedded inside quoted fields', () => {
+    const csv = 'Order ID,Title\r\nO1,"line one\nline two"\r\n';
+    const parsed = parseCsvRows(csv);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]['Order ID']).toBe('O1');
+    expect(parsed[0]['Title']).toBe('line one\nline two');
+  });
 });
 
 describe('parseAmazonCsv', () => {

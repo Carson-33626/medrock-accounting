@@ -44,6 +44,7 @@ export function parseCsvRows(text: string): Record<string, string>[] {
 export function parseAmazonCsv(text: string): AmazonCharge[] {
   const rows = parseCsvRows(text);
   const byRef = new Map<string, AmazonCharge>();
+  let dropped = 0;
   for (const r of rows) {
     const paymentRef = unwrapExcel(r['Payment Reference ID'] ?? '');
     if (!paymentRef) continue;
@@ -53,8 +54,10 @@ export function parseAmazonCsv(text: string): AmazonCharge[] {
     const orderId = unwrapExcel(r['Order ID'] ?? '');
     const itemAmount = parseMoneyCents(r['Item Net Total'] ?? '');
     const item: AmazonItem | null = Number.isFinite(itemAmount)
-      ? { desc: unwrapExcel(r['Title'] ?? '').slice(0, 300), amountCents: itemAmount }
+      ? { desc: unwrapExcel(r['Title'] ?? ''), amountCents: itemAmount }
       : null;
+
+    if (!item) dropped++;
 
     let charge = byRef.get(paymentRef);
     if (!charge) {
@@ -75,5 +78,6 @@ export function parseAmazonCsv(text: string): AmazonCharge[] {
     if (orderId && !charge.orderIds.includes(orderId)) charge.orderIds.push(orderId);
     if (item) { charge.items.push(item); charge.itemsTotalCents += item.amountCents; }
   }
+  if (dropped > 0) console.warn(`[csv-parser] dropped ${dropped} item row(s) with unparseable Item Net Total`);
   return [...byRef.values()];
 }
