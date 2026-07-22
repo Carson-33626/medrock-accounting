@@ -7,10 +7,8 @@ import {
   Ban,
   CheckCircle2,
   Loader2,
-  Plus,
   Save,
   Search,
-  Trash2,
   X,
   XCircle,
 } from 'lucide-react';
@@ -20,28 +18,14 @@ import { DirectionsBanner } from './DirectionsBanner';
 // Pure comparator (no server deps — safe in a client bundle) so the review table groups
 // same-account department lines the same way the builder + Excel export do.
 import { compareJournalLines } from '@/lib/payroll/line-order';
+import { JournalGrid } from './JournalGrid';
+import type { PostingType, JournalLine } from './journal-grid.helpers';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/types.ts +
  * web/src/lib/payroll/store.ts PayrollHeader). Not imported directly — those modules
  * pull in the RDS pool (`pg`), which must never land in a client bundle.
  */
-type PostingType = 'Debit' | 'Credit';
-type LineOrigin = 'generated' | 'manual' | 'inter_entity';
-type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
-
-interface JournalLine {
-  postingType: PostingType;
-  amount: number;
-  accountName: string;
-  departmentName: string | null;
-  className: string | null;
-  memo: string;
-  creditBucket: CreditBucket | null;
-  origin: LineOrigin;
-  sourceRowKeys: string[];
-}
-
 interface PayrollHeader {
   id: number;
   entity: string;
@@ -113,8 +97,6 @@ interface ApiErrorBody {
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const fmtMoney = (n: number): string => usd.format(n);
-
-const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 
 /**
  * Drill-down source values are raw ADP numbers that carry floating-point tails
@@ -294,10 +276,8 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   const balanced = totals.variance === 0;
 
-  // Sort a filtered COPY (filter() returns a new array; never mutate `lines`) so debit/credit
-  // lines display grouped by account then memo — Accounting Wages sits next to Admin Wages.
-  const debitLines = useMemo(() => lines.filter((l) => l.postingType === 'Debit').sort(compareJournalLines), [lines]);
-  const creditLines = useMemo(() => lines.filter((l) => l.postingType === 'Credit').sort(compareJournalLines), [lines]);
+  // One flat, grouped list for the QB-style grid (same comparator the builder + Excel export use).
+  const sortedLines = useMemo(() => [...lines].sort(compareJournalLines), [lines]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -506,34 +486,18 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             highlighted <span className="text-red-500 font-semibold">red</span> is missing an account or a positive amount.
           </p>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <LineGroup
-              title="Debits"
-              postingType="Debit"
-              darkMode={darkMode}
-              cardBg={cardBg}
-              subText={subText}
-              border={border}
-              inputBg={inputBg}
-              lines={debitLines}
-              onUpdate={updateLine}
-              onRemove={removeLine}
-              onAdd={() => addLine('Debit')}
-            />
-            <LineGroup
-              title="Credits"
-              postingType="Credit"
-              darkMode={darkMode}
-              cardBg={cardBg}
-              subText={subText}
-              border={border}
-              inputBg={inputBg}
-              lines={creditLines}
-              onUpdate={updateLine}
-              onRemove={removeLine}
-              onAdd={() => addLine('Credit')}
-            />
-          </div>
+          <JournalGrid
+            lines={sortedLines}
+            roster={roster}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            subText={subText}
+            border={border}
+            inputBg={inputBg}
+            onUpdate={updateLine}
+            onRemove={removeLine}
+            onAdd={() => addLine('Debit')}
+          />
 
           {/* Reconcile blockers panel */}
           {reconcileResult && (
@@ -661,375 +625,6 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
-
-function LineGroup({
-  title,
-  postingType,
-  darkMode,
-  cardBg,
-  subText,
-  border,
-  inputBg,
-  lines,
-  onUpdate,
-  onRemove,
-  onAdd,
-}: {
-  title: string;
-  postingType: PostingType;
-  darkMode: boolean;
-  cardBg: string;
-  subText: string;
-  border: string;
-  inputBg: string;
-  lines: Array<JournalLine & { _key: number }>;
-  onUpdate: (key: number, patch: Partial<JournalLine>) => void;
-  onRemove: (key: number) => void;
-  onAdd: () => void;
-}) {
-  const total = round2(lines.reduce((s, l) => s + (Number(l.amount) || 0), 0));
-  return (
-    <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">
-          {title} <span className={`font-normal ${subText}`}>({lines.length})</span>
-        </p>
-        <span className="text-sm font-semibold tabular-nums">{fmtMoney(total)}</span>
-      </div>
-
-      <div className="space-y-2">
-        {lines.length === 0 && <p className={`text-xs ${subText}`}>No {title.toLowerCase()} lines.</p>}
-        {lines.map((line) => (
-          <LineRow
-            key={line._key}
-            darkMode={darkMode}
-            border={border}
-            inputBg={inputBg}
-            subText={subText}
-            line={line}
-            onUpdate={onUpdate}
-            onRemove={onRemove}
-          />
-        ))}
-      </div>
-
-      <button
-        onClick={onAdd}
-        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
-          darkMode ? 'border-slate-600 text-slate-200 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-        }`}
-      >
-        <Plus className="w-3.5 h-3.5" aria-hidden />
-        Add {postingType.toLowerCase()} line
-      </button>
-    </div>
-  );
-}
-
-/**
- * Read-only text that marquees when it overflows: sits at the start for 2s, scrolls to the
- * end at a constant speed, holds 2s, snaps back to the start, repeats. Static (no animation,
- * no timers) when the text fits. Re-measures on text change and window resize.
- */
-function ScrollingText({ text, className }: { text: string; className: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const spanRef = useRef<HTMLSpanElement>(null);
-  const [style, setStyle] = useState<{ x: number; dur: number }>({ x: 0, dur: 0 });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const span = spanRef.current;
-    if (!container || !span) return;
-
-    const timers: Array<ReturnType<typeof setTimeout>> = [];
-    const clear = (): void => {
-      for (const t of timers) clearTimeout(t);
-      timers.length = 0;
-    };
-
-    const HOLD = 2000; // pause at each end (ms)
-    const run = (): void => {
-      clear();
-      // scrollWidth - clientWidth is the exact max scroll distance, correctly accounting for
-      // the field's padding (transforms don't affect layout, so this is stable mid-animation).
-      const overflow = Math.ceil(container.scrollWidth - container.clientWidth);
-      if (overflow <= 1) {
-        setStyle({ x: 0, dur: 0 });
-        return;
-      }
-      const travel = Math.max(1200, overflow * 14); // constant ~70px/s
-      const cycle = (): void => {
-        setStyle({ x: 0, dur: 0 }); // at start
-        timers.push(
-          setTimeout(() => {
-            setStyle({ x: -overflow, dur: travel }); // scroll to end
-            // wait for the scroll to finish + hold at the end, then snap back and repeat
-            timers.push(setTimeout(cycle, travel + HOLD));
-          }, HOLD),
-        );
-      };
-      cycle();
-    };
-
-    run();
-    window.addEventListener('resize', run);
-    return () => {
-      clear();
-      window.removeEventListener('resize', run);
-    };
-  }, [text]);
-
-  return (
-    <div ref={containerRef} className={`overflow-hidden whitespace-nowrap ${className}`} title={text}>
-      <span
-        ref={spanRef}
-        className="inline-block align-middle will-change-transform"
-        style={{
-          transform: `translateX(${style.x}px)`,
-          transition: style.dur ? `transform ${style.dur}ms linear` : 'none',
-        }}
-      >
-        {text}
-      </span>
-    </div>
-  );
-}
-
-/** One decrypted source row returned by /api/payroll/drilldown. */
-interface DrilldownRowDetail {
-  row_key: string;
-  position_id: string;
-  name: string;
-  pay_date: string;
-  pay_group: string;
-  sensitive: Record<string, number | string | null>;
-}
-
-/** The non-zero dollar columns of a decrypted row, so the drill-down shows WHICH earnings/
- * deductions fed this JE line (not a wall of zeros). */
-function nonZeroDollars(sensitive: Record<string, number | string | null>): Array<[string, string]> {
-  return Object.entries(sensitive)
-    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0)
-    .map(([k, v]) => [k, usd.format(v)]);
-}
-
-/**
- * Barbara's request: click "N source rows" on a JE line and route down to the underlying
- * payroll records so she can see WHERE a line's dollars come from (e.g. why "MedRock TX" carries
- * a "Puerto Rico Region" line — it's a marketer whose region maps to that QB department, not an
- * actual PR employee). Read-only + decrypt-gated: hits /api/payroll/drilldown, which re-decrypts
- * each row server-side on demand and never persists or logs the plaintext.
- */
-function SourceRowsPanel({
-  rowKeys,
-  subText,
-  border,
-}: {
-  rowKeys: string[];
-  subText: string;
-  border: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<DrilldownRowDetail[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const toggle = useCallback(async () => {
-    const next = !open;
-    setOpen(next);
-    if (!next || rows !== null || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const results = await Promise.all(
-        rowKeys.map(async (k) => {
-          const res = await fetch(`/api/payroll/drilldown?rowKey=${encodeURIComponent(k)}`);
-          if (!res.ok) {
-            const body: { error?: string } = await res.json().catch(() => ({}));
-            throw new Error(body.error ?? `drilldown failed (${res.status})`);
-          }
-          return (await res.json()) as DrilldownRowDetail;
-        }),
-      );
-      setRows(results);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load source rows');
-    } finally {
-      setLoading(false);
-    }
-  }, [open, rows, loading, rowKeys]);
-
-  const n = rowKeys.length;
-  return (
-    <div className="w-full">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        className={`inline-flex items-center gap-1 text-[11px] ${subText} hover:underline`}
-      >
-        {loading ? (
-          <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
-        ) : (
-          <Search className="w-3 h-3" aria-hidden />
-        )}
-        {n} source row{n === 1 ? '' : 's'}
-      </button>
-      {open && (
-        <div className={`mt-1.5 rounded-md border p-2 text-[11px] space-y-1.5 ${border}`}>
-          {error && <p className="text-red-500">{error}</p>}
-          {rows?.map((r) => {
-            const dollars = nonZeroDollars(r.sensitive);
-            return (
-              <div key={r.row_key} className="space-y-0.5">
-                <div className="font-medium">
-                  {r.name} · {r.position_id}
-                </div>
-                <div className={`flex flex-wrap gap-x-3 gap-y-0.5 ${subText}`}>
-                  {dollars.length > 0 ? (
-                    dollars.map(([k, v]) => (
-                      <span key={k} className="tabular-nums">
-                        {k}: {v}
-                      </span>
-                    ))
-                  ) : (
-                    <span>no dollar detail</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {rows && rows.length === 0 && <p className={subText}>No source rows.</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LineRow({
-  darkMode,
-  border,
-  inputBg,
-  subText,
-  line,
-  onUpdate,
-  onRemove,
-}: {
-  darkMode: boolean;
-  border: string;
-  inputBg: string;
-  subText: string;
-  line: JournalLine & { _key: number };
-  onUpdate: (key: number, patch: Partial<JournalLine>) => void;
-  onRemove: (key: number) => void;
-}) {
-  const editable = line.origin !== 'generated';
-  // Fields QuickBooks requires for a successful post: an account and a positive amount.
-  const accountMissing = line.accountName.trim() === '';
-  const amountMissing = !(Number(line.amount) > 0);
-  const reqRing = 'border-red-500 ring-1 ring-red-500';
-  return (
-    <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
-      <div className="flex items-start gap-2">
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <div className="flex items-center gap-1">
-            <span className="text-red-500 text-sm leading-none shrink-0" title="Required to post">
-              *
-            </span>
-            <div className="relative flex-1 min-w-0">
-              {editable ? (
-                <input
-                  type="text"
-                  value={line.accountName}
-                  onChange={(e) => onUpdate(line._key, { accountName: e.target.value })}
-                  placeholder="Account"
-                  className={`w-full rounded-md border px-2 py-1 text-sm ${inputBg} ${accountMissing ? reqRing : ''}`}
-                />
-              ) : (
-                // Generated line: account is read-only and often long — marquee it so the full
-                // name is readable without truncation (only animates when it actually overflows).
-                <ScrollingText
-                  text={line.accountName}
-                  className={`w-full rounded-md border px-2 py-1 text-sm opacity-70 ${inputBg} ${accountMissing ? reqRing : ''}`}
-                />
-              )}
-            </div>
-          </div>
-          <input
-            type="text"
-            value={line.memo}
-            onChange={(e) => onUpdate(line._key, { memo: e.target.value })}
-            placeholder="Memo"
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          />
-          <input
-            type="text"
-            value={line.departmentName ?? ''}
-            onChange={(e) => onUpdate(line._key, { departmentName: e.target.value || null })}
-            placeholder="Department"
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          />
-          <input
-            type="text"
-            value={line.className ?? ''}
-            onChange={(e) => onUpdate(line._key, { className: e.target.value || null })}
-            placeholder="Class"
-            className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-          />
-        </div>
-        <button
-          onClick={() => onRemove(line._key)}
-          className={`p-1.5 rounded-md ${darkMode ? 'text-red-300 hover:bg-red-950/40' : 'text-red-600 hover:bg-red-50'}`}
-          aria-label="Remove line"
-          title="Remove line"
-        >
-          <Trash2 className="w-4 h-4" aria-hidden />
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <label className={`text-xs ${subText} flex items-center gap-1`}>
-          Amount <span className="text-red-500" title="Required to post">*</span>
-          <input
-            type="number"
-            step="0.01"
-            value={line.amount}
-            onChange={(e) => onUpdate(line._key, { amount: Number(e.target.value) })}
-            className={`w-28 rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg} ${amountMissing ? reqRing : ''}`}
-          />
-        </label>
-
-        <select
-          value={line.creditBucket ?? ''}
-          onChange={(e) => onUpdate(line._key, { creditBucket: (e.target.value || null) as CreditBucket | null })}
-          className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
-        >
-          <option value="">Bucket…</option>
-          {CREDIT_BUCKETS.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={line.origin}
-          onChange={(e) => onUpdate(line._key, { origin: e.target.value as LineOrigin })}
-          disabled={line.origin === 'generated'}
-          className={`rounded-md border px-2 py-1 text-xs ${inputBg} disabled:opacity-70`}
-        >
-          <option value="generated">generated</option>
-          <option value="manual">manual</option>
-          <option value="inter_entity">inter_entity</option>
-        </select>
-
-        {line.sourceRowKeys.length > 0 && (
-          <SourceRowsPanel rowKeys={line.sourceRowKeys} subText={subText} border={border} />
-        )}
-      </div>
-    </div>
-  );
-}
 
 function ReconcilePanel({
   darkMode,
