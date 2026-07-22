@@ -27,9 +27,14 @@ describe('chargeToParsed', () => {
     const sum = built!.lines.reduce((a, b) => a + b.amount, 0);
     expect(sum).toBe(5324);
   });
-  it('returns null (defers) when items do not reconcile to the charge', () => {
-    const gl: GlIndex = { byName: new Map(), byCode: new Map(), suspenseId: 'SUS' };
-    const partial = { ...charge, chargeCents: 4000 }; // partial fulfillment
-    expect(buildSplit(chargeToParsed(partial), partial.chargeCents, gl)).toBeNull();
+  it('surfaces a partial-fulfillment mismatch for the caller to defer', () => {
+    // On partial fulfillment the settled charge is less than the sum of item net totals. The adapter
+    // faithfully carries parsedTotalCents = itemsTotalCents, so the caller (run-split) detects
+    // itemsTotalCents !== txn amount and sets the charge aside. (buildSplit itself does NOT gate on this —
+    // it forces the last line to the txn amount — which is exactly why the reconcile gate lives upstream.)
+    const partial: AmazonCharge = { ...charge, chargeCents: 4000 };
+    const parsed = chargeToParsed(partial);
+    expect(parsed.parsedTotalCents).toBe(5324);
+    expect(parsed.parsedTotalCents).not.toBe(partial.chargeCents);
   });
 });

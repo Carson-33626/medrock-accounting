@@ -11,8 +11,8 @@ export interface ParsedItem {
   amountCents: number; // pre-tax line amount
 }
 export interface ParsedReceipt {
-  layout: 'A' | 'B' | 'OCR' | 'WMT' | null;
-  source: 'ocr' | 'pdf' | 'walmart' | null; // which engine produced this
+  layout: 'A' | 'B' | 'OCR' | 'WMT' | 'AMZ' | null;
+  source: 'ocr' | 'pdf' | 'walmart' | 'amazon-csv' | null; // which engine produced this
   order: string | null;
   glHint: string | null; // "GL code: X" embedded on the receipt (order-level hint)
   items: ParsedItem[];

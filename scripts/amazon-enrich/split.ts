@@ -24,9 +24,6 @@ export function buildSplit(
   const itemsTotal = items.reduce((a, b) => a + b.amountCents, 0);
   if (itemsTotal <= 0) return null;
   const extra = parsed.taxCents + parsed.shippingCents + parsed.tipCents;
-  // Validate that parsed total can be reconciled to txn amount: when items are pre-allocated,
-  // itemsTotal + extra must equal txnAmountCents exactly (no absorption on partial fulfillments).
-  if (itemsTotal + extra !== txnAmountCents) return null;
   const lines: SplitLine[] = [];
   let allocated = 0;
   for (let i = 0; i < items.length; i++) {
