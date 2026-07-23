@@ -1,7 +1,8 @@
-import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail } from './types';
+import type { PayrollRow, AccountMapRule, EmployeeMapRule, JournalDraft, JournalLine, Entity, UnmappedColumnDetail, ResolvedTarget } from './types';
 import { resolveLine } from './mapping';
 import { entityForPayGroup } from './entity';
 import { compareJournalLines } from './line-order';
+import { deptLabelFor } from './cost-center';
 
 const isTaxableBase = (col: string): boolean => /TAXABLE\s*$/.test(col.trim());
 
@@ -19,7 +20,20 @@ const isReportAggregateColumn = (col: string): boolean =>
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string | null; creditBucket: JournalLine['creditBucket']; rowKeys: Set<string>; }
+/**
+ * Final JE line memo for a resolved target. Cost-center-specific rules (pooled === false) already
+ * carry a dept-labelled memo from the seed — used verbatim. Pooled '*' rules (all credits, UI-mapped
+ * columns) are split by the row's cost center: base (rule memo, else credit bucket, else account
+ * name) + ` - <Dept>`, or bare base for DFLT/unknown cost centers.
+ */
+function deriveMemo(t: ResolvedTarget): string {
+  if (!t.pooled) return t.memo ?? t.creditBucket ?? '';
+  const base = t.memo ?? t.creditBucket ?? t.accountName;
+  const dept = deptLabelFor(t.costCenter);
+  return dept ? `${base} - ${dept}` : base;
+}
+
+interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string; creditBucket: JournalLine['creditBucket']; pooled: boolean; rowKeys: Set<string>; }
 
 export interface ExcludedGroup { payGroup: string; reason: string; count: number; }
 
@@ -98,11 +112,12 @@ export function buildJournal(
         continue;
       }
       for (const t of res.targets) {
-        // Memo is part of the bucket key so department-labelled lines that share an account
-        // (e.g. Admin vs Accounting wages both on 'Administrative Wages') stay as distinct lines.
-        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? '', t.memo ?? ''].join('¦');
+        const lineMemo = deriveMemo(t);
+        // costCenter + pooled + memo are all in the key so pooled lines split per cost center while
+        // cost-center-specific lines (whose rows all share one cc) are unaffected.
+        const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? '', lineMemo, t.costCenter, t.pooled ? 'P' : 'S'].join('¦');
         let b = g.buckets.get(bkey);
-        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: t.memo ?? null, creditBucket: t.creditBucket, rowKeys: new Set() }; g.buckets.set(bkey, b); }
+        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: lineMemo, creditBucket: t.creditBucket, pooled: t.pooled, rowKeys: new Set() }; g.buckets.set(bkey, b); }
         b.amount += val; b.rowKeys.add(row.row_key);
       }
     }
@@ -113,8 +128,7 @@ export function buildJournal(
     const lines: JournalLine[] = [...g.buckets.values()].map((b) => ({
       postingType: b.postingType, amount: round2(b.amount), accountName: b.accountName,
       departmentName: b.departmentName, className: b.className,
-      // Department memo wins; pooled '*' lines (no memo) fall back to the creditBucket label.
-      memo: b.memo ?? (b.creditBucket ?? ''), creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
+      memo: b.memo, creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
     // Group lines by account then memo so same-account department lines (e.g. Admin/Accounting
     // Wages) sit adjacent instead of in arbitrary bucket-first-appearance order.

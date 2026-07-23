@@ -163,9 +163,13 @@ describe('buildJournal', () => {
     const accounting = wageLines.find((l) => l.memo === 'Accounting Wages');
     expect(admin?.amount).toBe(12957.70);
     expect(accounting?.amount).toBe(4645.17);
-    // Pooled credit line (no memo) still falls back to its creditBucket label.
-    const net = drafts[0]?.lines.find((l) => l.accountName === 'Payroll Withholdings');
-    expect(net?.memo).toBe('Net Pay');
+    // Pooled '*' NET PAY credit now also splits per cost center (spec: dimension every line):
+    // ADMIN row -> 'Net Pay - Admin' (9000), ACCOUN row -> 'Net Pay - Accounting' (3000).
+    // Account total is unchanged (9000 + 3000 = the old single 12000 line).
+    const netLines = drafts[0]?.lines.filter((l) => l.accountName === 'Payroll Withholdings') ?? [];
+    expect(netLines).toHaveLength(2);
+    expect(netLines.find((l) => l.memo === 'Net Pay - Admin')?.amount).toBe(9000);
+    expect(netLines.find((l) => l.memo === 'Net Pay - Accounting')?.amount).toBe(3000);
   });
 
   it('orders lines by account then memo so same-account department lines are adjacent', () => {
@@ -246,6 +250,43 @@ describe('mergeRebuiltLines (rebuild-on-map: refresh generated lines, keep hand-
     const ie = merged.find((l) => l.origin === 'inter_entity');
     expect(manual).toMatchObject({ accountName: 'Payroll Withholdings', amount: 216, memo: 'Variance' });
     expect(ie).toMatchObject({ accountName: 'Due To MedRock TX', amount: 50 });
+  });
+});
+
+describe('cost-center split', () => {
+  const netPayRule: AccountMapRule = { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true };
+  const wagePharm: AccountMapRule = { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'PHARM', accountName: 'Payroll Expense -:Pharm Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'Pharmacists Wages' };
+  const wageCs: AccountMapRule = { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'CS', accountName: 'Payroll Expense -:CS Wages', postingType: 'Debit', isCogs: false, creditBucket: null, active: true, memo: 'CSR Wages' };
+
+  it('splits a pooled * credit line into one line per cost center with `<bucket> - <Dept>` memos', () => {
+    const rows = [
+      baseRow({ position_id: 'N', name: 'Newton', home_department: 'CS-Customer', sensitive: { 'NET PAY': 100 } }),
+      baseRow({ position_id: 'P', name: 'Pericot', home_department: 'PHARM-Pharmacy', sensitive: { 'NET PAY': 250 } }),
+    ];
+    const { drafts } = buildJournal(rows, [netPayRule], []);
+    const credits = drafts[0].lines.filter((l) => l.postingType === 'Credit');
+    expect(credits).toHaveLength(2);
+    expect(credits.map((l) => l.memo).sort()).toEqual(['Net Pay - CSR', 'Net Pay - Pharmacists']);
+    const byMemo = Object.fromEntries(credits.map((l) => [l.memo, l.amount]));
+    expect(byMemo['Net Pay - CSR']).toBe(100);
+    expect(byMemo['Net Pay - Pharmacists']).toBe(250);
+  });
+
+  it('leaves cost-center-specific debit lines memo-verbatim (no double suffix)', () => {
+    const rows = [
+      baseRow({ position_id: 'P', name: 'Pericot', home_department: 'PHARM-Pharmacy', sensitive: { 'REGULAR PAY - EARNING': 500 } }),
+      baseRow({ position_id: 'N', name: 'Newton', home_department: 'CS-Customer', sensitive: { 'REGULAR PAY - EARNING': 300 } }),
+    ];
+    const { drafts } = buildJournal(rows, [wagePharm, wageCs], []);
+    const debits = drafts[0].lines.filter((l) => l.postingType === 'Debit');
+    expect(debits.map((l) => l.memo).sort()).toEqual(['CSR Wages', 'Pharmacists Wages']);
+  });
+
+  it('gives DFLT (blank home_department) rows a bare-base memo, no ` - ` suffix', () => {
+    const rows = [baseRow({ position_id: 'X', name: 'Nobody', home_department: '', sensitive: { 'NET PAY': 40 } })];
+    const { drafts } = buildJournal(rows, [netPayRule], []);
+    const credit = drafts[0].lines.find((l) => l.postingType === 'Credit');
+    expect(credit?.memo).toBe('Net Pay');
   });
 });
 
