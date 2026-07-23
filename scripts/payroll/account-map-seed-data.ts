@@ -12,6 +12,7 @@
  * double space in "RI STATE - DISABILITY INSURANCE  EE".
  */
 import type { AccountMapRule, CreditBucket, Entity } from '../../src/lib/payroll/types';
+import { DEPT_LABEL } from '../../src/lib/payroll/cost-center';
 
 const COST_CENTERS = ['LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET'] as const;
 type CostCenter = (typeof COST_CENTERS)[number];
@@ -19,27 +20,6 @@ type CostCenter = (typeof COST_CENTERS)[number];
 // LAB/PHARM/RD are the COGS-role cost centers per the addendum; everyone else
 // (ADMIN/ACCOUN/CS/DATA/SHIP/MARKET) posts to non-COGS "Payroll Expense -:" accounts.
 const COGS_COST_CENTERS = new Set<CostCenter>(['LAB', 'PHARM', 'RD']);
-
-/**
- * Department label per cost_center, used to build the JE line MEMO so accounting can read each
- * department's slice of a shared account (Barbara's ask: memo notes by department, NOT new
- * accounts). Matches Amy's FL memo vocabulary from PR 2026.03.27 ("Accounting Wages", "Admin
- * Wages", "CSR Wages", "DE Wages", "Shipping Wages", "Lab Wages", "Pharmacists Wages") and applies
- * it CONSISTENTLY across all 3 entities (Amy's TN JE lazily memo'd everything "Regular Wages" —
- * the exact thing this fixes). Splitting is memo-driven: same account, distinct memo -> distinct
- * line, identical account totals (so the dry-run still reconciles to Amy penny-for-penny).
- */
-const DEPT_LABEL: Record<CostCenter, string> = {
-  LAB: 'Lab',
-  PHARM: 'Pharmacists',
-  RD: 'R & D',
-  ADMIN: 'Admin',
-  ACCOUN: 'Accounting',
-  CS: 'CSR',
-  DATA: 'DE',
-  SHIP: 'Shipping',
-  MARKET: 'Marketing',
-};
 
 const REGULAR_EARNING_COLUMNS = [
   'REGULAR PAY - EARNING',
