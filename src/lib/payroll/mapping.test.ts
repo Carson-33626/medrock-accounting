@@ -44,6 +44,8 @@ describe('resolveLine', () => {
     const credit = res.targets.find((t) => t.postingType === 'Credit');
     expect(debit).toMatchObject({ accountName: 'COGS - Employer Payroll Taxes' });
     expect(credit).toMatchObject({ accountName: 'Payroll Withholdings', creditBucket: 'Taxes' });
+    expect(debit?.pooled).toBe(false);
+    expect(credit?.pooled).toBe(true);
   });
 
   it('resolves a column with a cost-center-specific Debit rule AND a * Debit rule to ONE target (cc-specific wins, same-direction duplicate cannot double-book)', () => {

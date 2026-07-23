@@ -292,7 +292,6 @@ describe('cost-center split', () => {
   it('keeps split pooled lines summing to the single-line rounded total (penny-safe)', () => {
     // Two cost centers, each exact slice 100.005 -> naive round2 each = 100.01 -> sum 200.02,
     // but the pooled total 200.01 must be preserved.
-    const netPayRule: AccountMapRule = { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true };
     const rows = [
       baseRow({ position_id: 'N', name: 'Newton', home_department: 'CS-Customer', sensitive: { 'NET PAY': 100.005 } }),
       baseRow({ position_id: 'P', name: 'Pericot', home_department: 'PHARM-Pharmacy', sensitive: { 'NET PAY': 100.005 } }),
