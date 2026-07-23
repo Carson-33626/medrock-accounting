@@ -21,6 +21,35 @@ const isReportAggregateColumn = (col: string): boolean =>
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
+ * Round each bucket to cents, then reconcile pooled split groups: within each
+ * (account, postingType, creditBucket) set of pooled buckets, force the rounded amounts to sum to
+ * round2(exact group total) by adding the leftover cents to the largest slice (largest-remainder).
+ * Non-pooled buckets are rounded independently (unchanged behavior). Guarantees the split is
+ * dollar-neutral versus a single pooled line, so totalDebits/totalCredits/variance don't move.
+ */
+function roundBucketAmounts(buckets: Bucket[]): Map<Bucket, number> {
+  const amounts = new Map<Bucket, number>(buckets.map((b) => [b, round2(b.amount)]));
+  const groups = new Map<string, Bucket[]>();
+  for (const b of buckets) {
+    if (!b.pooled) continue;
+    const key = [b.accountName, b.postingType, b.creditBucket ?? ''].join('¦');
+    const list = groups.get(key);
+    if (list) list.push(b);
+    else groups.set(key, [b]);
+  }
+  for (const members of groups.values()) {
+    const target = round2(members.reduce((s, b) => s + b.amount, 0));
+    const roundedSum = round2(members.reduce((s, b) => s + (amounts.get(b) ?? 0), 0));
+    const residual = round2(target - roundedSum);
+    if (residual !== 0) {
+      const largest = members.reduce((a, b) => (b.amount > a.amount ? b : a));
+      amounts.set(largest, round2((amounts.get(largest) ?? 0) + residual));
+    }
+  }
+  return amounts;
+}
+
+/**
  * Final JE line memo for a resolved target. Cost-center-specific rules (pooled === false) already
  * carry a dept-labelled memo from the seed — used verbatim. Pooled '*' rules (all credits, UI-mapped
  * columns) are split by the row's cost center: base (rule memo, else credit bucket, else account
@@ -125,8 +154,10 @@ export function buildJournal(
 
   const drafts: JournalDraft[] = [];
   for (const g of groups.values()) {
-    const lines: JournalLine[] = [...g.buckets.values()].map((b) => ({
-      postingType: b.postingType, amount: round2(b.amount), accountName: b.accountName,
+    const bucketList = [...g.buckets.values()];
+    const amounts = roundBucketAmounts(bucketList);
+    const lines: JournalLine[] = bucketList.map((b) => ({
+      postingType: b.postingType, amount: amounts.get(b) ?? round2(b.amount), accountName: b.accountName,
       departmentName: b.departmentName, className: b.className,
       memo: b.memo, creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
     }));
