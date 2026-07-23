@@ -38,6 +38,7 @@ interface AccountMapRule {
   isCogs: boolean;
   creditBucket: CreditBucket | null;
   active: boolean;
+  memo: string | null;
 }
 
 /** Accounts now carry their QB account number (null if none) — shown + searchable in the picker. */
@@ -284,6 +285,7 @@ function UnmappedColumnRow({
   const [creditBucket, setCreditBucket] = useState<CreditBucket | null>(null);
   const [isCogs, setIsCogs] = useState(false);
   const [costCenter, setCostCenter] = useState("*");
+  const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -303,6 +305,7 @@ function UnmappedColumnRow({
         isCogs,
         creditBucket: postingType === 'Credit' ? creditBucket : null,
         active: true,
+        memo: memo.trim() === '' ? null : memo.trim(),
       };
       const res = await fetch('/api/payroll/mappings', {
         method: 'POST',
@@ -434,6 +437,18 @@ function UnmappedColumnRow({
           </select>
         </label>
         <p className={`text-[11px] ${subText} max-w-[220px]`}>Default &apos;*&apos; = all roles. Pick LAB / ADMIN / MARKET… to scope one role.</p>
+
+        <label className={`text-xs ${subText}`}>
+          Memo label
+          <input
+            type="text"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="e.g. ER Medical (optional)"
+            title="Optional memo base — split lines read '<label> - <Dept>'; blank uses the credit bucket / account name"
+            className={`block mt-0.5 w-40 rounded-md border px-2 py-1 text-xs ${inputBg}`}
+          />
+        </label>
 
         <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
           <input type="checkbox" checked={isCogs} onChange={(e) => setIsCogs(e.target.checked)} />
