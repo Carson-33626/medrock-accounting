@@ -398,9 +398,12 @@ function SourceRowsDetail({
       {cached?.map((r) => {
         const sections = groupSourceDetail(r.sensitive);
         return (
-          <div key={r.row_key} className="space-y-1.5">
-            <div className="font-medium">
-              {r.name} · {r.position_id}
+          <div
+            key={r.row_key}
+            className={`space-y-1.5 border-t-2 pt-3 first:border-t-0 first:pt-0 ${border}`}
+          >
+            <div className="font-semibold text-[12px]">
+              {r.name} <span className={subText}>· {r.position_id}</span>
             </div>
             {sections.length === 0 ? (
               <span className={subText}>no dollar detail</span>
