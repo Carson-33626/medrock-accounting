@@ -311,6 +311,7 @@ function JournalGridRow({
           <td className={cell} colSpan={8}>
             <SourceRowsDetail
               rowKeys={line.sourceRowKeys}
+              darkMode={darkMode}
               subText={subText}
               border={border}
               cached={sourceRows}
@@ -341,12 +342,14 @@ interface DrilldownRowDetail {
  */
 function SourceRowsDetail({
   rowKeys,
+  darkMode,
   subText,
   border,
   cached,
   onLoaded,
 }: {
   rowKeys: string[];
+  darkMode: boolean;
   subText: string;
   border: string;
   cached: DrilldownRowDetail[] | null;
@@ -387,7 +390,7 @@ function SourceRowsDetail({
   }, [load, cached]);
 
   return (
-    <div className={`rounded-md border p-2 text-[11px] space-y-1.5 ${border}`}>
+    <div className="text-[11px] space-y-3 py-1">
       {loading && (
         <p className={`flex items-center gap-1 ${subText}`}>
           <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
@@ -398,36 +401,40 @@ function SourceRowsDetail({
       {cached?.map((r) => {
         const sections = groupSourceDetail(r.sensitive);
         return (
-          <div
-            key={r.row_key}
-            className={`space-y-1.5 border-t-2 pt-3 first:border-t-0 first:pt-0 ${border}`}
-          >
-            <div className="font-semibold text-[12px]">
-              {r.name} <span className={subText}>· {r.position_id}</span>
+          // One bordered card per member so a split line's members never visually blend.
+          <div key={r.row_key} className={`rounded-lg border-2 overflow-hidden ${border}`}>
+            <div
+              className={`px-2.5 py-1.5 font-semibold text-[12px] border-b ${border} ${
+                darkMode ? 'bg-slate-800' : 'bg-slate-100'
+              }`}
+            >
+              {r.name} <span className={`font-normal ${subText}`}>· {r.position_id}</span>
             </div>
-            {sections.length === 0 ? (
-              <span className={subText}>no dollar detail</span>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {sections.map((s) => (
-                  <div key={s.group} className={`rounded border ${border} overflow-hidden`}>
-                    <div className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wide border-b ${border} ${subText}`}>
-                      {s.group}
+            <div className="p-2">
+              {sections.length === 0 ? (
+                <span className={subText}>no dollar detail</span>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {sections.map((s) => (
+                    <div key={s.group} className={`rounded border ${border} overflow-hidden`}>
+                      <div className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wide border-b ${border} ${subText}`}>
+                        {s.group}
+                      </div>
+                      <table className="w-full">
+                        <tbody>
+                          {s.rows.map((row) => (
+                            <tr key={row.label} className={`border-b last:border-0 ${border}`}>
+                              <td className="px-2 py-0.5">{row.label}</td>
+                              <td className="px-2 py-0.5 text-right tabular-nums whitespace-nowrap">{row.display}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <table className="w-full">
-                      <tbody>
-                        {s.rows.map((row) => (
-                          <tr key={row.label} className={`border-b last:border-0 ${border}`}>
-                            <td className="px-2 py-0.5">{row.label}</td>
-                            <td className="px-2 py-0.5 text-right tabular-nums whitespace-nowrap">{row.display}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
