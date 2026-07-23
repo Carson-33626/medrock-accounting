@@ -62,6 +62,63 @@ export interface RollbackResponse {
   rows: RollbackValuationRow[];
 }
 
+/**
+ * Monthly-close roll-forward & suggested JE (built on the rollback dual-basis
+ * valuation). See docs/superpowers/specs/2026-07-10-fifo-monthly-close-design.md
+ * (superseded in part by the rollback amendments). All values are for the
+ * selected `CloseBasis`: 'floor' = receipt-priced value/purchases, 'full' =
+ * full-coverage estimate.
+ */
+export type CloseBasis = 'floor' | 'full';
+
+/**
+ * One roll-forward line: Beginning + Purchases − Ending = COGS (derived).
+ * `beginning`/`cogs` are null at the window start (earliest month, no prior row).
+ * `purchases`/`cogs` are null when the loader's purchases columns are pending
+ * (not yet written to RDS) — the UI then shows the pending notice instead of math.
+ */
+export interface RollForwardRow {
+  cut: 'total' | 'location';
+  label: string; // 'Total' | 'MedRock FL' | ...
+  beginning: number | null;
+  purchases: number | null;
+  cogs: number | null; // derived: beginning + purchases − ending
+  ending: number;
+  windowStart: boolean; // earliest month in the table → no prior beginning
+  purchasesPending: boolean; // purchases column missing/NULL for this row
+}
+
+/** One QB inventory-asset sub-account line (name + point-in-time balance). */
+export interface QbAccountLine {
+  name: string;
+  value: number;
+}
+
+/**
+ * Suggested adjusting JE inputs for one location. Adjustment = FIFO target
+ * (selected basis Ending) − QB book inventory-asset balance. Positive → Dr
+ * Inventory / Cr COGS; negative → the reverse. Nothing is posted to QuickBooks.
+ */
+export interface LocationJE {
+  location: string;
+  fifoTarget: number;
+  qbBookBalance: number | null; // null when the realm is disconnected / section missing
+  qbAccounts: QbAccountLine[]; // sub-account breakdown for display (empty when unavailable)
+  bookAvailable: boolean;
+  adjustment: number | null; // fifoTarget − qbBookBalance (null when book unavailable)
+  direction: 'debit-inventory' | 'credit-inventory' | 'none' | null;
+}
+
+export interface MonthlyCloseResponse {
+  month: string; // 'YYYY-MM'
+  monthEnd: string; // 'YYYY-MM-DD' (last day of month)
+  basis: CloseBasis;
+  /** true once the loader's purchases_floor/full columns exist in RDS. */
+  purchasesAvailable: boolean;
+  rollForward: RollForwardRow[];
+  journalEntries: LocationJE[];
+}
+
 export interface LotRow {
   receipt_id: string;
   location: string;

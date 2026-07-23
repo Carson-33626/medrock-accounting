@@ -1052,6 +1052,116 @@ export async function getCompanyFinancials(params: {
   };
 }
 
+// ── Balance Sheet: inventory-asset book balance (monthly close) ──
+// Minimal typed view of the QB BalanceSheet report tree we walk. The report is
+// a nested Rows/Row tree: Section rows carry a Header + child Rows + a Summary;
+// leaf Data rows carry ColData ([label, ..., amount]).
+interface QbBsColData {
+  value?: string;
+  id?: string;
+}
+interface QbBsRow {
+  Header?: { ColData?: QbBsColData[] };
+  Rows?: { Row?: QbBsRow[] };
+  Summary?: { ColData?: QbBsColData[] };
+  ColData?: QbBsColData[];
+  type?: string;
+  group?: string;
+}
+interface QbBalanceSheetReport {
+  Rows?: { Row?: QbBsRow[] };
+}
+
+/** Inventory-asset section total + its sub-account breakdown. */
+export interface InventoryAssetBreakdown {
+  total: number;
+  accountName: string; // section header literal, e.g. '1220 Inventory Asset'
+  accounts: Array<{ name: string; value: number }>;
+}
+
+function bsAmount(cols: QbBsColData[] | undefined): number {
+  if (!cols || cols.length === 0) return 0;
+  const raw = cols[cols.length - 1]?.value ?? '';
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Depth-first: first Section whose Header label ends with "Inventory Asset". */
+function findInventorySection(rows: QbBsRow[]): QbBsRow | null {
+  for (const row of rows) {
+    const header = row.Header?.ColData?.[0]?.value?.trim();
+    if (header && header.endsWith('Inventory Asset')) return row;
+    const nested = row.Rows?.Row;
+    if (nested) {
+      const found = findInventorySection(nested);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Collect leaf Data rows (name + amount) under a section, recursing sub-sections. */
+function collectLeafAccounts(rows: QbBsRow[]): Array<{ name: string; value: number }> {
+  const out: Array<{ name: string; value: number }> = [];
+  for (const row of rows) {
+    const nested = row.Rows?.Row;
+    if (nested && nested.length > 0) {
+      out.push(...collectLeafAccounts(nested));
+      continue;
+    }
+    const name = row.ColData?.[0]?.value?.trim();
+    if (name) out.push({ name, value: bsAmount(row.ColData) });
+  }
+  return out;
+}
+
+/**
+ * Parse the Inventory-Asset section out of a QB BalanceSheet report. Pure and
+ * exported so it can be unit-tested against fixture JSON (local dev cannot make
+ * live QB calls — the local client id is stale). Returns null when the section
+ * is absent (e.g. a realm without inventory). Observed literals across all three
+ * realms: header "1220 Inventory Asset", summary "Total 1220 Inventory Asset".
+ */
+export function parseInventoryAssetSection(report: QbBalanceSheetReport): InventoryAssetBreakdown | null {
+  const top = report.Rows?.Row;
+  if (!top) return null;
+  const section = findInventorySection(top);
+  if (!section) return null;
+
+  const accountName = section.Header?.ColData?.[0]?.value?.trim() ?? 'Inventory Asset';
+  const total = bsAmount(section.Summary?.ColData);
+  const accounts = collectLeafAccounts(section.Rows?.Row ?? []);
+  return { total, accountName, accounts };
+}
+
+/**
+ * Read a location's inventory-asset book balance from QuickBooks as of a
+ * month-end date (point-in-time BalanceSheet, Accrual). Returns null — never
+ * throws — when the realm is disconnected or the section is missing, so callers
+ * degrade to "book balance unavailable — reconnect QuickBooks".
+ *
+ * @param asOfDate month-end 'YYYY-MM-DD'.
+ */
+export async function getBalanceSheetInventory(
+  location: Location,
+  asOfDate: string,
+): Promise<InventoryAssetBreakdown | null> {
+  // Quiet path for a disconnected realm (avoids qbRequest throwing + logging).
+  const tokens = await getValidTokens(location);
+  if (!tokens) return null;
+
+  try {
+    const endpoint = `reports/BalanceSheet?end_date=${encodeURIComponent(
+      asOfDate,
+    )}&accounting_method=Accrual&minorversion=75`;
+    const report = await qbRequest<QbBalanceSheetReport>(endpoint, location, { method: 'GET' });
+    return parseInventoryAssetSection(report);
+  } catch (error) {
+    console.error(`Error fetching QB balance-sheet inventory for ${location}:`, error);
+    return null;
+  }
+}
+
 /**
  * Check if a specific location is connected
  */
