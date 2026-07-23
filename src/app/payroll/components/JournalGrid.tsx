@@ -14,6 +14,8 @@ import {
 } from './journal-grid.helpers';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+// Thousands-separated, 2dp, NO currency symbol — the "$" is a separate cell adornment.
+const amountFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
@@ -153,17 +155,13 @@ function JournalGridRow({
   const [expanded, setExpanded] = useState(false);
   const [sourceRows, setSourceRows] = useState<DrilldownRowDetail[] | null>(null);
   const editable = line.origin !== 'generated';
-  const amountMissing = !(Number(line.amount) > 0);
   const reqRing = 'border-red-500 ring-1 ring-red-500';
   const numInput = `w-full text-right rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg}`;
   const txtInput = `w-full rounded-md border px-2 py-1 text-sm ${inputBg}`;
-
-  const debitVal = line.postingType === 'Debit' ? String(line.amount) : '';
-  const creditVal = line.postingType === 'Credit' ? String(line.amount) : '';
   const namePreview = sourceNamesPreview(line.sourceRowKeys, roster);
 
-  const editAmount = (side: PostingType, raw: string): void => {
-    onUpdate(line._key, applyAmountEdit(line, side, Number(raw)));
+  const editAmount = (side: PostingType, value: number): void => {
+    onUpdate(line._key, applyAmountEdit(line, side, value));
   };
 
   return (
@@ -193,40 +191,26 @@ function JournalGridRow({
             )}
           </div>
         </td>
-        <td className={cell}>
-          <div className="relative">
-            {debitVal !== '' && (
-              <span className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs ${subText}`} aria-hidden>
-                $
-              </span>
-            )}
-            <input
-              type="number"
-              step="0.01"
-              value={debitVal}
-              onChange={(e) => editAmount('Debit', e.target.value)}
-              readOnly={!editable && line.postingType !== 'Debit'}
-              className={`${numInput} ${debitVal !== '' ? 'pl-5' : ''} ${line.postingType === 'Debit' && amountMissing ? reqRing : ''}`}
-            />
-          </div>
-        </td>
-        <td className={cell}>
-          <div className="relative">
-            {creditVal !== '' && (
-              <span className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs ${subText}`} aria-hidden>
-                $
-              </span>
-            )}
-            <input
-              type="number"
-              step="0.01"
-              value={creditVal}
-              onChange={(e) => editAmount('Credit', e.target.value)}
-              readOnly={!editable && line.postingType !== 'Credit'}
-              className={`${numInput} ${creditVal !== '' ? 'pl-5' : ''} ${line.postingType === 'Credit' && amountMissing ? reqRing : ''}`}
-            />
-          </div>
-        </td>
+        <AmountCell
+          side="Debit"
+          line={line}
+          editable={editable}
+          subText={subText}
+          cell={cell}
+          numInput={numInput}
+          reqRing={reqRing}
+          onEdit={editAmount}
+        />
+        <AmountCell
+          side="Credit"
+          line={line}
+          editable={editable}
+          subText={subText}
+          cell={cell}
+          numInput={numInput}
+          reqRing={reqRing}
+          onEdit={editAmount}
+        />
         <td className={cell}>
           <input
             type="text"
@@ -321,6 +305,66 @@ function JournalGridRow({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * One Debit/Credit amount cell. Shows the value thousands-separated (e.g. "2,700.00") with a "$"
+ * adornment when idle; while focused it holds the RAW typed text so decimals and partial input
+ * aren't clobbered by the parsed number round-trip. Editing a cell on the opposite side flips the
+ * line's posting side (via applyAmountEdit in onEdit), preserving the QuickBooks single-amount feel.
+ */
+function AmountCell({
+  side,
+  line,
+  editable,
+  subText,
+  cell,
+  numInput,
+  reqRing,
+  onEdit,
+}: {
+  side: PostingType;
+  line: JournalLine & { _key: number };
+  editable: boolean;
+  subText: string;
+  cell: string;
+  numInput: string;
+  reqRing: string;
+  onEdit: (side: PostingType, value: number) => void;
+}) {
+  const [text, setText] = useState<string | null>(null); // null = not editing
+  const isSide = line.postingType === side;
+  const amount = isSide ? line.amount : 0;
+  const missing = isSide && !(Number(amount) > 0);
+  const readOnly = !editable && !isSide;
+  const value = text !== null ? text : isSide && amount !== 0 ? amountFmt.format(amount) : '';
+  const hasValue = value !== '';
+  return (
+    <td className={cell}>
+      <div className="relative">
+        {hasValue && (
+          <span className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs ${subText}`} aria-hidden>
+            $
+          </span>
+        )}
+        <input
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onFocus={() => setText(isSide && amount !== 0 ? String(amount) : '')}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setText(raw);
+            const n = Number(raw.replace(/,/g, ''));
+            onEdit(side, Number.isFinite(n) ? n : 0);
+          }}
+          onBlur={() => setText(null)}
+          readOnly={readOnly}
+          className={`${numInput} ${hasValue ? 'pl-5' : ''} ${missing ? reqRing : ''}`}
+        />
+      </div>
+    </td>
   );
 }
 
