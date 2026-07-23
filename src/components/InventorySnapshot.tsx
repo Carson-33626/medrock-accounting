@@ -116,9 +116,11 @@ export default function InventorySnapshot() {
   const isLatestMonth = !!(summary && selectedMonth && selectedMonth === summary.latestMonth);
   // Dual bases are accrual-only; cash keeps the original single headline entirely.
   const showDual = basis === 'accrual' && rollbackForMonth.length > 0;
-  // Card A (floor): the latest month keeps the penny-validated lot-anchored summary
-  // figure as its floor of record; historical months use the rollback floor.
-  const floorValue = isLatestMonth ? view.total : rollbackView.floor;
+  // Card A (floor) uses the rollback value_floor for EVERY month, so the series is
+  // consistent month-over-month. On the latest month the stricter lot-anchored
+  // figure (view.total) is shown as a footnote only — not the card headline —
+  // to avoid a fake cliff against prior months.
+  const floorValue = rollbackView.floor;
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
@@ -205,11 +207,17 @@ export default function InventorySnapshot() {
                   <p className={`text-xs mt-2 ${subText}`}>
                     Only stock traceable to a priced receipt. Conservative — understates true value.
                   </p>
-                  {isLatestMonth && anchored && (
-                    <div className="mt-3">
-                      <span className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
-                        ✓ LifeFile-reconciled
-                      </span>
+                  {isLatestMonth && (
+                    <div className={`mt-3 pt-3 border-t ${border}`}>
+                      <p className={`text-xs ${subText}`}>
+                        Strict lot-anchored figure (previous headline): <strong>{usd.format(view.total)}</strong> — also
+                        excludes lot quantities beyond matched receipts
+                      </p>
+                      {anchored && (
+                        <span className="mt-2 inline-block text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
+                          ✓ LifeFile-reconciled
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -271,7 +279,14 @@ export default function InventorySnapshot() {
           )
         )}
 
-        {showDual && <p className="text-sm font-semibold">Breakdown (receipt-priced basis)</p>}
+        {showDual && (
+          <p className="text-sm font-semibold">
+            Breakdown — prior method, for reference
+            <span className={`ml-2 font-normal text-xs ${subText}`}>
+              (lot-anchored on the latest month, usage simulation on historical months)
+            </span>
+          </p>
+        )}
 
         {/* Breakdown by location */}
         <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
