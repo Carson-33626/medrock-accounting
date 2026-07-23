@@ -38,6 +38,30 @@ export interface SummaryResponse {
   anchoredMonths: string[];
 }
 
+/**
+ * One row of inventory.fifo_rollback_valuation — the backward-rollback
+ * reconstruction that values historical months from LifeFile lot actuals.
+ * value_floor = receipt-priced stock only (conservative); value_full = all
+ * visible stock with estimated costs where receipts are missing. The table may
+ * not exist yet (loader phase pending) — the API returns [] in that case.
+ */
+export interface RollbackValuationRow {
+  as_of_month: string;
+  location: string;
+  value_floor: number | null;
+  value_full: number | null;
+  on_hand_qty: number | null;
+  uncosted_qty: number | null;
+  lambda_config: string | null;
+  fit_month: string | null;
+  test_month: string | null;
+  oos_ratio: number | null;
+}
+
+export interface RollbackResponse {
+  rows: RollbackValuationRow[];
+}
+
 export interface LotRow {
   receipt_id: string;
   location: string;
