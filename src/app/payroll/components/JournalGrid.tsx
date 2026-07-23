@@ -62,17 +62,17 @@ export function JournalGrid({
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-3`}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[1024px] table-fixed border-collapse text-sm">
           <thead>
             <tr className={`border-b ${border}`}>
-              <th className={`${headCell} w-8`}>#</th>
-              <th className={`${headCell} min-w-[220px]`}>Account</th>
+              <th className={`${headCell} w-10`}>#</th>
+              <th className={headCell}>Account</th>
               <th className={`${headCell} text-right w-32`}>Debits</th>
               <th className={`${headCell} text-right w-32`}>Credits</th>
-              <th className={`${headCell} min-w-[220px]`}>Description</th>
-              <th className={`${headCell} min-w-[140px]`}>Name</th>
-              <th className={`${headCell} min-w-[170px]`}>Location</th>
-              <th className={`${headCell} min-w-[120px]`}>Class</th>
+              <th className={`${headCell} w-48`}>Description</th>
+              <th className={`${headCell} w-32`}>Name</th>
+              <th className={`${headCell} w-40`}>Location</th>
+              <th className={`${headCell} w-28`}>Class</th>
               <th className={`${headCell} w-10`}></th>
             </tr>
           </thead>
