@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react';
 import {
   applyAmountEdit,
   sourceNamesPreview,
+  groupSourceDetail,
   type CreditBucket,
   type JournalLine,
   type LineOrigin,
@@ -68,9 +69,9 @@ export function JournalGrid({
               <th className={`${headCell} min-w-[220px]`}>Account</th>
               <th className={`${headCell} text-right w-32`}>Debits</th>
               <th className={`${headCell} text-right w-32`}>Credits</th>
-              <th className={`${headCell} min-w-[140px]`}>Description</th>
+              <th className={`${headCell} min-w-[220px]`}>Description</th>
               <th className={`${headCell} min-w-[140px]`}>Name</th>
-              <th className={`${headCell} min-w-[120px]`}>Location</th>
+              <th className={`${headCell} min-w-[170px]`}>Location</th>
               <th className={`${headCell} min-w-[120px]`}>Class</th>
               <th className={`${headCell} w-10`}></th>
             </tr>
@@ -193,24 +194,38 @@ function JournalGridRow({
           </div>
         </td>
         <td className={cell}>
-          <input
-            type="number"
-            step="0.01"
-            value={debitVal}
-            onChange={(e) => editAmount('Debit', e.target.value)}
-            readOnly={!editable && line.postingType !== 'Debit'}
-            className={`${numInput} ${line.postingType === 'Debit' && amountMissing ? reqRing : ''}`}
-          />
+          <div className="relative">
+            {debitVal !== '' && (
+              <span className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs ${subText}`} aria-hidden>
+                $
+              </span>
+            )}
+            <input
+              type="number"
+              step="0.01"
+              value={debitVal}
+              onChange={(e) => editAmount('Debit', e.target.value)}
+              readOnly={!editable && line.postingType !== 'Debit'}
+              className={`${numInput} ${debitVal !== '' ? 'pl-5' : ''} ${line.postingType === 'Debit' && amountMissing ? reqRing : ''}`}
+            />
+          </div>
         </td>
         <td className={cell}>
-          <input
-            type="number"
-            step="0.01"
-            value={creditVal}
-            onChange={(e) => editAmount('Credit', e.target.value)}
-            readOnly={!editable && line.postingType !== 'Credit'}
-            className={`${numInput} ${line.postingType === 'Credit' && amountMissing ? reqRing : ''}`}
-          />
+          <div className="relative">
+            {creditVal !== '' && (
+              <span className={`pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs ${subText}`} aria-hidden>
+                $
+              </span>
+            )}
+            <input
+              type="number"
+              step="0.01"
+              value={creditVal}
+              onChange={(e) => editAmount('Credit', e.target.value)}
+              readOnly={!editable && line.postingType !== 'Credit'}
+              className={`${numInput} ${creditVal !== '' ? 'pl-5' : ''} ${line.postingType === 'Credit' && amountMissing ? reqRing : ''}`}
+            />
+          </div>
         </td>
         <td className={cell}>
           <input
@@ -319,12 +334,6 @@ interface DrilldownRowDetail {
   sensitive: Record<string, number | string | null>;
 }
 
-function nonZeroDollars(sensitive: Record<string, number | string | null>): Array<[string, string]> {
-  return Object.entries(sensitive)
-    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] !== 0)
-    .map(([k, v]) => [k, usd.format(v)]);
-}
-
 /**
  * Per-person source detail for a line, fetched lazily on first expand.
  * Read-only + decrypt-gated: hits /api/payroll/drilldown, which re-decrypts each row
@@ -387,23 +396,35 @@ function SourceRowsDetail({
       )}
       {error && <p className="text-red-500">{error}</p>}
       {cached?.map((r) => {
-        const dollars = nonZeroDollars(r.sensitive);
+        const sections = groupSourceDetail(r.sensitive);
         return (
-          <div key={r.row_key} className="space-y-0.5">
+          <div key={r.row_key} className="space-y-1.5">
             <div className="font-medium">
               {r.name} · {r.position_id}
             </div>
-            <div className={`flex flex-wrap gap-x-3 gap-y-0.5 ${subText}`}>
-              {dollars.length > 0 ? (
-                dollars.map(([k, v]) => (
-                  <span key={k} className="tabular-nums">
-                    {k}: {v}
-                  </span>
-                ))
-              ) : (
-                <span>no dollar detail</span>
-              )}
-            </div>
+            {sections.length === 0 ? (
+              <span className={subText}>no dollar detail</span>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {sections.map((s) => (
+                  <div key={s.group} className={`rounded border ${border} overflow-hidden`}>
+                    <div className={`px-2 py-1 text-[10px] font-semibold uppercase tracking-wide border-b ${border} ${subText}`}>
+                      {s.group}
+                    </div>
+                    <table className="w-full">
+                      <tbody>
+                        {s.rows.map((row) => (
+                          <tr key={row.label} className={`border-b last:border-0 ${border}`}>
+                            <td className="px-2 py-0.5">{row.label}</td>
+                            <td className="px-2 py-0.5 text-right tabular-nums whitespace-nowrap">{row.display}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
