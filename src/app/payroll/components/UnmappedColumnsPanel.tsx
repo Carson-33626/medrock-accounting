@@ -321,7 +321,7 @@ function UnmappedColumnRow({
     } finally {
       setSaving(false);
     }
-  }, [entity, adpColumn, accountName, costCenter, postingType, isCogs, creditBucket, onSaved]);
+  }, [entity, adpColumn, accountName, costCenter, postingType, isCogs, creditBucket, memo, onSaved]);
 
   return (
     <div className={`rounded-lg border p-2.5 space-y-2 ${border}`}>
