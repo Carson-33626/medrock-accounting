@@ -69,3 +69,27 @@ describe('resolveLine', () => {
     expect(res.targets[0]).toMatchObject({ accountName: 'COGS - Lab Wages', departmentName: null, className: null });
   });
 });
+
+describe('resolveLine cost-center attribution', () => {
+  const ccRow = { position_id: '1001', home_department: 'PHARM-Pharmacy' } as unknown as PayrollRow;
+
+  it('sets costCenter to the row cost center and pooled=false for a cost-center-specific rule', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'PHARM', accountName: 'COGS - Pharmacists Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true, memo: 'Pharmacists Wages' },
+    ];
+    const res = resolveLine(ccRow, 'REGULAR PAY - EARNING', accountMap, []);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets[0].costCenter).toBe('PHARM');
+    expect(res.targets[0].pooled).toBe(false);
+  });
+
+  it('sets pooled=true when the matched rule is a * rule', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const res = resolveLine(ccRow, 'NET PAY', accountMap, []);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets[0].costCenter).toBe('PHARM');
+    expect(res.targets[0].pooled).toBe(true);
+  });
+});

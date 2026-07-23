@@ -72,6 +72,12 @@ export interface ResolvedTarget {
   postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;
   /** Department-labelled line memo carried from the matched account-map rule (see AccountMapRule.memo). */
   memo?: string | null;
+  /** Row's derived cost center (costCenterFor(home_department)); used by build-je to split lines. */
+  costCenter: string;
+  /** True when the matched rule was pooled (costCenter === '*'), so build-je splits this line by
+   *  cost center and suffixes the memo. False for a cost-center-specific rule (already dept-labelled;
+   *  memo used verbatim). This — NOT the presence of a memo — is the split discriminator. */
+  pooled: boolean;
 }
 
 /** One person who contributed dollars to an unmapped column — name for display, rowKey to

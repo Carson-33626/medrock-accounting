@@ -29,6 +29,8 @@ export function resolveLine(
     creditBucket: rule.creditBucket,
     isCogs: rule.isCogs,
     memo: rule.memo ?? null,
+    costCenter: cc,
+    pooled: rule.costCenter === '*',
   }));
   return { targets };
 }
