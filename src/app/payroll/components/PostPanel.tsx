@@ -27,10 +27,13 @@ interface PayrollHeader {
   row_count: number;
   qb_entry_id: string | null;
   qb_doc_number: string | null;
+  period_segment: string;
+  txn_date: string | null;
 }
 
 interface DraftResponse {
   header: PayrollHeader;
+  siblings: PayrollHeader[];
 }
 
 interface ReconcileResult {
@@ -44,6 +47,8 @@ interface ReconcileResult {
   unmappedPositions: string[];
   errors: string[];
   postable: boolean;
+  /** Present only when this run is genuinely split. */
+  split?: { siblings: PayrollHeader[]; original: { totalDebits: number; totalCredits: number } | null };
 }
 
 interface QbJournalEntryLineDetail {
@@ -79,6 +84,15 @@ interface ApiErrorBody {
   reconcile?: ReconcileResult;
 }
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'Jun' for '2026-06' (client-side mirror of split.ts pieceLabel — no server imports here). */
+function segmentLabel(segment: string): string {
+  const m = /^\d{4}-(\d{2})$/.exec(segment);
+  return m ? SHORT_MONTHS[Number(m[1]) - 1] : segment;
+}
+
 /**
  * Post panel: two-step, safety-critical posting flow for one draft header —
  *   1. Reconcile → shows postable + blockers.
@@ -101,6 +115,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const [headerIdInput, setHeaderIdInput] = useState<string>('');
   const [headerId, setHeaderId] = useState<number | null>(null);
   const [header, setHeader] = useState<PayrollHeader | null>(null);
+  const [siblings, setSiblings] = useState<PayrollHeader[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,11 +164,13 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         setHeader(body.header);
         setHeaderId(id);
+        setSiblings(body.siblings ?? []);
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to load draft';
         setError(message);
         setHeader(null);
         setHeaderId(null);
+        setSiblings([]);
       } finally {
         setLoading(false);
       }
@@ -264,6 +281,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       const body = (await res.json()) as { ok?: boolean } & ApiErrorBody;
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setHeader((prev) => (prev ? { ...prev, status: 'approved' } : prev));
+      setSiblings((prev) => prev.map((s) => ({ ...s, status: s.status === 'posted' ? 'posted' : 'approved' })));
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to approve draft';
       setApproveError(message);
@@ -272,12 +290,26 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     }
   }, [headerId]);
 
-  const canPostLive = headerId !== null && reconcileResult?.postable === true && header?.status === 'approved';
+  const isSplit = siblings.length > 1;
+  const splitOriginal = reconcileResult?.split?.original ?? null;
+  const combinedDebits = round2(siblings.reduce((s, p) => s + p.total_debits, 0));
+  const combinedCredits = round2(siblings.reduce((s, p) => s + p.total_credits, 0));
+  const splitVarianceBad = isSplit && splitOriginal !== null &&
+    (round2(combinedDebits - splitOriginal.totalDebits) !== 0 || round2(combinedCredits - splitOriginal.totalCredits) !== 0);
+
+  const canPostLive =
+    headerId !== null &&
+    reconcileResult?.postable === true &&
+    header?.status === 'approved' &&
+    !splitVarianceBad &&
+    (!isSplit || siblings.every((s) => s.status === 'approved' || s.status === 'posted'));
 
   const handlePostLive = useCallback(async () => {
     if (headerId === null || !canPostLive) return;
     const confirmed = window.confirm(
-      `This will POST a LIVE journal entry to QuickBooks for ${header?.entity ?? 'this entity'} (${header?.pay_date ?? ''}). This writes to the real general ledger and cannot be undone from here. Continue?`,
+      isSplit
+        ? `This will POST ${siblings.length} LIVE journal entries to QuickBooks for ${header?.entity ?? 'this entity'} (one per month piece). This writes to the real general ledger and cannot be undone from here. Continue?`
+        : `This will POST a LIVE journal entry to QuickBooks for ${header?.entity ?? 'this entity'} (${header?.pay_date ?? ''}). This writes to the real general ledger and cannot be undone from here. Continue?`,
     );
     if (!confirmed) return;
 
@@ -286,6 +318,37 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     setPostErrorReconcile(null);
     setLiveResult(null);
     try {
+      if (isSplit) {
+        const toPost = siblings.filter((s) => s.status !== 'posted');
+        const results: Array<{ id: number; ok: boolean; qbDocNumber?: string; error?: string }> = [];
+        for (const s of toPost) {
+          const res = await fetch('/api/payroll/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ headerId: s.id, mode: 'live' }),
+          });
+          const body = (await res.json()) as PostResult & ApiErrorBody;
+          if (!res.ok) {
+            results.push({ id: s.id, ok: false, error: body.error ?? `Request failed (${res.status})` });
+            break; // stop the pair — surface partial state loudly, don't keep posting
+          }
+          results.push({ id: s.id, ok: true, qbDocNumber: body.qbDocNumber });
+        }
+        const failed = results.find((r) => !r.ok);
+        if (failed) {
+          const postedOk = results.filter((r) => r.ok);
+          setPostError(
+            `PARTIAL SPLIT POST: ${postedOk.length}/${toPost.length} piece(s) posted (${postedOk.map((r) => r.qbDocNumber ?? r.id).join(', ')}) ` +
+              `then piece ${failed.id} FAILED: ${failed.error}. The months are misstated until the remaining piece posts — retry it from its card.`,
+          );
+        } else {
+          setLiveResult({ qbDocNumber: results.map((r) => r.qbDocNumber ?? '').join(' + ') });
+          setHeader((prev) => (prev ? { ...prev, status: 'posted' } : prev));
+          setSiblings((prev) => prev.map((s) => ({ ...s, status: 'posted' })));
+        }
+        return;
+      }
+
       const res = await fetch('/api/payroll/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -307,7 +370,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     } finally {
       setPosting(false);
     }
-  }, [headerId, canPostLive, header]);
+  }, [headerId, canPostLive, header, isSplit, siblings]);
 
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-4 border ${border}`}>
@@ -353,6 +416,16 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
             <StatusBadge darkMode={darkMode} status={header.status} />
           </div>
         )
+      )}
+
+      {isSplit && (
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${subText}`}>
+          {siblings.map((s) => (
+            <span key={s.id} className="flex items-center gap-1.5">
+              {segmentLabel(s.period_segment)} ({s.txn_date ?? s.pay_date}) <StatusBadge darkMode={darkMode} status={s.status} />
+            </span>
+          ))}
+        </div>
       )}
 
       {error && (
@@ -493,18 +566,27 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           {/* Step 3: Approve */}
           <div className={`rounded-lg border p-3 space-y-2 ${border}`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-sm font-semibold">3. Approve</p>
+              <p className="text-sm font-semibold">3. {isSplit ? 'Approve pair' : 'Approve'}</p>
               <button
                 onClick={() => void handleApprove()}
-                disabled={approving || header.status === 'approved' || header.status === 'posted'}
+                disabled={approving || header.status === 'approved' || header.status === 'posted' || splitVarianceBad}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 {approving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <ShieldCheck className="w-4 h-4" aria-hidden />}
-                {header.status === 'approved' || header.status === 'posted' ? 'Approved' : approving ? 'Approving…' : 'Approve'}
+                {header.status === 'approved' || header.status === 'posted' ? 'Approved' : approving ? 'Approving…' : isSplit ? 'Approve pair' : 'Approve'}
               </button>
             </div>
+            {isSplit && (
+              <p className={`text-xs ${subText}`}>Approves BOTH pieces of this split payroll — they post as a pair.</p>
+            )}
+            {splitVarianceBad && (
+              <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                Blocked: the split pieces no longer re-sum to the original payroll (see the grand summary above).
+              </p>
+            )}
             {approveError && (
               <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
                 <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
