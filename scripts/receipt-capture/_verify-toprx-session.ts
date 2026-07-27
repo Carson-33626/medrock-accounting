@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   for (const entity of ['FL', 'TN', 'TX'] as Entity[]) {
     const banner = await withTopRxPage(entity, async (page) => {
       const t = (await page.textContent('body')) ?? '';
-      const m = /Welcome,\s*([A-Z ]+)/.exec(t);
+      const m = /Welcome,\s*(.+?)(?=My account|My Orders|$)/.exec(t);
       return m ? m[1].trim() : '(no welcome banner)';
     });
     console.log(`${entity}: ${banner}`);
