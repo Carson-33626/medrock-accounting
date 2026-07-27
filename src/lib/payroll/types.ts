@@ -40,6 +40,9 @@ export interface JournalDraft {
   docNumber?: string;
   txnDate?: string;    // ISO YYYY-MM-DD
   privateNote?: string;
+  /** Month this piece expenses into ('YYYY-MM') when a straddling run was split into
+   *  sibling drafts. Absent / '' === the unsplit single-JE path (unchanged behavior). */
+  periodSegment?: string;
 }
 
 export interface AccountMapRule {
