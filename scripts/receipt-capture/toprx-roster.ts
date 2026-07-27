@@ -7,7 +7,8 @@
 //
 //   POST https://b2b.toprx.com/Order/CustomerOrderHistory
 //   body: take=<n>&skip=<n>&page=<n>&pageSize=<n>   (form-urlencoded)
-//   -> { Data: RosterRowRaw[], Total: number, ExtraData, Errors, CustomProperties }
+//   -> { Data: RosterRowRaw[], Total: number, ExtraData, Errors, CustomProperties } (the wire
+//      response also carries ExtraData/Errors — not modeled below since nothing here reads them)
 //
 // This is a clean, structured JSON source — far more robust than scraping the rendered
 // <table>, which additionally is NOT scoped to the order grid alone: the same page also
@@ -48,11 +49,11 @@ export interface RosterRowRaw {
   CustomProperties: Record<string, never>;
 }
 
+// ExtraData/Errors are present on the wire but never read here; TS doesn't require declaring
+// unused JSON properties, so they're intentionally omitted (zero any/unknown in source).
 interface CustomerOrderHistoryResponse {
   Data: RosterRowRaw[];
   Total: number;
-  ExtraData: unknown;
-  Errors: unknown;
   CustomProperties: Record<string, never>;
 }
 
