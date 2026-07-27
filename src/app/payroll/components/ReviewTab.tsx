@@ -170,6 +170,12 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   // not the original `headerId` prop, which stays fixed to the card that was clicked even as
   // sub-tab switches (and reconcile-triggered rebuilds) move `header`/`lines` to a different id.
   const currentPieceId = typeof activeId === 'number' ? activeId : headerId;
+  // Stale-response guard: bumped at the start of every loadDraft/handleSave/runReconcile call
+  // (and on any sub-tab switch, since switching always calls loadDraft/loadCombined). Each call
+  // captures its own token and skips applying state if a newer call has since superseded it —
+  // without this, an in-flight Save/Reconcile for piece A that resolves after the user has
+  // already switched to piece B would overwrite B's on-screen data with A's.
+  const requestSeqRef = useRef(0);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -202,6 +208,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   // and the balance updates. The server returns the refreshed draft in `rebuiltDraft`, which we
   // apply to `header`/`lines` so the on-screen JE matches what postability now sees.
   const runReconcile = useCallback(async (id: number, rebuild = false) => {
+    const token = ++requestSeqRef.current;
     setReconciling(true);
     setError(null);
     try {
@@ -211,6 +218,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         body: JSON.stringify({ headerId: id, rebuild }),
       });
       const body = (await res.json()) as ReconcileResult & { rebuiltDraft?: DraftResponse } & ApiErrorBody;
+      if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       if (body.rebuiltDraft) {
         const newHeader = body.rebuiltDraft.header;
@@ -226,6 +234,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           } else {
             try {
               const res2 = await fetch(`/api/payroll/run/${newHeader.id}`);
+              if (token !== requestSeqRef.current) return; // superseded mid-refetch
               if (res2.ok) {
                 const body2 = (await res2.json()) as DraftResponse;
                 setSiblings(body2.siblings);
@@ -239,11 +248,12 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
       setSplitInfo(body.split ? { original: body.split.original } : null);
       setReconcileResult(body);
     } catch (e) {
+      if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
       const message = e instanceof Error ? e.message : 'Failed to reconcile draft';
       setError(message);
       setReconcileResult(null);
     } finally {
-      setReconciling(false);
+      if (token === requestSeqRef.current) setReconciling(false);
     }
   }, []);
 
@@ -260,6 +270,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   const loadDraft = useCallback(
     async (id: number) => {
+      const token = ++requestSeqRef.current;
       setLoading(true);
       setError(null);
       setReconcileResult(null);
@@ -270,19 +281,21 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
       try {
         const res = await fetch(`/api/payroll/run/${id}`);
         const body = (await res.json()) as DraftResponse & ApiErrorBody;
+        if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         setHeader(body.header);
         setLines(body.lines.map(withKey));
         setSiblings(body.siblings);
         ok = true;
       } catch (e) {
+        if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
         const message = e instanceof Error ? e.message : 'Failed to load draft';
         setError(message);
         setHeader(null);
         setLines([]);
         setSiblings([]);
       } finally {
-        setLoading(false);
+        if (token === requestSeqRef.current) setLoading(false);
       }
       if (ok) {
         await Promise.all([runReconcile(id), loadRoster(id)]);
@@ -339,6 +352,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const sortedLines = useMemo(() => [...lines].sort(compareJournalLines), [lines]);
 
   const handleSave = useCallback(async () => {
+    const token = ++requestSeqRef.current;
     setSaving(true);
     setError(null);
     try {
@@ -348,15 +362,17 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         body: JSON.stringify({ lines: lines.map(stripKey) }),
       });
       const body = (await res.json()) as DraftResponse & ApiErrorBody;
+      if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setHeader(body.header);
       setLines(body.lines.map(withKey));
       setReconcileResult(null);
     } catch (e) {
+      if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
       const message = e instanceof Error ? e.message : 'Failed to save draft';
       setError(message);
     } finally {
-      setSaving(false);
+      if (token === requestSeqRef.current) setSaving(false);
     }
   }, [currentPieceId, lines]);
 
@@ -481,7 +497,13 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                 </button>
               ))}
               <button
-                onClick={() => { setActiveId('combined'); void loadCombined(); }}
+                onClick={() => {
+                  // Leaving a piece tab for Combined is the same class of navigation as switching
+                  // pieces — invalidate any in-flight Save/Reconcile for the piece being left.
+                  requestSeqRef.current += 1;
+                  setActiveId('combined');
+                  void loadCombined();
+                }}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
                   activeId === 'combined'
                     ? 'bg-blue-600 text-white'
@@ -710,7 +732,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           )}
 
           {activeId === 'combined' && (
-            <CombinedGrid lines={combinedLines} darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} />
+            <CombinedGrid lines={combinedLines} cardBg={cardBg} subText={subText} border={border} />
           )}
 
           {siblings.length > 1 && (
@@ -738,8 +760,8 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 /** Read-only merged view of every sibling piece — proves the pair re-sums to one payroll. */
-function CombinedGrid({ lines, darkMode, cardBg, subText, border }: {
-  lines: JournalLine[]; darkMode: boolean; cardBg: string; subText: string; border: string;
+function CombinedGrid({ lines, cardBg, subText, border }: {
+  lines: JournalLine[]; cardBg: string; subText: string; border: string;
 }) {
   const sorted = [...lines].sort(compareJournalLines);
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;

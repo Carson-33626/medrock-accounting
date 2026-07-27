@@ -320,7 +320,8 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     try {
       if (isSplit) {
         const toPost = siblings.filter((s) => s.status !== 'posted');
-        const results: Array<{ id: number; ok: boolean; qbDocNumber?: string; error?: string }> = [];
+        const pieceLabel = (s: PayrollHeader): string => `${segmentLabel(s.period_segment)} (${s.txn_date ?? s.pay_date})`;
+        const results: Array<{ label: string; ok: boolean; qbDocNumber?: string; error?: string }> = [];
         for (const s of toPost) {
           const res = await fetch('/api/payroll/post', {
             method: 'POST',
@@ -329,17 +330,17 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           });
           const body = (await res.json()) as PostResult & ApiErrorBody;
           if (!res.ok) {
-            results.push({ id: s.id, ok: false, error: body.error ?? `Request failed (${res.status})` });
+            results.push({ label: pieceLabel(s), ok: false, error: body.error ?? `Request failed (${res.status})` });
             break; // stop the pair — surface partial state loudly, don't keep posting
           }
-          results.push({ id: s.id, ok: true, qbDocNumber: body.qbDocNumber });
+          results.push({ label: pieceLabel(s), ok: true, qbDocNumber: body.qbDocNumber });
         }
         const failed = results.find((r) => !r.ok);
         if (failed) {
           const postedOk = results.filter((r) => r.ok);
           setPostError(
-            `PARTIAL SPLIT POST: ${postedOk.length}/${toPost.length} piece(s) posted (${postedOk.map((r) => r.qbDocNumber ?? r.id).join(', ')}) ` +
-              `then piece ${failed.id} FAILED: ${failed.error}. The months are misstated until the remaining piece posts — retry it from its card.`,
+            `PARTIAL SPLIT POST: ${postedOk.length}/${toPost.length} piece(s) posted (${postedOk.map((r) => `${r.label} → ${r.qbDocNumber ?? '—'}`).join(', ')}) ` +
+              `then piece ${failed.label} FAILED: ${failed.error}. The months are misstated until the remaining piece posts — retry it from its card.`,
           );
         } else {
           setLiveResult({ qbDocNumber: results.map((r) => r.qbDocNumber ?? '').join(' + ') });
