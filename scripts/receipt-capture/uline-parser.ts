@@ -149,28 +149,81 @@ function norm(s: string): string {
   return s.toUpperCase().replace(/\s+/g, ' ').trim();
 }
 
+// A short model code that's a literal prefix of a longer one (e.g. "S-8324" vs. "S-83245") will
+// both satisfy a plain `.includes()` check against an item whose real model is the longer one —
+// checking model containment alone is order-dependent on csvRows and can silently pick the wrong
+// (shorter) row. The character immediately after a match tells them apart in the common case: if
+// it's a digit, the "match" is actually a truncated prefix of a longer numeric run, so it's not
+// trustworthy on its own. This is used only as a tiebreak, not as a hard filter — ULINE glues the
+// following DESCRIPTION word directly onto the model with no separator (e.g. "S-21504FOLDING
+// TABLE"), so a letter immediately after the match is a normal, valid glued match, not a red flag.
+function modelBoundaryOk(descUpper: string, model: string): boolean {
+  const idx = descUpper.indexOf(model);
+  if (idx === -1) return false;
+  const nextChar = descUpper[idx + model.length];
+  return nextChar === undefined || !/[0-9]/.test(nextChar);
+}
+
+// Picks the CSV row whose model number is the LONGEST substring match in the item's description.
+// Longest-match-wins deterministically resolves the prefix-collision case above regardless of
+// which row happens to come first in csvRows; the boundary check above only breaks ties between
+// two matches of equal length.
+function longestModelMatch(descUpper: string, csvRows: UlineCsvRow[]): UlineCsvRow | null {
+  let best: UlineCsvRow | null = null;
+  let bestLen = 0;
+  let bestBoundaryOk = false;
+  for (const r of csvRows) {
+    const model = norm(r.model);
+    if (model === '' || !descUpper.includes(model)) continue;
+    const boundaryOk = modelBoundaryOk(descUpper, model);
+    if (model.length > bestLen || (model.length === bestLen && boundaryOk && !bestBoundaryOk)) {
+      best = r;
+      bestLen = model.length;
+      bestBoundaryOk = boundaryOk;
+    }
+  }
+  return best;
+}
+
+// Fallback for items with no model match: for each CSV row, finds the longest prefix of its
+// (whitespace-collapsed, uppercased) description that appears verbatim in the item's description,
+// then keeps the row with the longest such match (at least MIN_DESC_PREFIX_LEN chars). Same
+// longest-match-wins reasoning as the model pass — a short, generic description shouldn't
+// out-rank a longer, more specific one that also matches. The scan can stop at the first length
+// that fails to match, since containment of a longer prefix implies containment of every shorter
+// prefix of it (monotonic).
+function longestDescPrefixMatch(descUpper: string, csvRows: UlineCsvRow[]): UlineCsvRow | null {
+  let best: UlineCsvRow | null = null;
+  let bestLen = 0;
+  for (const r of csvRows) {
+    const rowDesc = norm(r.description);
+    let matchedLen = 0;
+    for (let len = MIN_DESC_PREFIX_LEN; len <= rowDesc.length; len++) {
+      if (!descUpper.includes(rowDesc.slice(0, len))) break;
+      matchedLen = len;
+    }
+    if (matchedLen > bestLen) { best = r; bestLen = matchedLen; }
+  }
+  return best;
+}
+
 // Pure — never mutates `parsed`. Categories are attached in two passes:
-//  1. Model-number match: does the invoice item's description contain the CSV row's model number
-//     as a substring? (Not strict equality — the invoice text glues the model number directly onto
+//  1. Model-number match: does the invoice item's description contain a CSV row's model number as
+//     a substring? (Not strict equality — the invoice text glues the model number directly onto
 //     the following description with no separator, e.g. "S-24309AGRADUATED GLASS...", so the model
-//     is a prefix/substring of item.desc rather than an isolands token in it.)
-//  2. Fallback: case-insensitive description-prefix match — does the item's (whitespace-collapsed)
-//     description contain the CSV row's description's leading characters?
+//     is a prefix/substring of item.desc rather than an isolated token in it.) Longest match wins
+//     across all candidate rows to avoid a short model code being mistaken for a prefix of a
+//     longer one that's actually present (see longestModelMatch).
+//  2. Fallback: case-insensitive description-prefix match, also longest-match-wins.
 // Items with no match keep category: null.
 export function enrichCategories(parsed: VendorParsed, csvRows: UlineCsvRow[]): VendorParsed {
   const items: VendorItem[] = parsed.items.map((item) => {
     const descUpper = norm(item.desc);
 
-    const byModel = csvRows.find((r) => {
-      const model = norm(r.model);
-      return model !== '' && descUpper.includes(model);
-    });
+    const byModel = longestModelMatch(descUpper, csvRows);
     if (byModel) return { ...item, category: byModel.category };
 
-    const byDescPrefix = csvRows.find((r) => {
-      const prefix = norm(r.description).slice(0, MIN_DESC_PREFIX_LEN);
-      return prefix.length >= MIN_DESC_PREFIX_LEN && descUpper.includes(prefix);
-    });
+    const byDescPrefix = longestDescPrefixMatch(descUpper, csvRows);
     if (byDescPrefix) return { ...item, category: byDescPrefix.category };
 
     return item;
