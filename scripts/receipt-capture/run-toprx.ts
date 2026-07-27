@@ -75,6 +75,41 @@ function matchTopRxOrders(cached: ExtractedOrder[], worklist: RampTxn[], windowD
   };
 }
 
+// Collision guard: matchOrders (and the two-pass wrapper above it) only ever sees orders that are
+// reachable through the Ramp worklist — and the worklist itself only contains txns still missing
+// a receipt. So if a DIFFERENT order for this entity already has its receipt attached, that
+// order's Ramp charge is invisible to the worklist, and the matcher never learns it exists. If
+// that invisible order happens to share the same total (within the match window) as the order
+// actually being matched here, the matcher confidently pairs the one visible txn with whichever
+// order it saw first — and the reconcile gate can't catch this, because the amounts match by
+// construction (matching itself selected on amount equality). Guard against it by checking the
+// FULL entity cache (store.all(), not just the worklist-reachable subset already fed to
+// matchTopRxOrders) for a same-total competitor before trusting any confident match.
+function daysBetween(a: string, b: string): number {
+  const ms = Math.abs(new Date(a + 'T00:00:00Z').getTime() - new Date(b + 'T00:00:00Z').getTime());
+  return Math.round(ms / 86400000);
+}
+
+function hasSameTotalCompetitor(
+  allOrders: ExtractedOrder[],
+  matchedOrderId: string,
+  matchedBy: 'parsed' | 'roster',
+  txnDate: string,
+  windowDays: number,
+): boolean {
+  // matchedBy tells us which total field this order was matched on ('parsed' pass compares
+  // parsedTotalCents, the 'roster' fallback pass compares the roster grid's totalCents) — the
+  // competitor check has to compare on that same field, or it isn't checking what the matcher saw.
+  const totalOf = (o: ExtractedOrder): number => (matchedBy === 'parsed' ? o.parsedTotalCents : o.totalCents);
+  const target = allOrders.find((o) => o.orderId === matchedOrderId);
+  if (!target) return false;
+  const targetTotal = totalOf(target);
+  return allOrders.some((o) =>
+    o.orderId !== matchedOrderId &&
+    totalOf(o) === targetTotal &&
+    daysBetween(o.date, txnDate) <= windowDays);
+}
+
 interface Args { entities: Entity[]; since: string; live: boolean; limit: number }
 
 function parseArgs(): Args {
@@ -227,10 +262,25 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
 
   let reconciled = 0;
   let liveWrites = 0;
+  let collisions = 0;
+  const fullCache = store.all();
   for (const m of match.confident) {
     const rec = store.get(m.order.orderId)!;
     const invoiceNumber = invoiceByOrderId.get(m.order.orderId) ?? null;
     const invoiceKey = invoiceNumber ?? m.order.orderId;
+
+    if (hasSameTotalCompetitor(fullCache, m.order.orderId, m.matchedBy, m.txn.date, MATCH_WINDOW_DAYS)) {
+      collisions++;
+      rows.push({
+        orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
+        amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles: null, codedLines: null, suspenseLines: null,
+        memo: null, receiptFilename: null, plannedActions: 'skip', mode: 'dry_run', notes: 'same_total_collision',
+      });
+      // No audit row here even in --live: this never reaches the live branch below, by design —
+      // a collision is never a candidate for action, so there is nothing for the audit trail to record.
+      continue;
+    }
+
     const reconciles = rec.parsedTotalCents === m.txn.amountCents;
     if (reconciles) reconciled++;
 
@@ -288,7 +338,8 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
       orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
       amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles, codedLines: built?.codedCount ?? null,
       suspenseLines: built?.suspenseCount ?? null, memo, receiptFilename,
-      plannedActions, mode, notes: mode === 'dry_run' && args.live ? 'over_limit' : notes,
+      plannedActions, mode,
+      notes: mode === 'dry_run' && args.live ? (notes ? `${notes}; over_limit` : 'over_limit') : notes,
     });
   }
 
@@ -298,7 +349,8 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
 
   const byParsed = match.confident.filter((m) => m.matchedBy === 'parsed').length;
   const byRoster = match.confident.filter((m) => m.matchedBy === 'roster').length;
-  console.log(`[${entity}] roster=${roster.length} extracted=+${fetched} parseFailures=${parseFailures} cached=${store.all().length} | matched=${match.confident.length} (parsed-total=${byParsed}, roster-total-fallback=${byRoster}) ambiguous=${match.ambiguous.length} unmatched=${match.unmatched.length} | reconciled=${reconciled}/${match.confident.length} | ${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`);
+  const matched = match.confident.length - collisions;
+  console.log(`[${entity}] roster=${roster.length} extracted=+${fetched} parseFailures=${parseFailures} cached=${store.all().length} | matched=${matched} (parsed-total=${byParsed}, roster-total-fallback=${byRoster}) ambiguous=${match.ambiguous.length + collisions} (same_total_collision=${collisions}) unmatched=${match.unmatched.length} | reconciled=${reconciled}/${matched} | ${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`);
   console.log(`[${entity}] wrote ${planPath} (${rows.length} rows), cache ${cachePath}`);
 }
 
