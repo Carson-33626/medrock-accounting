@@ -73,6 +73,21 @@ function hasSameTotalCompetitor(
 
 interface Args { entity: Entity; since: string; live: boolean; limit: number; csvPath: string | null; windowDays: number }
 
+// An explicit `--limit 0` (or `--window 0`) must be respected, not collapsed to the default —
+// `Number(raw ?? def) || def` treats 0 as falsy and silently substitutes the default, which on a
+// --live run means writes the operator explicitly tried to suppress. Only absence of the flag or
+// a non-numeric value falls back to `def`; negative values are clamped/rejected per `negativePolicy`.
+function parseNumericFlag(flagName: string, raw: string | null, def: number, negativePolicy: 'clamp' | 'reject'): number {
+  if (raw === null) return def;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return def;
+  if (n < 0) {
+    if (negativePolicy === 'reject') throw new Error(`${flagName} must be >= 0, got ${raw}`);
+    return 0;
+  }
+  return n;
+}
+
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
   const get = (flag: string): string | null => {
@@ -89,7 +104,7 @@ function parseArgs(): Args {
   }
   if (!ALL_ENTITIES.includes(entityArg as Entity)) throw new Error(`Unknown --entity ${entityArg} (expected FL, TN, or TX)`);
 
-  const windowDays = Number(get('--window') ?? String(DEFAULT_WINDOW_DAYS)) || DEFAULT_WINDOW_DAYS;
+  const windowDays = parseNumericFlag('--window', get('--window'), DEFAULT_WINDOW_DAYS, 'reject');
   if (windowDays > WINDOW_CONFIRM_THRESHOLD) {
     console.warn(`[warn] --window=${windowDays} exceeds the ${WINDOW_CONFIRM_THRESHOLD}-day cap agreed for ULINE dry-runs — confirm with the team lead before trusting these matches.`);
   }
@@ -98,7 +113,7 @@ function parseArgs(): Args {
     entity: entityArg as Entity,
     since: get('--since') ?? '2025-09-01',
     live: argv.includes('--live'),
-    limit: Number(get('--limit') ?? '5') || 5,
+    limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
     csvPath: get('--csv'),
     windowDays,
   };
@@ -236,6 +251,7 @@ interface PlanRow {
   txnId: string;
   txnDate: string;
   amountCents: number;
+  cardHolder: string | null;
   dateGapDays: number | null;
   reconciles: boolean | null;
   codedLines: number | null;
@@ -260,7 +276,7 @@ function planRowLine(r: PlanRow): string {
     r.reconciles === null ? '' : (r.reconciles ? 'Y' : 'N'),
     r.codedLines === null ? '' : String(r.codedLines),
     r.suspenseLines === null ? '' : String(r.suspenseLines),
-    r.memo ?? '', r.receiptFilename ?? '', r.plannedActions, r.mode, r.notes,
+    r.memo ?? '', r.receiptFilename ?? '', r.plannedActions, r.mode, r.notes, r.cardHolder ?? '',
   ].map(csv).join(',');
 }
 
@@ -268,7 +284,7 @@ function skipRow(o: WalmartOrder, orderNumberByInvoice: Map<string, string>, not
   return {
     invoiceNumber: o.orderId,
     orderNumber: orderNumberByInvoice.get(o.orderId) ?? o.orderId,
-    txnId: '', txnDate: '', amountCents: o.totalCents, dateGapDays: null, reconciles: null,
+    txnId: '', txnDate: '', amountCents: o.totalCents, cardHolder: null, dateGapDays: null, reconciles: null,
     codedLines: null, suspenseLines: null, memo: null, receiptFilename: null,
     plannedActions: 'skip', mode: 'dry_run', notes,
   };
@@ -318,6 +334,18 @@ async function extractEntity(
       let parsed = parseUlineInvoice(parsedPdf.text);
       if (!parsed) {
         console.error(`  [${entity}] ${inv.invoiceNumber}: invoice text did not parse — skipping`);
+        parseFailures++;
+        continue;
+      }
+      // Wrong-document guard: a timed-out fetch attempt can keep driving the shared ULINE page in
+      // the background, and its late-arriving download can land under the NEXT invoice's loop
+      // iteration/cache key. parsed.order (the invoice number printed IN the PDF) is the ground
+      // truth for which invoice this download actually is — if it disagrees with the invoice we
+      // asked for, this is a misattributed fetch, not a parse failure of THIS invoice, so it must
+      // not be cached under inv.invoiceNumber. (TopRx does not get this same check: multi-invoice
+      // orders there make strict order<->invoice equality a false positive.)
+      if (parsed.order !== null && parsed.order !== inv.invoiceNumber) {
+        console.error(`  [${entity}] ${inv.invoiceNumber}: invoice_number_mismatch expected=${inv.invoiceNumber} got=${parsed.order}`);
         parseFailures++;
         continue;
       }
@@ -386,12 +414,14 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
     const rec = store.get(m.order.orderId)!;
     const invoiceNumber = m.order.orderId;
     const orderNumber = orderNumberByInvoice.get(invoiceNumber) ?? invoiceNumber;
+    const priorMemo = m.txn.memo;
+    const priorLineItems = m.txn.priorLineItems == null ? '' : JSON.stringify(m.txn.priorLineItems);
 
     if (hasSameTotalCompetitor(fullCache, invoiceNumber, m.txn.date, args.windowDays)) {
       collisions++;
       rows.push({
         invoiceNumber, orderNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, dateGapDays: null, reconciles: null, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, dateGapDays: null, reconciles: null, codedLines: null, suspenseLines: null,
         memo: null, receiptFilename: null, plannedActions: 'skip', mode: 'dry_run', notes: 'same_total_collision',
       });
       // No audit row here even in --live, same reasoning as run-toprx.ts: a collision never
@@ -415,19 +445,19 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
     if (!reconciles) {
       rows.push({
         invoiceNumber, orderNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, dateGapDays: gap, reconciles, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, dateGapDays: gap, reconciles, codedLines: null, suspenseLines: null,
         memo, receiptFilename, plannedActions: 'skip', mode: 'dry_run', notes: 'no_reconcile: parsedTotalCents != txn.amountCents',
       });
-      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'no_reconcile' });
+      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'no_reconcile', priorMemo, priorLineItems });
       continue;
     }
     if (!m.txn.userId) {
       rows.push({
         invoiceNumber, orderNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, dateGapDays: gap, reconciles, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, dateGapDays: gap, reconciles, codedLines: null, suspenseLines: null,
         memo, receiptFilename, plannedActions: 'skip', mode: 'dry_run', notes: 'missing_user_id',
       });
-      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'missing userId; receipts require it' });
+      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'missing userId; receipts require it', priorMemo, priorLineItems });
       continue;
     }
 
@@ -441,37 +471,54 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
     if (executeLive) {
       const pdfBuf = readFileSync(rec.pdfPath);
       const att = await attachReceipt(entity, m.txn.id, pdfBuf, receiptFilename, token, m.txn.userId, idempotencyKey);
-      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'attach_receipt', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: att.status, detail: JSON.stringify(att.body).slice(0, 500) });
+      const attachOk = att.status >= 200 && att.status < 300;
+      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: attachOk ? 'attach_receipt' : 'error', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: att.status, detail: JSON.stringify(att.body).slice(0, 500), priorMemo, priorLineItems });
 
-      const memoRes = await patchMemo(entity, m.txn.id, memo, token);
-      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'memo', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: memoRes.status, detail: JSON.stringify(memoRes.body).slice(0, 500) });
+      if (attachOk) {
+        const memoRes = await patchMemo(entity, m.txn.id, memo, token);
+        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'memo', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: memoRes.status, detail: JSON.stringify(memoRes.body).slice(0, 500), priorMemo, priorLineItems });
 
-      if (built) {
-        const splitRes = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token);
-        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'split', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: splitRes.status, detail: JSON.stringify(splitRes.body).slice(0, 500) });
-      } else {
-        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'split_build_failed (receipt+memo still applied)' });
+        if (built) {
+          const splitRes = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token);
+          appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'split', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: splitRes.status, detail: JSON.stringify(splitRes.body).slice(0, 500), priorMemo, priorLineItems });
+        } else {
+          appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey: invoiceNumber, amountCents: m.txn.amountCents, status: null, detail: 'split_build_failed (receipt+memo still applied)', priorMemo, priorLineItems });
+        }
       }
+      // A failed attach short-circuits memo/split for this txn — there's nothing receipted to hang
+      // a memo/split off of. Still counts against liveWrites (comment, not a behavior change from
+      // before): a failed attach still consumed this run's write attempt, so the cap stays
+      // conservative rather than letting a string of failures loop past --limit within one invocation.
       liveWrites++;
     }
 
     rows.push({
       invoiceNumber, orderNumber, txnId: m.txn.id, txnDate: m.txn.date,
-      amountCents: m.txn.amountCents, dateGapDays: gap, reconciles, codedLines: built?.codedCount ?? null,
+      amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, dateGapDays: gap, reconciles, codedLines: built?.codedCount ?? null,
       suspenseLines: built?.suspenseCount ?? null, memo, receiptFilename,
       plannedActions, mode,
       notes: mode === 'dry_run' && args.live ? (notes ? `${notes}; over_limit` : 'over_limit') : notes,
     });
   }
 
+  const matchedTxnIds = new Set(match.confident.map((m) => m.txn.id));
+  const noInvoiceMatchTxns = worklist.filter((t) => !matchedTxnIds.has(t.id));
+  for (const t of noInvoiceMatchTxns) {
+    rows.push({
+      invoiceNumber: '', orderNumber: '', txnId: t.id, txnDate: t.date, amountCents: t.amountCents,
+      cardHolder: t.cardHolder, dateGapDays: null, reconciles: null, codedLines: null, suspenseLines: null,
+      memo: null, receiptFilename: null, plannedActions: 'skip', mode: 'dry_run', notes: 'no_invoice_match',
+    });
+  }
+
   const planPath = `${OUT}/uline-plan-${entity}.csv`;
-  const header = 'invoice_number,order_number,txn_id,txn_date,amount,date_gap_days,reconciles,coded_lines,suspense_lines,memo,receipt_filename,planned_actions,mode,notes';
+  const header = 'invoice_number,order_number,txn_id,txn_date,amount,date_gap_days,reconciles,coded_lines,suspense_lines,memo,receipt_filename,planned_actions,mode,notes,cardholder';
   writeFileSync(planPath, [header, ...rows.map(planRowLine)].join('\n') + '\n');
 
   const matched = match.confident.length - collisions;
   console.log(
     `[${entity}] roster=${roster.length} extracted=+${fetched} parseFailures=${parseFailures} pdfFailures=${pdfFailures} cached=${store.all().length} | ` +
-    `matched=${matched} ambiguous=${match.ambiguous.length + collisions} (same_total_collision=${collisions}) unmatched=${match.unmatched.length} | ` +
+    `matched=${matched} ambiguous=${match.ambiguous.length + collisions} (same_total_collision=${collisions}) unmatched=${match.unmatched.length} noInvoiceMatch=${noInvoiceMatchTxns.length} | ` +
     `reconciled=${reconciled}/${matched} | window=${args.windowDays}d date-gap(days): ${gapDistribution(gaps)} | ` +
     `${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`,
   );

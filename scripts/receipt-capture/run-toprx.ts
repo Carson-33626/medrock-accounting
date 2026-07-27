@@ -112,6 +112,21 @@ function hasSameTotalCompetitor(
 
 interface Args { entities: Entity[]; since: string; live: boolean; limit: number }
 
+// An explicit `--limit 0` must be respected (zero live writes), not collapsed to the default —
+// `Number(raw ?? '5') || 5` treats 0 as falsy and silently substitutes 5, which on a --live run
+// means writes the operator explicitly tried to suppress. Only absence of the flag or a
+// non-numeric value falls back to `def`; negative values are clamped/rejected per `negativePolicy`.
+function parseNumericFlag(flagName: string, raw: string | null, def: number, negativePolicy: 'clamp' | 'reject'): number {
+  if (raw === null) return def;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return def;
+  if (n < 0) {
+    if (negativePolicy === 'reject') throw new Error(`${flagName} must be >= 0, got ${raw}`);
+    return 0;
+  }
+  return n;
+}
+
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
   const get = (flag: string): string | null => {
@@ -129,7 +144,7 @@ function parseArgs(): Args {
     entities,
     since: get('--since') ?? '2025-09-01',
     live: argv.includes('--live'),
-    limit: Number(get('--limit') ?? '5') || 5,
+    limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
   };
 }
 
@@ -158,6 +173,7 @@ interface PlanRow {
   txnId: string;
   txnDate: string;
   amountCents: number;
+  cardHolder: string | null;
   matchedBy: 'parsed' | 'roster' | null;
   reconciles: boolean | null;
   codedLines: number | null;
@@ -177,7 +193,7 @@ function planRowLine(r: PlanRow): string {
     r.reconciles === null ? '' : (r.reconciles ? 'Y' : 'N'),
     r.codedLines === null ? '' : String(r.codedLines),
     r.suspenseLines === null ? '' : String(r.suspenseLines),
-    r.memo ?? '', r.receiptFilename ?? '', r.plannedActions, r.mode, r.notes,
+    r.memo ?? '', r.receiptFilename ?? '', r.plannedActions, r.mode, r.notes, r.cardHolder ?? '',
   ].map(csv).join(',');
 }
 
@@ -246,7 +262,7 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
   for (const o of match.ambiguous) {
     rows.push({
       orderId: o.orderId, invoiceNumber: invoiceByOrderId.get(o.orderId) ?? null,
-      txnId: '', txnDate: '', amountCents: o.totalCents, matchedBy: null, reconciles: null,
+      txnId: '', txnDate: '', amountCents: o.totalCents, cardHolder: null, matchedBy: null, reconciles: null,
       codedLines: null, suspenseLines: null, memo: null, receiptFilename: null,
       plannedActions: 'skip', mode: 'dry_run', notes: 'ambiguous_match',
     });
@@ -254,7 +270,7 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
   for (const o of match.unmatched) {
     rows.push({
       orderId: o.orderId, invoiceNumber: invoiceByOrderId.get(o.orderId) ?? null,
-      txnId: '', txnDate: '', amountCents: o.totalCents, matchedBy: null, reconciles: null,
+      txnId: '', txnDate: '', amountCents: o.totalCents, cardHolder: null, matchedBy: null, reconciles: null,
       codedLines: null, suspenseLines: null, memo: null, receiptFilename: null,
       plannedActions: 'skip', mode: 'dry_run', notes: 'no_ramp_match',
     });
@@ -263,21 +279,43 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
   let reconciled = 0;
   let liveWrites = 0;
   let collisions = 0;
+  let rosterGated = 0;
   const fullCache = store.all();
   for (const m of match.confident) {
     const rec = store.get(m.order.orderId)!;
     const invoiceNumber = invoiceByOrderId.get(m.order.orderId) ?? null;
     const invoiceKey = invoiceNumber ?? m.order.orderId;
+    const priorMemo = m.txn.memo;
+    const priorLineItems = m.txn.priorLineItems == null ? '' : JSON.stringify(m.txn.priorLineItems);
 
     if (hasSameTotalCompetitor(fullCache, m.order.orderId, m.matchedBy, m.txn.date, MATCH_WINDOW_DAYS)) {
       collisions++;
       rows.push({
         orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles: null, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, matchedBy: m.matchedBy, reconciles: null, codedLines: null, suspenseLines: null,
         memo: null, receiptFilename: null, plannedActions: 'skip', mode: 'dry_run', notes: 'same_total_collision',
       });
       // No audit row here even in --live: this never reaches the live branch below, by design —
       // a collision is never a candidate for action, so there is nothing for the audit trail to record.
+      continue;
+    }
+
+    // Structural gate: a 'roster' match means the invoice PDF we captured does NOT reconcile with
+    // the parsed-total pass (that's why it fell through to the roster-grid-total fallback pass in
+    // the first place) — per the README, these are always manual review, never live-actioned. Gate
+    // on matchedBy alone, not on `reconciles`, so a rare coincidental reconcile can't sneak a
+    // roster match into the live branch below.
+    if (m.matchedBy !== 'parsed') {
+      rosterGated++;
+      const reconciles = rec.parsedTotalCents === m.txn.amountCents;
+      const memo = `TopRx invoice #${invoiceKey}, order #${m.order.orderId} (auto-captured)`;
+      const receiptFilename = `TopRx-invoice-${invoiceKey}.pdf`;
+      rows.push({
+        orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, matchedBy: m.matchedBy, reconciles, codedLines: null, suspenseLines: null,
+        memo, receiptFilename, plannedActions: 'skip', mode: 'dry_run', notes: 'roster_match_manual_review',
+      });
+      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: 'roster_match_manual_review', priorMemo, priorLineItems });
       continue;
     }
 
@@ -289,24 +327,22 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
     const idempotencyKey = `rcpcap-toprx-${m.txn.id}`;
 
     if (!reconciles) {
-      const notes = m.matchedBy === 'roster'
-        ? 'no_reconcile: matched via roster grid total, but parsed invoice PDF disagrees — likely a partial/split-shipment invoice; needs manual invoice review'
-        : 'no_reconcile: parsedTotalCents != txn.amountCents';
+      const notes = 'no_reconcile: parsedTotalCents != txn.amountCents';
       rows.push({
         orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, matchedBy: m.matchedBy, reconciles, codedLines: null, suspenseLines: null,
         memo, receiptFilename, plannedActions: 'skip', mode: 'dry_run', notes,
       });
-      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: notes });
+      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: notes, priorMemo, priorLineItems });
       continue;
     }
     if (!m.txn.userId) {
       rows.push({
         orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
-        amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles, codedLines: null, suspenseLines: null,
+        amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, matchedBy: m.matchedBy, reconciles, codedLines: null, suspenseLines: null,
         memo, receiptFilename, plannedActions: 'skip', mode: 'dry_run', notes: 'missing_user_id',
       });
-      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: 'missing userId; receipts require it' });
+      if (args.live) appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: 'missing userId; receipts require it', priorMemo, priorLineItems });
       continue;
     }
 
@@ -320,37 +356,55 @@ async function runEntity(entity: Entity, args: Args, runId: string): Promise<voi
     if (executeLive) {
       const pdfBuf = readFileSync(rec.pdfPath);
       const att = await attachReceipt(entity, m.txn.id, pdfBuf, receiptFilename, token, m.txn.userId, idempotencyKey);
-      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'attach_receipt', invoiceKey, amountCents: m.txn.amountCents, status: att.status, detail: JSON.stringify(att.body).slice(0, 500) });
+      const attachOk = att.status >= 200 && att.status < 300;
+      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: attachOk ? 'attach_receipt' : 'error', invoiceKey, amountCents: m.txn.amountCents, status: att.status, detail: JSON.stringify(att.body).slice(0, 500), priorMemo, priorLineItems });
 
-      const memoRes = await patchMemo(entity, m.txn.id, memo, token);
-      appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'memo', invoiceKey, amountCents: m.txn.amountCents, status: memoRes.status, detail: JSON.stringify(memoRes.body).slice(0, 500) });
+      if (attachOk) {
+        const memoRes = await patchMemo(entity, m.txn.id, memo, token);
+        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'memo', invoiceKey, amountCents: m.txn.amountCents, status: memoRes.status, detail: JSON.stringify(memoRes.body).slice(0, 500), priorMemo, priorLineItems });
 
-      if (built) {
-        const splitRes = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token);
-        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'split', invoiceKey, amountCents: m.txn.amountCents, status: splitRes.status, detail: JSON.stringify(splitRes.body).slice(0, 500) });
-      } else {
-        appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: 'split_build_failed (receipt+memo still applied)' });
+        if (built) {
+          const splitRes = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token);
+          appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'split', invoiceKey, amountCents: m.txn.amountCents, status: splitRes.status, detail: JSON.stringify(splitRes.body).slice(0, 500), priorMemo, priorLineItems });
+        } else {
+          appendAudit(AUDIT_PATH, { runId, mode: 'live', vendor: VENDOR, entity, txnId: m.txn.id, action: 'skip', invoiceKey, amountCents: m.txn.amountCents, status: null, detail: 'split_build_failed (receipt+memo still applied)', priorMemo, priorLineItems });
+        }
       }
+      // A failed attach short-circuits memo/split for this txn — there's nothing receipted to hang
+      // a memo/split off of, and retrying blind against a txn whose attach just failed isn't safe.
+      // Still counts against liveWrites (comment, not a behavior change from before): a failed
+      // attach still consumed this run's write attempt, so the cap stays conservative rather than
+      // letting a string of failures loop past --limit within one invocation.
       liveWrites++;
     }
 
     rows.push({
       orderId: m.order.orderId, invoiceNumber, txnId: m.txn.id, txnDate: m.txn.date,
-      amountCents: m.txn.amountCents, matchedBy: m.matchedBy, reconciles, codedLines: built?.codedCount ?? null,
+      amountCents: m.txn.amountCents, cardHolder: m.txn.cardHolder, matchedBy: m.matchedBy, reconciles, codedLines: built?.codedCount ?? null,
       suspenseLines: built?.suspenseCount ?? null, memo, receiptFilename,
       plannedActions, mode,
       notes: mode === 'dry_run' && args.live ? (notes ? `${notes}; over_limit` : 'over_limit') : notes,
     });
   }
 
+  const matchedTxnIds = new Set(match.confident.map((m) => m.txn.id));
+  const noInvoiceMatchTxns = worklist.filter((t) => !matchedTxnIds.has(t.id));
+  for (const t of noInvoiceMatchTxns) {
+    rows.push({
+      orderId: '', invoiceNumber: null, txnId: t.id, txnDate: t.date, amountCents: t.amountCents,
+      cardHolder: t.cardHolder, matchedBy: null, reconciles: null, codedLines: null, suspenseLines: null,
+      memo: null, receiptFilename: null, plannedActions: 'skip', mode: 'dry_run', notes: 'no_invoice_match',
+    });
+  }
+
   const planPath = `${OUT}/toprx-plan-${entity}.csv`;
-  const header = 'order_id,invoice_number,txn_id,txn_date,amount,matched_by,reconciles,coded_lines,suspense_lines,memo,receipt_filename,planned_actions,mode,notes';
+  const header = 'order_id,invoice_number,txn_id,txn_date,amount,matched_by,reconciles,coded_lines,suspense_lines,memo,receipt_filename,planned_actions,mode,notes,cardholder';
   writeFileSync(planPath, [header, ...rows.map(planRowLine)].join('\n') + '\n');
 
   const byParsed = match.confident.filter((m) => m.matchedBy === 'parsed').length;
   const byRoster = match.confident.filter((m) => m.matchedBy === 'roster').length;
-  const matched = match.confident.length - collisions;
-  console.log(`[${entity}] roster=${roster.length} extracted=+${fetched} parseFailures=${parseFailures} cached=${store.all().length} | matched=${matched} (parsed-total=${byParsed}, roster-total-fallback=${byRoster}) ambiguous=${match.ambiguous.length + collisions} (same_total_collision=${collisions}) unmatched=${match.unmatched.length} | reconciled=${reconciled}/${matched} | ${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`);
+  const matched = match.confident.length - collisions - rosterGated;
+  console.log(`[${entity}] roster=${roster.length} extracted=+${fetched} parseFailures=${parseFailures} cached=${store.all().length} | matched=${matched} (parsed-total=${byParsed}, roster-total-fallback=${byRoster}, roster-gated=${rosterGated}) ambiguous=${match.ambiguous.length + collisions} (same_total_collision=${collisions}) unmatched=${match.unmatched.length} noInvoiceMatch=${noInvoiceMatchTxns.length} | reconciled=${reconciled}/${matched} | ${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`);
   console.log(`[${entity}] wrote ${planPath} (${rows.length} rows), cache ${cachePath}`);
 }
 
