@@ -50,6 +50,11 @@ scripts/amazon-enrich/out/
 # walmart-enrich persisted login session (auth cookies — never commit)
 scripts/walmart-enrich/.wm-session/
 
+# receipt-capture state/output (auth sessions, screenshots, PII-bearing output)
+scripts/receipt-capture/.state/
+scripts/receipt-capture/.probe-shots/
+scripts/receipt-capture/out/
+
 .vercel
 .env*
 !.env.example
