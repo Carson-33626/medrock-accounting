@@ -162,6 +162,12 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const [lines, setLines] = useState<Array<JournalLine & { _key: number }>>([]);
 
   const [siblings, setSiblings] = useState<PayrollHeader[]>([]);
+  // Mirror of `siblings` for reading inside runReconcile's stable (`[]` deps) closure — a plain
+  // closure over `siblings` there would be frozen at its initial (empty) value forever.
+  const siblingsRef = useRef<PayrollHeader[]>([]);
+  useEffect(() => {
+    siblingsRef.current = siblings;
+  }, [siblings]);
   // The piece being viewed/edited. 'combined' renders the read-only merged view.
   const [activeId, setActiveId] = useState<number | 'combined'>(headerId);
   const [combinedLines, setCombinedLines] = useState<JournalLine[]>([]);
@@ -220,8 +226,10 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
       const body = (await res.json()) as ReconcileResult & { rebuiltDraft?: DraftResponse } & ApiErrorBody;
       if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      let rebuiltId: number | null = null;
       if (body.rebuiltDraft) {
         const newHeader = body.rebuiltDraft.header;
+        rebuiltId = newHeader.id;
         setHeader(newHeader);
         setLines(body.rebuiltDraft.lines.map(withKey));
         // A rebuild can replace the header when its split-state changed — the id we requested
@@ -229,20 +237,30 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         // saves/reconciles (and the sub-tab bar) target the right row.
         if (newHeader.id !== id) {
           setActiveId(newHeader.id);
-          if (body.split) {
-            setSiblings(body.split.siblings);
-          } else {
-            try {
-              const res2 = await fetch(`/api/payroll/run/${newHeader.id}`);
-              if (token !== requestSeqRef.current) return; // superseded mid-refetch
-              if (res2.ok) {
-                const body2 = (await res2.json()) as DraftResponse;
-                setSiblings(body2.siblings);
-              }
-            } catch {
-              // best-effort — sub-tabs may be stale until the next full load
-            }
+        }
+      }
+      // Every reconcile response that carries `split` reflects the FRESH sibling set — not just
+      // the replaced-header case above. A rebuild that upserts the SAME header ids (the common
+      // case) still moves piece totals, and the passive (non-rebuild) reconcile path can carry
+      // `split` too; either one leaving `siblings` stale would show the GrandSummaryFooter a
+      // phantom variance against the fresh `original` and wrongly block approve.
+      if (body.split) {
+        setSiblings(body.split.siblings);
+      } else if (siblingsRef.current.length > 1) {
+        // No split block, but this run WAS split going in — it may have just collapsed back to a
+        // single unsplit run (e.g. a mapping fix pulled the straddling txns into one month).
+        // Refetch the current piece (the id this reconcile just adopted, if any, else the id we
+        // called with — equivalent to "currentPieceId" from this call's point of view) so the
+        // sub-tab UI drops back to the unsplit view instead of showing stale sibling tabs.
+        try {
+          const res2 = await fetch(`/api/payroll/run/${rebuiltId ?? id}`);
+          if (token !== requestSeqRef.current) return; // superseded mid-refetch
+          if (res2.ok) {
+            const body2 = (await res2.json()) as DraftResponse;
+            setSiblings(body2.siblings);
           }
+        } catch {
+          // best-effort — sub-tabs may be stale until the next full load
         }
       }
       setSplitInfo(body.split ? { original: body.split.original } : null);
@@ -311,14 +329,17 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   }, [headerId, loadDraft]);
 
   const loadCombined = useCallback(async () => {
+    const token = ++requestSeqRef.current;
+    const pieces = siblings; // stable snapshot for this call — `siblings` could change mid-flight
     const all = await Promise.all(
-      siblings.map(async (s) => {
+      pieces.map(async (s) => {
         const res = await fetch(`/api/payroll/run/${s.id}`);
         if (!res.ok) return [] as JournalLine[];
         const body = (await res.json()) as DraftResponse;
         return body.lines;
       }),
     );
+    if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
     setCombinedLines(all.flat());
   }, [siblings]);
 
@@ -497,13 +518,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                 </button>
               ))}
               <button
-                onClick={() => {
-                  // Leaving a piece tab for Combined is the same class of navigation as switching
-                  // pieces — invalidate any in-flight Save/Reconcile for the piece being left.
-                  requestSeqRef.current += 1;
-                  setActiveId('combined');
-                  void loadCombined();
-                }}
+                onClick={() => { setActiveId('combined'); void loadCombined(); }}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
                   activeId === 'combined'
                     ? 'bg-blue-600 text-white'
