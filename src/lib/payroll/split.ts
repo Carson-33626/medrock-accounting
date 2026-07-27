@@ -70,14 +70,19 @@ export function pieceTxnDate(payDateAdp: string, m: Month): string {
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
- * Split one built draft into per-month sibling drafts. Non-straddlers return `[draft]`
- * UNCHANGED (byte-identical — the original single-JE path). Throws if the draft is
- * unbalanced or if the balance repair cannot complete (both indicate upstream corruption).
+ * Split one built draft into per-month sibling drafts. Non-straddlers, unbalanced drafts
+ * (mid-review state), and impossible repairs all return `[draft]` UNCHANGED (byte-identical).
+ * Throws only if a balanced straddler's balance repair would corrupt the credit line.
  */
 export function splitStraddle(draft: JournalDraft): JournalDraft[] {
   if (!draft.periodStart || !draft.periodEnd) return [draft];
   const segments = segmentsForPeriod(draft.periodStart, draft.periodEnd);
   if (segments.length <= 1) return [draft];
+
+  // An unbalanced draft (unmapped columns, mid-review state) cannot be split-and-repaired
+  // cleanly. Leave it whole on its pay date — it is not postable while unbalanced, and the
+  // reconcile rebuild path re-splits it automatically once mapping fixes balance it.
+  if (Math.round(draft.variance * 100) !== 0) return [draft];
 
   const ratios = segments.map((m) => dayRatioInMonth(draft.periodStart, draft.periodEnd, m));
 
@@ -92,9 +97,6 @@ export function splitStraddle(draft: JournalDraft): JournalDraft[] {
     draft.lines.reduce((sum, l, i) => sum + (l.postingType === 'Debit' ? alloc[i][s] : -alloc[i][s]), 0),
   );
   if (imbalance.some((x) => x !== 0)) {
-    if (Math.round(draft.variance * 100) !== 0) {
-      throw new Error(`splitStraddle: draft ${draft.entity} ${draft.payDate} is unbalanced (variance ${draft.variance}) — cannot split`);
-    }
     let repairIdx = -1;
     let repairMax = -1;
     for (let i = 0; i < draft.lines.length; i++) {

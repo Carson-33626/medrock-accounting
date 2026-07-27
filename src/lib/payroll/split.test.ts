@@ -160,4 +160,17 @@ describe('splitStraddle', () => {
     const memos = jun.lines.filter((l) => l.postingType === 'Debit').map((l) => l.memo).sort();
     expect(memos).toEqual(['Accounting Wages - Jun portion', 'Admin Wages - Jun portion']);
   });
+
+  it('unbalanced straddler passes through unsplit (mid-review state)', () => {
+    // Unmapped columns leave variance in pre-review draft — do not split it yet.
+    const d = straddler([
+      line('Debit', 100, { memo: 'Lab Wages' }),
+      line('Credit', 90, { memo: 'Net Pay' }),
+    ]);
+    d.variance = 10; // unbalanced
+    d.totalCredits = 90;
+    const out = splitStraddle(d);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual(d); // no kind, no docNumber, no txnDate, no periodSegment added
+  });
 });
