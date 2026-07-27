@@ -15,6 +15,7 @@ import {
 import { splitStraddle } from '@/lib/payroll/split';
 import { adpDateToIso } from '@/lib/payroll/dates';
 import type { JournalDraft, JournalLine } from '@/lib/payroll/types';
+import type { PayrollHeader } from '@/lib/payroll/store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -63,7 +64,6 @@ export async function POST(request: NextRequest) {
     const { header } = loaded;
 
     const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
-    const isSplit = siblings.length > 1;
 
     const dayIso = adpDateToIso(header.pay_date);
     const dayRows = await selectSource().fetchRange(dayIso, dayIso);
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     let lines: JournalLine[] = loaded.lines;
     let rebuiltDraft: { header: typeof header; lines: JournalLine[] } | null = null;
     let synced = false;
+    let rebuildRan = false;
     if (rebuild && header.status !== 'posted') {
       const built0 = built.drafts.find(
         (d) => d.entity === header.entity && d.payDate === header.pay_date && d.payGroup === header.pay_group,
@@ -114,21 +115,51 @@ export async function POST(request: NextRequest) {
           header.entity, header.pay_date, header.pay_group,
           pieces.map((p) => p.periodSegment ?? ''),
         );
-        const updated = await loadDraft(headerId);
-        if (updated) {
-          lines = updated.lines;
-          rebuiltDraft = updated;
-          synced = true; // draft now built from current source → no drift
+        rebuildRan = true;
+      }
+    }
+
+    // Re-list siblings once, post-rebuild if one ran (otherwise the pre-rebuild `siblings` list
+    // is still accurate), and reuse it for the post-rebuild reload, the combined-reconcile step,
+    // and the split response block below — avoids three redundant reads of the same fresh set.
+    const freshSiblings: PayrollHeader[] = rebuildRan
+      ? await listSiblings(header.entity, header.pay_date, header.pay_group)
+      : siblings;
+    const isSplitNow = freshSiblings.length > 1;
+
+    // effectiveHeaderId tracks whichever row now represents this run in-memory. Normally that's
+    // still the requested headerId, but a rebuild that flips split-state (e.g. a legacy unsplit
+    // '' row whose period actually straddles a month boundary) re-splits into new pieces and
+    // deleteStaleSiblings removes the old row — which can be headerId itself. Fall back to the
+    // freshly-saved replacement piece so the response still carries a valid header/lines.
+    let effectiveHeaderId = headerId;
+    if (rebuildRan) {
+      const updated = await loadDraft(headerId);
+      if (updated) {
+        lines = updated.lines;
+        rebuiltDraft = updated;
+        synced = true; // draft now built from current source → no drift
+      } else {
+        const replacementHeader = freshSiblings[0];
+        const replacement = replacementHeader ? await loadDraft(replacementHeader.id) : null;
+        if (replacement) {
+          lines = replacement.lines;
+          rebuiltDraft = replacement;
+          synced = true;
+          effectiveHeaderId = replacement.header.id;
         }
       }
     }
 
-    // Re-list siblings AFTER a possible rebuild so the combined set reflects what was just saved.
     let reconcileLines: JournalLine[] = lines;
     let reconcileTotals = { totalDebits: header.total_debits, totalCredits: header.total_credits, variance: header.variance };
-    if (isSplit) {
-      const freshSiblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
-      const loads = await Promise.all(freshSiblings.map((s) => (s.id === headerId ? Promise.resolve({ header, lines }) : loadDraft(s.id))));
+    if (isSplitNow) {
+      const currentHeaderForMatch = rebuiltDraft ? rebuiltDraft.header : header;
+      const loads = await Promise.all(
+        freshSiblings.map((s) =>
+          s.id === effectiveHeaderId ? Promise.resolve({ header: currentHeaderForMatch, lines }) : loadDraft(s.id),
+        ),
+      );
       reconcileLines = loads.flatMap((l) => l?.lines ?? []);
       const d = round2(reconcileLines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
       const c = round2(reconcileLines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
@@ -157,18 +188,22 @@ export async function POST(request: NextRequest) {
 
     // The original run's totals come from the freshly built (unsplit) draft — recomputed from
     // source, so manual-edit drift shows up as variance, which is exactly what the grand
-    // summary wants.
+    // summary wants. `original` is null (never a fallback to the combined/actual totals) when
+    // the builder didn't produce an unsplit draft for this key — falling back would make
+    // original === actual and silently hide the drift this field exists to expose. The UI shows
+    // "reconcile to compute" for null.
     const built0ForOriginal = built.drafts.find(
       (d) => d.entity === header.entity && d.payDate === header.pay_date && d.payGroup === header.pay_group,
     );
-    const splitBlock = isSplit
-      ? {
-          siblings: await listSiblings(header.entity, header.pay_date, header.pay_group),
-          original: built0ForOriginal
-            ? { totalDebits: built0ForOriginal.totalDebits, totalCredits: built0ForOriginal.totalCredits }
-            : { totalDebits: reconcileTotals.totalDebits, totalCredits: reconcileTotals.totalCredits },
-        }
-      : undefined;
+    const splitBlock: { siblings: PayrollHeader[]; original: { totalDebits: number; totalCredits: number } | null } | undefined =
+      isSplitNow
+        ? {
+            siblings: freshSiblings,
+            original: built0ForOriginal
+              ? { totalDebits: built0ForOriginal.totalDebits, totalCredits: built0ForOriginal.totalCredits }
+              : null,
+          }
+        : undefined;
 
     // `unmappedColumnDetails` (amount + contributing people per unmapped column) rides alongside
     // the bare `result.unmappedColumns` string[] that drives postability — the Review tab's
