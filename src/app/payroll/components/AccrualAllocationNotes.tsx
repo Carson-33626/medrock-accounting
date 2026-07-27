@@ -34,6 +34,13 @@ export function AccrualAllocationNotes({ darkMode }: { darkMode: boolean }) {
               JE hubbed through FL (<code>&lt;ENT&gt; % Allo YYYY.MM</code>). Percentages are editable
               in the <span className="font-medium">Mappings</span> tab.
             </li>
+            <li>
+              <span className="font-medium">Month-crossing (straddling) pay periods</span> are now
+              handled by the split feature — one JE per calendar month, posted as a pair (see the{' '}
+              <code>Split</code> badge on affected payrolls). The accrual/reversal path above is
+              parked and unwired; a period wholly inside one month but paid the next still posts on
+              its pay date.
+            </li>
           </ul>
         </div>
 
