@@ -5,6 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { getRdsPool } from '../rds';
+import { adpDateToIso } from './dates';
 import type {
   PayrollRow,
   JournalDraft,
@@ -38,6 +39,11 @@ export interface PayrollHeader {
   source_snapshot_hash: string | null;
   qb_entry_id: string | null;
   qb_doc_number: string | null;
+  kind: string;
+  period_segment: string;
+  /** ISO YYYY-MM-DD the JE posts on (segment month-end for a split prior-month piece,
+   *  else the pay date). Drives the accounting-period filter. */
+  txn_date: string | null;
 }
 
 export function sourceSnapshotHash(rows: PayrollRow[]): string {
@@ -165,9 +171,9 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
     // out of the upsert entirely when it's already posted.
     const existing = await client.query<{ id: number; status: HeaderStatus }>(
       `SELECT id, status FROM accounting.payroll_journal_headers
-       WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+       WHERE entity = $1 AND pay_date = $2 AND pay_group = $3 AND period_segment = $4
        FOR UPDATE`,
-      [draft.entity, draft.payDate, draft.payGroup],
+      [draft.entity, draft.payDate, draft.payGroup, draft.periodSegment ?? ''],
     );
     const existingRow = existing.rows[0];
     if (existingRow && existingRow.status === 'posted') {
@@ -177,10 +183,12 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
 
     const headerRes = await client.query<{ id: number }>(
       `INSERT INTO accounting.payroll_journal_headers
-         (entity, pay_date, pay_group, period_start, period_end, status,
+         (entity, pay_date, pay_group, period_segment, kind, txn_date, period_start, period_end, status,
           total_debits, total_credits, variance, row_count, source_snapshot_hash, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'needs_review', $6, $7, $8, $9, $10, now())
-       ON CONFLICT (entity, pay_date, pay_group) DO UPDATE SET
+       VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, 'needs_review', $9, $10, $11, $12, $13, now())
+       ON CONFLICT (entity, pay_date, pay_group, period_segment) DO UPDATE SET
+         kind = EXCLUDED.kind,
+         txn_date = EXCLUDED.txn_date,
          period_start = EXCLUDED.period_start,
          period_end = EXCLUDED.period_end,
          status = 'needs_review',
@@ -195,6 +203,9 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
         draft.entity,
         draft.payDate,
         draft.payGroup,
+        draft.periodSegment ?? '',
+        draft.kind ?? 'pay_date',
+        draft.txnDate ?? adpDateToIso(draft.payDate),
         draft.periodStart,
         draft.periodEnd,
         draft.totalDebits,
@@ -256,6 +267,9 @@ interface HeaderRow {
   source_snapshot_hash: string | null;
   qb_entry_id: string | null;
   qb_doc_number: string | null;
+  kind: string;
+  period_segment: string;
+  txn_date: string | null;
 }
 
 function toHeader(r: HeaderRow): PayrollHeader {
@@ -277,6 +291,9 @@ function toHeader(r: HeaderRow): PayrollHeader {
     source_snapshot_hash: r.source_snapshot_hash,
     qb_entry_id: r.qb_entry_id,
     qb_doc_number: r.qb_doc_number,
+    kind: r.kind,
+    period_segment: r.period_segment,
+    txn_date: r.txn_date,
   };
 }
 
@@ -310,7 +327,8 @@ export async function loadDraft(id: number): Promise<{ header: PayrollHeader; li
   const pool = getRdsPool();
   const headerRes = await pool.query<HeaderRow>(
     `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers WHERE id = $1`,
     [id],
   );
@@ -329,15 +347,57 @@ export async function loadDraft(id: number): Promise<{ header: PayrollHeader; li
   return { header: toHeader(headerRow), lines: linesRes.rows.map(toLine) };
 }
 
+/** All sibling pieces of one run (>=1 row; a single '' row for an unsplit run), month order. */
+export async function listSiblings(entity: Entity, payDate: string, payGroup: string): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash,
+            qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
+     FROM accounting.payroll_journal_headers
+     WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+     ORDER BY period_segment`,
+    [entity, payDate, payGroup],
+  );
+  return rows.map(toHeader);
+}
+
+/**
+ * Regeneration replace-semantics: after re-saving a run's pieces, remove UNPOSTED leftovers
+ * whose segment is no longer produced (covers split→unsplit if period dates were corrected).
+ * Posted headers are never deleted. Lines cascade via the FK.
+ */
+export async function deleteStaleSiblings(
+  entity: Entity, payDate: string, payGroup: string, keepSegments: string[],
+): Promise<number> {
+  const { rowCount } = await getRdsPool().query(
+    `DELETE FROM accounting.payroll_journal_headers
+     WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+       AND status <> 'posted'
+       AND NOT (period_segment = ANY($4::text[]))`,
+    [entity, payDate, payGroup, keepSegments],
+  );
+  return rowCount ?? 0;
+}
+
+/** Pair-atomic status flip (approve both pieces of a split run in one statement). */
+export async function setHeadersStatus(ids: number[], status: HeaderStatus): Promise<void> {
+  if (ids.length === 0) return;
+  await getRdsPool().query(
+    `UPDATE accounting.payroll_journal_headers
+     SET status = $2, updated_at = now()
+     WHERE id = ANY($1::bigint[]) AND status <> 'posted'`,
+    [ids, status],
+  );
+}
+
 export async function listHeaders(startISO: string, endISO: string): Promise<PayrollHeader[]> {
   const { rows } = await getRdsPool().query<HeaderRow>(
     `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
-     WHERE to_date(pay_date, 'MM/DD/YYYY') BETWEEN $1::date AND $2::date
-     -- Order by the parsed date, not the MM/DD/YYYY string: lexicographic sorting
-     -- puts 12/01/2025 after 03/13/2026. Newest-first matches the landing list.
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+     WHERE COALESCE(txn_date, to_date(pay_date, 'MM/DD/YYYY')) BETWEEN $1::date AND $2::date
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [startISO, endISO],
   );
   return rows.map(toHeader);
@@ -376,10 +436,11 @@ export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
        LIMIT $1
      )
      SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
      WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [safePeriods],
   );
   return rows.map(toHeader);
