@@ -58,6 +58,7 @@ export function buildJeExportSheet(
   header: JeExportHeader,
   lines: JournalLine[],
   accountNums?: Record<string, string>,
+  overrides?: { docNumber: string; txnDate: string },
 ): JeExportSheet {
   // Group by account then memo (same order as the review table + builder) so the exported
   // sheet is readable; sort a copy so the caller's array is never mutated.
@@ -78,8 +79,8 @@ export function buildJeExportSheet(
   const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
   rows.push({ type: 'TOTAL', acctNum: '', account: '', memo: '', department: '', className: '', debit: totalDebits, credit: totalCredits, origin: '' });
 
-  const docNumber = header.qb_doc_number ?? deriveDocNumber(header.pay_date);
-  const txnDate = deriveTxnDate(header.pay_date);
+  const docNumber = header.qb_doc_number ?? overrides?.docNumber ?? deriveDocNumber(header.pay_date);
+  const txnDate = overrides?.txnDate ?? deriveTxnDate(header.pay_date);
   const filename = `JE_${header.entity}_${docNumber}`.replace(/[^A-Za-z0-9._-]+/g, '_');
   const variance = round2(totalDebits - totalCredits);
   const note =

@@ -4,11 +4,14 @@ import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { buildJournal } from '@/lib/payroll/build-je';
-import { loadDraft, insertAudit, setHeaderStatus, getAccountMap, getEmployeeMap, sourceSnapshotHash } from '@/lib/payroll/store';
+import { loadDraft, insertAudit, setHeaderStatus, listSiblings, getAccountMap, getEmployeeMap, sourceSnapshotHash } from '@/lib/payroll/store';
 import { decidePost } from '@/lib/payroll/post-guard';
 import { adpDateToIso } from '@/lib/payroll/dates';
-import type { Entity, JournalDraft } from '@/lib/payroll/types';
+import { pieceDocNumber } from '@/lib/payroll/split';
+import type { Entity, JournalDraft, JournalLine } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -68,6 +71,23 @@ export async function POST(request: NextRequest) {
     const { header, lines } = loaded;
     entity = header.entity;
 
+    const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
+    const isSplit = siblings.length > 1;
+    const segmentIndex = Math.max(0, siblings.findIndex((s) => s.id === headerId));
+
+    // SAFETY GATE (pair-atomicity): never live-post one half of a split run unless every
+    // sibling is approved (or already posted) — a lone half misstates BOTH months.
+    if (mode === 'live' && isSplit) {
+      const unapproved = siblings.filter((s) => s.id !== headerId && s.status !== 'approved' && s.status !== 'posted');
+      if (unapproved.length > 0) {
+        await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'split sibling not approved' });
+        return NextResponse.json(
+          { error: 'split run: all sibling pieces must be approved before posting' },
+          { status: 409 },
+        );
+      }
+    }
+
     // I2 SAFETY GATE (belt-and-suspenders on top of the status check below): if a
     // qb_entry_id is already recorded, QuickBooks has already seen this run — never
     // re-post, even if the status column is somehow out of sync with the entry id.
@@ -105,6 +125,15 @@ export async function POST(request: NextRequest) {
       totalCredits: header.total_credits,
       variance: header.variance,
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
+      ...(isSplit
+        ? {
+            kind: 'pay_date' as const,
+            periodSegment: header.period_segment,
+            docNumber: pieceDocNumber(header.pay_date, siblings.length, segmentIndex),
+            txnDate: header.txn_date ?? undefined,
+            privateNote: `Split ${segmentIndex + 1}/${siblings.length} of ${pieceDocNumber(header.pay_date, 1, 0)} — period ${header.period_start ?? ''}–${header.period_end ?? ''}`,
+          }
+        : {}),
     };
 
     const dayIso = adpDateToIso(header.pay_date);
@@ -117,7 +146,33 @@ export async function POST(request: NextRequest) {
     ]);
     const built = buildJournal(runRows, accountMap, employeeMap);
 
-    const reconcileResult = reconcile(draft, runRows, {
+    // Reconcile against the COMBINED run (all sibling pieces) so postability reflects the whole
+    // straddling run's mapping/variance state — the piece's own `draft` above (not this one) is
+    // what actually gets posted to QuickBooks.
+    let reconcileLines: JournalLine[] = lines;
+    let reconcileTotals = { totalDebits: header.total_debits, totalCredits: header.total_credits, variance: header.variance };
+    if (isSplit) {
+      const loads = await Promise.all(
+        siblings.map((s) => (s.id === headerId ? Promise.resolve({ header, lines }) : loadDraft(s.id))),
+      );
+      reconcileLines = loads.flatMap((l) => l?.lines ?? []);
+      const d = round2(reconcileLines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+      const c = round2(reconcileLines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
+      reconcileTotals = { totalDebits: d, totalCredits: c, variance: round2(d - c) };
+    }
+
+    const reconcileDraft: JournalDraft = {
+      entity: header.entity,
+      payDate: header.pay_date,
+      payGroup: header.pay_group,
+      periodStart: header.period_start ?? '',
+      periodEnd: header.period_end ?? '',
+      lines: reconcileLines,
+      ...reconcileTotals,
+      rowKeys: [...new Set(reconcileLines.flatMap((l) => l.sourceRowKeys))],
+    };
+
+    const reconcileResult = reconcile(reconcileDraft, runRows, {
       unmappedColumns: built.unmappedColumns,
       unmappedPositions: built.unmappedPositions,
     });
