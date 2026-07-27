@@ -258,6 +258,11 @@ async function fetchPdfViaDownloadClick(page: Page, clickSelector: string): Prom
  *      and capture the resulting Chrome `download` event via `fetchPdfViaDownloadClick`.
  * Wrapped with a 30s overall timeout; throws UlineInvoicePdfError with a specific reason if the
  * flow fails, so a human can inspect the live modal and extend this function.
+ *
+ * ULINE regenerates this PDF per request (confirmed: same invoice fetched twice yielded 150,047
+ * and 151,281 bytes) — byte size and internal structure are NOT stable, but extracted text was
+ * verified identical across both fetches. Never dedupe or key receipts by content hash; always use
+ * the invoice/order number as the idempotency key.
  */
 export async function fetchUlineInvoicePdf(page: Page, inv: UlineInvoice): Promise<Buffer> {
   const attempt = async (): Promise<Buffer> => {
