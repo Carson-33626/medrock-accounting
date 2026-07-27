@@ -224,25 +224,6 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   });
 }
 
-// In-page fetch of a same-origin URL, bridged back as a Buffer via base64 (Playwright's
-// evaluate() return value must be JSON-serializable — same technique as toprx-invoice.ts).
-async function fetchPdfViaInPageFetch(page: Page, href: string): Promise<Buffer | null> {
-  const base64 = await page
-    .evaluate(async (url: string) => {
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) return null;
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      const chunks: string[] = [];
-      const CHUNK = 8000;
-      for (let i = 0; i < bytes.length; i += CHUNK) chunks.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
-      return btoa(chunks.join(''));
-    }, href)
-    .catch(() => null);
-  if (!base64) return null;
-  const buf = Buffer.from(base64, 'base64');
-  return isPdfBuffer(buf) ? buf : null;
-}
-
 // Click a trigger and capture whatever Chrome downloads as a result. Download-event capture is
 // proven to work over a CDP-attached real Chrome (see scripts/amazon-csv-enrich/report-download.ts,
 // "confirmed live" 2026-07-22) — the listener MUST be armed before the click.
@@ -260,67 +241,56 @@ async function fetchPdfViaDownloadClick(page: Page, clickSelector: string): Prom
 }
 
 /**
- * Fetch one invoice's PDF. Tries, in order (first real-PDF result wins — see module comment for
- * why each exists; none of these could be confirmed against a live invoice popup as of writing,
- * see task-7 report):
- *   (a) On MyOrderHistory, open the Export-tab popup (#ExportOrderHistoryTabLink) and, if a
- *       `li.onDemandPdfItem a` exposes a direct PDF href, in-page `fetch` it.
- *   (b) Click that same popup item and capture the resulting Chrome download.
- *   (c) Navigate to the invoice's own detail page
- *       (/MyAccount/InvoiceDetail?email=false&OrderHistory=true&invoice=<inv>, URL format
- *       confirmed live 2026-07-27) and try both an in-page fetch and a download-click against
- *       any Print/Download-shaped link there.
- * Wrapped with a 30s overall timeout; throws UlineInvoicePdfError with a specific reason if every
- * path fails, so a human can inspect the popup/page live and extend this function.
+ * Fetch one invoice's PDF via the InvoiceDetail page's "Email/PDF" modal (confirmed live
+ * 2026-07-27 — see task-7 report). The earlier assumption that MyOrderHistory's Export-tab popup
+ * (`#ExportOrderHistoryTabLink` / `li.onDemandPdfItem`) served a per-invoice PDF was wrong: that
+ * popup only exports the roster GRID as CSV/Excel — its "PDF" li is a mislabeled leftover whose
+ * onclick actually calls `Export('csv')` (icon says PDF, span says CSV, function exports CSV, no
+ * PDF option exists there at all).
+ *
+ * The real flow, confirmed live against invoice 210990196 (151,281 bytes, `%PDF` magic):
+ *   1. Navigate to /MyAccount/InvoiceDetail?email=false&OrderHistory=true&invoice=<inv>.
+ *   2. Click `#lnkEmailModal_<inv>` ("Email/PDF" link) — opens the download/email modal
+ *      (`#downloadOrEmailPartialForm`).
+ *   3. Click `#downloadLinkText` inside it (onclick calls `downloadImageFromModal(<inv>)`, which
+ *      navigates a hidden `iframe#downloadPDF` to
+ *      `/Shared/DownloadOrEmail/DownloadDocument?idList=...&documentType=1&downloadFileName=...`)
+ *      and capture the resulting Chrome `download` event via `fetchPdfViaDownloadClick`.
+ * Wrapped with a 30s overall timeout; throws UlineInvoicePdfError with a specific reason if the
+ * flow fails, so a human can inspect the live modal and extend this function.
  */
 export async function fetchUlineInvoicePdf(page: Page, inv: UlineInvoice): Promise<Buffer> {
   const attempt = async (): Promise<Buffer> => {
     assertNotSignIn(page);
 
-    // (a) / (b): the Export-tab popup on MyOrderHistory.
-    if (!/MyOrderHistory/i.test(page.url())) {
-      await page.goto(ORDER_HISTORY_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const detailUrl =
+      `https://www.uline.com/MyAccount/InvoiceDetail?email=false&OrderHistory=true&invoice=${encodeURIComponent(inv.invoiceNumber)}`;
+    if (page.url() !== detailUrl) {
+      await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       await page.waitForTimeout(SETTLE_MS);
       assertNotSignIn(page);
     }
-    const exportTab = page.locator('#ExportOrderHistoryTabLink').first();
-    if ((await exportTab.count()) > 0) {
-      await exportTab.click({ timeout: 8_000 }).catch(() => undefined);
-      await page.waitForTimeout(400);
-      const pdfItemLink = page.locator('li.onDemandPdfItem a').first();
-      if ((await pdfItemLink.count()) > 0) {
-        const href = await pdfItemLink.getAttribute('href');
-        if (href) {
-          const viaFetch = await fetchPdfViaInPageFetch(page, new URL(href, page.url()).toString());
-          if (viaFetch) return viaFetch; // path (a) won
-        }
-        const viaDownload = await fetchPdfViaDownloadClick(page, 'li.onDemandPdfItem a');
-        if (viaDownload) return viaDownload; // path (b) won
-      }
-    }
 
-    // (c) The invoice's own detail page — URL format confirmed live; the PDF/print affordance on
-    // it was not observed in the saved recon, so probe common shapes defensively.
-    const detailUrl =
-      `https://www.uline.com/MyAccount/InvoiceDetail?email=false&OrderHistory=true&invoice=${encodeURIComponent(inv.invoiceNumber)}`;
-    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForTimeout(SETTLE_MS);
-    assertNotSignIn(page);
-
-    const printLink = page.locator('a:has-text("Print"), a:has-text("Download"), a[href*=".pdf" i]').first();
-    if ((await printLink.count()) > 0) {
-      const href = await printLink.getAttribute('href');
-      if (href) {
-        const viaFetch = await fetchPdfViaInPageFetch(page, new URL(href, page.url()).toString());
-        if (viaFetch) return viaFetch; // path (c), direct fetch
-      }
-      const viaDownload = await fetchPdfViaDownloadClick(page, 'a:has-text("Print"), a:has-text("Download"), a[href*=".pdf" i]');
-      if (viaDownload) return viaDownload; // path (c), download-click
+    const emailModalLink = page.locator(`#lnkEmailModal_${inv.invoiceNumber}`).first();
+    if ((await emailModalLink.count()) === 0) {
+      throw new UlineInvoicePdfError(
+        `ULINE invoice ${inv.invoiceNumber} (order ${inv.orderNumber}): #lnkEmailModal_${inv.invoiceNumber} not found on InvoiceDetail — page shape changed.`,
+      );
     }
+    await emailModalLink.click({ timeout: 8_000 });
+    await page.waitForTimeout(1_000);
+
+    const downloadLink = page.locator('#downloadLinkText').first();
+    if ((await downloadLink.count()) === 0) {
+      throw new UlineInvoicePdfError(
+        `ULINE invoice ${inv.invoiceNumber} (order ${inv.orderNumber}): Email/PDF modal opened but #downloadLinkText not found.`,
+      );
+    }
+    const pdf = await fetchPdfViaDownloadClick(page, '#downloadLinkText');
+    if (pdf) return pdf;
 
     throw new UlineInvoicePdfError(
-      `ULINE invoice ${inv.invoiceNumber} (order ${inv.orderNumber}): no PDF path yielded real %PDF bytes ` +
-      '(Export-tab popup and InvoiceDetail page both exhausted) — inspect the live popup/page and extend fetchUlineInvoicePdf.',
+      `ULINE invoice ${inv.invoiceNumber} (order ${inv.orderNumber}): Email/PDF modal download click did not yield real %PDF bytes.`,
     );
   };
 
