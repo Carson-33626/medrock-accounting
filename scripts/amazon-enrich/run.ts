@@ -1,11 +1,11 @@
-// Amazon enrichment — one run. Fetch eligible Amazon Ramp txns, parse their receipts, classify each
-// line -> GL, reconcile to the cent, and split the txn (PATCH). Dry-run by default (writes CSV
-// previews only); pass --live to write. Honors the [[accounting-automation-dry-run-mandate]]:
+// Amazon enrichment — RETIRED AS OF 2026-07-28. This engine split Amazon Ramp txns by receipt
+// itemization. Use scripts/receipt-capture/run-amazon.ts to un-split + attach order-ID memo instead.
+// Dry-run (writes CSV previews only); pass --live to write. Honors the [[accounting-automation-dry-run-mandate]]:
 // live writes require the explicit flag + are capped, audited to CSV, and fully reversible.
 //
-//   cd web && npx tsx scripts/amazon-enrich/run.ts                 # dry-run, all entities
-//   cd web && npx tsx scripts/amazon-enrich/run.ts --entity TN     # dry-run one entity
-//   cd web && npx tsx scripts/amazon-enrich/run.ts --live --cap 10 # live, first 10 eligible writes
+//   cd web && npx tsx scripts/amazon-enrich/run.ts                 # dry-run, all entities (RETIRED: --live refused)
+//   cd web && npx tsx scripts/amazon-enrich/run.ts --basket        # Track A: basket vendors (Amazon excluded)
+//   cd web && npx tsx scripts/receipt-capture/run-amazon.ts --live # ← Replace with this for Amazon un-split + order-ID
 import '../ramp-split-push/load-env';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
@@ -18,6 +18,7 @@ import { parseOcr } from './ocr-parser';
 import { buildGlIndex } from './gl-resolve';
 import { buildSplit } from './split';
 import { isBasketMerchant, matchBasketMerchant } from './basket-merchants';
+import { isAmazonFamily } from '../receipt-capture/amazon-worklist';
 import type { Entity } from '../ramp-split-push/types';
 
 const SCOPES_READ = 'transactions:read receipts:read accounting:read';
@@ -76,6 +77,20 @@ type SetAsideReason = 'image_no_ocr' | 'no_receipt_url' | 'parse_fail' | 'no_rec
 
 async function main(): Promise<void> {
   const args = parseArgs();
+  // RETIRED for Amazon (2026-07-28): QBO's Amazon-direct connection is now the itemization
+  // source of record — Ramp Amazon txns stay single-line with an order-ID memo instead (see
+  // scripts/receipt-capture/run-amazon.ts and the 2026-07-28 amazon-unsplit spec). Live Amazon
+  // splitting is refused outright. --basket (Track A) keeps working, but Amazon is excluded from
+  // its merchant filter below — BASKET_MERCHANTS itself still lists an Amazon group.
+  // Receipt-parsing (receipt-parser.ts) is NOT retired: run-amazon.ts uses it as the order-ID source.
+  if (args.live && !args.basket) {
+    console.error('Amazon splitting is RETIRED — use scripts/receipt-capture/run-amazon.ts (un-split + order-ID memo).');
+    console.error('Dry-run preview (no --live) still works for inspection. --basket live runs exclude Amazon.');
+    process.exit(1);
+  }
+  if (!args.live && !args.basket) {
+    console.error('NOTE: Amazon splitting is RETIRED (2026-07-28) — this dry-run preview is for inspection only.');
+  }
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
   const previewRows: string[] = ['entity,merchant,txn_id,date,cardholder,amount,source,layout,line_desc,split_amount,gl_name,confidence,coded,mode'];
   const setAsideRows: string[] = ['entity,merchant,txn_id,date,amount,reason,detail'];
@@ -94,7 +109,10 @@ async function main(): Promise<void> {
     const s = summary[entity] = { eligible: 0, split: 0, setAside: 0, writeFail: 0, coded: 0, suspense: 0 };
     const token = await rampToken(entity, args.live ? SCOPES_WRITE : SCOPES_READ);
     const index = await buildGlIndex(entity, token);
-    const txns: EligibleTxn[] = await getEligibleAmazonTxns(entity, token, args.pages, args.basket ? isBasketMerchant : undefined);
+    const merchantFilter = args.basket
+      ? (n: string | null): boolean => isBasketMerchant(n) && !isAmazonFamily(n)
+      : undefined;
+    const txns: EligibleTxn[] = await getEligibleAmazonTxns(entity, token, args.pages, merchantFilter);
     s.eligible = txns.length;
 
     for (const t of txns) {
