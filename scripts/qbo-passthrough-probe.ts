@@ -137,7 +137,7 @@ async function pullQbPurchases(entity: Entity): Promise<{ rows: QBRow[]; attache
       account: p.AccountRef?.name ?? '',
       consumed: false,
     }));
-  const attachables = await qbQueryAll<QBAttachableRaw>(location, 'attachable', '');
+  const attachables = await qbQueryAll<QBAttachableRaw>(location, 'Attachable', '');
   const attachedQbIds = new Set<string>();
   for (const a of attachables) {
     for (const ref of a.AttachableRef ?? []) {
