@@ -1,6 +1,8 @@
-// SPLIT (global, one run across all logins): pool the per-login extraction caches, match each charge to
-// an un-enriched Ramp Amazon txn (amount+date+last4), build the itemized split from CSV data, and attach
-// the cached Amazon invoice PDF + PATCH the split. Dry-run default; --live is capped + reversible.
+// SPLIT — RETIRED AS OF 2026-07-28 (single-line policy). Use run-attach.ts (receipt + order-ID memo) instead.
+// This runner is RETIRED for live writes. Dry-run preview still works for inspection.
+// See 2026-07-28-amazon-unsplit-orderid-memo-design.md for the specification.
+// Legacy: pool the per-login extraction caches, match each charge to an un-enriched Ramp Amazon txn
+// (amount+date+last4), build the itemized split from CSV data, and attach the cached Amazon invoice PDF + PATCH.
 //   npx tsx scripts/amazon-csv-enrich/run-split.ts [--accounts fl,tx,grp1] [--ramp-pages 60] [--live] [--cap N]
 import './../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
@@ -42,6 +44,17 @@ async function main(): Promise<void> {
   const accounts = (argVal('--accounts')?.split(',').map((s) => s.trim()).filter(Boolean)) ?? discoverAccounts();
   if (!accounts.length) throw new Error(`No extraction caches under ${ROOT}. Run run-extract.ts first.`);
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
+
+  // RETIRED for Amazon (2026-07-28): single-line policy, use run-attach.ts instead. Live writes are
+  // refused outright. Dry-run preview still works for inspection.
+  if (live) {
+    console.error('Amazon splitting is RETIRED (2026-07-28 single-line policy) — use run-attach.ts (receipt + order-ID memo).');
+    console.error('Dry-run preview still works for inspection.');
+    process.exit(1);
+  }
+  if (!live) {
+    console.error('NOTE: Amazon splitting is RETIRED (2026-07-28) — this dry-run is inspection-only.');
+  }
 
   // Pool + dedupe charges across logins.
   const byRef = new Map<string, CachedCharge>();

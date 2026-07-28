@@ -1,8 +1,9 @@
-// RECON SPLIT: the charge-level pipeline. Pair each un-enriched Ramp Amazon txn to an Amazon
-// "Transactions report" charge (which carries the Order ID), fetch that order's GENUINE invoice PDF
-// (real order-document.pdf, with a text layer), parse its line items, build the itemized split, attach
-// the real invoice as the receipt, and PATCH. Handles the case the order-level Items report could not:
-// batched charges. Dry-run default; --live is capped + reversible (rollback.json).
+// RECON SPLIT — RETIRED AS OF 2026-07-28 (single-line policy). Use run-attach.ts (receipt + order-ID memo) instead.
+// This runner is RETIRED for live writes. Dry-run preview still works for inspection.
+// See 2026-07-28-amazon-unsplit-orderid-memo-design.md for the specification.
+// Legacy: the charge-level pipeline. Pair each un-enriched Ramp Amazon txn to an Amazon "Transactions report"
+// charge (which carries the Order ID), fetch that order's GENUINE invoice PDF (real order-document.pdf, with
+// a text layer), parse its line items, build the itemized split, attach the real invoice as the receipt, and PATCH.
 //   npx tsx scripts/amazon-csv-enrich/run-recon-split.ts [--from 2026-04-01 --to 2026-05-31] [--live] [--cap N] [--ramp-pages 260]
 import './../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
@@ -61,6 +62,17 @@ async function main(): Promise<void> {
   const cap = Number(argVal('--cap', '0')) || 0;
   const pages = Number(argVal('--ramp-pages', '260')) || 260;
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
+
+  // RETIRED for Amazon (2026-07-28): single-line policy, use run-attach.ts instead. Live writes are
+  // refused outright. Dry-run preview still works for inspection.
+  if (live) {
+    console.error('Amazon splitting is RETIRED (2026-07-28 single-line policy) — use run-attach.ts (receipt + order-ID memo).');
+    console.error('Dry-run preview still works for inspection.');
+    process.exit(1);
+  }
+  if (!live) {
+    console.error('NOTE: Amazon splitting is RETIRED (2026-07-28) — this dry-run is inspection-only.');
+  }
 
   // Pool charges (dedupe by paymentRef, keep source account) from all transactions reports.
   const byRef = new Map<string, AmazonCharge & { account: string }>();
