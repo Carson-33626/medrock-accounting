@@ -80,12 +80,14 @@ async function main(): Promise<void> {
   // RETIRED for Amazon (2026-07-28): QBO's Amazon-direct connection is now the itemization
   // source of record — Ramp Amazon txns stay single-line with an order-ID memo instead (see
   // scripts/receipt-capture/run-amazon.ts and the 2026-07-28 amazon-unsplit spec). Live Amazon
-  // splitting is refused outright. --basket (Track A) keeps working, but Amazon is excluded from
-  // its merchant filter below — BASKET_MERCHANTS itself still lists an Amazon group.
+  // splitting is refused outright. --basket (Track A) keeps working, and its merchant filter below
+  // excludes Amazon RETAIL (`!isAmazonFamily`) — but AWS remains basket-eligible: isAmazonFamily
+  // deliberately carves AWS out of the Amazon family, so AWS still matches the basket's own
+  // `/amazon/i` merchant test and gets split as before.
   // Receipt-parsing (receipt-parser.ts) is NOT retired: run-amazon.ts uses it as the order-ID source.
   if (args.live && !args.basket) {
     console.error('Amazon splitting is RETIRED — use scripts/receipt-capture/run-amazon.ts (un-split + order-ID memo).');
-    console.error('Dry-run preview (no --live) still works for inspection. --basket live runs exclude Amazon.');
+    console.error('Dry-run preview (no --live) still works for inspection. --basket live runs exclude Amazon RETAIL (AWS remains basket-eligible).');
     process.exit(1);
   }
   if (!args.live && !args.basket) {

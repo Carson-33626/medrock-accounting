@@ -14,7 +14,7 @@ import type { AmazonWorkTxn } from './amazon-worklist';
 import { collectOrderIds, composeMemo, postMemo } from './amazon-memo';
 import { getReceipt, downloadReceipt, patchSplit } from '../amazon-enrich/client';
 import { parseReceiptPdf } from '../amazon-enrich/receipt-parser';
-import { rampToken } from '../ramp-split-push/ramp-client';
+import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
 import { appendAudit } from './audit';
 import { parseNumericFlag } from './cli-args';
 import type { Entity } from '../ramp-split-push/types';
@@ -125,10 +125,13 @@ async function runEntity(entity: Entity, args: Args, runId: string, gapRows: Gap
     if (memoToWrite !== null) { actions.push('memo'); memoPlanned++; }
 
     const notes: string[] = [];
+    const isRefund = t.amountCents < 0;
+    if (isRefund) notes.push('refund'); // negative-amount refunds have no receipt by nature; they must still reach
+    // QBO (memo write stays eligible) but don't belong in the receipt-gap backfill worklist below.
     if (t.receiptIds.length === 0) {
-      notes.push('no_receipt'); // C4: routed to the Amazon-CSV-backfill workstream
+      notes.push('no_receipt'); // C4: routed to the Amazon-CSV-backfill workstream (non-refunds only)
       noReceipt++;
-      gapRows.push({ entity, t, orderIds: ids });
+      if (!isRefund) gapRows.push({ entity, t, orderIds: ids });
     }
     if (ids.length === 0) { notes.push('no_order_id'); noOrderId++; }
     else if (memoToWrite === null) notes.push('memo_already_current');
@@ -139,29 +142,46 @@ async function runEntity(entity: Entity, args: Args, runId: string, gapRows: Gap
       liveWrites++;
       const priorLineItems = t.priorLineItems == null ? '' : JSON.stringify(t.priorLineItems);
       const invoiceKey = ids.join(' ');
-      if (t.enriched) {
-        // Un-split: PATCH with empty line_items restores the single default line; Ramp's own
-        // categorization (Suspense for Amazon) applies. Prior lines are in the audit row.
-        const res = await patchSplit(entity, t.id, [], token);
-        const ok = res.status >= 200 && res.status < 300;
-        if (!ok) writeFails++;
+      // Re-check sync_status right before writing: the worklist fetch and this write can be
+      // minutes apart across a full run, and an accountant-triggered Ramp sync can flip a txn
+      // NOT_SYNC_READY -> SYNC_READY/SYNCED in between. Writing after that flip would disturb a
+      // txn QBO already considers reconciled, so skip all writes for this txn if the status moved.
+      const check = await rampGet<{ sync_status?: string | null }>(entity, `/transactions/${t.id}`, token);
+      const stillEligible = check.status === 200 && check.body.sync_status === 'NOT_SYNC_READY';
+      if (!stillEligible) {
+        const statusVal = check.status === 200 ? String(check.body.sync_status ?? 'null') : `HTTP ${check.status}`;
         appendAudit(AUDIT_PATH, {
-          runId, mode: 'live', vendor: VENDOR, entity, txnId: t.id, action: ok ? 'unsplit' : 'error',
-          invoiceKey, amountCents: t.amountCents, status: res.status,
-          detail: ok ? 'line_items -> []' : JSON.stringify(res.body).slice(0, 500),
+          runId, mode: 'live', vendor: VENDOR, entity, txnId: t.id, action: 'skip',
+          invoiceKey, amountCents: t.amountCents, status: check.status,
+          detail: `sync_status_changed: ${statusVal}`,
           priorMemo: t.memo, priorLineItems,
         });
-      }
-      if (memoToWrite !== null) {
-        // Memo is independent of the un-split (txn-level field) — attempt it either way.
-        const res = await postMemo(t.id, memoToWrite, token);
-        const ok = res.status >= 200 && res.status < 300;
-        if (!ok) writeFails++;
-        appendAudit(AUDIT_PATH, {
-          runId, mode: 'live', vendor: VENDOR, entity, txnId: t.id, action: ok ? 'memo' : 'error',
-          invoiceKey, amountCents: t.amountCents, status: res.status,
-          detail: ok ? memoToWrite : res.body, priorMemo: t.memo, priorLineItems,
-        });
+        notes.push('sync_status_changed');
+      } else {
+        if (t.enriched) {
+          // Un-split: PATCH with empty line_items restores the single default line; Ramp's own
+          // categorization (Suspense for Amazon) applies. Prior lines are in the audit row.
+          const res = await patchSplit(entity, t.id, [], token);
+          const ok = res.status >= 200 && res.status < 300;
+          if (!ok) writeFails++;
+          appendAudit(AUDIT_PATH, {
+            runId, mode: 'live', vendor: VENDOR, entity, txnId: t.id, action: ok ? 'unsplit' : 'error',
+            invoiceKey, amountCents: t.amountCents, status: res.status,
+            detail: ok ? 'line_items -> []' : JSON.stringify(res.body).slice(0, 500),
+            priorMemo: t.memo, priorLineItems,
+          });
+        }
+        if (memoToWrite !== null) {
+          // Memo is independent of the un-split (txn-level field) — attempt it either way.
+          const res = await postMemo(t.id, memoToWrite, token);
+          const ok = res.status >= 200 && res.status < 300;
+          if (!ok) writeFails++;
+          appendAudit(AUDIT_PATH, {
+            runId, mode: 'live', vendor: VENDOR, entity, txnId: t.id, action: ok ? 'memo' : 'error',
+            invoiceKey, amountCents: t.amountCents, status: res.status,
+            detail: ok ? memoToWrite : res.body, priorMemo: t.memo, priorLineItems,
+          });
+        }
       }
     }
 

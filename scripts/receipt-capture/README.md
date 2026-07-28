@@ -201,6 +201,9 @@ Per eligible txn (cleared, `NOT_SYNC_READY`, Amazon-family, never AWS):
 - No receipt attached → routed to the receipt-gap CSV (C4 / Amazon-CSV-backfill workstream), not
   actioned further. No order ID recoverable from any source → flagged `no_order_id` in the plan
   row; still un-split if enriched, just without a memo write.
+- Amazon digital orders (Prime Video, Kindle, subscriptions) use a `D01-xxxxxxx-xxxxxxx` id format
+  that the 3-7-7 order-number regex intentionally doesn't match — these will always show up as
+  `no_order_id`. Don't chase them in that bucket; there's no recoverable order-ID memo for them.
 
 **Output CSVs** (`out/`, gitignored):
 
