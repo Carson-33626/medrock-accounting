@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   for (const e of entities) {
     const p = `${ROOT}/${e}/transactions.csv`;
     if (!existsSync(p)) {
-      console.log(`[${e}] no transactions.csv cached — skipping (run the extract for this entity first)`);
+      console.log(`[${e}] no transactions.csv cached - skipping (run the extract for this entity first)`);
       setAside.push(['', e, '', '', 'no_transactions_csv', p].map(csv).join(','));
       continue;
     }
@@ -224,7 +224,13 @@ async function main(): Promise<void> {
 
     plan.push({
       txnId: t.id, date: t.date, amountCents: t.amountCents, entity: t.entity, orderIds,
-      pdfCached, plannedActions: actions.length > 0 ? actions.join(';') : 'none', mode, notes: notes.join(';'),
+      pdfCached, plannedActions: actions.length > 0 ? actions.join(';') : 'none', mode,
+      // A confident, PDF-ready pair only ever lands in dry_run here because the cap was hit
+      // (mirrors run-amazon.ts's over_limit convention) — flag it so the plan CSV distinguishes
+      // "would have written but for the cap" from the other dry_run reasons (no pdf, not live).
+      notes: mode === 'dry_run' && live && capped && pdfCached
+        ? [...notes, 'over_cap'].join(';')
+        : notes.join(';'),
     });
   }
 
@@ -238,7 +244,7 @@ async function main(): Promise<void> {
       `${live ? `attached=${s.attached} memo=${s.memoWritten} skipped=${s.skipped} fails=${s.fails}` : 'dry-run (no writes)'}`,
     );
   }
-  console.log(`\nMODE: ${live ? `LIVE (cap ${cap || '∞'}, ${writes} attempted)` : 'DRY-RUN (no writes)'}`);
+  console.log(`\nMODE: ${live ? `LIVE (cap ${cap || 'none'}, ${writes} attempted)` : 'DRY-RUN (no writes)'}`);
   console.log(`charges ${charges.length} | confident ${confident.length} | ambiguous ${ambiguous.length} | unmatched ${unmatched.length}`);
   console.log(`Wrote ${OUT}/plan.csv (${plan.length}), ${OUT}/set_aside.csv (${setAside.length - 1})`);
 }

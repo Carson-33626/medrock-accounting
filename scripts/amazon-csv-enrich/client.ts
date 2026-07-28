@@ -1,6 +1,9 @@
-// Fetch un-enriched, not-yet-synced Amazon Ramp transactions (the SPLIT match pool) with card last-4.
-// Mirrors amazon-enrich getEligibleAmazonTxns but WITHOUT the has-receipt requirement (this tool ATTACHES
-// the receipt) and WITH card_last_four for the inverted match. Re-exports the shared write primitives.
+// Receipt + order-id memo backfill for Ramp Amazon transactions: pools charge-level pairing
+// candidates (getReceiptlessAmazonTxns, the run-attach.ts pool) and re-exports the shared write
+// primitives (patchSplit, patchMemo, rampToken) that runner consumes. run-attach.ts is the
+// current consumer/entrypoint for this module's live pool. The split-era export
+// (getUnenrichedAmazonTxns) is retained only for the retired/gated split runners
+// (run-split.ts, run-recon-split.ts) and rollback tooling — not for new work.
 import { rampGet } from '../ramp-split-push/ramp-client';
 import { isAmazonFamily } from '../receipt-capture/amazon-worklist';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
@@ -90,8 +93,16 @@ export async function getReceiptlessAmazonTxns(entity: Entity, token: string, pa
   const out: RampTxn[] = [];
   let url: string | null = '/transactions?page_size=100&order_by_date_desc=true';
   for (let i = 0; i < pages && url; i++) {
-    const { status, body }: { status: number; body: EligiblePage } = await rampGet<EligiblePage>(entity, url, token);
-    if (status !== 200) break;
+    // Ramp intermittently 404s mid-pagination ("access token not found") — retry with backoff
+    // (mirrors receipt-capture/amazon-worklist.ts's fetchAmazonWorklist loop). A page that still
+    // fails after retries must not silently truncate the pool — throw so the caller sees it.
+    let res: { status: number; body: EligiblePage } = await rampGet<EligiblePage>(entity, url, token);
+    for (let attempt = 0; res.status !== 200 && attempt < 4; attempt++) {
+      await new Promise((r) => setTimeout(r, 2 ** attempt * 1000));
+      res = await rampGet<EligiblePage>(entity, url, token);
+    }
+    if (res.status !== 200) throw new Error(`Ramp ${entity} receiptless-amazon pool page ${i} HTTP ${res.status}`);
+    const { body } = res;
     const rows = body.data ?? [];
     if (!rows.length) break;
     for (const t of rows) {

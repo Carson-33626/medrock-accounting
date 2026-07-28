@@ -48,12 +48,12 @@ async function main(): Promise<void> {
   // RETIRED for Amazon (2026-07-28): single-line policy, use run-attach.ts instead. Live writes are
   // refused outright. Dry-run preview still works for inspection.
   if (live) {
-    console.error('Amazon splitting is RETIRED (2026-07-28 single-line policy) — use run-attach.ts (receipt + order-ID memo).');
+    console.error('Amazon splitting is RETIRED (2026-07-28 single-line policy) - use run-attach.ts (receipt + order-ID memo).');
     console.error('Dry-run preview still works for inspection.');
     process.exit(1);
   }
   if (!live) {
-    console.error('NOTE: Amazon splitting is RETIRED (2026-07-28) — this dry-run is inspection-only.');
+    console.error('NOTE: Amazon splitting is RETIRED (2026-07-28) - this dry-run is inspection-only.');
   }
 
   // Pool + dedupe charges across logins.
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
     const seen = new Set(prior.map((r) => r.txn_id));
     writeFileSync(path, JSON.stringify([...prior, ...rollback.filter((r) => !seen.has(r.txn_id))], null, 2));
   }
-  console.log(`\nMODE: ${live ? `LIVE (cap ${cap || '∞'}, ${writes} written, ${attachFails} attach-fail)` : 'DRY-RUN (no writes)'}`);
+  console.log(`\nMODE: ${live ? `LIVE (cap ${cap || 'none'}, ${writes} written, ${attachFails} attach-fail)` : 'DRY-RUN (no writes)'}`);
   console.log(`charges ${charges.length} | confident ${match.confident.length} | ambiguous ${match.ambiguous.length} | unmatched ${match.unmatched.length}`);
   console.log(`Wrote ${OUT}/preview_splits.csv (${preview.length - 1}), ${OUT}/set_aside.csv (${aside.length - 1})${rollback.length ? `, ${OUT}/rollback.json (+${rollback.length})` : ''}`);
 }
