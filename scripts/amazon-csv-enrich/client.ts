@@ -2,6 +2,7 @@
 // Mirrors amazon-enrich getEligibleAmazonTxns but WITHOUT the has-receipt requirement (this tool ATTACHES
 // the receipt) and WITH card_last_four for the inverted match. Re-exports the shared write primitives.
 import { rampGet } from '../ramp-split-push/ramp-client';
+import { isAmazonFamily } from '../receipt-capture/amazon-worklist';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
 
 interface RawLine { memo?: string | null }
@@ -54,6 +55,60 @@ export async function getUnenrichedAmazonTxns(entity: Entity, token: string, pag
         cardLast4: t.card_last_four ?? null,
         userId: t.card_holder?.user_id ?? null,
         memo: null,
+        merchantName: t.merchant_name,
+        orderNo: null,
+        priorLineItems: t.line_items ?? null,
+      });
+    }
+    url = body.page?.next ?? null;
+  }
+  return out;
+}
+
+interface RawEligibleTxn {
+  id: string;
+  amount: number;
+  state?: string | null;
+  sync_status?: string | null;
+  user_transaction_time?: string;
+  merchant_name: string | null;
+  card_id?: string | null;
+  card_last_four?: string | null;
+  card_holder?: { first_name?: string; last_name?: string; user_id?: string } | null;
+  memo?: string | null;
+  receipts?: string[] | null;
+  line_items?: unknown;
+}
+interface EligiblePage { data: RawEligibleTxn[]; page?: { next?: string } }
+
+// Attach pool for run-attach.ts: CLEARED + never-synced + RECEIPTLESS Amazon-family txns. Differs
+// from getUnenrichedAmazonTxns above (the split-era pool: merchant-name regex only, no state or
+// receipts check, memo always zeroed): run-attach needs the REAL current memo (composeMemo
+// re-carries it) and card last-4 (the matcher's tiebreaker), and must skip any txn that already
+// carries a receipt since attaching one is this runner's entire job.
+export async function getReceiptlessAmazonTxns(entity: Entity, token: string, pages = 60): Promise<RampTxn[]> {
+  const out: RampTxn[] = [];
+  let url: string | null = '/transactions?page_size=100&order_by_date_desc=true';
+  for (let i = 0; i < pages && url; i++) {
+    const { status, body }: { status: number; body: EligiblePage } = await rampGet<EligiblePage>(entity, url, token);
+    if (status !== 200) break;
+    const rows = body.data ?? [];
+    if (!rows.length) break;
+    for (const t of rows) {
+      if (!isAmazonFamily(t.merchant_name)) continue;
+      if (t.state !== 'CLEARED' || t.sync_status !== 'NOT_SYNC_READY') continue;
+      if ((t.receipts ?? []).length > 0) continue;
+      const holder = t.card_holder ? `${t.card_holder.first_name ?? ''} ${t.card_holder.last_name ?? ''}`.trim() : null;
+      out.push({
+        id: t.id,
+        entity,
+        amountCents: Math.round(t.amount * 100),
+        date: (t.user_transaction_time ?? '').slice(0, 10),
+        cardId: t.card_id ?? null,
+        cardHolder: holder || null,
+        cardLast4: t.card_last_four ?? null,
+        userId: t.card_holder?.user_id ?? null,
+        memo: t.memo ?? null,
         merchantName: t.merchant_name,
         orderNo: null,
         priorLineItems: t.line_items ?? null,
