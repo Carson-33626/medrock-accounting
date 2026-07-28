@@ -39,10 +39,13 @@ function isAmazon(name: string | null): boolean {
 // but WITH a product-name memo — so line count alone can't tell them apart (that re-processed 145 of
 // our 170 prior writes). Memo presence is the reliable signal; erring toward "skip if memo present"
 // is the safe direction (worst case we skip a txn, never re-split one).
-function isEnriched(t: RawTxn): boolean {
-  const lines = t.line_items ?? [];
+export function isEnrichedLines(lines: { memo?: string | null }[]): boolean {
   if (lines.length > 1) return true;
   return lines.some((l) => (l.memo ?? '').trim().length > 0);
+}
+
+function isEnriched(t: RawTxn): boolean {
+  return isEnrichedLines(t.line_items ?? []);
 }
 
 // Eligible = a target-merchant txn we haven't enriched, not yet pushed to QB (re-coding a synced txn
