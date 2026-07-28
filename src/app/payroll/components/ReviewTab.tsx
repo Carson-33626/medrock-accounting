@@ -453,6 +453,12 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           When it&apos;s balanced and postable, use the <strong>Post</strong> panel below to preview, approve, and
           post it to QuickBooks.
         </p>
+        <p>
+          A <strong>split payroll</strong> (pay period crossing a month boundary) shows one sub-tab per
+          month plus a <strong>Combined</strong> view, with a grand reconciliation summary at the bottom
+          proving the pieces re-sum to the original run. Review each piece, then approve and post —
+          both pieces go together as a pair.
+        </p>
       </DirectionsBanner>
 
       {/* Loaded-draft summary — what this JE is + who it pays. */}

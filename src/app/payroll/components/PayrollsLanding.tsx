@@ -216,6 +216,12 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
           &ldquo;Anytime&rdquo; payment show up as their own 1-person card). Need an older or brand-new period? Use{' '}
           <strong>Import a pay period</strong> below to pull it from ADP.
         </p>
+        <p>
+          A card with a <strong>Split</strong> badge is a payroll whose pay period crosses a month
+          boundary: it posts as <strong>two journal entries</strong>, one per calendar month, and the
+          card lists each month&apos;s share. Open it to review the pieces on sub-tabs — they approve
+          and post together as a pair.
+        </p>
       </DirectionsBanner>
 
       <ImportPanel
