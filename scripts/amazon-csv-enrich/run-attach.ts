@@ -153,7 +153,11 @@ async function main(): Promise<void> {
 
     const priorLineItems = t.priorLineItems == null ? '' : JSON.stringify(t.priorLineItems);
     const capped = live && cap > 0 && writes >= cap;
-    const mode: 'live' | 'dry_run' = live && !capped && actions.length > 0 ? 'live' : 'dry_run';
+    // A pair with no cached PDF has NO live-executable work: attach is impossible (no bytes to
+    // upload) and memo is attach-gated (see below), so entering the live branch here would burn
+    // cap budget and fire a TOCTOU GET for a pass that can never write anything or leave an audit
+    // row. Gate live-mode entry on pdfCached — attach is the prerequisite for everything.
+    const mode: 'live' | 'dry_run' = live && !capped && pdfCached ? 'live' : 'dry_run';
 
     if (mode === 'live') {
       writes++;
