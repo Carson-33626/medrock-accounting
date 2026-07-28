@@ -26,6 +26,7 @@ import { patchSplit, patchMemo } from '../amazon-enrich/client';
 import { buildGlIndex } from '../amazon-enrich/gl-resolve';
 import { rampToken } from '../ramp-split-push/ramp-client';
 import { appendAudit } from './audit';
+import { parseNumericFlag } from './cli-args';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 
@@ -72,21 +73,6 @@ function hasSameTotalCompetitor(
 }
 
 interface Args { entity: Entity; since: string; live: boolean; limit: number; csvPath: string | null; windowDays: number }
-
-// An explicit `--limit 0` (or `--window 0`) must be respected, not collapsed to the default —
-// `Number(raw ?? def) || def` treats 0 as falsy and silently substitutes the default, which on a
-// --live run means writes the operator explicitly tried to suppress. Only absence of the flag or
-// a non-numeric value falls back to `def`; negative values are clamped/rejected per `negativePolicy`.
-function parseNumericFlag(flagName: string, raw: string | null, def: number, negativePolicy: 'clamp' | 'reject'): number {
-  if (raw === null) return def;
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return def;
-  if (n < 0) {
-    if (negativePolicy === 'reject') throw new Error(`${flagName} must be >= 0, got ${raw}`);
-    return 0;
-  }
-  return n;
-}
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);

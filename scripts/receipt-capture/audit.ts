@@ -9,7 +9,7 @@ export interface AuditRow {
   vendor: string;
   entity: string;
   txnId: string;
-  action: 'attach_receipt' | 'memo' | 'split' | 'skip' | 'error';
+  action: 'attach_receipt' | 'memo' | 'split' | 'unsplit' | 'skip' | 'error';
   invoiceKey: string;
   amountCents: number;
   status: number | null;

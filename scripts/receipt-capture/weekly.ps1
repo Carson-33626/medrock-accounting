@@ -35,4 +35,10 @@ foreach ($entity in $ulineEntities) {
     }
 }
 
+Write-Host "`n--- Amazon (FL, TN, TX) ---" -ForegroundColor Yellow
+npx tsx scripts/receipt-capture/run-amazon.ts
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Amazon run failed (exit $LASTEXITCODE) - see output above." -ForegroundColor Red
+}
+
 Write-Host "`n=== weekly pass complete - review out\*-plan-*.csv and the audit CSV before any live run ===" -ForegroundColor Cyan

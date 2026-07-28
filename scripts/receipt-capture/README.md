@@ -1,9 +1,12 @@
-# Receipt Capture (TopRx + ULINE)
+# Receipt Capture (TopRx + ULINE + Amazon)
 
 Fills missing receipts on Ramp card transactions for two vendors — TopRx (Rx wholesale, net
 terms) and ULINE (packaging/supplies, card-at-purchase) — by scraping each vendor's own order
 history for the invoice PDF, matching it to the corresponding un-receipted Ramp transaction, and
 (only in `--live` mode, capped) attaching the receipt + writing a memo + coding a GL split.
+
+A third, structurally different stream — **Amazon (un-split + order-ID memo)** — reverses
+Engine A's earlier itemized splitting for Amazon-family txns; see its own section below.
 
 Both vendors follow the same **extract → match → plan → (live) write** shape, run per entity
 (FL, TN, TX):
@@ -125,6 +128,8 @@ A live write for one matched txn is three calls, all audited:
 |---|---|---|
 | `out/receipt-capture-audit.csv` | Append-only audit of every live action (both vendors share one file) — `ts,run_id,mode,vendor,entity,txn_id,action,invoice_key,amount_cents,status,detail`. Dry-runs never touch it. | No (`out/` gitignored) |
 | `out/toprx-plan-<ENT>.csv`, `out/uline-plan-<ENT>.csv` | Full itemized plan for the most recent run of that vendor+entity — every match and every skip, with a `notes` reason. Overwritten each run. | No |
+| `out/amazon-plan-<ENT>.csv` | Amazon un-split/memo plan for the most recent run — see the Amazon section above. Overwritten each run. | No |
+| `out/amazon-receipt-gap.csv` | Combined (all entities in that invocation) list of Amazon txns with zero attached receipts. Overwritten each run. | No |
 | `out/toprx-cache-<ENT>.json`, `out/uline-cache-<ENT>.json` | Resumable extraction cache (keyed by order id / invoice number). Re-running only fetches what's missing. | No |
 | `out/uline-categories-<ENT>.json` | Parallel category array per ULINE invoice (from `--csv` enrichment), keyed by invoice number, aligned to the cached record's items by index. | No |
 | `out/pdf/` | Fetched invoice PDFs (`toprx-<ENT>-<orderId>.pdf`, `uline-<ENT>-<invoiceNumber>.pdf`). | No |
@@ -163,10 +168,70 @@ A live write for one matched txn is three calls, all audited:
   `toprx-roster.ts`) — they represent money coming back, not a purchase with a receipt to
   capture, so they never enter matching at all.
 
+## Amazon (un-split + order-ID memo)
+
+**Why**: Barbara's flow makes QBO's Amazon-direct connection the itemization source of truth for
+Amazon purchases — it already pulls order-level detail straight from Amazon. That means Ramp's
+own itemized splits (Engine A's earlier `amazon-enrich` work) are now redundant and actively in
+the way: they leave the Ramp-side txn looking coded when QBO's connection is the one doing the
+real itemization. The reversed design: every un-synced Amazon-family Ramp txn should land in QBO
+as a **plain single-line entry to Suspense**, with the Amazon order ID prepended to the memo.
+Staff then pair the Suspense line to the corresponding QBO Amazon-direct order by that ID. Any
+Suspense residue left over at month-end is the hunt list for orders that still need pairing (or
+still need a receipt — see the gap CSV below).
+
+**Commands** (from `web/`):
+
+```
+# Dry-run — all 3 entities by default, or one via --entity. Zero Ramp writes (read-only token).
+npx tsx scripts/receipt-capture/run-amazon.ts [--entity=FL] [--pages 100]
+
+# Live pilot — capped, audited. Get Carson's go-ahead first (see "Human-gated procedures" above).
+npx tsx scripts/receipt-capture/run-amazon.ts --entity=FL --live --limit 5
+```
+
+Per eligible txn (cleared, `NOT_SYNC_READY`, Amazon-family, never AWS):
+
+- If Engine A previously split it (`enriched: true`), **un-split**: `PATCH` `line_items: []`,
+  collapsing it back to Ramp's single default line.
+- Recover the Amazon order ID — cached/fresh receipt PDF first, then the existing memo, then
+  line-item memos, then the merchant descriptor — and **prepend** `Amazon order# <id>` to the
+  memo (existing human text is preserved below it, same policy as `amazon-memo.ts`'s
+  `composeMemo`). No-op if the memo already carries every recovered ID.
+- No receipt attached → routed to the receipt-gap CSV (C4 / Amazon-CSV-backfill workstream), not
+  actioned further. No order ID recoverable from any source → flagged `no_order_id` in the plan
+  row; still un-split if enriched, just without a memo write.
+
+**Output CSVs** (`out/`, gitignored):
+
+- `amazon-plan-<ENT>.csv` — one row per worklist txn: recovered order IDs + which source they
+  came from, enriched flag, has-receipt flag, planned actions, dry-run/live mode, notes
+  (`no_receipt`, `no_order_id`, `memo_already_current`, `over_limit`).
+- `amazon-receipt-gap.csv` — combined across all entities run in that invocation: every txn with
+  zero attached receipts, for the Amazon-CSV-backfill workstream or manual upload. These are left
+  in QBO Suspense as designed until receipted.
+
+**Audit trail**: `unsplit` rows in `out/receipt-capture-audit.csv` carry the txn's prior
+`line_items` as a JSON snapshot in `prior_line_items` (same column Engine A's own splits used) —
+rollback for an un-split done in error is re-`PATCH`ing those exact lines back via
+`patchSplit(entity, txnId, <parsed prior_line_items>, token)`, done by hand. `memo` rows carry the
+prior memo text in `prior_memo` for the same reason.
+
+**Hard rules**:
+
+- Never touches a txn with `sync_status` of `SYNCED` or `SYNC_READY` — only `NOT_SYNC_READY`
+  (never pushed to QBO) is in scope, so nothing already reconciled in QBO is disturbed.
+- AWS is explicitly excluded from the Amazon-family match (`isAmazonFamily` in
+  `amazon-worklist.ts`) — it bills separately and was never itemized through the QBO
+  Amazon-direct connection this workstream reverses.
+- `--live` is gated the same as TopRx/ULINE: Carson's explicit per-run go-ahead, small `--limit`
+  pilot first, audit CSV review before raising the limit. `weekly.ps1` only ever runs the
+  dry-run form.
+
 ## Weekly wrapper
 
-`weekly.ps1` runs a dry-run pass across TopRx (all entities) and ULINE (FL, TN, TX — each
-skipped cleanly if sign-in is required):
+`weekly.ps1` runs a dry-run pass across TopRx (all entities), ULINE (FL, TN, TX — each skipped
+cleanly if sign-in is required), and Amazon (all entities):
 
 ```
 powershell -File scripts\receipt-capture\weekly.ps1
