@@ -6,6 +6,8 @@ describe('unwrapExcel', () => {
   it('strips plain quotes', () => { expect(unwrapExcel('"MedRock Florida"')).toBe('MedRock Florida'); });
   it('passes through bare text', () => { expect(unwrapExcel('Visa')).toBe('Visa'); });
   it('returns empty for N/A after trim', () => { expect(unwrapExcel(' N/A ')).toBe('N/A'); });
+  it('strips a bare leading = left by the tokenizer', () => { expect(unwrapExcel('=9985')).toBe('9985'); });
+  it('still handles the quoted excel wrapper', () => { expect(unwrapExcel('="9985"')).toBe('9985'); });
 });
 
 describe('parseMoneyCents', () => {
