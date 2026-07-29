@@ -101,6 +101,8 @@ Flags:
   `toprx`, `uline`, `amazon`, `walmart`, `amazon-csv`). Omit to run all five.
 - `--limit N` — max number of transactions actually written by any one vendor runner (default
   999999). Confident matches beyond the limit are planned but marked `over_limit` and left dry.
+  In joint-ULINE mode (`uline-FLTN`), this cap is **pooled across FL+TN** — it's N total ULINE
+  writes for the joint child, not N per entity.
 - `--skip-scan` — skip S1 and S4 (before/after scans); reuse the last scan baseline and assume
   an empty "after". Useful for vendor-only re-runs or debugging. Does NOT update the residual
   queue or the baseline pointer (see caching below).
@@ -159,9 +161,22 @@ survive a cleanup.
 
 **Exit codes**: The sweep itself exits 0 on success or 1 on an unhandled error. Child vendors may
 exit non-zero — these are logged in the report. ULINE runners specifically exit 2 (sign-in
-required) or 3 (account identity mismatch); both are "expected" failures that don't stop the
-overall sweep or halt at an exit code — they're just flagged as needs-you items and other vendors
-continue.
+required) or 3 (account identity mismatch), or 4 (consumed-invoice registry failed to parse —
+`run-uline.ts --live` hard-stops rather than risk a double-claim; see "Rollback" below); all three
+are "expected" failures that don't stop the overall sweep or halt at an exit code — they're just
+flagged as needs-you items and other vendors continue.
+
+**Operational notes**:
+
+- A timed-out ULINE/TopRx child (30-minute default in `sweep-exec.ts`) can orphan its Playwright
+  browser process — the child is killed, but a lingering `chrome.exe` under Playwright's control
+  can survive it. If a sweep run times out a vendor job, check Task Manager for stray Chrome
+  processes and end them by hand before re-running.
+- A consumed-registry entry (`out/uline-consumed.json`) is recorded immediately after a successful
+  `POST /receipts` — before memo/split even run — so an invoice whose receipt attached OK but
+  whose memo or split PATCH failed will **not** be retried on the next run (the receipt is the
+  anchor, not the full three-call sequence). Check `out/receipt-capture-audit.csv` for memo/split
+  errors on such a txn and fix it by hand (memos and splits are both rewritable — see "Rollback").
 
 **Amazon**: The sweep runs two Amazon jobs: `run-amazon.ts` (un-split & order-ID memo) and
 `amazon-csv-enrich run-attach.ts` (receipt + memo from charge pairing). Both enforce a
@@ -214,6 +229,11 @@ Flags:
   `#CompanyName` doesn't match `ULINE_ACCOUNT_<ENT>` (`ULINE_ACCOUNT_MISMATCH`), or no env var
   and no hardcoded default exists for that entity (`ULINE_ACCOUNT_ENV_MISSING`). Hard stop —
   nothing else runs for that entity on that invocation.
+- `4` (ULINE only, `--live` runs only) — consumed-invoice registry (`out/uline-consumed.json`)
+  failed to parse. Hard stop before any live write: a corrupt registry can't be trusted to say an
+  invoice was already claimed, so writing against it risks double-claiming one. Dry-runs don't
+  hard-stop on this (nothing gets written either way) but print a loud warning — treat the plan
+  CSV's `consumed` notes as untrustworthy until the registry is repaired or restored.
 
 TopRx has no equivalent 2/3 codes: session lapses are absorbed transparently by the scripted
 auto-re-login in `toprx-session.ts`, and there's no per-entity account-identity ambiguity (each

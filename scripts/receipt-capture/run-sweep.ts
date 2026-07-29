@@ -93,8 +93,8 @@ async function main(): Promise<void> {
   const wmCdp = await checkCdp(WM_CDP);
   if (toprx.needsYou) needsYou.push(toprx.needsYou);
   if (uline.needsYou) needsYou.push(uline.needsYou);
-  if (!wmCdp.reachable) needsYou.push(`Walmart extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into walmart.com`);
-  needsYou.push('Amazon-CSV extract is always manual: sign each Business login into a CDP Chrome, then run scripts/amazon-csv-enrich/run-extract.ts --account <label>');
+  if (args.vendors.includes('walmart') && !wmCdp.reachable) needsYou.push(`Walmart extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into walmart.com`);
+  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign each Business login into a CDP Chrome, then run scripts/amazon-csv-enrich/run-extract.ts --account <label>');
   console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
 
   // ---- S1 scan ----
@@ -104,15 +104,30 @@ async function main(): Promise<void> {
     before = await fullScan();
     writeScanCsv(`${OUT}/scan-${runId}-before.csv`, before);
   }
-  const prevIds = readScanIds(state.lastScanCsv ?? '');
-  const beforeIds = new Set(before.map((r) => r.id));
-  const fixedSinceLast = [...prevIds].filter((id) => !beforeIds.has(id)).length;
-  const newSinceLast = before.filter((r) => !prevIds.has(r.id)).length;
+  // A --skip-scan run's `before` is the empty S1-skip placeholder, not a real scan — diffing it
+  // against the last real baseline would report every previously-open txn as "fixed" and nothing
+  // as "new", which is noise, not signal. Suppress the computation entirely rather than compute
+  // and then hide a wrong number.
+  let fixedSinceLast: number | null = null;
+  let newSinceLast: number | null = null;
+  if (!args.skipScan) {
+    const prevIds = readScanIds(state.lastScanCsv ?? '');
+    const beforeIds = new Set(before.map((r) => r.id));
+    fixedSinceLast = [...prevIds].filter((id) => !beforeIds.has(id)).length;
+    newSinceLast = before.filter((r) => !prevIds.has(r.id)).length;
+  }
 
   // ---- S2/S3 vendor jobs (sequential) ----
   const lim = String(args.limit);
   const live = (base: string[]): string[] => (args.dryRun ? base : [...base, '--live']);
   const want = (v: Vendor): boolean => args.vendors.includes(v);
+
+  // walmart-attach and amazon-csv-attach treat `--cap 0` as UNCAPPED (their own `cap > 0` gate
+  // disables the check entirely at 0), the OPPOSITE of every `--limit`-based runner here, where 0
+  // correctly means zero writes. An explicit `--limit 0` on a live sweep must not turn into an
+  // unbounded live cap for these two children — force them dry instead and flag why in the report.
+  const cap0Uncapped = args.limit === 0 && !args.dryRun;
+  const attachLive = (base: string[]): string[] => (cap0Uncapped ? base : live(base));
 
   if (want('toprx') && toprx.available) {
     for (const e of toprx.entities) {
@@ -143,7 +158,8 @@ async function main(): Promise<void> {
   if (want('walmart')) {
     if (wmCdp.reachable) jobs.push(await runChild('walmart-extract', ['scripts/walmart-enrich/run-cdp.ts']));
     if (existsSync('scripts/walmart-enrich/out/extraction-cache.json')) {
-      jobs.push(await runChild('walmart-attach', live(['scripts/walmart-enrich/run-cdp-split.ts', '--cap', args.dryRun ? '0' : lim])));
+      if (cap0Uncapped) console.log('  walmart-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
+      jobs.push(await runChild(cap0Uncapped ? 'walmart-attach (limit_0)' : 'walmart-attach', attachLive(['scripts/walmart-enrich/run-cdp-split.ts', '--cap', args.dryRun ? '0' : lim])));
     } else {
       needsYou.push('Walmart attach skipped: no extraction cache yet (needs one CDP extract run)');
     }
@@ -151,20 +167,30 @@ async function main(): Promise<void> {
   if (want('amazon-csv')) {
     const root = 'scripts/amazon-csv-enrich/out';
     const hasCache = existsSync(root) && readdirSync(root, { withFileTypes: true }).some((d) => d.isDirectory() && d.name !== '_attach' && existsSync(join(root, d.name, 'charges.json')));
-    if (hasCache) jobs.push(await runChild('amazon-csv-attach', live(['scripts/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));
+    if (hasCache) {
+      if (cap0Uncapped) console.log('  amazon-csv-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
+      jobs.push(await runChild(cap0Uncapped ? 'amazon-csv-attach (limit_0)' : 'amazon-csv-attach', attachLive(['scripts/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));
+    }
     else needsYou.push('Amazon-CSV attach skipped: no charge caches yet (run run-extract per Business login first)');
   }
 
   for (const j of jobs) {
     const note = j.label.startsWith('uline') && j.code === 2 ? ' (session expired - re-run bootstrap)'
-      : j.label.startsWith('uline') && j.code === 3 ? ' (account identity mismatch - check ULINE_ACCOUNT env)' : '';
+      : j.label.startsWith('uline') && j.code === 3 ? ' (account identity mismatch - check ULINE_ACCOUNT env)'
+      : j.label.startsWith('uline') && j.code === 4 ? ' (consumed-invoice registry corrupt - hard stop, inspect out/uline-consumed.json)' : '';
     console.log(`  ${j.ok ? 'OK ' : 'FAIL'} ${j.label} exit=${j.code ?? 'timeout'} ${Math.round(j.durationMs / 1000)}s${note}`);
     if (!j.ok && note) needsYou.push(`${j.label}: exit ${j.code}${note}`);
   }
 
   // ---- S4 residual ----
   let after: ScanRow[] = before;
-  if (!args.dryRun && !args.skipScan) {
+  const willRescan = !args.dryRun && !args.skipScan;
+  if (willRescan) {
+    // Ramp's own indexing of a just-attached receipt/split lags a few seconds behind the write
+    // call in practice — an immediate re-scan can still see a txn as receipt-less even though the
+    // attach succeeded moments ago. Give the indexing a head start before reading it back.
+    console.log('S4 pausing 15s for Ramp receipt indexing to catch up before re-scan...');
+    await new Promise((r) => setTimeout(r, 15_000));
     console.log('S4 re-scan:');
     after = await fullScan();
   }
@@ -176,7 +202,8 @@ async function main(): Promise<void> {
   if (!args.skipScan) {
     writeFileSync(`${OUT}/residual-queue.csv`, [SCAN_CSV_HEADER, ...residualSorted.map(scanCsvLine)].join('\n') + '\n');
   }
-  const fixedThisRun = before.filter((r) => !new Set(after.map((x) => x.id)).has(r.id)).length;
+  const afterIds = new Set(after.map((x) => x.id));
+  const fixedThisRun = before.filter((r) => !afterIds.has(r.id)).length;
 
   // ---- report ----
   const top = rollupByMerchant(after).slice(0, 20);
@@ -189,13 +216,14 @@ async function main(): Promise<void> {
     `## Scan`,
     `- Open receiptless before: ${before.length} | after: ${after.length} (${money(totalCents)})`,
     `- Fixed THIS run: ${fixedThisRun}`,
-    `- Since last sweep: fixed ${fixedSinceLast}, new ${newSinceLast}`,
+    ...(args.skipScan ? [] : [`- Since last sweep: fixed ${fixedSinceLast}, new ${newSinceLast}`]),
+    ...(willRescan ? [`- Note: fixed-this-run and residual counts may lag Ramp's indexing of just-attached receipts; re-run with --skip-scan omitted later to confirm.`] : []),
     ``,
     `## Vendor jobs`,
     ...jobs.flatMap((j) => [`### ${j.label} — ${j.ok ? 'OK' : `FAIL (exit ${j.code ?? 'timeout'})`}`, ...j.summaryLines.map((l) => `- ${l}`), j.ok ? '' : '```\n' + j.stdoutTail.slice(-1200) + '\n```']),
     ``,
     `## Needs you`,
-    ...(needsYou.length ? needsYou.map((n) => `- [ ] ${n}`) : ['- nothing — fully automatic this week']),
+    ...(needsYou.length ? needsYou.flatMap((n) => n.split('\n').map((line) => `- [ ] ${line}`)) : ['- nothing — fully automatic this week']),
     ``,
     `## Residual queue (top merchants by $)`,
     `| merchant | txns | $ |`,
@@ -208,10 +236,13 @@ async function main(): Promise<void> {
   writeFileSync(reportPath, report + '\n');
 
   // A --skip-scan run has no real "after" snapshot (before/after are both the empty S1-skip
-  // placeholder) — updating lastScanCsv here would poison the next real run's diff baseline
-  // with a zero-row scan, so only the history entry is appended and the pointer stays put.
-  if (!args.skipScan) state.lastScanCsv = afterCsv;
-  state.history.push({ runId, total: after.length, cents: totalCents });
+  // placeholder) — updating lastScanCsv here would poison the next real run's diff baseline with
+  // a zero-row scan, and appending a {total: 0} history entry would do the same to the history
+  // trend, so both are skipped entirely for a --skip-scan run.
+  if (!args.skipScan) {
+    state.lastScanCsv = afterCsv;
+    state.history.push({ runId, total: after.length, cents: totalCents });
+  }
   writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
   console.log(`\nresidual ${after.length} txns ${money(totalCents)} | fixed this run ${fixedThisRun} | report ${reportPath}`);
 }

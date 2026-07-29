@@ -438,6 +438,27 @@ async function runUline(entities: Entity[], args: Args, runId: string): Promise<
   const categoryCache = loadCategoryCache(categoryCachePath);
   const consumed = loadConsumedStore(CONSUMED_PATH);
 
+  // The consumed registry is the only guard against a joint/solo run double-claiming an invoice
+  // across separate invocations (see file header). If it failed to parse, `consumed.has()` below
+  // would silently behave as if NOTHING has ever been claimed — exactly the double-claim scenario
+  // this registry exists to prevent. A --live run must hard-stop rather than write against that
+  // false-empty state; --dry-run can proceed (nothing gets written) but only with a loud warning,
+  // since its plan CSV's `consumed` skip notes are not trustworthy while the registry is down.
+  if (consumed.corrupt) {
+    if (args.live) {
+      throw new Error(
+        `ULINE_CONSUMED_REGISTRY_CORRUPT: ${CONSUMED_PATH} failed to parse — hard stop before any ` +
+        `live write to avoid double-claiming an invoice already receipted by a prior run. Inspect/` +
+        `restore the file (or delete it to start a fresh, but no-longer-protective, registry) before retrying --live.`,
+      );
+    }
+    console.warn(
+      `[WARN] ${CONSUMED_PATH} failed to parse — consumed-invoice registry is running EMPTY this ` +
+      `dry-run. Any 'consumed' skip notes in the plan CSV are not trustworthy; do not treat a clean ` +
+      `dry-run as proof no invoice here was already claimed. Repair/restore the registry before going --live.`,
+    );
+  }
+
   const csvRows = args.csvPath ? parseUlineCsv(readFileSync(args.csvPath, 'utf8')) : null;
   if (csvRows) console.log(`[${entities.join(',')}] loaded ${csvRows.length} CSV row(s) from ${args.csvPath}`);
 
@@ -640,6 +661,10 @@ async function main(): Promise<void> {
     if (msg.startsWith('ULINE_ACCOUNT_MISMATCH') || msg.startsWith('ULINE_ACCOUNT_ENV_MISSING')) {
       console.error(`\n[${args.entities.join(',')}] ${msg}\n`);
       process.exit(3);
+    }
+    if (msg.startsWith('ULINE_CONSUMED_REGISTRY_CORRUPT')) {
+      console.error(`\n[${args.entities.join(',')}] ${msg}\n`);
+      process.exit(4);
     }
     throw e;
   }
