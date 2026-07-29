@@ -252,7 +252,7 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
   }
 }
 
-interface HeaderRow {
+export interface HeaderRow {
   id: number;
   entity: Entity;
   pay_date: string;
@@ -272,7 +272,7 @@ interface HeaderRow {
   txn_date: string | null;
 }
 
-function toHeader(r: HeaderRow): PayrollHeader {
+export function toHeader(r: HeaderRow): PayrollHeader {
   return {
     // `id` is a bigint — node-postgres returns bigint as a string. Coerce so every
     // consumer (reconcile/approve/post routes require typeof headerId === 'number')
@@ -397,6 +397,7 @@ export async function listHeaders(startISO: string, endISO: string): Promise<Pay
             kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
      WHERE COALESCE(txn_date, to_date(pay_date, 'MM/DD/YYYY')) BETWEEN $1::date AND $2::date
+       AND kind <> 'allocation'
      ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [startISO, endISO],
   );
@@ -415,7 +416,8 @@ export const MAX_RECENT_PAY_PERIODS = 400;
 export async function countDistinctPayDates(): Promise<number> {
   const { rows } = await getRdsPool().query<{ n: string }>(
     `SELECT count(DISTINCT to_date(pay_date, 'MM/DD/YYYY'))::text AS n
-     FROM accounting.payroll_journal_headers`,
+     FROM accounting.payroll_journal_headers
+     WHERE kind <> 'allocation'`,
   );
   return Number(rows[0]?.n ?? 0);
 }
@@ -432,6 +434,7 @@ export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
     `WITH recent AS (
        SELECT DISTINCT to_date(pay_date, 'MM/DD/YYYY') AS d
        FROM accounting.payroll_journal_headers
+       WHERE kind <> 'allocation'
        ORDER BY d DESC
        LIMIT $1
      )
@@ -440,6 +443,7 @@ export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
             kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
      WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
+       AND kind <> 'allocation'
      ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [safePeriods],
   );
