@@ -1,11 +1,3 @@
-/** Throws unless the percents sum to 100.0000 (4dp tolerance). No silent normalisation. */
-export function assertSharesSumTo100(percents: number[]): void {
-  const sum = percents.reduce((a, b) => a + b, 0);
-  if (Math.abs(sum - 100) > 0.0001) {
-    throw new Error(`allocation percents must sum to 100, got ${sum.toFixed(4)}`);
-  }
-}
-
 /**
  * Split `totalCents` across `weights` (percentages) by the largest-remainder method: floor each
  * proportional share, then hand the leftover cents one at a time to the largest fractional

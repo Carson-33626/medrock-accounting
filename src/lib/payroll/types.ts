@@ -62,14 +62,6 @@ export interface EmployeeMapRule {
    * so the "Marketers needing region review" worklist stops surfacing them. Defaults false. */
   reviewed?: boolean;
 }
-export interface AllocationRule {
-  id?: number;
-  costCenter: string;
-  targetEntity: Entity;
-  percent: number;       // e.g. 33.3333
-  effectiveFrom: string; // ISO YYYY-MM-DD
-  active: boolean;
-}
 export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;
   postingType: PostingType; creditBucket: CreditBucket | null; isCogs?: boolean;

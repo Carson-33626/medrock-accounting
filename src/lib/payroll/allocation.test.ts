@@ -1,18 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertSharesSumTo100, largestRemainderCents } from './allocation';
-
-describe('assertSharesSumTo100', () => {
-  it('accepts three thirds at 4dp', () => {
-    expect(() => assertSharesSumTo100([33.3333, 33.3333, 33.3334])).not.toThrow();
-  });
-  it('accepts an even split', () => {
-    expect(() => assertSharesSumTo100([50, 50])).not.toThrow();
-  });
-  it('rejects a set that does not sum to 100', () => {
-    expect(() => assertSharesSumTo100([33.3333, 33.3333, 33.3333])).toThrow(/sum to 100/);
-    expect(() => assertSharesSumTo100([40, 40, 40])).toThrow(/sum to 100/);
-  });
-});
+import { largestRemainderCents } from './allocation';
 
 describe('largestRemainderCents', () => {
   it('splits an indivisible total so the parts re-sum exactly', () => {

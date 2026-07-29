@@ -1,8 +1,9 @@
 /**
- * READ-ONLY dry-run: build + PRINT the month-end accrual, its next-day reversal, and the
- * ADMIN-cost-center wage % allocation for ONE entity + month. Posts NOTHING to QuickBooks,
- * writes NOTHING to the DB — it only reads payroll_history (decrypt-gated) and prints
- * account/dept/class/memo/amount lines. Honors the dry-run mandate.
+ * READ-ONLY dry-run: build + PRINT the month-end accrual and its next-day reversal for ONE
+ * entity + month. Posts NOTHING to QuickBooks, writes NOTHING to the DB — it only reads
+ * payroll_history (decrypt-gated) and prints account/dept/class/memo/amount lines. Honors the
+ * dry-run mandate. The manual ADMIN wage % allocation this script used to also print was
+ * retired 2026-07 — see scripts/payroll/eom-dryrun.ts for the revenue-rule month-end allocation.
  *
  *   npx tsx scripts/payroll/dry-run-accrual-allocation.ts "MedRock TN" 2026-06
  *
@@ -28,13 +29,9 @@ for (const line of vercelEnvText.split(/\r?\n/)) {
 import type { AccountMapRule, Entity, EmployeeMapRule, JournalDraft, PayrollRow } from '../../src/lib/payroll/types';
 import { entityForPayGroup, POSTABLE_ENTITIES } from '../../src/lib/payroll/entity';
 import { buildJournal } from '../../src/lib/payroll/build-je';
-import { parseAdpDate } from '../../src/lib/payroll/dates';
 import { monthEndIso, type Month } from '../../src/lib/payroll/month';
 import { buildSeedAccountMap } from './account-map-seed-data';
 import { buildMarketerEmployeeMap } from './employee-map-seed-data';
-
-const ADMIN_WAGE_ACCOUNT = 'Payroll Expense -:Administrative Wages';
-const ADMIN_WAGE_MEMO = 'Admin Wages';
 
 function printDraft(d: JournalDraft): void {
   console.log(`\n== ${d.docNumber ?? '(pay-date)'}  TxnDate ${d.txnDate ?? d.payDate}  [${d.kind ?? 'pay_date'}] ${d.entity} ==`);
@@ -97,21 +94,6 @@ async function main(): Promise<void> {
     allDrafts.push(...built.drafts.filter((d) => d.entity === e));
   }
   console.log(`Built ${allDrafts.length} pay-date draft(s) across ${POSTABLE_ENTITIES.length} entities.`);
-
-  // Admin-cost-center regular wage totals per entity, for pay dates that fall IN month M
-  // (feeds the allocation step). Isolated by account + memo === 'Admin Wages' so the ACCOUN
-  // cost center's 'Accounting Wages' memo on the same account is excluded.
-  const adminTotalsByEntity: Record<Entity, number> = { 'MedRock FL': 0, 'MedRock TN': 0, 'MedRock TX': 0 };
-  for (const d of allDrafts) {
-    const payDate = parseAdpDate(d.payDate);
-    if (payDate.getFullYear() !== m.year || payDate.getMonth() + 1 !== m.month) continue;
-    for (const l of d.lines) {
-      if (l.postingType === 'Debit' && l.accountName === ADMIN_WAGE_ACCOUNT && l.memo === ADMIN_WAGE_MEMO) {
-        adminTotalsByEntity[d.entity] += l.amount;
-      }
-    }
-  }
-  console.log(`Admin wage totals for ${monthArg} by entity: ${POSTABLE_ENTITIES.map((e) => `${e}=${adminTotalsByEntity[e].toFixed(2)}`).join('  ')}`);
 
   const { buildAccrual } = await import('../../src/lib/payroll/accrual');
 
