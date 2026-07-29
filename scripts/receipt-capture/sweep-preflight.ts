@@ -24,17 +24,29 @@ export function checkTopRx(env: NodeJS.ProcessEnv): VendorAvailability {
   };
 }
 
+// FL and TN are one JOINT ULINE account (different logins, shared invoice roster — confirmed
+// 2026-07-29): a signed-in FL session sees TN's invoices too, so TN never needs its own bootstrap
+// or session file. TX is a separate account and still needs its own session.
 export function checkUline(stateDir: string): VendorAvailability {
-  const entities = ALL_ENTITIES.filter((e) => existsSync(join(stateDir, `uline-${e}.json`)));
-  const missing = ALL_ENTITIES.filter((e) => !entities.includes(e));
+  const hasFL = existsSync(join(stateDir, 'uline-FL.json'));
+  const hasTX = existsSync(join(stateDir, 'uline-TX.json'));
+  const entities: Entity[] = [...(hasFL ? (['FL', 'TN'] as Entity[]) : []), ...(hasTX ? (['TX'] as Entity[]) : [])];
+  const needsYou: string[] = [];
+  if (!hasFL) {
+    needsYou.push(
+      'ULINE FL: run  npx tsx scripts/receipt-capture/uline-bootstrap.ts --entity=FL  (headed human login) ' +
+      '— TN rides FL\'s session (joint account, shared roster), no separate TN bootstrap needed',
+    );
+  }
+  if (!hasTX) {
+    needsYou.push('ULINE TX: run  npx tsx scripts/receipt-capture/uline-bootstrap.ts --entity=TX  (headed human login)');
+  }
   return {
     vendor: 'uline',
-    entities: [...entities],
+    entities,
     available: entities.length > 0,
-    detail: `sessions for ${entities.join(',') || 'none'}`,
-    needsYou: missing.length
-      ? missing.map((e) => `ULINE ${e}: run  npx tsx scripts/receipt-capture/uline-bootstrap.ts --entity=${e}  (headed human login)`).join('\n')
-      : null,
+    detail: `sessions for ${[hasFL ? 'FL(+TN joint)' : null, hasTX ? 'TX' : null].filter(Boolean).join(',') || 'none'}`,
+    needsYou: needsYou.length ? needsYou.join('\n') : null,
   };
 }
 

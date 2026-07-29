@@ -29,11 +29,35 @@ Everything is a **dry-run by default**. Nothing writes to Ramp unless you pass `
 | `Uline_{FL,TN,TX}` / `Uline_{FL,TN,TX}_Pass` | **nothing** at runtime | These exist in `.env.local` (used only by the one-off `uline-login-probe.ts` bot-defense probe) but the actual capture pipeline **never** logs in to ULINE with them. ULINE sits behind Akamai and a probe found scripted login triggers a challenge for some accounts — see "ULINE session bootstrap" below. |
 | `ULINE_ACCOUNT_{FL,TN,TX}` | `run-uline.ts` (`assertAccountMatches`) | Expected company-name label (`#CompanyName` on ULINE's MyOrderHistory page) for that entity's ULINE account. Hard-stop guard — see below. |
 
+## ULINE joint account (FL + TN) and the consumed-invoice registry
+
+FL and TN are **one joint ULINE account** — different logins, one shared invoice roster (Carson
+confirmed 2026-07-29: TN's dry-run roster was invoice-identical to FL's). `run-uline.ts` accepts
+a comma list, `--entity=FL,TN`, for **joint mode**: extraction runs ONCE (using FL's session — the
+first entity listed), against a shared cache (`out/uline-cache-FLTN.json`, one-time seeded from
+`out/uline-cache-FL.json` if the joint cache doesn't exist yet), and both entities' Ramp worklists
+are pooled and matched together against the union. Because `matchOrders` only ever assigns one
+txn per invoice across the whole pooled list, an invoice can never be claimed by both entities in
+the same run. TX is a separate account and always runs solo (`--entity=TX`).
+
+On top of that in-run guarantee, `out/uline-consumed.json` (`uline-consumed.ts`) is a persistent,
+cross-run registry mapping invoice number → `{ txnId, entity, ts }` for every invoice that has
+ever had a receipt attached, in either joint or solo mode. It's consulted before planning any live
+action on a matched invoice (a hit is skipped with note `consumed`) and written immediately after
+each successful `POST /receipts`, so a later solo run can't re-claim an invoice a joint run
+already attached, or vice versa.
+
+The plan CSV (`out/uline-plan-<key>.csv`, where `<key>` is `FLTN` for joint runs or the single
+entity for solo runs) carries an `entity` column — the matched txn's own entity for confident
+matches, or the full pooled entity list (e.g. `FL,TN`) for roster invoices that never matched any
+pooled txn (ambiguous/no_ramp_match — those aren't tied to one entity).
+
 ## ULINE session bootstrap (human-gated, one-time per entity)
 
 `--entity=FL` on `run-uline.ts` is a **label only** — it does not select which ULINE account
 gets scraped. Account identity comes entirely from whichever `storageState` is signed in, so the
-pipeline verifies it before doing anything else.
+pipeline verifies it before doing anything else. In joint mode (`--entity=FL,TN`) this check runs
+once, against FL's session — TN needs no session or bootstrap of its own.
 
 Run (headed browser opens, **you** do the entire login by hand — email, password, any captcha;
 nothing here is scripted):
@@ -47,12 +71,12 @@ the `#CompanyName` header, and saves `storageState` to `scripts/receipt-capture/
 for headless reuse by every subsequent run. Status as of 2026-07-27:
 
 - **FL** — bootstrapped, account confirms as `MEDROCK PHARMACY` (also the hardcoded fallback
-  default in `run-uline.ts` if `ULINE_ACCOUNT_FL` is unset).
-- **TN / TX** — not yet bootstrapped. Until you run the bootstrap for each, `run-uline.ts
-  --entity=TN` (or `TX`) exits 2 (`ULINE_SIGNIN_REQUIRED`). Once bootstrapped, also set
-  `ULINE_ACCOUNT_TN` / `ULINE_ACCOUNT_TX` in `.env.local` to that entity's exact `#CompanyName`
-  text — there is no hardcoded default for TN/TX, so a missing env var is a hard stop
-  (`ULINE_ACCOUNT_ENV_MISSING`), not a silent guess.
+  default in `run-uline.ts` if `ULINE_ACCOUNT_FL` is unset). Since FL and TN are a joint account,
+  bootstrapping FL is what makes `--entity=FL,TN` runnable — **TN needs no bootstrap of its own**.
+- **TX** — separate account. Until it's bootstrapped, `run-uline.ts --entity=TX` exits 2
+  (`ULINE_SIGNIN_REQUIRED`). Once bootstrapped, also set `ULINE_ACCOUNT_TX` in `.env.local` to
+  its exact `#CompanyName` text — there is no hardcoded default for TX, so a missing env var is a
+  hard stop (`ULINE_ACCOUNT_ENV_MISSING`), not a silent guess.
 
 If a saved session goes stale (ULINE signs it out), `run-uline.ts` detects the bounce back to
 `/SignIn` and exits 2 — re-run the bootstrap for that entity.
@@ -153,14 +177,16 @@ From the `web/` directory:
 # TopRx — all 3 entities by default, or one via --entity
 npx tsx scripts/receipt-capture/run-toprx.ts [--entity=FL] [--since 2025-09-01] [--live] [--limit 5]
 
-# ULINE — --entity is REQUIRED (no all-entity default)
+# ULINE — --entity is REQUIRED (no all-entity default); accepts a comma list for joint mode
 npx tsx scripts/receipt-capture/run-uline.ts --entity=FL [--since 2025-09-01] [--live] [--limit 5] [--csv path/to/MyOrderHistory.csv] [--window 3]
+npx tsx scripts/receipt-capture/run-uline.ts --entity=FL,TN [--since ...] [--live] [--limit 5]   # joint mode — see above
 ```
 
 Flags:
 
-- `--entity` — TopRx: optional, omit to run FL+TN+TX in one pass. ULINE: required, one entity
-  per invocation.
+- `--entity` — TopRx: optional, omit to run FL+TN+TX in one pass. ULINE: required; either one
+  entity (`FL`, `TN`, or `TX`, solo mode) or `FL,TN` (joint mode — see "ULINE joint account"
+  above). TX only ever runs solo.
 - `--since` — only scrape/match orders on or after this date (`YYYY-MM-DD`). Default
   `2025-09-01` for both.
 - `--live` — enables writes (see gating below). Omit for a pure read-only dry-run.
@@ -215,11 +241,12 @@ A live write for one matched txn is three calls, all audited:
 | Path | What | Committed? |
 |---|---|---|
 | `out/receipt-capture-audit.csv` | Append-only audit of every live action (both vendors share one file) — `ts,run_id,mode,vendor,entity,txn_id,action,invoice_key,amount_cents,status,detail`. Dry-runs never touch it. | No (`out/` gitignored) |
-| `out/toprx-plan-<ENT>.csv`, `out/uline-plan-<ENT>.csv` | Full itemized plan for the most recent run of that vendor+entity — every match and every skip, with a `notes` reason. Overwritten each run. | No |
+| `out/toprx-plan-<ENT>.csv`, `out/uline-plan-<ENT>.csv` (or `out/uline-plan-FLTN.csv` for joint runs) | Full itemized plan for the most recent run of that vendor+entity — every match and every skip, with a `notes` reason and an `entity` column. Overwritten each run. | No |
 | `out/amazon-plan-<ENT>.csv` | Amazon un-split/memo plan for the most recent run — see the Amazon section above. Overwritten each run. | No |
 | `out/amazon-receipt-gap.csv` | Combined (all entities in that invocation) list of Amazon txns with zero attached receipts. Overwritten each run. | No |
-| `out/toprx-cache-<ENT>.json`, `out/uline-cache-<ENT>.json` | Resumable extraction cache (keyed by order id / invoice number). Re-running only fetches what's missing. | No |
-| `out/uline-categories-<ENT>.json` | Parallel category array per ULINE invoice (from `--csv` enrichment), keyed by invoice number, aligned to the cached record's items by index. | No |
+| `out/toprx-cache-<ENT>.json`, `out/uline-cache-<ENT>.json` (or `out/uline-cache-FLTN.json` for joint runs) | Resumable extraction cache (keyed by order id / invoice number). Re-running only fetches what's missing. The joint cache is one-time seeded from `uline-cache-FL.json` if it doesn't exist yet — the FL-only cache is never deleted or mutated by this. | No |
+| `out/uline-categories-<ENT>.json` (or `-FLTN.json`) | Parallel category array per ULINE invoice (from `--csv` enrichment), keyed by invoice number, aligned to the cached record's items by index. | No |
+| `out/uline-consumed.json` | Cross-run consumed-invoice registry (`uline-consumed.ts`): invoice number → `{ txnId, entity, ts }` for every invoice that has ever had a receipt attached, in either joint or solo mode. Consulted before planning any live action; written right after each successful attach. | No |
 | `out/pdf/` | Fetched invoice PDFs (`toprx-<ENT>-<orderId>.pdf`, `uline-<ENT>-<invoiceNumber>.pdf`). | No |
 | `.state/` | Playwright `storageState` — `toprx-<ENT>.json` (all 3 bootstrapped as of 2026-07-27, auto-refreshed), `uline-<ENT>.json` (FL only so far, human-bootstrapped, never auto-refreshed). | No |
 | `.probe-shots/` | Screenshots from the one-off login/screener probes. | No |

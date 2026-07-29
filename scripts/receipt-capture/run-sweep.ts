@@ -120,10 +120,19 @@ async function main(): Promise<void> {
     }
   }
   if (want('uline') && uline.available) {
-    for (const e of uline.entities) {
-      const csvPath = process.env[`ULINE_CSV_${e}`];
+    // FL and TN are one joint ULINE account (shared invoice roster) — one joint child covers
+    // both, using FL's session; TN needs no session of its own. TX is a separate account and
+    // still runs solo. Gate directly on entities[] membership rather than looping per-entity:
+    // a per-entity loop would try to run TN standalone, which has no session to extract with.
+    if (uline.entities.includes('FL')) {
+      const csvPath = process.env.ULINE_CSV_FL;
       const extra = csvPath && existsSync(csvPath) ? ['--csv', csvPath] : [];
-      jobs.push(await runChild(`uline-${e}`, live(['scripts/receipt-capture/run-uline.ts', `--entity=${e}`, '--limit', lim, ...extra])));
+      jobs.push(await runChild('uline-FLTN', live(['scripts/receipt-capture/run-uline.ts', '--entity=FL,TN', '--limit', lim, ...extra])));
+    }
+    if (uline.entities.includes('TX')) {
+      const csvPath = process.env.ULINE_CSV_TX;
+      const extra = csvPath && existsSync(csvPath) ? ['--csv', csvPath] : [];
+      jobs.push(await runChild('uline-TX', live(['scripts/receipt-capture/run-uline.ts', '--entity=TX', '--limit', lim, ...extra])));
     }
   }
   if (want('amazon')) {

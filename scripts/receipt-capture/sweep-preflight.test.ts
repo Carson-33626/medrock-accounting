@@ -19,12 +19,30 @@ describe('checkTopRx', () => {
 });
 
 describe('checkUline', () => {
-  it('detects per-entity state files', () => {
+  it('FL session enables both FL and TN (joint account) with no separate TN bootstrap line', () => {
     const dir = mkdtempSync(join(tmpdir(), 'uline-state-'));
     writeFileSync(join(dir, 'uline-FL.json'), '{}');
     const r = checkUline(dir);
-    expect(r.entities).toEqual(['FL']);
-    expect(r.needsYou).toContain('uline-bootstrap.ts --entity=TN');
+    expect(r.entities).toEqual(['FL', 'TN']);
+    expect(r.available).toBe(true);
+    expect(r.needsYou).toContain('uline-bootstrap.ts --entity=TX');
+    expect(r.needsYou).not.toContain('--entity=TN');
+  });
+  it('missing FL session needsYou explains TN rides FL\'s session', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uline-state-'));
+    const r = checkUline(dir);
+    expect(r.available).toBe(false);
+    expect(r.entities).toEqual([]);
+    expect(r.needsYou).toContain('uline-bootstrap.ts --entity=FL');
+    expect(r.needsYou).toContain("TN rides FL's session");
+  });
+  it('TX session alone is independent of FL/TN', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uline-state-'));
+    writeFileSync(join(dir, 'uline-TX.json'), '{}');
+    const r = checkUline(dir);
+    expect(r.entities).toEqual(['TX']);
+    expect(r.needsYou).toContain('--entity=FL');
+    expect(r.needsYou).not.toContain('--entity=TX');
   });
 });
 
