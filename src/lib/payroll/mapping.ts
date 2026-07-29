@@ -21,9 +21,13 @@ export function resolveLine(
   const chosen = [...pick('Debit'), ...pick('Credit')];
 
   const emp = employeeMap.find((e) => e.positionId === row.position_id);
+  // Amy's pool convention: an Allocate - % class always pairs with the '% Allocation'
+  // department so the month-end allocation pool picks the line up (spec §4.7). The
+  // cost-center label stays in the memo — dollars and memos are unchanged.
+  const dept = emp?.className === 'Allocate - %' ? '% Allocation' : emp?.departmentName ?? null;
   const targets: ResolvedTarget[] = chosen.map((rule) => ({
     accountName: rule.accountName,
-    departmentName: emp?.departmentName ?? null,
+    departmentName: dept,
     className: emp?.className ?? null,
     postingType: rule.postingType,
     creditBucket: rule.creditBucket,
