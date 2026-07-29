@@ -12,6 +12,8 @@ import type { Month } from '@/lib/payroll/month';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// ~24 sequential QuickBooks calls (revenue presence + pool fetch + per-draft dimension checks).
+export const maxDuration = 300;
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 

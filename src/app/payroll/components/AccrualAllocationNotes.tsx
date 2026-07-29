@@ -55,16 +55,19 @@ export function AccrualAllocationNotes({ darkMode }: { darkMode: boolean }) {
         </div>
 
         <div>
-          <p className="font-semibold">Waiting on Barbara — admin-wage allocation</p>
+          <p className="font-semibold">Month-end allocation — automated (End of Month tab)</p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <code>ADMIN</code> regular wages split across MedRock FL / TN / TX via a standalone
-              month-end inter-entity JE hubbed through FL (<code>&lt;ENT&gt; % Allo YYYY.MM</code>).
-              The current <span className="font-medium">⅓-each is a placeholder</span>: at ⅓, TX
-              picks up <span className="font-mono">$21,388</span> and FL sheds{' '}
-              <span className="font-mono">$21,722</span> (January basis) even though FL carries most
-              admin staff and TX almost none. Real percentages need to be chosen in the{' '}
-              <span className="font-medium">Mappings</span> tab before this goes live.
+              Allocate-flagged costs (dept &quot;% Allocation&quot; / &quot;Allocate - *&quot; classes)
+              are pulled from QuickBooks each month and split by the revenue rule — equal shares
+              among locations with revenue that month (3 → ⅓ each, 2 → 50/50, 1 → 100%). The manual
+              percentage editor in Mappings was retired 7/29; the End of Month tab replaces it.
+            </li>
+            <li>
+              Still Barbara&apos;s call: reviewing and approving each month&apos;s drafts on the End
+              of Month tab (March–June 2026 backfill, then July), including sign-off on CSR wages
+              staying in the pool and on balance-sheet accounts (Accrued Payroll Liability / Accrued
+              Expenses) moving between entities.
             </li>
           </ul>
         </div>

@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { isIeAccount } from '@/lib/payroll/inter-entity';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -308,12 +309,22 @@ export function EndOfMonthTab() {
 
   // Symmetry strip — recomputed client-side from the lines actually on screen, independent of
   // the server-trusted header.total_debits/credits, so a rendering bug would show up here too.
+  // Inter-entity ("Due From/To") lines are excluded from the per-account shed/pickup check —
+  // each IE pair deliberately uses a DIFFERENT account name on each side (see isIeAccount), so
+  // they never net to zero on a single account name. Instead all IE lines across every draft
+  // are netted into one signed total (cents, to avoid float drift) that must equal zero.
   const symmetry = useMemo(() => {
     const allLines = headers.flatMap((h) => data?.lines[String(h.id)] ?? []);
     const totalDebits = round2(allLines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(allLines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
     const byAccount = new Map<string, { debit: number; credit: number }>();
+    let ieNetCents = 0;
     for (const l of allLines) {
+      if (isIeAccount(l.accountName)) {
+        const cents = Math.round(l.amount * 100);
+        ieNetCents += l.postingType === 'Debit' ? cents : -cents;
+        continue;
+      }
       const g = byAccount.get(l.accountName) ?? { debit: 0, credit: 0 };
       if (l.postingType === 'Debit') g.debit = round2(g.debit + l.amount);
       else g.credit = round2(g.credit + l.amount);
@@ -322,10 +333,13 @@ export function EndOfMonthTab() {
     const imbalancedAccounts = [...byAccount.entries()]
       .filter(([, v]) => round2(v.debit - v.credit) !== 0)
       .map(([account, v]) => ({ account, diff: round2(v.debit - v.credit) }));
+    const ieBalanced = ieNetCents === 0;
     return {
       totalDebits,
       totalCredits,
-      balanced: totalDebits === totalCredits && imbalancedAccounts.length === 0,
+      ieNet: ieNetCents / 100,
+      ieBalanced,
+      balanced: totalDebits === totalCredits && imbalancedAccounts.length === 0 && ieBalanced,
       imbalancedAccounts,
     };
   }, [headers, data]);
@@ -391,19 +405,32 @@ export function EndOfMonthTab() {
           <Loader2 className="w-5 h-5 animate-spin inline mr-2" aria-hidden />
           Loading month-end allocation…
         </div>
-      ) : !data?.run ? (
+      ) : !data || (!data.run && headers.length === 0) ? (
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
           No allocation run for {month} yet. Click <strong>Generate drafts</strong> above to pull QuickBooks and
           build them.
         </div>
       ) : (
         <>
-          <RevenueCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} snapshot={data.run.revenue} />
+          {data.run ? (
+            <>
+              <RevenueCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} snapshot={data.run.revenue} />
 
-          <PoolCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} pool={data.run.pool} />
+              <PoolCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} pool={data.run.pool} />
 
-          {data.run.attention.length > 0 && (
-            <AttentionCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} lines={data.run.attention} />
+              {data.run.attention.length > 0 && (
+                <AttentionCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} lines={data.run.attention} />
+              )}
+            </>
+          ) : (
+            <div
+              className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+                darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              <p>Snapshot missing for this generation — Regenerate to rebuild the pool view.</p>
+            </div>
           )}
 
           {headers.length === 0 ? (
@@ -856,8 +883,20 @@ function SymmetryStrip({
   darkMode: boolean;
   cardBg: string;
   border: string;
-  symmetry: { totalDebits: number; totalCredits: number; balanced: boolean; imbalancedAccounts: Array<{ account: string; diff: number }> };
+  symmetry: {
+    totalDebits: number;
+    totalCredits: number;
+    ieNet: number;
+    ieBalanced: boolean;
+    balanced: boolean;
+    imbalancedAccounts: Array<{ account: string; diff: number }>;
+  };
 }) {
+  // Totals can match while a per-account or inter-entity check still fails (or vice versa isn't
+  // possible, since a per-account/IE mismatch always shows up in the totals too — but keep the
+  // headline honest either way rather than assuming "not balanced" always means unequal totals).
+  const totalsMatch = symmetry.totalDebits === symmetry.totalCredits;
+  const redText = darkMode ? 'text-red-300' : 'text-red-700';
   return (
     <div className={`rounded-xl shadow-sm ${cardBg} border ${symmetry.balanced ? border : darkMode ? 'border-red-800' : 'border-red-300'} p-4 space-y-2`}>
       <div className="flex items-center gap-2 text-sm">
@@ -865,27 +904,40 @@ function SymmetryStrip({
           <>
             <CheckCircle2 className={`w-4 h-4 ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`} aria-hidden />
             <span className={darkMode ? 'text-emerald-300' : 'text-emerald-700'}>
-              All drafts balance — {fmtMoney(symmetry.totalDebits)} debits = {fmtMoney(symmetry.totalCredits)} credits, and every
-              account&apos;s shed = pickup.
+              All drafts balance — {fmtMoney(symmetry.totalDebits)} debits = {fmtMoney(symmetry.totalCredits)} credits, every
+              non-IE account&apos;s shed = pickup, and inter-entity lines net to $0.00.
+            </span>
+          </>
+        ) : !totalsMatch ? (
+          <>
+            <XCircle className={`w-4 h-4 ${darkMode ? 'text-red-300' : 'text-red-600'}`} aria-hidden />
+            <span className={redText}>
+              Drafts do not balance: {fmtMoney(symmetry.totalDebits)} debits vs {fmtMoney(symmetry.totalCredits)} credits.
             </span>
           </>
         ) : (
           <>
             <XCircle className={`w-4 h-4 ${darkMode ? 'text-red-300' : 'text-red-600'}`} aria-hidden />
-            <span className={darkMode ? 'text-red-300' : 'text-red-700'}>
-              Drafts do not balance: {fmtMoney(symmetry.totalDebits)} debits vs {fmtMoney(symmetry.totalCredits)} credits.
+            <span className={redText}>
+              Totals match ({fmtMoney(symmetry.totalDebits)} debits = {fmtMoney(symmetry.totalCredits)} credits), but individual
+              checks below failed.
             </span>
           </>
         )}
       </div>
       {symmetry.imbalancedAccounts.length > 0 && (
-        <ul className={`text-xs space-y-0.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+        <ul className={`text-xs space-y-0.5 ${redText}`}>
           {symmetry.imbalancedAccounts.map((a) => (
             <li key={a.account}>
               {a.account}: shed/pickup mismatch of {fmtMoney(a.diff)}
             </li>
           ))}
         </ul>
+      )}
+      {!symmetry.ieBalanced && (
+        <p className={`text-xs ${redText}`}>
+          Inter-entity (Due From/To) lines do not net to zero across drafts: {fmtMoney(symmetry.ieNet)} (should be $0.00).
+        </p>
       )}
     </div>
   );
