@@ -1,11 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import {
   classifyAllocateFlag,
+  normalizeAccountName,
   poolLinesFromJournalEntry,
   poolLinesFromExpenseTxn,
   type RawJournalEntry,
   type RawExpenseTxn,
 } from './qb-pool';
+
+describe('normalizeAccountName', () => {
+  it('strips a leading dotted account-number prefix', () => {
+    expect(normalizeAccountName('6820.15 Telecommunications & Data -:Phone Expense'))
+      .toBe('Telecommunications & Data -:Phone Expense');
+    expect(normalizeAccountName('6200.45 General & Administrative -:Dues & Subscriptions'))
+      .toBe('General & Administrative -:Dues & Subscriptions');
+    expect(normalizeAccountName('5000.30 Cost of Goods Sold:Order Discount'))
+      .toBe('Cost of Goods Sold:Order Discount');
+    expect(normalizeAccountName('6800 Sales & Marketing -:Promotions'))
+      .toBe('Sales & Marketing -:Promotions');
+  });
+  it('leaves clean names untouched', () => {
+    expect(normalizeAccountName('Payroll Expense -:Administrative Wages'))
+      .toBe('Payroll Expense -:Administrative Wages');
+    expect(normalizeAccountName('401K Employer Match')).toBe('401K Employer Match');
+  });
+});
 
 describe('classifyAllocateFlag', () => {
   it('maps each class literal to its rule', () => {
@@ -73,6 +92,14 @@ describe('poolLinesFromExpenseTxn', () => {
     expect(vc[0].amount).toBe(-60);
     const refund = poolLinesFromExpenseTxn({ ...bill, Credit: true, Line: [bill.Line[0]] }, 'MedRock FL', 'Purchase');
     expect(refund[0].amount).toBe(-60);
+  });
+  it('normalizes number-prefixed account names from transaction refs', () => {
+    const numbered: RawExpenseTxn = {
+      Id: '77', TxnDate: '2026-03-10', DepartmentRef: { value: '9', name: '% Allocation' },
+      Line: [{ Id: '1', Amount: 12, AccountBasedExpenseLineDetail: { AccountRef: { value: '3', name: '6820.15 Telecommunications & Data -:Phone Expense' } } }],
+    };
+    const lines = poolLinesFromExpenseTxn(numbered, 'MedRock FL', 'Bill');
+    expect(lines[0].accountName).toBe('Telecommunications & Data -:Phone Expense');
   });
   it('unflagged header + unflagged lines -> nothing', () => {
     const plain: RawExpenseTxn = { Id: '1', TxnDate: '2026-03-01', Line: [{ Id: '1', Amount: 5, AccountBasedExpenseLineDetail: { AccountRef: { value: '3', name: 'Office' } } }] };

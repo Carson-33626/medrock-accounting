@@ -54,6 +54,18 @@ export function classifyAllocateFlag(
   return null;
 }
 
+/**
+ * QBO sometimes bakes the account NUMBER into a transaction line's AccountRef.name
+ * ("6820.15 Telecommunications & Data -:Phone Expense") while the Account entity's
+ * FullyQualifiedName — which fetchDimensions keys resolution on — has no number.
+ * Strip a leading dotted-number prefix so pool lines carry the resolvable name and
+ * both spellings of the same account net into one group. Account names in this COA
+ * never legitimately start with a digit.
+ */
+export function normalizeAccountName(name: string): string {
+  return name.replace(/^\d+(?:\.\d+)*\s+/, '');
+}
+
 // ── Raw QBO shapes (only the fields we read) ──
 export interface QbRef { value?: string; name?: string }
 export interface RawJeLine {
@@ -81,7 +93,7 @@ export function poolLinesFromJournalEntry(je: RawJournalEntry, entity: Entity): 
     const sign = d.PostingType === 'Credit' ? -1 : 1;
     out.push({
       entity, txnType: 'JournalEntry', txnId: je.Id, txnDate: je.TxnDate ?? '', docNumber: je.DocNumber ?? null,
-      accountName: d.AccountRef.name, className: d.ClassRef?.name ?? null, departmentName: d.DepartmentRef?.name ?? null,
+      accountName: normalizeAccountName(d.AccountRef.name), className: d.ClassRef?.name ?? null, departmentName: d.DepartmentRef?.name ?? null,
       memo: l.Description ?? null, amount: sign * (l.Amount ?? 0), rule: cls.rule, counterparty: cls.counterparty,
     });
   }
@@ -112,7 +124,7 @@ export function poolLinesFromExpenseTxn(
     }
     out.push({
       entity, txnType, txnId: txn.Id, txnDate: txn.TxnDate ?? '', docNumber: txn.DocNumber ?? null,
-      accountName: acct.AccountRef.name, className: lineClass, departmentName: headerDept,
+      accountName: normalizeAccountName(acct.AccountRef.name), className: lineClass, departmentName: headerDept,
       memo: l.Description ?? null, amount: sign * (l.Amount ?? 0), rule: cls.rule, counterparty: cls.counterparty,
     });
   }
