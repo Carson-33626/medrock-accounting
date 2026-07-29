@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 type QueryFn = (sql: string, params?: ReadonlyArray<string | number | string[]>) => Promise<{ rows: never[]; rowCount: number }>;
 
-const query = vi.fn() as unknown as ReturnType<typeof vi.fn> & QueryFn;
+const query = vi.fn<QueryFn>();
 
 vi.mock('../rds', () => ({
   getRdsPool: () => ({ query }),
