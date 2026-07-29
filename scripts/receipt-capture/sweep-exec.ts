@@ -29,7 +29,10 @@ try {
 export function runChild(
   label: string,
   args: string[],
-  opts: { timeoutMs?: number; cwd?: string; nodeDirect?: boolean } = {},
+  // onData is additive (Task 2, sweep-ui-server.ts): a tap for the child's combined stdout+stderr
+  // as it arrives, used to feed the control panel's SSE stream. Default unused -- callers who
+  // don't pass it see no behavior change.
+  opts: { timeoutMs?: number; cwd?: string; nodeDirect?: boolean; onData?: (chunk: string) => void } = {},
 ): Promise<ChildResult> {
   const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
   const started = Date.now();
@@ -49,12 +52,14 @@ export function runChild(
     const spawnArgs = opts.nodeDirect ? args : [tsxPath as string, ...args];
     const child = spawn(process.execPath, spawnArgs, { cwd: opts.cwd });
     let buf = '';
-    const onData = (d: Buffer): void => {
-      buf += d.toString();
+    const handleChunk = (d: Buffer): void => {
+      const chunk = d.toString();
+      buf += chunk;
       if (buf.length > TAIL * 4) buf = buf.slice(-TAIL * 2);
+      opts.onData?.(chunk);
     };
-    child.stdout.on('data', onData);
-    child.stderr.on('data', onData);
+    child.stdout.on('data', handleChunk);
+    child.stderr.on('data', handleChunk);
     const timer = setTimeout(() => {
       child.kill();
     }, timeoutMs);

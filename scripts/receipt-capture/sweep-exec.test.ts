@@ -20,4 +20,21 @@ describe('runChild', () => {
     expect(r.code).toBe(0);
     expect(r.summaryLines).toContain('[FX] fixture ran');
   }, 70000);
+  it('taps combined stdout+stderr via onData as chunks arrive, without changing the resolved result', async () => {
+    const chunks: string[] = [];
+    const r = await runChild(
+      'tap-child',
+      ['--eval', 'console.log("hello"); console.error("world")'],
+      { timeoutMs: 30000, nodeDirect: true, onData: (c) => chunks.push(c) },
+    );
+    expect(r.ok).toBe(true);
+    expect(r.code).toBe(0);
+    expect(chunks.join('')).toContain('hello');
+    expect(chunks.join('')).toContain('world');
+  }, 40000);
+  it('onData is optional -- omitting it changes nothing', async () => {
+    const r = await runChild('no-tap-child', ['--eval', 'console.log("[FL] did 1 thing")'], { timeoutMs: 30000, nodeDirect: true });
+    expect(r.ok).toBe(true);
+    expect(r.summaryLines).toEqual(['[FL] did 1 thing']);
+  }, 40000);
 });
