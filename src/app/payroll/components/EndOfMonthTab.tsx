@@ -176,6 +176,8 @@ export function EndOfMonthTab() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busyHeaderId, setBusyHeaderId] = useState<number | null>(null);
   const [dryRunPayloads, setDryRunPayloads] = useState<Record<number, QbJournalEntryPayload>>({});
+  // Draft sub-tab (mirrors the split-payroll review): one tab per location + Combined.
+  const [draftTab, setDraftTab] = useState<Entity | 'combined'>('MedRock FL');
   // Stale-response guard for `load` (mirrors ReviewTab.loadDraft's requestSeqRef): bumped at the
   // start of every call. A slow response for a month the user has since switched away from would
   // otherwise land after a newer call's response and clobber the current month's data.
@@ -306,6 +308,17 @@ export function EndOfMonthTab() {
   const headers = data?.headers ?? [];
   const anyPosted = headers.some((h) => h.status === 'posted');
   const generateLabel = generating ? 'Generating…' : headers.length > 0 ? 'Regenerate drafts' : 'Generate drafts';
+
+  // Clamp the sub-tab to a location that actually has a draft this month (an entity can be
+  // absent when it has no legs, e.g. fifty-rule-only months).
+  const availableEntities = headers.map((h) => h.entity);
+  const activeDraft: Entity | 'combined' =
+    draftTab === 'combined'
+      ? 'combined'
+      : availableEntities.includes(draftTab)
+        ? draftTab
+        : (availableEntities[0] ?? 'combined');
+  const activeHeader = activeDraft === 'combined' ? null : (headers.find((h) => h.entity === activeDraft) ?? null);
 
   // Symmetry strip — recomputed client-side from the lines actually on screen, independent of
   // the server-trusted header.total_debits/credits, so a rendering bug would show up here too.
@@ -438,25 +451,65 @@ export function EndOfMonthTab() {
               No drafts generated for {month} yet.
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {headers.map((h) => (
+            <>
+              {/* Sub-tab bar — one tab per location draft + Combined (mirrors the split-payroll review). */}
+              <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
+                {headers.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => setDraftTab(h.entity)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                      activeDraft === h.entity
+                        ? 'bg-blue-600 text-white'
+                        : darkMode
+                          ? 'text-slate-300 hover:bg-slate-700'
+                          : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {SHORT_ENT[h.entity]} · {STATUS_LABEL[h.status]}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setDraftTab('combined')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                    activeDraft === 'combined'
+                      ? 'bg-blue-600 text-white'
+                      : darkMode
+                        ? 'text-slate-300 hover:bg-slate-700'
+                        : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Combined
+                </button>
+              </div>
+
+              {activeHeader ? (
                 <DraftCard
-                  key={h.id}
+                  key={activeHeader.id}
                   darkMode={darkMode}
                   cardBg={cardBg}
                   subText={subText}
                   border={border}
-                  header={h}
+                  header={activeHeader}
                   month={month}
-                  lines={data.lines[String(h.id)] ?? []}
-                  busy={busyHeaderId === h.id}
-                  dryRunPayload={dryRunPayloads[h.id] ?? null}
-                  onApprove={() => void handleApprove(h.id)}
-                  onDryRun={() => void handleDryRun(h.id)}
-                  onPostLive={() => void handlePostLive(h.id, h.entity)}
+                  lines={data.lines[String(activeHeader.id)] ?? []}
+                  busy={busyHeaderId === activeHeader.id}
+                  dryRunPayload={dryRunPayloads[activeHeader.id] ?? null}
+                  onApprove={() => void handleApprove(activeHeader.id)}
+                  onDryRun={() => void handleDryRun(activeHeader.id)}
+                  onPostLive={() => void handlePostLive(activeHeader.id, activeHeader.entity)}
                 />
-              ))}
-            </div>
+              ) : (
+                <CombinedDraftsCard
+                  cardBg={cardBg}
+                  subText={subText}
+                  border={border}
+                  headers={headers}
+                  linesById={data.lines}
+                  month={month}
+                />
+              )}
+            </>
           )}
 
           {headers.length > 0 && <SymmetryStrip darkMode={darkMode} cardBg={cardBg} border={border} symmetry={symmetry} />}
@@ -752,6 +805,71 @@ function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJo
           {JSON.stringify(payload, null, 2)}
         </pre>
       )}
+    </div>
+  );
+}
+
+/** Read-only merged view of all three drafts (mirrors the split-payroll Combined grid):
+ *  every line with its entity, one totals row. Approve/post live on the per-location tabs. */
+function CombinedDraftsCard({
+  cardBg,
+  subText,
+  border,
+  headers,
+  linesById,
+  month,
+}: {
+  cardBg: string;
+  subText: string;
+  border: string;
+  headers: PayrollHeader[];
+  linesById: Record<string, JournalLine[]>;
+  month: string;
+}) {
+  const rows = headers.flatMap((h) =>
+    (linesById[String(h.id)] ?? []).map((l, i) => ({ ...l, entity: h.entity, _key: `${h.id}-${i}` })),
+  );
+  const debitTotal = round2(rows.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+  const creditTotal = round2(rows.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
+  return (
+    <div className={`rounded-xl shadow-sm ${cardBg}`}>
+      <div className={`px-4 py-3 border-b ${border} flex items-center justify-between`}>
+        <p className="text-sm font-semibold">Combined — all locations, {month}</p>
+        <p className={`text-xs ${subText}`}>read-only · approve and post on each location&apos;s tab</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className={`text-left text-xs uppercase tracking-wide ${subText}`}>
+              <th className="px-2 py-2">Entity</th>
+              <th className="px-2 py-2">Posting</th>
+              <th className="px-2 py-2">Account</th>
+              <th className="px-2 py-2">Memo</th>
+              <th className="px-2 py-2 text-right">Debit</th>
+              <th className="px-2 py-2 text-right">Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((l) => (
+              <tr key={l._key} className={`border-t ${border}`}>
+                <td className={`px-2 py-1 text-xs whitespace-nowrap ${subText}`}>{SHORT_ENT[l.entity]}</td>
+                <td className={`px-2 py-1 text-xs ${subText}`}>{l.postingType}</td>
+                <td className="px-2 py-1">{l.accountName}</td>
+                <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
+                <td className="px-2 py-1 text-right tabular-nums">{l.postingType === 'Debit' ? fmtMoney(l.amount) : ''}</td>
+                <td className="px-2 py-1 text-right tabular-nums">{l.postingType === 'Credit' ? fmtMoney(l.amount) : ''}</td>
+              </tr>
+            ))}
+            <tr className={`border-t font-semibold ${border}`}>
+              <td className="px-2 py-2" colSpan={4}>
+                Totals
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">{fmtMoney(debitTotal)}</td>
+              <td className="px-2 py-2 text-right tabular-nums">{fmtMoney(creditTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
