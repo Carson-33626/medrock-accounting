@@ -145,6 +145,14 @@ export async function POST(request: NextRequest) {
 
     const result = await postJournalEntry(header.entity, draft, { mode });
 
+    // I2: on live success, flip the header's status/qb_entry_id BEFORE writing the audit
+    // row — that status flip (not the audit) is what blocks a retry from double-posting.
+    // If postJournalEntry succeeded but the audit write below then threw, a header still
+    // stuck on 'approved' with no qb_entry_id would sail through every gate again.
+    if (mode === 'live') {
+      await setHeaderStatus(headerId, 'posted', { entryId: result.qbEntryId, docNumber: result.qbDocNumber });
+    }
+
     await insertAudit({
       headerId,
       mode,
@@ -152,13 +160,9 @@ export async function POST(request: NextRequest) {
       qbDocNumber: result.qbDocNumber,
       qbEntryId: result.qbEntryId,
       outcome: mode === 'dry_run' ? 'preview' : 'posted',
-      requestPayload: result.payload as unknown as JsonValue,
+      requestPayload: JSON.parse(JSON.stringify(result.payload)) as JsonValue,
       responseBody: result.response ?? null,
     });
-
-    if (mode === 'live') {
-      await setHeaderStatus(headerId, 'posted', { entryId: result.qbEntryId, docNumber: result.qbDocNumber });
-    }
 
     return NextResponse.json(result);
   } catch (error) {

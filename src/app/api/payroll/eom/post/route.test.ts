@@ -136,6 +136,21 @@ describe('POST /api/payroll/eom/post', () => {
     expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'posted' }));
   });
 
+  it('live success calls setHeaderStatus before insertAudit writes the posted outcome (double-post guard)', async () => {
+    postJournalEntry.mockResolvedValueOnce({
+      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.03', TxnDate: '2026-03-31', Line: [] },
+      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.03',
+    } as PostResult);
+    await POST(req({ headerId: 5, mode: 'live' }));
+
+    const setHeaderStatusOrder = setHeaderStatus.mock.invocationCallOrder[0];
+    const postedAuditCall = insertAudit.mock.calls.findIndex(
+      (call) => (call[0] as { outcome: string }).outcome === 'posted',
+    );
+    const postedAuditOrder = insertAudit.mock.invocationCallOrder[postedAuditCall];
+    expect(setHeaderStatusOrder).toBeLessThan(postedAuditOrder);
+  });
+
   it('derives the docNumber/privateNote from header.pay_date and posts a balanced allocation draft', async () => {
     await POST(req({ headerId: 5, mode: 'dry_run' }));
     const draftArg = postJournalEntry.mock.calls[0][1] as { docNumber: string; privateNote: string; kind: string };
