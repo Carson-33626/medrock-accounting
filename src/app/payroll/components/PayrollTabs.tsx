@@ -8,18 +8,21 @@ import { ReviewTab } from './ReviewTab';
 import { MappingsTab } from './MappingsTab';
 import { PostPanel } from './PostPanel';
 import { AccrualAllocationNotes } from './AccrualAllocationNotes';
+import { EndOfMonthTab } from './EndOfMonthTab';
 
-type View = 'payrolls' | 'mappings';
+type View = 'payrolls' | 'endofmonth' | 'mappings';
 
 const TABS: Array<{ key: View; label: string }> = [
   { key: 'payrolls', label: 'Payrolls' },
+  { key: 'endofmonth', label: 'End of Month' },
   { key: 'mappings', label: 'Mappings' },
 ];
 
 /**
- * `/payroll` client shell. Two primary destinations — Payrolls (the landing list) and
- * Mappings. A specific draft's Review + Post detail opens *in place* when a payroll card
- * is clicked (not as a tab), with a Back link to the list.
+ * `/payroll` client shell. Three primary destinations — Payrolls (the landing list), End of
+ * Month (Allocate-pool allocation drafts), and Mappings. A specific draft's Review + Post
+ * detail opens *in place* when a payroll card is clicked (not as a tab), with a Back link to
+ * the list.
  */
 export function PayrollTabs() {
   const { darkMode } = useDarkMode();
@@ -103,6 +106,8 @@ export function PayrollTabs() {
           </div>
         ) : view === 'payrolls' ? (
           <PayrollsLanding onOpen={handleOpen} />
+        ) : view === 'endofmonth' ? (
+          <EndOfMonthTab />
         ) : (
           <MappingsTab initialEntity={mappingsEntity} />
         )}

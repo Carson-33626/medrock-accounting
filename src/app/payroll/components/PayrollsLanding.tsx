@@ -172,6 +172,10 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   const groups = useMemo(() => {
     const byDate = new Map<string, PayrollHeader[]>();
     for (const h of headers) {
+      // Belt-and-suspenders: month-end allocation headers (kind === 'allocation') live on the
+      // End of Month tab, not here — the store's /api/payroll/runs query already excludes them,
+      // this just guards against a future query regression surfacing them on this list too.
+      if (h.kind === 'allocation') continue;
       const list = byDate.get(h.pay_date) ?? [];
       list.push(h);
       byDate.set(h.pay_date, list);
