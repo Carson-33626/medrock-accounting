@@ -97,10 +97,11 @@ The sweep runs five stages sequentially:
 
 **Caching**: The sweep itself never purges or modifies any cache. Vendor runners (TopRx, ULINE,
 Amazon, Walmart, Amazon-CSV) are fully resumable — each keeps its own extraction/receipt cache
-and only fetches what's missing. To clear caches and do a full re-extract, delete `out/toprx-*`,
-`out/uline-*`, etc. by hand. Deleting `out/sweep/` only loses week-over-week report diffs; the
-next sweep still has the full residual queue from the last real scan (stored separately in
-`residual-queue.csv`).
+and only fetches what's missing. **Deleting `out/sweep/`** wipes the current residual queue
+(`residual-queue.csv`), report snapshots, `state.json`, and week-over-week scan baselines — the
+next full-scan sweep regenerates all of them from scratch. **Vendor extraction/receipt caches**
+(`out/toprx-*`, `out/uline-*`, `.state/toprx-*.json`, etc.) live outside `out/sweep/` and
+survive a cleanup.
 
 **Outputs** (under `scripts/receipt-capture/out/sweep/`):
 
