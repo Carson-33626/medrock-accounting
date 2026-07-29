@@ -114,8 +114,6 @@ async function main(): Promise<void> {
   console.log(`Admin wage totals for ${monthArg} by entity: ${POSTABLE_ENTITIES.map((e) => `${e}=${adminTotalsByEntity[e].toFixed(2)}`).join('  ')}`);
 
   const { buildAccrual } = await import('../../src/lib/payroll/accrual');
-  const { buildAllocation } = await import('../../src/lib/payroll/allocation');
-  const { getEffectiveAllocationRules } = await import('../../src/lib/payroll/store');
 
   const entityDrafts = allDrafts.filter((d) => d.entity === entity);
   const accr = buildAccrual(entityDrafts, entity, m);
@@ -127,14 +125,10 @@ async function main(): Promise<void> {
     printDraft(accr.reversal);
   }
 
-  const rules = await getEffectiveAllocationRules('ADMIN', startIso);
-  const alloc = buildAllocation(adminTotalsByEntity, rules, m);
-  console.log(`\n################ ALLOCATION — ${monthArg} (all entities) ################`);
-  if (alloc.length === 0) {
-    console.log('  (no effective rule / already balanced — nothing to allocate)');
-  } else {
-    for (const d of alloc) printDraft(d);
-  }
+  // The manual ADMIN wage % allocation (buildAllocation) was retired 2026-07 in favor of the
+  // revenue-rule month-end allocation — see scripts/payroll/eom-dryrun.ts.
+  console.log(`\n################ ALLOCATION — ${monthArg} ################`);
+  console.log('  (manual %-allocation dry-run retired; use scripts/payroll/eom-dryrun.ts)');
 
   console.log('\n(dry run — nothing posted)');
 
