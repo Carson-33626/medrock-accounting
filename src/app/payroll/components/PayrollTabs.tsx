@@ -73,7 +73,7 @@ export function PayrollTabs() {
           </h1>
         </div>
 
-        <AccrualAllocationNotes darkMode={darkMode} />
+        <AccrualAllocationNotes darkMode={darkMode} view={inDetail ? 'payrolls' : view} />
 
         {inDetail ? (
           <button
