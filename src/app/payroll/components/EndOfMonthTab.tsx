@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import {
   AlertTriangle,
@@ -175,6 +175,10 @@ export function EndOfMonthTab() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busyHeaderId, setBusyHeaderId] = useState<number | null>(null);
   const [dryRunPayloads, setDryRunPayloads] = useState<Record<number, QbJournalEntryPayload>>({});
+  // Stale-response guard for `load` (mirrors ReviewTab.loadDraft's requestSeqRef): bumped at the
+  // start of every call. A slow response for a month the user has since switched away from would
+  // otherwise land after a newer call's response and clobber the current month's data.
+  const requestSeqRef = useRef(0);
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -182,19 +186,22 @@ export function EndOfMonthTab() {
   const inputBg = darkMode ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-300 text-slate-900';
 
   const load = useCallback(async (m: string) => {
+    const token = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/payroll/eom?month=${encodeURIComponent(m)}`);
       const body = (await res.json()) as EomGetResponse & ApiErrorBody;
+      if (token !== requestSeqRef.current) return; // superseded by a newer month switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setData(body);
     } catch (e) {
+      if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
       const message = e instanceof Error ? e.message : 'Failed to load month-end allocation';
       setError(message);
       setData(null);
     } finally {
-      setLoading(false);
+      if (token === requestSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -599,7 +606,7 @@ function PoolCard({
                               </thead>
                               <tbody>
                                 {b.lines.map((l, i) => (
-                                  <tr key={i}>
+                                  <tr key={`${l.txnId}-${i}`}>
                                     <td className="px-2 py-1">{l.txnDate}</td>
                                     <td className="px-2 py-1">{l.txnType}</td>
                                     <td className={`px-2 py-1 ${subText}`}>{l.docNumber ?? '—'}</td>
@@ -666,7 +673,7 @@ function AttentionCard({
           </thead>
           <tbody>
             {lines.map((l, i) => (
-              <tr key={i} className={`border-b last:border-0 ${border}`}>
+              <tr key={`${l.txnId}-${i}`} className={`border-b last:border-0 ${border}`}>
                 <td className="px-2 py-1">{l.entity}</td>
                 <td className={`px-2 py-1 text-xs ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
                   {l.rule === 'passthrough'
