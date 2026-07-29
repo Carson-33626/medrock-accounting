@@ -63,8 +63,14 @@ export function PayrollTabs() {
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Payroll</p>
-          <h1 className={`text-2xl font-bold ${headText}`}>ADP Payroll Journal Entry</h1>
+          <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Journal Entries</p>
+          <h1 className={`text-2xl font-bold ${headText}`}>
+            {inDetail || view === 'payrolls'
+              ? 'Payroll Journal'
+              : view === 'endofmonth'
+                ? 'End of Month Allocation'
+                : 'Payroll Mappings'}
+          </h1>
         </div>
 
         <AccrualAllocationNotes darkMode={darkMode} />

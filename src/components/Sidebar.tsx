@@ -29,7 +29,7 @@ const navigation = [
 // (User management lives in the central auth system.)
 const adminNavigation = [
   { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
-  { name: 'Payroll JE', href: '/payroll', icon: PayrollIcon },
+  { name: 'Journal Entries', href: '/payroll', icon: PayrollIcon },
   { name: 'QuickBooks', href: '/admin/quickbooks', icon: QuickBooksIcon },
 ];
 
