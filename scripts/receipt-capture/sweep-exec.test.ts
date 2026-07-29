@@ -14,4 +14,10 @@ describe('runChild', () => {
     expect(r.ok).toBe(false);
     expect(r.code).toBe(3);
   }, 40000);
+  it('spawns production path (tsx) and captures output', async () => {
+    const r = await runChild('fixture', ['scripts/receipt-capture/fixtures/sweep-exec-fixture.ts'], { timeoutMs: 60000 });
+    expect(r.ok).toBe(true);
+    expect(r.code).toBe(0);
+    expect(r.summaryLines).toContain('[FX] fixture ran');
+  }, 70000);
 });

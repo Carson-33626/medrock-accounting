@@ -2,6 +2,7 @@
 // Child-runner harness: every vendor pipeline runs as its own process with its own gates; one
 // crash never stops the sweep. Captures the tail + the runners' summary-line convention.
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 export interface ChildResult {
   label: string;
@@ -15,6 +16,16 @@ export interface ChildResult {
 const TAIL = 4000;
 const SUMMARY_RE = /^\[|MODE:|receipt-gap worklist:|wrote /;
 
+// Resolve tsx CLI path at module load time; if resolution fails, hold the error for later.
+let tsxPath: string | null = null;
+let tsxResolveError: Error | null = null;
+try {
+  const require = createRequire(import.meta.url);
+  tsxPath = require.resolve('tsx/cli');
+} catch (err) {
+  tsxResolveError = err as Error;
+}
+
 export function runChild(
   label: string,
   args: string[],
@@ -23,9 +34,20 @@ export function runChild(
   const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
   const started = Date.now();
   return new Promise((resolve) => {
-    const cmd = opts.nodeDirect ? 'node' : 'npx';
-    const full = opts.nodeDirect ? args : ['tsx', ...args];
-    const child = spawn(cmd, full, { cwd: opts.cwd });
+    // If tsx resolution failed and we're not using nodeDirect, return immediately with error.
+    if (!opts.nodeDirect && !tsxPath && tsxResolveError) {
+      return resolve({
+        label,
+        code: null,
+        ok: false,
+        durationMs: Date.now() - started,
+        stdoutTail: `tsx not found: ${tsxResolveError.message}`,
+        summaryLines: [],
+      });
+    }
+
+    const spawnArgs = opts.nodeDirect ? args : [tsxPath as string, ...args];
+    const child = spawn(process.execPath, spawnArgs, { cwd: opts.cwd });
     let buf = '';
     const onData = (d: Buffer): void => {
       buf += d.toString();
