@@ -13,7 +13,6 @@ import { runChild } from './sweep-exec';
 import type { ChildResult } from './sweep-exec';
 import { parseNumericFlag } from './cli-args';
 import { rampToken } from '../ramp-split-push/ramp-client';
-import type { Entity } from '../ramp-split-push/types';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 
 const OUT = 'scripts/receipt-capture/out/sweep';
@@ -45,10 +44,6 @@ function parseArgs(): Args {
   };
 }
 
-function csv(v: unknown): string {
-  const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 const money = (cents: number): string => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function loadState(): SweepState {
@@ -167,7 +162,11 @@ async function main(): Promise<void> {
   const afterCsv = `${OUT}/scan-${runId}-after.csv`;
   writeScanCsv(afterCsv, after);
   const residualSorted = [...after].sort((a, b) => a.merchant.localeCompare(b.merchant) || a.holder.localeCompare(b.holder) || a.date.localeCompare(b.date));
-  writeFileSync(`${OUT}/residual-queue.csv`, [SCAN_CSV_HEADER, ...residualSorted.map(scanCsvLine)].join('\n') + '\n');
+  // Only rewrite residual-queue.csv on real scans — a --skip-scan run has no real "after" snapshot,
+  // and overwriting with an empty queue would erase the operator's current state file.
+  if (!args.skipScan) {
+    writeFileSync(`${OUT}/residual-queue.csv`, [SCAN_CSV_HEADER, ...residualSorted.map(scanCsvLine)].join('\n') + '\n');
+  }
   const fixedThisRun = before.filter((r) => !new Set(after.map((x) => x.id)).has(r.id)).length;
 
   // ---- report ----

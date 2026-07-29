@@ -57,6 +57,93 @@ for headless reuse by every subsequent run. Status as of 2026-07-27:
 If a saved session goes stale (ULINE signs it out), `run-uline.ts` detects the bounce back to
 `/SignIn` and exits 2 — re-run the bootstrap for that entity.
 
+## The weekly sweep (run-sweep.ts)
+
+The receipt sweep is the orchestrated entrypoint: it scans all entities for open transactions
+missing receipts, runs every vendor pipeline that has access, re-scans, and emits a week-over-week
+report plus a residual queue for manual follow-up.
+
+```
+npx tsx scripts/receipt-capture/run-sweep.ts [--dry-run] [--vendor toprx,uline,amazon,walmart,amazon-csv] [--limit N] [--skip-scan]
+```
+
+**LIVE by default** (no `--live` flag — the sweep runs against your live Ramp account with no caps). Omit `--dry-run` only when you're ready for real writes.
+
+Flags:
+
+- `--dry-run` — read-only pass. All vendor runners still run and plan their work; nothing gets
+  written to Ramp. Omit to go LIVE.
+- `--vendor vendor1,vendor2,...` — comma-separated list of vendors to run (any combo of:
+  `toprx`, `uline`, `amazon`, `walmart`, `amazon-csv`). Omit to run all five.
+- `--limit N` — max number of transactions actually written by any one vendor runner (default
+  999999). Confident matches beyond the limit are planned but marked `over_limit` and left dry.
+- `--skip-scan` — skip S1 and S4 (before/after scans); reuse the last scan baseline and assume
+  an empty "after". Useful for vendor-only re-runs or debugging. Does NOT update the residual
+  queue or the baseline pointer (see caching below).
+
+The sweep runs five stages sequentially:
+
+1. **S0 preflight**: check TopRx creds, ULINE session, Walmart CDP port, Amazon-CSV cache
+   readiness. Flags blockers and collects a "needs you" list.
+2. **S1 scan**: fetch open (unsynced, receipt-less) transactions across all entities via Ramp's
+   `transactions:read` API. Write `scan-<runId>-before.csv`.
+3. **S2/S3 vendor jobs**: run applicable vendor runners sequentially (TopRx → ULINE → Amazon →
+   Walmart → Amazon-CSV). Each logs its own result summary.
+4. **S4 re-scan**: fetch open transactions again (captures progress made by the vendors). Write
+   `scan-<runId>-after.csv`.
+5. **Report + residual**: emit `report-<runId>.md` (scan summary, vendor results, top merchants
+   by $, needs-you checklist) and `residual-queue.csv` (grouped by merchant → cardholder → date,
+   full queue for operator follow-up).
+
+**Caching**: The sweep itself never purges or modifies any cache. Vendor runners (TopRx, ULINE,
+Amazon, Walmart, Amazon-CSV) are fully resumable — each keeps its own extraction/receipt cache
+and only fetches what's missing. To clear caches and do a full re-extract, delete `out/toprx-*`,
+`out/uline-*`, etc. by hand. Deleting `out/sweep/` only loses week-over-week report diffs; the
+next sweep still has the full residual queue from the last real scan (stored separately in
+`residual-queue.csv`).
+
+**Outputs** (under `scripts/receipt-capture/out/sweep/`):
+
+- `report-<runId>.md` — the full week's summary: scan counts before/after, vendor results, top
+  merchants by $, needs-you checklist. One per run, never overwritten.
+- `residual-queue.csv` — the current un-receipted worklist, grouped by merchant → cardholder →
+  date. Rewritten on every real scan (not `--skip-scan` runs), so it's always the latest state
+  for manual follow-up and next week's baseline.
+- `scan-<runId>-before.csv`, `scan-<runId>-after.csv` — before and after txn snapshots (S1 and
+  S4). One pair per run.
+- `state.json` — internal state: pointer to the last real scan's "after" CSV (for diffing), and a
+  history of all scans (run ID, txn count, total $). Updated on every real scan.
+
+**"Needs you" items** (collected during preflight and vendor runs, flagged in the report):
+
+- **ULINE bootstrap**: if `run-uline.ts` exits 2 for any entity, that session is stale or
+  missing — re-run `npx tsx scripts/receipt-capture/uline-bootstrap.ts --entity=<ENT>` to sign
+  in by hand and refresh the session. This is per-entity and one-time per session lapse.
+- **Walmart CDP Chrome**: to extract Walmart order history, a headless Chrome instance must be
+  running with remote debugging enabled (`chrome.exe --remote-debugging-port=9222
+  --user-data-dir=C:\wm-chrome-profile`) and signed into walmart.com. Start it, then re-run the
+  sweep (or run `npx tsx scripts/walmart-enrich/run-cdp.ts` directly).
+- **Amazon-CSV extract per Business login**: each Amazon Business account must be extracted
+  separately (outside the sweep). Sign into each Business account in a Chrome session, then run
+  `npx tsx scripts/amazon-csv-enrich/run-extract.ts --account <label>` once per login. This
+  captures the CSV order history and charge details for later attachment.
+- **Fresh ULINE MyOrderHistory export**: for category-enriched GL splits, export your current
+  account's full `MyOrderHistory.csv` from ULINE's Export tab, then pass `--csv <path>` to
+  `run-uline.ts`. Not required for basic matching — category defaults are used if the CSV is
+  absent.
+
+**Exit codes**: The sweep itself exits 0 on success or 1 on an unhandled error. Child vendors may
+exit non-zero — these are logged in the report. ULINE runners specifically exit 2 (sign-in
+required) or 3 (account identity mismatch); both are "expected" failures that don't stop the
+overall sweep or halt at an exit code — they're just flagged as needs-you items and other vendors
+continue.
+
+**Amazon**: The sweep runs two Amazon jobs: `run-amazon.ts` (un-split & order-ID memo) and
+`amazon-csv-enrich run-attach.ts` (receipt + memo from charge pairing). Both enforce a
+single-line policy — Amazon txns are never split further and are always synced to QBO as a plain
+Suspense entry (with order ID in the memo for pairing). See the "Amazon" section below for
+details.
+
 ## Running it
 
 From the `web/` directory:
