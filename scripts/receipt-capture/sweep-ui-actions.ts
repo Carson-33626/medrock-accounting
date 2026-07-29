@@ -33,9 +33,12 @@ const REGISTRY: Record<string, ActionBuilder> = {
   'bootstrap-uline-TX': () => ({ kind: 'child', label: 'ULINE bootstrap TX', argv: ['scripts/receipt-capture/uline-bootstrap.ts', '--entity=TX'] }),
   'chrome-walmart': () => ({ kind: 'chrome', exe: CHROME_EXE, args: cdpArgs('C:\\wm-chrome-profile') }),
   'chrome-amazon': () => ({ kind: 'chrome', exe: CHROME_EXE, args: cdpArgs('C:\\amz-chrome-profile') }),
-  'extract-amazon-FL': () => ({ kind: 'child', label: 'Amazon-CSV extract FL', argv: ['scripts/amazon-csv-enrich/run-extract.ts', '--account', 'FL'] }),
-  'extract-amazon-TN': () => ({ kind: 'child', label: 'Amazon-CSV extract TN', argv: ['scripts/amazon-csv-enrich/run-extract.ts', '--account', 'TN'] }),
-  'extract-amazon-TX': () => ({ kind: 'child', label: 'Amazon-CSV extract TX', argv: ['scripts/amazon-csv-enrich/run-extract.ts', '--account', 'TX'] }),
+  // run-extract-txns.ts (the Transactions-report extractor), not run-extract.ts (the older
+  // Items-report one) -- DS addendum 2026-07-22 (main repo docs/amazon-receipt-capture): the
+  // Transactions report is the charge-level source that pairs 1:1 with Ramp txns.
+  'extract-amazon-FL': () => ({ kind: 'child', label: 'Amazon-CSV extract FL', argv: ['scripts/amazon-csv-enrich/run-extract-txns.ts', '--account', 'FL'] }),
+  'extract-amazon-TN': () => ({ kind: 'child', label: 'Amazon-CSV extract TN', argv: ['scripts/amazon-csv-enrich/run-extract-txns.ts', '--account', 'TN'] }),
+  'extract-amazon-TX': () => ({ kind: 'child', label: 'Amazon-CSV extract TX', argv: ['scripts/amazon-csv-enrich/run-extract-txns.ts', '--account', 'TX'] }),
   'fetch-invoices': () => ({ kind: 'child', label: 'Amazon-CSV fetch invoices', argv: ['scripts/amazon-csv-enrich/fetch-invoices.ts'] }),
   // run-attach.ts is dry unless --live is passed (README) — omitting it entirely is the dry mode.
   'attach-amazon-csv-dry': () => ({ kind: 'child', label: 'Amazon-CSV attach (dry)', argv: ['scripts/amazon-csv-enrich/run-attach.ts'] }),

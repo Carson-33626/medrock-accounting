@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveAction, ACTION_NAMES } from './sweep-ui-actions';
-import type { ResolvedAction, ActionError } from './sweep-ui-actions';
+import type { ResolvedAction, ActionError, ActionRequestBody } from './sweep-ui-actions';
 
 function isError(r: ResolvedAction | ActionError): r is ActionError {
   return 'error' in r;
@@ -63,9 +63,9 @@ describe('resolveAction — closed registry', () => {
     ['extract-amazon-FL', 'FL'],
     ['extract-amazon-TN', 'TN'],
     ['extract-amazon-TX', 'TX'],
-  ])('%s resolves to run-extract.ts --account %s exactly', (name, acct) => {
+  ])('%s resolves to run-extract-txns.ts --account %s exactly', (name, acct) => {
     const r = resolveAction(name) as { kind: string; argv: string[] };
-    expect(r.argv).toEqual(['scripts/amazon-csv-enrich/run-extract.ts', '--account', acct]);
+    expect(r.argv).toEqual(['scripts/amazon-csv-enrich/run-extract-txns.ts', '--account', acct]);
   });
 
   it('fetch-invoices resolves to fetch-invoices.ts with no extra flags', () => {
@@ -86,8 +86,11 @@ describe('resolveAction — closed registry', () => {
 
   it('no builder ever echoes an arbitrary caller-supplied name/body field back into argv', () => {
     // Regression guard for the "closed set" safety property: passing extra junk on the body must
-    // never surface anywhere in a resolved argv/args array.
-    const r = resolveAction('sweep-dry', { armed: true, ['--rm']: true } as unknown as { armed?: boolean });
+    // never surface anywhere in a resolved argv/args array. Typed as an intersection (junk field
+    // is a real, declared property) rather than an `unknown` cast -- ActionRequestBody itself
+    // never needs to know about it, but the test value stays fully typed.
+    const junkBody: ActionRequestBody & { ['--rm']: boolean } = { armed: true, ['--rm']: true };
+    const r = resolveAction('sweep-dry', junkBody);
     const argv = (r as { argv: string[] }).argv;
     expect(argv.join(' ')).not.toContain('rm');
   });

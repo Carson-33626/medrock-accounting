@@ -4,7 +4,9 @@
 // Task 1 modules (assembleStatus, resolveAction) to real routes: GET / (the page), GET
 // /api/status, GET /api/report, GET /api/stream (SSE), POST /api/action. Binds 127.0.0.1 by
 // default -- NEVER 0.0.0.0 (this drives headed logins, detached Chrome, and live Ramp writes on
-// Carson's own machine; loopback is the entire access boundary, per the DS).
+// Carson's own machine). Loopback narrows *reachability* but is not by itself a CSRF/DNS-rebinding
+// boundary -- see hostMatches/originMatches/isJsonContentType below and README "Loopback-only,
+// plus CSRF/host guards".
 //
 // Test seams: resolveActionImpl / runChildImpl / scanImpl let tests substitute the real registry
 // lookup, the real (slow, credentialed) child runner, and the real (network-hitting) scan with
@@ -35,6 +37,24 @@ interface ActionPostBody {
 
 function isActionError(r: ResolvedAction | ActionError): r is ActionError {
   return 'error' in r;
+}
+
+// CSRF / DNS-rebinding guards (loopback alone is not a complete access boundary -- see README
+// "Loopback-only, plus CSRF/host guards"). `port` must always be the server's REAL bound port
+// (opts.port is 0 in every test, so a constant here would never match).
+function hostMatches(host: string | undefined, port: number): boolean {
+  return host === `127.0.0.1:${port}` || host === `localhost:${port}`;
+}
+
+// No Origin header at all (same-origin navigations, curl, non-browser tools) is allowed through --
+// only a PRESENT-but-wrong Origin is rejected. That's what defeats a cross-origin page's fetch/form
+// POST without also blocking legitimate same-machine callers that never send the header.
+function originMatches(origin: string | undefined, port: number): boolean {
+  return origin === undefined || origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`;
+}
+
+function isJsonContentType(contentType: string | undefined): boolean {
+  return (contentType ?? '').split(';')[0].trim().toLowerCase() === 'application/json';
 }
 
 // Real Ramp-hitting scan (S1-style, per DS §3.2 'scan-only'): read-only, no files written. Not
@@ -115,6 +135,9 @@ export function startSweepUiServer(opts: SweepUiServerOpts): Promise<SweepUiServ
   let current: { action: string } | null = null;
   let tail = '';
   const subscribers = new Set<ServerResponse>();
+  // Real bound port -- opts.port is 0 in every test (OS-assigned ephemeral port), so this is
+  // filled in from server.address() once listen() resolves, before any request can arrive.
+  let boundPort = opts.port;
 
   function appendTail(chunk: string): void {
     tail = (tail + chunk).slice(-TAIL_MAX);
@@ -182,6 +205,11 @@ export function startSweepUiServer(opts: SweepUiServerOpts): Promise<SweepUiServ
     try {
       const result = await runChildFn(action.label, action.argv, { onData: broadcastData });
       broadcastDone(result.code);
+    } catch (e) {
+      // Mirrors the scan path's failure handling below: a thrown/rejected runner must still
+      // release the lock and tell the panel it's done, not leave the UI wedged "busy" forever.
+      broadcastData(`${action.label} failed to run: ${(e as Error).message}\n`);
+      broadcastDone(null);
     } finally {
       current = null;
     }
@@ -207,6 +235,13 @@ export function startSweepUiServer(opts: SweepUiServerOpts): Promise<SweepUiServ
   }
 
   async function handleAction(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // Requiring an exact application/json Content-Type forces any cross-origin caller into a
+    // CORS preflight -- and this server never sends CORS headers, so that preflight always fails.
+    // A plain cross-origin <form> POST or fetch() with a "simple" content-type never gets here.
+    if (!isJsonContentType(req.headers['content-type'])) {
+      sendJson(res, 400, { error: 'invalid content-type: expected application/json' });
+      return;
+    }
     let body: ActionPostBody;
     try {
       body = await readJsonBody(req);
@@ -259,6 +294,19 @@ export function startSweepUiServer(opts: SweepUiServerOpts): Promise<SweepUiServ
 
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url ?? '/';
+    // Host-header check applies to every route: it's what defeats DNS-rebinding (a remote page
+    // navigating a hostname that resolves to 127.0.0.1, so the browser's same-origin checks think
+    // it's talking to the attacker's origin while the actual TCP connection lands here).
+    if (!hostMatches(req.headers.host, boundPort)) {
+      sendJson(res, 403, { error: 'forbidden: bad Host header' });
+      return;
+    }
+    // Origin check applies to POSTs only (the state-changing route): a present-but-mismatched
+    // Origin means a cross-origin page's script fired the request, not this page's own JS.
+    if (req.method === 'POST' && !originMatches(req.headers.origin, boundPort)) {
+      sendJson(res, 403, { error: 'forbidden: bad Origin header' });
+      return;
+    }
     if (req.method === 'GET' && url === '/') {
       sendHtml(res, 200, opts.page);
       return;
@@ -292,7 +340,7 @@ export function startSweepUiServer(opts: SweepUiServerOpts): Promise<SweepUiServ
     server.once('error', reject);
     server.listen(opts.port, opts.host ?? '127.0.0.1', () => {
       const address = server.address();
-      const boundPort = typeof address === 'object' && address !== null ? address.port : opts.port;
+      boundPort = typeof address === 'object' && address !== null ? address.port : opts.port;
       resolve({
         port: boundPort,
         close: () =>

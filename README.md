@@ -49,7 +49,7 @@ This starts a loopback server on `127.0.0.1:4599` and opens a standalone Chrome 
 
 1. **Sessions & sources** (left)
    - Per-vendor cards showing session health (green = ready, amber = warning, red = fix needed).
-   - Click the fix button (e.g., "Bootstrap ULINE FL") to open a login window. The window closes and syncs automatically when storageState saves.
+   - Click the fix button (e.g., "Bootstrap ULINE FL") to open a login window. The window closes and syncs automatically when storageState saves. This holds the busy-lock the whole time you're signing in (see "Busy-lock and never-two-sweeps" below) — no other run or extract can start until you finish or it times out.
    - Shows cache ages (TopRx/ULINE vendor session files, Amazon vendor cache, Walmart cache, latest CSV extract) and open-receiptless transaction counts per entity.
 
 2. **Run** (middle)
@@ -69,13 +69,19 @@ This starts a loopback server on `127.0.0.1:4599` and opens a standalone Chrome 
 
 ### Busy-lock and never-two-sweeps
 
-The server enforces one action at a time: starting a second sweep while one is running returns a 409 conflict and is refused by the UI. Bootstrap windows, vendor Chrome launches, and scan operations don't trigger the lock — only real runners (sweeps, extracts, fetch-invoices) do.
+The server enforces one action at a time: starting a second sweep while one is running returns a 409 conflict and is refused by the UI. Vendor Chrome launches (Walmart/Amazon sign-in windows) and the Scan button are exempt — they don't trigger the lock. **Everything else does, including ULINE bootstrap windows**: `Bootstrap ULINE FL/TN/TX` spawns a child the same as a sweep or extract, so it holds the lock (often for minutes, while you sign in by hand) and blocks any other run until it finishes.
 
 Never start a second sweep manually in another terminal while the panel is running one. The panel's state.json is last-writer-wins; concurrent writes will corrupt it.
 
-### Loopback-only, no auth
+### Loopback-only, plus CSRF/host guards
 
-The server binds `127.0.0.1:4599` **only** (never 0.0.0.0). Loopback is the entire access boundary: it's only reachable from your machine, only while you're running the panel. There is no authentication because there is no network exposure.
+The server binds `127.0.0.1:4599` **only** (never 0.0.0.0). Loopback narrows *who can reach it* but is not by itself a complete access boundary — a malicious page open in your own browser can still fire a cross-origin request at `127.0.0.1:4599` (CSRF), and DNS-rebinding can make an attacker-controlled hostname resolve to your loopback address so the browser treats the request as same-origin when it isn't. Three checks close that gap:
+
+- **Host header** (every route): rejected with 403 unless it's exactly `127.0.0.1:<port>` or `localhost:<port>` (the panel's real bound port) — defeats DNS-rebinding.
+- **Origin header** (POSTs only, if present): rejected with 403 unless it's `http://127.0.0.1:<port>` or `http://localhost:<port>`.
+- **Content-Type** (`POST /api/action` only): rejected with 400 unless it's `application/json` (with or without a charset suffix) — this forces any cross-origin fetch/form attempt into a CORS preflight, and the server sends no CORS headers, so that preflight always fails.
+
+There is still no login/auth layer — these are transport-level guards against a browser-based attacker, not account authentication.
 
 ### Vendor and limit filtering (v1 CLI-only)
 

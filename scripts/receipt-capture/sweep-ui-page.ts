@@ -253,7 +253,10 @@ export const SWEEP_UI_PAGE: string = `<!doctype html>
     var codeText = code === null || code === undefined ? 'terminated' : ('exit ' + code);
     doneBannerEl.className = 'banner show ' + (ok ? 'ok' : 'err');
     var text = 'Finished (' + codeText + ')';
-    if (!ok && currentLabel && /uline/i.test(currentLabel) && typeof code === 'number' && ULINE_CODES[code]) {
+    // Not gated on the label text: run-sweep.ts's own child runs (Dry run / Run LIVE sweep) can
+    // surface a ULINE vendor job's exit code via this same done event, not just a direct
+    // "ULINE bootstrap ..." action, so the annotation applies to any action's exit code.
+    if (!ok && typeof code === 'number' && ULINE_CODES[code]) {
       text += ' -- ' + ULINE_CODES[code];
     }
     doneBannerEl.textContent = text;

@@ -4,6 +4,7 @@
 // Every test binds port:0 so the OS assigns a free port, fetches against it, and closes the
 // server in a `finally` -- no test leaves a listening socket or a running child process behind.
 import { describe, it, expect } from 'vitest';
+import { request as httpRequest } from 'node:http';
 import { startSweepUiServer } from './sweep-ui-server';
 import { runChild as realRunChild } from './sweep-exec';
 import type { ChildResult } from './sweep-exec';
@@ -11,6 +12,47 @@ import type { ResolvedAction, ActionError } from './sweep-ui-actions';
 import type { PanelStatus } from './sweep-ui-status';
 
 const PAGE = '<html><body>Sweep Control Panel</body></html>';
+
+// Polls /api/status until `busy` clears (or the deadline hits) instead of a fixed sleep -- a fixed
+// sleep races the child's actual completion time under CI/machine load and is the de-flake target
+// here (was a plain setTimeout in two tests below).
+async function waitUntilNotBusy(port: number, deadlineMs = 5000): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    const status = (await (await fetch(`http://127.0.0.1:${port}/api/status`)).json()) as PanelStatus;
+    if (status.busy === null) return;
+    if (Date.now() - start > deadlineMs) {
+      throw new Error(`timed out after ${deadlineMs}ms waiting for busy to clear`);
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+// fetch()'s Fetch-spec forbidden-header list blocks setting Host/Origin directly, so the CSRF
+// guard tests below need a raw node:http client instead of the global fetch used everywhere else
+// in this file.
+interface RawRequestOpts {
+  port: number;
+  path: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+function rawRequest(opts: RawRequestOpts): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: '127.0.0.1', port: opts.port, path: opts.path, method: opts.method, headers: opts.headers },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+      },
+    );
+    req.on('error', reject);
+    if (opts.body !== undefined) req.write(opts.body);
+    req.end();
+  });
+}
 
 describe('startSweepUiServer', () => {
   it('GET / serves the injected page string as html', async () => {
@@ -65,7 +107,7 @@ describe('startSweepUiServer', () => {
       const statusRes = await fetch(`http://127.0.0.1:${port}/api/status`);
       const json = (await statusRes.json()) as PanelStatus;
       expect(json.busy).toEqual({ action: 'anything' });
-      await new Promise((r) => setTimeout(r, 500)); // let the fast sleep child finish
+      await waitUntilNotBusy(port); // let the fast sleep child finish
       const statusAfter = (await (await fetch(`http://127.0.0.1:${port}/api/status`)).json()) as PanelStatus;
       expect(statusAfter.busy).toBeNull();
     } finally {
@@ -123,7 +165,7 @@ describe('startSweepUiServer', () => {
       });
       expect(r2.status).toBe(409);
       // Let the slow child actually finish before close() so no child process outlives the test.
-      await new Promise((r) => setTimeout(r, 600));
+      await waitUntilNotBusy(port);
     } finally {
       await close();
     }
@@ -235,5 +277,71 @@ describe('startSweepUiServer', () => {
     } finally {
       await close();
     }
+  });
+
+  describe('CSRF / DNS-rebinding guards', () => {
+    it('rejects any route with a mismatched Host header (403) -- defeats DNS-rebinding', async () => {
+      const { port, close } = await startSweepUiServer({ port: 0, page: PAGE });
+      try {
+        const res = await rawRequest({ port, path: '/api/status', method: 'GET', headers: { Host: 'evil.example.com' } });
+        expect(res.status).toBe(403);
+      } finally {
+        await close();
+      }
+    });
+
+    it('rejects POST /api/action with a mismatched Origin header (403) -- defeats cross-origin CSRF', async () => {
+      const { port, close } = await startSweepUiServer({ port: 0, page: PAGE });
+      try {
+        const res = await rawRequest({
+          port,
+          path: '/api/action',
+          method: 'POST',
+          headers: { Host: `127.0.0.1:${port}`, Origin: 'http://evil.example.com', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'scan-only' }),
+        });
+        expect(res.status).toBe(403);
+      } finally {
+        await close();
+      }
+    });
+
+    it('rejects POST /api/action with a non-JSON Content-Type (400) -- forces cross-origin callers into a failing preflight', async () => {
+      const { port, close } = await startSweepUiServer({ port: 0, page: PAGE });
+      try {
+        const res = await rawRequest({
+          port,
+          path: '/api/action',
+          method: 'POST',
+          headers: { Host: `127.0.0.1:${port}`, 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'scan-only' }),
+        });
+        expect(res.status).toBe(400);
+      } finally {
+        await close();
+      }
+    });
+
+    it('accepts a same-origin JSON POST to /api/action (positive case, incl. a charset suffix on Content-Type)', async () => {
+      const resolveActionImpl = (): ResolvedAction | ActionError => ({ kind: 'scan' });
+      const scanImpl = (): Promise<void> => Promise.resolve();
+      const { port, close } = await startSweepUiServer({ port: 0, page: PAGE, resolveActionImpl, scanImpl });
+      try {
+        const res = await rawRequest({
+          port,
+          path: '/api/action',
+          method: 'POST',
+          headers: {
+            Host: `127.0.0.1:${port}`,
+            Origin: `http://127.0.0.1:${port}`,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: JSON.stringify({ action: 'scan-only' }),
+        });
+        expect(res.status).toBe(200);
+      } finally {
+        await close();
+      }
+    });
   });
 });
