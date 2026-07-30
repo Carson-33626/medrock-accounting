@@ -9,9 +9,40 @@ function creds(entity: Entity): { id: string; secret: string } {
   return { id, secret };
 }
 
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+export interface RetryOpts { attempts?: number; fetchImpl?: FetchLike; sleep?: (ms: number) => Promise<void> }
+
+// A connect timeout to api.ramp.com THROWS out of fetch rather than returning a status, so the
+// status-based retry loops in sweep-scan.ts / client.ts never saw it and a single blip killed whole runs
+// mid-flight (2026-07-30: the live sweep's S4 re-scan died this way after all ten vendor children had
+// already succeeded). Retrying belongs here, where every read path shares it.
+// GET and the client-credentials token POST are both safe to repeat; receipt/memo WRITES deliberately do
+// NOT route through this — they carry idempotency keys and live in their own modules.
+const RETRIABLE_STATUS = (s: number): boolean => s === 408 || s === 429 || (s >= 500 && s < 600);
+const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+export async function rampFetch(url: string, init: RequestInit, opts: RetryOpts = {}): Promise<Response> {
+  const attempts = opts.attempts ?? 4;
+  const doFetch = opts.fetchImpl ?? ((u, i) => fetch(u, i));
+  const sleep = opts.sleep ?? defaultSleep;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(2 ** (attempt - 1) * 1000);
+    try {
+      const res = await doFetch(url, init);
+      // Give up the retry budget only on transient statuses; every other status is the caller's to read.
+      if (attempt < attempts - 1 && RETRIABLE_STATUS(res.status)) { lastError = new Error(`HTTP ${res.status}`); continue; }
+      return res;
+    } catch (e) {
+      lastError = e; // network-layer failure (connect timeout, DNS, socket reset) — retry
+    }
+  }
+  throw new Error(`Ramp request failed after ${attempts} attempts: ${url} — ${lastError instanceof Error ? lastError.message : String(lastError)}`, { cause: lastError });
+}
+
 export async function rampToken(entity: Entity, scope: string): Promise<string> {
   const { id, secret } = creds(entity);
-  const res = await fetch(`${BASE}/token`, {
+  const res = await rampFetch(`${BASE}/token`, {
     method: 'POST',
     headers: {
       Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
@@ -29,7 +60,7 @@ export async function rampToken(entity: Entity, scope: string): Promise<string> 
 export async function rampGet<T>(entity: Entity, pathOrUrl: string, token: string): Promise<{ status: number; body: T }> {
   // Ramp's `page.next` is a full URL — follow it as-is; otherwise prepend the base path.
   const url = pathOrUrl.startsWith('http') ? pathOrUrl : `${BASE}${pathOrUrl}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await rampFetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const body = (await res.json()) as T;
   return { status: res.status, body };
 }
