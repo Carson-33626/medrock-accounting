@@ -4,8 +4,9 @@ import { PayrollTabs } from './components/PayrollTabs';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Payroll — MedRock Accounting',
-  description: 'ADP payroll journal entry builder — draft, review, and post per-entity payroll JEs',
+  title: 'Journal Entries — MedRock Accounting',
+  description:
+    'Journal entry builder — draft, review, and post per-entity payroll JEs and month-end allocation JEs',
 };
 
 export default async function PayrollPage() {

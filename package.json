@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "ramp:migrate": "tsx scripts/ramp-split-push/run-migration.ts scripts/migrations/create_ramp_split_push_audit.sql",
+    "payroll:migrate:split": "tsx scripts/ramp-split-push/run-migration.ts scripts/migrations/alter_payroll_headers_split.sql",
+    "payroll:migrate:eom": "tsx scripts/ramp-split-push/run-migration.ts scripts/migrations/create_payroll_eom_runs.sql",
     "ramp:preview": "tsx scripts/ramp-split-push/preview.ts",
     "payroll:migrate": "tsx scripts/payroll/run-migration.ts",
     "forecast:migrate": "tsx scripts/forecast/run-migration.ts"

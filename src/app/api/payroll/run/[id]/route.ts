@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { loadDraft, saveDraft } from '@/lib/payroll/store';
+import { loadDraft, saveDraft, listSiblings } from '@/lib/payroll/store';
 import type { JournalDraft, JournalLine } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'header not found' }, { status: 404 });
     }
 
-    return NextResponse.json(loaded);
+    const siblings = await listSiblings(loaded.header.entity, loaded.header.pay_date, loaded.header.pay_group);
+    return NextResponse.json({ ...loaded, siblings });
   } catch (error) {
     console.error('[payroll/run/[id] GET]', error);
     const message = error instanceof Error ? error.message : 'Failed to load payroll draft';
@@ -84,6 +85,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       totalCredits,
       variance,
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
+      kind: (header.kind as JournalDraft['kind']) ?? 'pay_date',
+      periodSegment: header.period_segment,
+      txnDate: header.txn_date ?? undefined,
     };
 
     const savedId = await saveDraft(draft, header.source_snapshot_hash ?? '');

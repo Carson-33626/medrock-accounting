@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { loadDraft } from '@/lib/payroll/store';
+import { loadDraft, listSiblings } from '@/lib/payroll/store';
 import { buildJeExportSheet } from '@/lib/payroll/je-export';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
+import { pieceDocNumber } from '@/lib/payroll/split';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
 import type { Entity } from '@/lib/payroll/types';
 import { xlsxResponse } from '@/lib/inventory-export';
@@ -36,6 +37,14 @@ export async function GET(request: NextRequest) {
 
     const { header, lines } = loaded;
 
+    const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
+    const overrides = siblings.length > 1
+      ? {
+          docNumber: pieceDocNumber(header.pay_date, siblings.length, Math.max(0, siblings.findIndex((s) => s.id === headerId))),
+          txnDate: header.txn_date ?? '',
+        }
+      : undefined;
+
     // Best-effort QB account-number lookup (read-only). Never let a QuickBooks hiccup block the
     // dry-run export — degrade to blank Account # instead.
     let accountNums: Record<string, string> | undefined;
@@ -48,7 +57,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const sheet = buildJeExportSheet(header, lines, accountNums);
+    const sheet = buildJeExportSheet(header, lines, accountNums, overrides);
     return xlsxResponse(
       [{ name: 'Journal Entry', columns: sheet.columns, rows: sheet.rows }],
       sheet.filename,

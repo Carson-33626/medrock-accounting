@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { setHeaderStatus } from '@/lib/payroll/store';
+import { loadDraft, listSiblings, setHeadersStatus } from '@/lib/payroll/store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,8 +25,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'headerId is required' }, { status: 400 });
     }
 
-    await setHeaderStatus(headerId, 'approved');
-    return NextResponse.json({ ok: true });
+    const loaded = await loadDraft(headerId);
+    if (!loaded) {
+      return NextResponse.json({ error: 'header not found' }, { status: 404 });
+    }
+    const siblings = await listSiblings(loaded.header.entity, loaded.header.pay_date, loaded.header.pay_group);
+    // A split run is approved as a PAIR — a lone approved half could then post alone and
+    // misstate two months. setHeadersStatus is one UPDATE (atomic) and skips posted rows.
+    await setHeadersStatus(siblings.map((s) => s.id), 'approved');
+    return NextResponse.json({ ok: true, approvedIds: siblings.map((s) => s.id) });
   } catch (error) {
     console.error('[payroll/approve POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to approve payroll draft';

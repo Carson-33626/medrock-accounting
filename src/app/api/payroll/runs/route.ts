@@ -3,10 +3,12 @@ import { requireAdmin } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
+import { splitStraddle } from '@/lib/payroll/split';
 import {
   getAccountMap,
   getEmployeeMap,
   saveDraft,
+  deleteStaleSiblings,
   sourceSnapshotHash,
   listHeaders,
   listRecentHeaders,
@@ -47,7 +49,16 @@ export async function POST(request: NextRequest) {
     const { drafts, unmappedColumns, unmappedPositions, excluded } = buildJournal(rows, accountMap, employeeMap);
 
     for (const draft of drafts) {
-      await saveDraft(draft, snapshot);
+      const pieces = splitStraddle(draft);
+      for (const piece of pieces) {
+        await saveDraft(piece, snapshot);
+      }
+      // Replace-semantics: if this run previously persisted with a different segment set
+      // (e.g. period dates were corrected), remove the unposted leftovers.
+      await deleteStaleSiblings(
+        draft.entity, draft.payDate, draft.payGroup,
+        pieces.map((p) => p.periodSegment ?? ''),
+      );
     }
 
     const headers = await listHeaders(start, end);

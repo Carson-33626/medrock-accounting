@@ -34,6 +34,9 @@ interface PayrollHeader {
   total_credits: number;
   variance: number;
   row_count: number;
+  period_segment: string;
+  txn_date: string | null;
+  kind: string;
 }
 
 interface ExcludedGroup {
@@ -89,6 +92,13 @@ function payDateMs(payDate: string): number {
 function isoToUs(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   return m ? `${m[2]}/${m[3]}/${m[1]}` : iso;
+}
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'Jun' for '2026-06' (client-side mirror of split.ts pieceLabel — no server imports here). */
+function segmentLabel(segment: string): string {
+  const m = /^\d{4}-(\d{2})$/.exec(segment);
+  return m ? SHORT_MONTHS[Number(m[1]) - 1] : segment;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -162,6 +172,10 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   const groups = useMemo(() => {
     const byDate = new Map<string, PayrollHeader[]>();
     for (const h of headers) {
+      // Belt-and-suspenders: month-end allocation headers (kind === 'allocation') live on the
+      // End of Month tab, not here — the store's /api/payroll/runs query already excludes them,
+      // this just guards against a future query regression surfacing them on this list too.
+      if (h.kind === 'allocation') continue;
       const list = byDate.get(h.pay_date) ?? [];
       list.push(h);
       byDate.set(h.pay_date, list);
@@ -205,6 +219,12 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
           Recent pay periods load automatically — including small off-cycle runs (a bonus or a one-off
           &ldquo;Anytime&rdquo; payment show up as their own 1-person card). Need an older or brand-new period? Use{' '}
           <strong>Import a pay period</strong> below to pull it from ADP.
+        </p>
+        <p>
+          A card with a <strong>Split</strong> badge is a payroll whose pay period crosses a month
+          boundary: it posts as <strong>two journal entries</strong>, one per calendar month, and the
+          card lists each month&apos;s share. Open it to review the pieces on sub-tabs — they approve
+          and post together as a pair.
         </p>
       </DirectionsBanner>
 
@@ -280,29 +300,41 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
         </div>
       ) : (
         <div className="space-y-6">
-          {groups.map(([payDate, list]) => (
-            <div key={payDate} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold">Pay date {payDate}</h2>
-                <span className={`text-xs ${subText}`}>
-                  {list.length} {list.length === 1 ? 'entity' : 'entities'}
-                </span>
+          {groups.map(([payDate, list]) => {
+            const runs = new Map<string, PayrollHeader[]>();
+            for (const h of list) {
+              const k = `${h.entity}|${h.pay_group}`;
+              const cur = runs.get(k) ?? [];
+              cur.push(h);
+              runs.set(k, cur);
+            }
+            const runList = [...runs.values()].map((pieces) =>
+              [...pieces].sort((a, b) => a.period_segment.localeCompare(b.period_segment)),
+            );
+            return (
+              <div key={payDate} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold">Pay date {payDate}</h2>
+                  <span className={`text-xs ${subText}`}>
+                    {list.length} {list.length === 1 ? 'entity' : 'entities'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {runList.map((pieces) => (
+                    <RunCard
+                      key={pieces[0].id}
+                      darkMode={darkMode}
+                      cardBg={cardBg}
+                      subText={subText}
+                      border={border}
+                      pieces={pieces}
+                      onOpen={() => onOpen(pieces[0].id)}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {list.map((h) => (
-                  <RunCard
-                    key={h.id}
-                    darkMode={darkMode}
-                    cardBg={cardBg}
-                    subText={subText}
-                    border={border}
-                    header={h}
-                    onOpen={() => onOpen(h.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           <div className={`flex flex-col items-center gap-2 text-xs ${subText}`}>
             {hasMore ? (
@@ -468,17 +500,21 @@ function RunCard({
   cardBg,
   subText,
   border,
-  header,
+  pieces,
   onOpen,
 }: {
   darkMode: boolean;
   cardBg: string;
   subText: string;
   border: string;
-  header: PayrollHeader;
+  pieces: PayrollHeader[];
   onOpen: () => void;
 }) {
-  const balanced = header.variance === 0;
+  const header = pieces[0];
+  const split = pieces.length > 1;
+  const balanced = split ? pieces.every((p) => p.variance === 0) : header.variance === 0;
+  const status = split ? (pieces.find((p) => p.status !== 'posted')?.status ?? 'posted') : header.status;
+  const combinedVariance = round2(pieces.reduce((s, p) => s + p.variance, 0));
   return (
     <button
       onClick={onOpen}
@@ -489,7 +525,18 @@ function RunCard({
           <p className="text-sm font-semibold">{header.entity}</p>
           <p className={`text-xs ${subText}`}>{header.pay_group}</p>
         </div>
-        <StatusBadge darkMode={darkMode} status={header.status} />
+        <div className="flex items-center gap-1">
+          {split && (
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
+                darkMode ? 'bg-indigo-950/60 text-indigo-200 border-indigo-800' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              }`}
+            >
+              Split · {pieces.map((p) => segmentLabel(p.period_segment)).join('/')}
+            </span>
+          )}
+          <StatusBadge darkMode={darkMode} status={status} />
+        </div>
       </div>
 
       <div className={`text-xs ${subText}`}>
@@ -497,16 +544,31 @@ function RunCard({
         {header.period_start && header.period_end ? ` · period ${header.period_start}–${header.period_end}` : ''}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div>
-          <p className={`text-xs ${subText}`}>Debits</p>
-          <p className="font-semibold tabular-nums">{fmtMoney(header.total_debits)}</p>
+      {split ? (
+        <div className="space-y-1 text-sm">
+          {pieces.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-2">
+              <span className={`text-xs ${subText}`}>{segmentLabel(p.period_segment)} ({p.txn_date ?? p.pay_date})</span>
+              <span className="tabular-nums font-medium">{fmtMoney(p.total_debits)}</span>
+            </div>
+          ))}
+          <div className={`flex items-center justify-between gap-2 border-t pt-1 ${border}`}>
+            <span className={`text-xs font-semibold ${subText}`}>Combined</span>
+            <span className="tabular-nums font-semibold">{fmtMoney(round2(pieces.reduce((s, p) => s + p.total_debits, 0)))}</span>
+          </div>
         </div>
-        <div>
-          <p className={`text-xs ${subText}`}>Credits</p>
-          <p className="font-semibold tabular-nums">{fmtMoney(header.total_credits)}</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <p className={`text-xs ${subText}`}>Debits</p>
+            <p className="font-semibold tabular-nums">{fmtMoney(header.total_debits)}</p>
+          </div>
+          <div>
+            <p className={`text-xs ${subText}`}>Credits</p>
+            <p className="font-semibold tabular-nums">{fmtMoney(header.total_credits)}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div
@@ -521,7 +583,7 @@ function RunCard({
           }`}
         >
           {balanced ? <CheckCircle2 className="w-3 h-3" aria-hidden /> : <AlertTriangle className="w-3 h-3" aria-hidden />}
-          {balanced ? 'Balanced' : `Variance ${fmtMoney(header.variance)}`}
+          {balanced ? 'Balanced' : `Variance ${fmtMoney(split ? combinedVariance : header.variance)}`}
         </div>
         <span className={`text-xs font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}>Open →</span>
       </div>
@@ -585,7 +647,10 @@ function PeriodFilter({
 
       {open && (
         <div className={`px-4 pb-4 space-y-3 border-t ${border} pt-4`}>
-          <p className={`text-xs ${subText}`}>Show the journal entries whose pay date falls in a month, quarter, or year.</p>
+          <p className={`text-xs ${subText}`}>
+            Show the journal entries whose posting date (TxnDate) falls in a month, quarter, or year — a split
+            payroll&apos;s prior-month piece shows under the month it expenses into.
+          </p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="inline-flex rounded-lg border overflow-hidden">
               {GRANULARITIES.map((g) => (

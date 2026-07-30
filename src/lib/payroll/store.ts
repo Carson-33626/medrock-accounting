@@ -5,13 +5,13 @@
  */
 import { createHash } from 'node:crypto';
 import { getRdsPool } from '../rds';
+import { adpDateToIso } from './dates';
 import type {
   PayrollRow,
   JournalDraft,
   JournalLine,
   AccountMapRule,
   EmployeeMapRule,
-  AllocationRule,
   Entity,
   PostingType,
   CreditBucket,
@@ -38,6 +38,11 @@ export interface PayrollHeader {
   source_snapshot_hash: string | null;
   qb_entry_id: string | null;
   qb_doc_number: string | null;
+  kind: string;
+  period_segment: string;
+  /** ISO YYYY-MM-DD the JE posts on (segment month-end for a split prior-month piece,
+   *  else the pay date). Drives the accounting-period filter. */
+  txn_date: string | null;
 }
 
 export function sourceSnapshotHash(rows: PayrollRow[]): string {
@@ -165,9 +170,9 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
     // out of the upsert entirely when it's already posted.
     const existing = await client.query<{ id: number; status: HeaderStatus }>(
       `SELECT id, status FROM accounting.payroll_journal_headers
-       WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+       WHERE entity = $1 AND pay_date = $2 AND pay_group = $3 AND period_segment = $4
        FOR UPDATE`,
-      [draft.entity, draft.payDate, draft.payGroup],
+      [draft.entity, draft.payDate, draft.payGroup, draft.periodSegment ?? ''],
     );
     const existingRow = existing.rows[0];
     if (existingRow && existingRow.status === 'posted') {
@@ -177,10 +182,12 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
 
     const headerRes = await client.query<{ id: number }>(
       `INSERT INTO accounting.payroll_journal_headers
-         (entity, pay_date, pay_group, period_start, period_end, status,
+         (entity, pay_date, pay_group, period_segment, kind, txn_date, period_start, period_end, status,
           total_debits, total_credits, variance, row_count, source_snapshot_hash, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'needs_review', $6, $7, $8, $9, $10, now())
-       ON CONFLICT (entity, pay_date, pay_group) DO UPDATE SET
+       VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, 'needs_review', $9, $10, $11, $12, $13, now())
+       ON CONFLICT (entity, pay_date, pay_group, period_segment) DO UPDATE SET
+         kind = EXCLUDED.kind,
+         txn_date = EXCLUDED.txn_date,
          period_start = EXCLUDED.period_start,
          period_end = EXCLUDED.period_end,
          status = 'needs_review',
@@ -195,6 +202,9 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
         draft.entity,
         draft.payDate,
         draft.payGroup,
+        draft.periodSegment ?? '',
+        draft.kind ?? 'pay_date',
+        draft.txnDate ?? adpDateToIso(draft.payDate),
         draft.periodStart,
         draft.periodEnd,
         draft.totalDebits,
@@ -241,7 +251,7 @@ export async function saveDraft(draft: JournalDraft, snapshotHash: string): Prom
   }
 }
 
-interface HeaderRow {
+export interface HeaderRow {
   id: number;
   entity: Entity;
   pay_date: string;
@@ -256,9 +266,12 @@ interface HeaderRow {
   source_snapshot_hash: string | null;
   qb_entry_id: string | null;
   qb_doc_number: string | null;
+  kind: string;
+  period_segment: string;
+  txn_date: string | null;
 }
 
-function toHeader(r: HeaderRow): PayrollHeader {
+export function toHeader(r: HeaderRow): PayrollHeader {
   return {
     // `id` is a bigint — node-postgres returns bigint as a string. Coerce so every
     // consumer (reconcile/approve/post routes require typeof headerId === 'number')
@@ -277,6 +290,9 @@ function toHeader(r: HeaderRow): PayrollHeader {
     source_snapshot_hash: r.source_snapshot_hash,
     qb_entry_id: r.qb_entry_id,
     qb_doc_number: r.qb_doc_number,
+    kind: r.kind,
+    period_segment: r.period_segment,
+    txn_date: r.txn_date,
   };
 }
 
@@ -310,7 +326,8 @@ export async function loadDraft(id: number): Promise<{ header: PayrollHeader; li
   const pool = getRdsPool();
   const headerRes = await pool.query<HeaderRow>(
     `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers WHERE id = $1`,
     [id],
   );
@@ -329,15 +346,58 @@ export async function loadDraft(id: number): Promise<{ header: PayrollHeader; li
   return { header: toHeader(headerRow), lines: linesRes.rows.map(toLine) };
 }
 
+/** All sibling pieces of one run (>=1 row; a single '' row for an unsplit run), month order. */
+export async function listSiblings(entity: Entity, payDate: string, payGroup: string): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash,
+            qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
+     FROM accounting.payroll_journal_headers
+     WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+     ORDER BY period_segment`,
+    [entity, payDate, payGroup],
+  );
+  return rows.map(toHeader);
+}
+
+/**
+ * Regeneration replace-semantics: after re-saving a run's pieces, remove UNPOSTED leftovers
+ * whose segment is no longer produced (covers split→unsplit if period dates were corrected).
+ * Posted headers are never deleted. Lines cascade via the FK.
+ */
+export async function deleteStaleSiblings(
+  entity: Entity, payDate: string, payGroup: string, keepSegments: string[],
+): Promise<number> {
+  const { rowCount } = await getRdsPool().query(
+    `DELETE FROM accounting.payroll_journal_headers
+     WHERE entity = $1 AND pay_date = $2 AND pay_group = $3
+       AND status <> 'posted'
+       AND NOT (period_segment = ANY($4::text[]))`,
+    [entity, payDate, payGroup, keepSegments],
+  );
+  return rowCount ?? 0;
+}
+
+/** Pair-atomic status flip (approve both pieces of a split run in one statement). */
+export async function setHeadersStatus(ids: number[], status: HeaderStatus): Promise<void> {
+  if (ids.length === 0) return;
+  await getRdsPool().query(
+    `UPDATE accounting.payroll_journal_headers
+     SET status = $2, updated_at = now()
+     WHERE id = ANY($1::bigint[]) AND status <> 'posted'`,
+    [ids, status],
+  );
+}
+
 export async function listHeaders(startISO: string, endISO: string): Promise<PayrollHeader[]> {
   const { rows } = await getRdsPool().query<HeaderRow>(
     `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
-     WHERE to_date(pay_date, 'MM/DD/YYYY') BETWEEN $1::date AND $2::date
-     -- Order by the parsed date, not the MM/DD/YYYY string: lexicographic sorting
-     -- puts 12/01/2025 after 03/13/2026. Newest-first matches the landing list.
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+     WHERE COALESCE(txn_date, to_date(pay_date, 'MM/DD/YYYY')) BETWEEN $1::date AND $2::date
+       AND kind <> 'allocation'
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [startISO, endISO],
   );
   return rows.map(toHeader);
@@ -355,7 +415,8 @@ export const MAX_RECENT_PAY_PERIODS = 400;
 export async function countDistinctPayDates(): Promise<number> {
   const { rows } = await getRdsPool().query<{ n: string }>(
     `SELECT count(DISTINCT to_date(pay_date, 'MM/DD/YYYY'))::text AS n
-     FROM accounting.payroll_journal_headers`,
+     FROM accounting.payroll_journal_headers
+     WHERE kind <> 'allocation'`,
   );
   return Number(rows[0]?.n ?? 0);
 }
@@ -372,14 +433,17 @@ export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
     `WITH recent AS (
        SELECT DISTINCT to_date(pay_date, 'MM/DD/YYYY') AS d
        FROM accounting.payroll_journal_headers
+       WHERE kind <> 'allocation'
        ORDER BY d DESC
        LIMIT $1
      )
      SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number
+            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
+            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
      WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group`,
+       AND kind <> 'allocation'
+     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
     [safePeriods],
   );
   return rows.map(toHeader);
@@ -435,58 +499,4 @@ export async function setHeaderStatus(
      WHERE id = $1`,
     [id, status, qb?.entryId ?? null, qb?.docNumber ?? null],
   );
-}
-
-interface AllocationRuleRow {
-  id: number; cost_center: string; target_entity: Entity; percent: string; effective_from: string; active: boolean;
-}
-function toAllocationRule(r: AllocationRuleRow): AllocationRule {
-  return { id: Number(r.id), costCenter: r.cost_center, targetEntity: r.target_entity, percent: Number(r.percent), effectiveFrom: r.effective_from, active: r.active };
-}
-
-export async function getAllocationRules(costCenter?: string): Promise<AllocationRule[]> {
-  const { rows } = costCenter === undefined
-    ? await getRdsPool().query<AllocationRuleRow>(
-        `SELECT id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
-         FROM accounting.payroll_allocation_rule ORDER BY cost_center, effective_from DESC, target_entity`)
-    : await getRdsPool().query<AllocationRuleRow>(
-        `SELECT id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
-         FROM accounting.payroll_allocation_rule WHERE cost_center=$1 ORDER BY effective_from DESC, target_entity`,
-        [costCenter]);
-  return rows.map(toAllocationRule);
-}
-
-export async function getEffectiveAllocationRules(costCenter: string, monthStartIso: string): Promise<AllocationRule[]> {
-  const { rows } = await getRdsPool().query<AllocationRuleRow>(
-    `SELECT DISTINCT ON (target_entity)
-            id, cost_center, target_entity, to_char(effective_from,'YYYY-MM-DD') AS effective_from, percent, active
-     FROM accounting.payroll_allocation_rule
-     WHERE cost_center=$1 AND active AND effective_from <= $2::date
-     ORDER BY target_entity, effective_from DESC`,
-    [costCenter, monthStartIso]);
-  return rows.map(toAllocationRule);
-}
-
-/** Validate sum-to-100 then upsert the rule set for one (cost_center, effective_from) in a txn. */
-export async function saveAllocationRuleSet(costCenter: string, effectiveFrom: string, rules: AllocationRule[]): Promise<void> {
-  const { assertSharesSumTo100 } = await import('./allocation');
-  assertSharesSumTo100(rules.map((r) => r.percent));
-  const pool = getRdsPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const r of rules) {
-      await client.query(
-        `INSERT INTO accounting.payroll_allocation_rule (cost_center, target_entity, percent, effective_from, active, updated_at)
-         VALUES ($1,$2,$3,$4::date,$5, now())
-         ON CONFLICT (cost_center, target_entity, effective_from) DO UPDATE SET
-           percent = EXCLUDED.percent, active = EXCLUDED.active, updated_at = now()`,
-        [costCenter, r.targetEntity, r.percent, effectiveFrom, r.active]);
-    }
-    await client.query('COMMIT');
-  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
-}
-
-export async function setAllocationRuleActive(id: number, active: boolean): Promise<void> {
-  await getRdsPool().query(`UPDATE accounting.payroll_allocation_rule SET active=$2, updated_at=now() WHERE id=$1`, [id, active]);
 }

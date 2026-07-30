@@ -40,6 +40,9 @@ export interface JournalDraft {
   docNumber?: string;
   txnDate?: string;    // ISO YYYY-MM-DD
   privateNote?: string;
+  /** Month this piece expenses into ('YYYY-MM') when a straddling run was split into
+   *  sibling drafts. Absent / '' === the unsplit single-JE path (unchanged behavior). */
+  periodSegment?: string;
 }
 
 export interface AccountMapRule {
@@ -58,14 +61,6 @@ export interface EmployeeMapRule {
   /** An accountant has reviewed this marketer's region (incl. deliberately keeping '% Allocation'),
    * so the "Marketers needing region review" worklist stops surfacing them. Defaults false. */
   reviewed?: boolean;
-}
-export interface AllocationRule {
-  id?: number;
-  costCenter: string;
-  targetEntity: Entity;
-  percent: number;       // e.g. 33.3333
-  effectiveFrom: string; // ISO YYYY-MM-DD
-  active: boolean;
 }
 export interface ResolvedTarget {
   accountName: string; departmentName: string | null; className: string | null;

@@ -95,3 +95,58 @@ describe('resolveLine cost-center attribution', () => {
     expect(res.targets[0].pooled).toBe(true);
   });
 });
+
+describe('resolveLine Allocate - % department override', () => {
+  const allocateRow = { position_id: '2001', home_department: 'LAB-Lab' } as unknown as PayrollRow;
+
+  it('overrides employee mapped department to % Allocation when className is Allocate - %', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: 'Miami Region', className: 'Allocate - %', cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'REGULAR PAY - EARNING', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets).toHaveLength(1);
+    expect(res.targets[0]).toMatchObject({
+      accountName: 'COGS - Lab Wages',
+      departmentName: '% Allocation',
+      className: 'Allocate - %',
+    });
+  });
+
+  it('keeps mapped department for a non-% allocate class', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: 'TX Region', className: 'Allocate - TX', cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'REGULAR PAY - EARNING', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets).toHaveLength(1);
+    expect(res.targets[0]).toMatchObject({
+      accountName: 'COGS - Lab Wages',
+      departmentName: 'TX Region',
+      className: 'Allocate - TX',
+    });
+  });
+
+  it('keeps mapped department when no class is set', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: 'Dallas Region', className: null, cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'REGULAR PAY - EARNING', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets).toHaveLength(1);
+    expect(res.targets[0]).toMatchObject({
+      accountName: 'COGS - Lab Wages',
+      departmentName: 'Dallas Region',
+      className: null,
+    });
+  });
+});

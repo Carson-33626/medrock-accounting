@@ -38,11 +38,15 @@ interface PayrollHeader {
   total_credits: number;
   variance: number;
   row_count: number;
+  period_segment: string;
+  txn_date: string | null;
+  kind: string;
 }
 
 interface DraftResponse {
   header: PayrollHeader;
   lines: JournalLine[];
+  siblings: PayrollHeader[];
 }
 
 /** Mirror of src/lib/payroll/types.ts UnmappedColumnDetail (see /api/payroll/reconcile). */
@@ -70,6 +74,8 @@ interface ReconcileResult {
   unmappedPositions: string[];
   errors: string[];
   postable: boolean;
+  /** Present only when this run is genuinely split — see GrandSummaryFooter. */
+  split?: { siblings: PayrollHeader[]; original: { totalDebits: number; totalCredits: number } | null };
 }
 
 interface DrilldownResponse {
@@ -97,6 +103,13 @@ interface ApiErrorBody {
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const fmtMoney = (n: number): string => usd.format(n);
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 'Jun' for '2026-06' (client-side mirror of split.ts pieceLabel — no server imports here). */
+function segmentLabel(segment: string): string {
+  const m = /^\d{4}-(\d{2})$/.exec(segment);
+  return m ? SHORT_MONTHS[Number(m[1]) - 1] : segment;
+}
 
 /**
  * Drill-down source values are raw ADP numbers that carry floating-point tails
@@ -148,6 +161,28 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const [header, setHeader] = useState<PayrollHeader | null>(null);
   const [lines, setLines] = useState<Array<JournalLine & { _key: number }>>([]);
 
+  const [siblings, setSiblings] = useState<PayrollHeader[]>([]);
+  // Mirror of `siblings` for reading inside runReconcile's stable (`[]` deps) closure — a plain
+  // closure over `siblings` there would be frozen at its initial (empty) value forever.
+  const siblingsRef = useRef<PayrollHeader[]>([]);
+  useEffect(() => {
+    siblingsRef.current = siblings;
+  }, [siblings]);
+  // The piece being viewed/edited. 'combined' renders the read-only merged view.
+  const [activeId, setActiveId] = useState<number | 'combined'>(headerId);
+  const [combinedLines, setCombinedLines] = useState<JournalLine[]>([]);
+  const [splitInfo, setSplitInfo] = useState<{ original: { totalDebits: number; totalCredits: number } | null } | null>(null);
+  // Save/Reconcile/worklist actions always target the piece actually loaded into `header` —
+  // not the original `headerId` prop, which stays fixed to the card that was clicked even as
+  // sub-tab switches (and reconcile-triggered rebuilds) move `header`/`lines` to a different id.
+  const currentPieceId = typeof activeId === 'number' ? activeId : headerId;
+  // Stale-response guard: bumped at the start of every loadDraft/handleSave/runReconcile call
+  // (and on any sub-tab switch, since switching always calls loadDraft/loadCombined). Each call
+  // captures its own token and skips applying state if a newer call has since superseded it —
+  // without this, an in-flight Save/Reconcile for piece A that resolves after the user has
+  // already switched to piece B would overwrite B's on-screen data with A's.
+  const requestSeqRef = useRef(0);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reconciling, setReconciling] = useState(false);
@@ -179,6 +214,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   // and the balance updates. The server returns the refreshed draft in `rebuiltDraft`, which we
   // apply to `header`/`lines` so the on-screen JE matches what postability now sees.
   const runReconcile = useCallback(async (id: number, rebuild = false) => {
+    const token = ++requestSeqRef.current;
     setReconciling(true);
     setError(null);
     try {
@@ -188,18 +224,54 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
         body: JSON.stringify({ headerId: id, rebuild }),
       });
       const body = (await res.json()) as ReconcileResult & { rebuiltDraft?: DraftResponse } & ApiErrorBody;
+      if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      let rebuiltId: number | null = null;
       if (body.rebuiltDraft) {
-        setHeader(body.rebuiltDraft.header);
+        const newHeader = body.rebuiltDraft.header;
+        rebuiltId = newHeader.id;
+        setHeader(newHeader);
         setLines(body.rebuiltDraft.lines.map(withKey));
+        // A rebuild can replace the header when its split-state changed — the id we requested
+        // may no longer be the id that's actually loaded. Adopt the new id so subsequent
+        // saves/reconciles (and the sub-tab bar) target the right row.
+        if (newHeader.id !== id) {
+          setActiveId(newHeader.id);
+        }
       }
+      // Every reconcile response that carries `split` reflects the FRESH sibling set — not just
+      // the replaced-header case above. A rebuild that upserts the SAME header ids (the common
+      // case) still moves piece totals, and the passive (non-rebuild) reconcile path can carry
+      // `split` too; either one leaving `siblings` stale would show the GrandSummaryFooter a
+      // phantom variance against the fresh `original` and wrongly block approve.
+      if (body.split) {
+        setSiblings(body.split.siblings);
+      } else if (siblingsRef.current.length > 1) {
+        // No split block, but this run WAS split going in — it may have just collapsed back to a
+        // single unsplit run (e.g. a mapping fix pulled the straddling txns into one month).
+        // Refetch the current piece (the id this reconcile just adopted, if any, else the id we
+        // called with — equivalent to "currentPieceId" from this call's point of view) so the
+        // sub-tab UI drops back to the unsplit view instead of showing stale sibling tabs.
+        try {
+          const res2 = await fetch(`/api/payroll/run/${rebuiltId ?? id}`);
+          if (token !== requestSeqRef.current) return; // superseded mid-refetch
+          if (res2.ok) {
+            const body2 = (await res2.json()) as DraftResponse;
+            setSiblings(body2.siblings);
+          }
+        } catch {
+          // best-effort — sub-tabs may be stale until the next full load
+        }
+      }
+      setSplitInfo(body.split ? { original: body.split.original } : null);
       setReconcileResult(body);
     } catch (e) {
+      if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
       const message = e instanceof Error ? e.message : 'Failed to reconcile draft';
       setError(message);
       setReconcileResult(null);
     } finally {
-      setReconciling(false);
+      if (token === requestSeqRef.current) setReconciling(false);
     }
   }, []);
 
@@ -216,6 +288,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   const loadDraft = useCallback(
     async (id: number) => {
+      const token = ++requestSeqRef.current;
       setLoading(true);
       setError(null);
       setReconcileResult(null);
@@ -226,17 +299,21 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
       try {
         const res = await fetch(`/api/payroll/run/${id}`);
         const body = (await res.json()) as DraftResponse & ApiErrorBody;
+        if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         setHeader(body.header);
         setLines(body.lines.map(withKey));
+        setSiblings(body.siblings);
         ok = true;
       } catch (e) {
+        if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
         const message = e instanceof Error ? e.message : 'Failed to load draft';
         setError(message);
         setHeader(null);
         setLines([]);
+        setSiblings([]);
       } finally {
-        setLoading(false);
+        if (token === requestSeqRef.current) setLoading(false);
       }
       if (ok) {
         await Promise.all([runReconcile(id), loadRoster(id)]);
@@ -247,8 +324,24 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
   // Auto-load whenever the selected draft changes (i.e. a different card was clicked).
   useEffect(() => {
+    setActiveId(headerId);
     void loadDraft(headerId);
   }, [headerId, loadDraft]);
+
+  const loadCombined = useCallback(async () => {
+    const token = ++requestSeqRef.current;
+    const pieces = siblings; // stable snapshot for this call — `siblings` could change mid-flight
+    const all = await Promise.all(
+      pieces.map(async (s) => {
+        const res = await fetch(`/api/payroll/run/${s.id}`);
+        if (!res.ok) return [] as JournalLine[];
+        const body = (await res.json()) as DraftResponse;
+        return body.lines;
+      }),
+    );
+    if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
+    setCombinedLines(all.flat());
+  }, [siblings]);
 
   const updateLine = useCallback((key: number, patch: Partial<JournalLine>) => {
     setLines((prev) => prev.map((l) => (l._key === key ? { ...l, ...patch } : l)));
@@ -280,30 +373,33 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const sortedLines = useMemo(() => [...lines].sort(compareJournalLines), [lines]);
 
   const handleSave = useCallback(async () => {
+    const token = ++requestSeqRef.current;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/payroll/run/${headerId}`, {
+      const res = await fetch(`/api/payroll/run/${currentPieceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lines: lines.map(stripKey) }),
       });
       const body = (await res.json()) as DraftResponse & ApiErrorBody;
+      if (token !== requestSeqRef.current) return; // superseded by a newer piece switch/action
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
       setHeader(body.header);
       setLines(body.lines.map(withKey));
       setReconcileResult(null);
     } catch (e) {
+      if (token !== requestSeqRef.current) return; // superseded — don't surface a stale error
       const message = e instanceof Error ? e.message : 'Failed to save draft';
       setError(message);
     } finally {
-      setSaving(false);
+      if (token === requestSeqRef.current) setSaving(false);
     }
-  }, [headerId, lines]);
+  }, [currentPieceId, lines]);
 
   const handleReconcile = useCallback(() => {
-    void runReconcile(headerId);
-  }, [headerId, runReconcile]);
+    void runReconcile(currentPieceId);
+  }, [currentPieceId, runReconcile]);
 
   const handleDrilldown = useCallback(async (rowKey: string) => {
     if (!rowKey) return;
@@ -357,6 +453,12 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
           When it&apos;s balanced and postable, use the <strong>Post</strong> panel below to preview, approve, and
           post it to QuickBooks.
         </p>
+        <p>
+          A <strong>split payroll</strong> (pay period crossing a month boundary) shows one sub-tab per
+          month plus a <strong>Combined</strong> view, with a grand reconciliation summary at the bottom
+          proving the pieces re-sum to the original run. Review each piece, then approve and post —
+          both pieces go together as a pair.
+        </p>
       </DirectionsBanner>
 
       {/* Loaded-draft summary — what this JE is + who it pays. */}
@@ -403,9 +505,42 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 
       {header && (
         <>
-          {/* New columns detected — inline mapper worklist, resets per draft via `key`. */}
+          {/* Sub-tab bar — sibling pieces + Combined, only for a split run. */}
+          {siblings.length > 1 && (
+            <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
+              {siblings.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setActiveId(s.id); void loadDraft(s.id); }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                    activeId === s.id
+                      ? 'bg-blue-600 text-white'
+                      : darkMode
+                        ? 'text-slate-300 hover:bg-slate-700'
+                        : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {segmentLabel(s.period_segment)} ({s.txn_date ?? s.pay_date})
+                </button>
+              ))}
+              <button
+                onClick={() => { setActiveId('combined'); void loadCombined(); }}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+                  activeId === 'combined'
+                    ? 'bg-blue-600 text-white'
+                    : darkMode
+                      ? 'text-slate-300 hover:bg-slate-700'
+                      : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Combined
+              </button>
+            </div>
+          )}
+
+          {/* New columns detected — inline mapper worklist, resets per piece via `key`. */}
           <UnmappedColumnsPanel
-            key={headerId}
+            key={currentPieceId}
             darkMode={darkMode}
             cardBg={cardBg}
             subText={subText}
@@ -414,25 +549,27 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
             entity={header.entity}
             unmappedColumns={reconcileResult ? (reconcileResult.unmappedColumnDetails ?? []) : null}
             // Mapping a column changes the account map — rebuild so its dollars enter the JE.
-            onMapped={() => void runReconcile(headerId, true)}
+            onMapped={() => void runReconcile(currentPieceId, true)}
             onNavigateToMappings={(ent) => onNavigateToMappings?.(ent)}
             onJumpToSource={jumpToSource}
           />
 
-          {/* Marketers needing region review — inline reassignment worklist, resets per draft via `key`. */}
+          {/* Marketers needing region review — inline reassignment worklist, resets per piece via `key`. */}
           <MarketerReviewPanel
-            key={headerId}
+            key={currentPieceId}
             darkMode={darkMode}
             cardBg={cardBg}
             subText={subText}
             border={border}
             inputBg={inputBg}
             entity={header.entity}
-            headerId={headerId}
+            headerId={currentPieceId}
             // A region reassignment changes the employee map — rebuild so the line re-dimensions.
-            onReassigned={() => void runReconcile(headerId, true)}
+            onReassigned={() => void runReconcile(currentPieceId, true)}
           />
 
+          {activeId !== 'combined' && (
+            <>
           {/* Live balance banner */}
           <div className={`rounded-xl shadow-sm p-4 ${cardBg} flex flex-wrap items-center gap-4`}>
             <div>
@@ -612,6 +749,23 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
               </div>
             )}
           </div>
+            </>
+          )}
+
+          {activeId === 'combined' && (
+            <CombinedGrid lines={combinedLines} cardBg={cardBg} subText={subText} border={border} />
+          )}
+
+          {siblings.length > 1 && (
+            <GrandSummaryFooter
+              siblings={siblings}
+              original={splitInfo?.original ?? null}
+              darkMode={darkMode}
+              cardBg={cardBg}
+              subText={subText}
+              border={border}
+            />
+          )}
         </>
       )}
 
@@ -625,6 +779,88 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
+
+/** Read-only merged view of every sibling piece — proves the pair re-sums to one payroll. */
+function CombinedGrid({ lines, cardBg, subText, border }: {
+  lines: JournalLine[]; cardBg: string; subText: string; border: string;
+}) {
+  const sorted = [...lines].sort(compareJournalLines);
+  const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  return (
+    <div className={`rounded-xl shadow-sm ${cardBg} border ${border} overflow-x-auto`}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className={`border-b ${border}`}>
+            <th className={th}>#</th><th className={th}>Account</th>
+            <th className={`${th} text-right`}>Debits</th><th className={`${th} text-right`}>Credits</th>
+            <th className={th}>Description</th><th className={th}>Location</th><th className={th}>Class</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((l, i) => (
+            <tr key={i} className={`border-b last:border-0 ${border}`}>
+              <td className={`px-2 py-1 text-xs ${subText}`}>{i + 1}</td>
+              <td className="px-2 py-1">{l.accountName}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{l.postingType === 'Debit' ? fmtMoney(l.amount) : ''}</td>
+              <td className="px-2 py-1 text-right tabular-nums">{l.postingType === 'Credit' ? fmtMoney(l.amount) : ''}</td>
+              <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
+              <td className={`px-2 py-1 text-xs ${subText}`}>{l.departmentName ?? ''}</td>
+              <td className={`px-2 py-1 text-xs ${subText}`}>{l.className ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Barbara's grand summary — fixed footer on every sub-tab of a split run. Variance is
+ *  COMPUTED (pieces vs a fresh rebuild of the original run), never assumed. Non-zero → red. */
+function GrandSummaryFooter({ siblings, original, darkMode, cardBg, subText, border }: {
+  siblings: PayrollHeader[]; original: { totalDebits: number; totalCredits: number } | null;
+  darkMode: boolean; cardBg: string; subText: string; border: string;
+}) {
+  const combinedD = round2(siblings.reduce((s, p) => s + p.total_debits, 0));
+  const combinedC = round2(siblings.reduce((s, p) => s + p.total_credits, 0));
+  const varD = original ? round2(combinedD - original.totalDebits) : null;
+  const varC = original ? round2(combinedC - original.totalCredits) : null;
+  const bad = varD !== null && varC !== null && (varD !== 0 || varC !== 0);
+  const rows: Array<{ label: string; d: string; c: string; strong?: boolean; red?: boolean }> = [
+    ...siblings.map((p) => ({
+      label: `${segmentLabel(p.period_segment)} piece (${p.txn_date ?? p.pay_date})`,
+      d: fmtMoney(p.total_debits), c: fmtMoney(p.total_credits),
+    })),
+    { label: 'Combined', d: fmtMoney(combinedD), c: fmtMoney(combinedC), strong: true },
+    {
+      label: 'Original run (unsplit)',
+      d: original ? fmtMoney(original.totalDebits) : 'Reconcile to compute',
+      c: original ? fmtMoney(original.totalCredits) : '—', strong: true,
+    },
+    { label: 'Variance', d: varD === null ? '—' : fmtMoney(varD), c: varC === null ? '—' : fmtMoney(varC), strong: true, red: bad },
+  ];
+  return (
+    <div className={`rounded-xl shadow-sm p-4 ${cardBg} border ${bad ? (darkMode ? 'border-red-800' : 'border-red-300') : border} space-y-2`}>
+      <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Split reconciliation — grand summary</p>
+      <table className="w-full max-w-xl text-sm">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className={r.red ? (darkMode ? 'text-red-300' : 'text-red-700') : ''}>
+              <td className={`py-0.5 ${r.strong ? 'font-semibold' : ''}`}>{r.label}</td>
+              <td className={`py-0.5 text-right tabular-nums ${r.strong ? 'font-semibold' : ''}`}>{r.d}</td>
+              <td className={`py-0.5 text-right tabular-nums ${r.strong ? 'font-semibold' : ''}`}>{r.c}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {bad && (
+        <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          The pieces no longer re-sum to the original payroll — fix the lines (or rebuild) before approving.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function ReconcilePanel({
   darkMode,

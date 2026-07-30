@@ -23,3 +23,19 @@ export function ieAccountFor(holder: Entity, counterparty: Entity): string {
   if (!acct) throw new Error(`no inter-entity account: ${holder} -> ${counterparty}`);
   return acct;
 }
+
+/** All inter-entity account names across the matrix, built once at module load. */
+const IE_ACCOUNT_NAMES: ReadonlySet<string> = new Set(
+  Object.values(IE_MATRIX).flatMap((row) => Object.values(row)),
+);
+
+/**
+ * True if `accountName` is one of the inter-entity ("Due From/To") accounts in IE_MATRIX.
+ * Each IE pair deliberately uses a different account name per side (FL's "Due from MedRock
+ * TN, LLC" vs TN's "Due to Medrock Pharmacy, LLC"), so IE lines never shed=pickup on a
+ * single account name — they only net to zero across all drafts. Callers that flag
+ * per-account imbalances should exclude these lines and check the IE net separately.
+ */
+export function isIeAccount(accountName: string): boolean {
+  return IE_ACCOUNT_NAMES.has(accountName);
+}
