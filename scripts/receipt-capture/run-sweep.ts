@@ -2,7 +2,7 @@
 // THE one-command receipt sweep (spec 2026-07-28): scan everything open, run every vendor
 // pipeline that has access, re-scan, and emit report + residual queue. LIVE BY DEFAULT with no
 // caps (Carson 2026-07-28) — --dry-run opts down; every underlying runner keeps its own gates.
-//   npx tsx scripts/receipt-capture/run-sweep.ts [--dry-run] [--vendor toprx,uline,amazon,walmart,amazon-csv] [--limit N] [--skip-scan]
+//   npx tsx scripts/receipt-capture/run-sweep.ts [--dry-run] [--vendor toprx,uline,amazon,walmart,sams,amazon-csv] [--limit N] [--skip-scan]
 import '../ramp-split-push/load-env';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,13 +13,14 @@ import { runChild } from './sweep-exec';
 import type { ChildResult } from './sweep-exec';
 import { parseNumericFlag } from './cli-args';
 import { rampToken } from '../ramp-split-push/ramp-client';
+import { SAMS } from '../walmart-enrich/retailer-profile';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 
 const OUT = 'scripts/receipt-capture/out/sweep';
 const STATE_PATH = `${OUT}/state.json`;
 const ULINE_STATE_DIR = 'scripts/receipt-capture/.state';
 const WM_CDP = process.env.WM_CDP_URL ?? 'http://127.0.0.1:9222';
-const ALL_VENDORS = ['toprx', 'uline', 'amazon', 'walmart', 'amazon-csv'] as const;
+const ALL_VENDORS = ['toprx', 'uline', 'amazon', 'walmart', 'sams', 'amazon-csv'] as const;
 type Vendor = (typeof ALL_VENDORS)[number];
 
 interface SweepState { lastScanCsv: string | null; history: { runId: string; total: number; cents: number }[] }
@@ -93,7 +94,10 @@ async function main(): Promise<void> {
   const wmCdp = await checkCdp(WM_CDP);
   if (toprx.needsYou) needsYou.push(toprx.needsYou);
   if (uline.needsYou) needsYou.push(uline.needsYou);
+  // Walmart and Sam's share ONE Chrome profile and one CDP port — the same sign-in serves both sites,
+  // and their extract children run sequentially, so there is no contention.
   if (args.vendors.includes('walmart') && !wmCdp.reachable) needsYou.push(`Walmart extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into walmart.com`);
+  if (args.vendors.includes('sams') && !wmCdp.reachable) needsYou.push(`Sam's Club extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into samsclub.com`);
   // Name the CURRENT extractor (run-extract-txns.ts) and the invoice fetch. This string is the one piece of
   // operator guidance read every week; when it named the retired run-extract.ts, the caches it produced were
   // not the ones the attach pairs from, and confident pairs went unattached for two sweeps.
@@ -165,6 +169,23 @@ async function main(): Promise<void> {
       jobs.push(await runChild(cap0Uncapped ? 'walmart-attach (limit_0)' : 'walmart-attach', attachLive(['scripts/walmart-enrich/run-cdp-split.ts', '--cap', args.dryRun ? '0' : lim])));
     } else {
       needsYou.push('Walmart attach skipped: no extraction cache yet (needs one CDP extract run)');
+    }
+  }
+  if (want('sams')) {
+    // Same runner as Walmart, switched by --retailer; only the extractor is Sam's-specific.
+    if (wmCdp.reachable) {
+      const extract = await runChild('sams-extract', ['scripts/walmart-enrich/run-cdp-sams.ts']);
+      jobs.push(extract);
+      // Exit 5 is the extractor's "I stopped early rather than leave silent gaps" signal — a bot
+      // challenge or a run of detail failures. That is an operator action (clear it by hand in the
+      // Chrome window), not a crash, so say so instead of leaving a bare non-zero exit in the report.
+      if (extract.code === 5) needsYou.push("Sam's extract stopped early — check the Chrome window for a bot challenge, clear it by hand, then re-run. The cache is write-through, so a re-run resumes where it stopped.");
+    }
+    if (existsSync(SAMS.cacheFile)) {
+      if (cap0Uncapped) console.log('  sams-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
+      jobs.push(await runChild(cap0Uncapped ? 'sams-attach (limit_0)' : 'sams-attach', attachLive(['scripts/walmart-enrich/run-cdp-split.ts', '--retailer', 'sams', '--cap', args.dryRun ? '0' : lim])));
+    } else {
+      needsYou.push("Sam's attach skipped: no extraction cache yet (needs one CDP extract run)");
     }
   }
   if (want('amazon-csv')) {

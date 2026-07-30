@@ -75,7 +75,7 @@ describe('startSweepUiServer', () => {
       expect(res.headers.get('content-type')).toContain('application/json');
       const json = (await res.json()) as PanelStatus;
       expect(Array.isArray(json.vendors)).toBe(true);
-      expect(json.vendors).toHaveLength(6);
+      expect(json.vendors).toHaveLength(7);
       expect(json).toHaveProperty('lastSweep');
       expect(json).toHaveProperty('latestReport');
       expect(json.busy).toBeNull();

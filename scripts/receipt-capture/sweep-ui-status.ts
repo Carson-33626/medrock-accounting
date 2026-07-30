@@ -15,6 +15,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { checkTopRx, checkCdp } from './sweep-preflight';
 import { txnReportPath } from '../amazon-csv-enrich/paths';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
+import { SAMS } from '../walmart-enrich/retailer-profile';
 
 export type Light = 'green' | 'amber' | 'red';
 
@@ -86,13 +87,15 @@ function ulineSessionCard(key: string, label: string, file: string, actions: str
   return { key, label, light: 'green', detail: `session ${days}d old`, actions };
 }
 
-async function walmartCard(deps: StatusDeps): Promise<VendorCard> {
+// Walmart and Sam's are the same card shape backed by the same Chrome profile and CDP port — one
+// sign-in serves both sites — so they differ only in which extraction cache they read.
+async function cdpRetailerCard(key: string, label: string, cacheFile: string, deps: StatusDeps): Promise<VendorCard> {
   const cdp = await deps.cdpCheck(deps.env.WM_CDP_URL ?? DEFAULT_WM_CDP_URL);
-  const cache = deps.statePath(WALMART_CACHE);
+  const cache = deps.statePath(cacheFile);
   const cacheDetail = cache && cache.exists ? `cache ${ageDays(cache.mtimeMs, deps.now())}d old` : 'no cache yet';
   return {
-    key: 'walmart',
-    label: 'Walmart',
+    key,
+    label,
     light: cdp.reachable ? 'green' : 'red',
     detail: `${cdp.detail}; ${cacheDetail}`,
     actions: ['chrome-walmart'],
@@ -147,7 +150,8 @@ export async function assembleStatus(deps: StatusDeps): Promise<PanelStatus> {
     toprxCard(deps),
     ulineSessionCard('uline-FLTN', 'ULINE FL+TN', `${ULINE_STATE_DIR}/uline-FL.json`, ['bootstrap-uline-FL'], deps),
     ulineSessionCard('uline-TX', 'ULINE TX', `${ULINE_STATE_DIR}/uline-TX.json`, ['bootstrap-uline-TX'], deps),
-    await walmartCard(deps),
+    await cdpRetailerCard('walmart', 'Walmart', WALMART_CACHE, deps),
+    await cdpRetailerCard('sams', "Sam's Club", SAMS.cacheFile, deps),
     amazonCard(),
     amazonCsvCard(deps),
   ];

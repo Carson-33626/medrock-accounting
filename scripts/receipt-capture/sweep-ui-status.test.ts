@@ -30,10 +30,10 @@ function cardByKey(status: PanelStatus, key: string) {
 }
 
 describe('assembleStatus — never touches real fs/network (fully-faked deps)', () => {
-  it('produces exactly the six documented vendor cards', async () => {
+  it('produces exactly the seven documented vendor cards', async () => {
     const status = await assembleStatus(baseDeps());
     expect(status.vendors.map((v) => v.key).sort()).toEqual(
-      ['amazon', 'amazon-csv', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
+      ['amazon', 'amazon-csv', 'sams', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
     );
   });
 
@@ -113,6 +113,33 @@ describe('assembleStatus — never touches real fs/network (fully-faked deps)', 
     it('has exactly the chrome-walmart action', async () => {
       const status = await assembleStatus(baseDeps());
       expect(cardByKey(status, 'walmart').actions).toEqual(['chrome-walmart']);
+    });
+  });
+
+  describe("sam's club light (shares Walmart's Chrome, own cache)", () => {
+    it('green when CDP is reachable', async () => {
+      const status = await assembleStatus(baseDeps({ cdpCheck: async () => ({ reachable: true, detail: 'up' }) }));
+      expect(cardByKey(status, 'sams').light).toBe('green');
+    });
+    it('red when CDP is unreachable', async () => {
+      const status = await assembleStatus(baseDeps({ cdpCheck: async () => ({ reachable: false, detail: 'no Chrome' }) }));
+      expect(cardByKey(status, 'sams').light).toBe('red');
+    });
+    // The whole point of a separate card: Sam's must read the SAMS cache, not Walmart's. A card that
+    // reported Walmart's cache age would show green-and-fresh while Sam's had never been extracted.
+    it('reads its OWN cache, not the Walmart one', async () => {
+      const statePath = fileMap({
+        'scripts/walmart-enrich/out/extraction-cache.json': { exists: true, mtimeMs: daysAgo(1) },
+        'scripts/walmart-enrich/out/sams/extraction-cache.json': { exists: true, mtimeMs: daysAgo(9) },
+      });
+      const status = await assembleStatus(baseDeps({ statePath, cdpCheck: async () => ({ reachable: true, detail: 'up' }) }));
+      expect(cardByKey(status, 'sams').detail).toContain('9d old');
+      expect(cardByKey(status, 'walmart').detail).toContain('1d old');
+    });
+    it('says so when Sam\'s has no cache even though Walmart does', async () => {
+      const statePath = fileMap({ 'scripts/walmart-enrich/out/extraction-cache.json': { exists: true, mtimeMs: daysAgo(1) } });
+      const status = await assembleStatus(baseDeps({ statePath, cdpCheck: async () => ({ reachable: true, detail: 'up' }) }));
+      expect(cardByKey(status, 'sams').detail).toContain('no cache yet');
     });
   });
 
