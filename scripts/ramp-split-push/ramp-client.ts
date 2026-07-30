@@ -75,6 +75,9 @@ interface RawRampTxn {
   merchant_name: string | null;
   merchant_descriptor: string | null;
   line_items: unknown;
+  state: string | null;
+  sync_status: string | null;
+  receipts: string[] | null;
 }
 
 // Amazon order#s are 3-7-7 digits: 111-2233445-6677889. Pull the first occurrence from text.
@@ -114,6 +117,9 @@ export async function getRampTransactions(entity: Entity, token: string, pages =
         merchantName: r.merchant_name,
         orderNo: parseOrderNo(r.memo, r.merchant_descriptor),
         priorLineItems: r.line_items,
+        state: r.state ?? null,
+        syncStatus: r.sync_status ?? null,
+        receiptCount: (r.receipts ?? []).length,
       });
     }
     if (rows.length === 0) break;

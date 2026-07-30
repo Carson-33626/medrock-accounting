@@ -44,6 +44,12 @@ export interface RampTxn {
   merchantName: string | null;
   orderNo: string | null;     // parsed from memo/descriptor/line_items, else null
   priorLineItems: unknown;    // raw line_items snapshot for audit prior_state (opaque passthrough)
+  // Write-eligibility, populated by getRampTransactions. Optional because older constructors predate
+  // them; absent MUST read as "unknown", and callers gate writes conservatively on the known-good value
+  // (a PATCH against a SYNCED txn is what produced 12 HTTP 403s on 2026-07-30).
+  state?: string | null;        // 'CLEARED' | 'PENDING' | ...
+  syncStatus?: string | null;   // 'NOT_SYNC_READY' | 'SYNCED' | ...
+  receiptCount?: number;        // receipts already on the txn — attaching a second is irreversible
 }
 
 // ---- coding lookups: qb id -> ramp field_option_external_id (option.id) ----

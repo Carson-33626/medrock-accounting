@@ -12,7 +12,7 @@ export interface ParsedItem {
 }
 export interface ParsedReceipt {
   layout: 'A' | 'B' | 'OCR' | 'WMT' | 'AMZ' | null;
-  source: 'ocr' | 'pdf' | 'walmart' | 'amazon-csv' | null; // which engine produced this
+  source: 'ocr' | 'pdf' | 'walmart' | 'sams' | 'amazon-csv' | null; // which engine produced this
   order: string | null;
   glHint: string | null; // "GL code: X" embedded on the receipt (order-level hint)
   items: ParsedItem[];
