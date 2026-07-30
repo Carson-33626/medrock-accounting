@@ -4,11 +4,17 @@
 // Extract-only + dry: no Ramp calls, no writes anywhere but the local cache + a reviewable index CSV.
 // Resumable (write-through) and idempotent (skips already-cached orders).
 //   npx tsx scripts/walmart-enrich/run-cdp.ts [--since 2026-01-01] [--pages 500]
+//                                            [--min-delay 1800] [--max-delay 4500] [--long-every 12]
+//
+// PACING: order detail fetches used to run back-to-back with no delay at all — more aggressive than the
+// Sam's roster that got flagged as a bot on 2026-07-30. Each fetch now waits a randomised interval with
+// periodic longer breaks (human-pacing.ts).
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { withWalmartPage } from './cdp-session';
 import { scrapeRoster } from './cdp-roster';
 import { fetchOrderJson } from './cdp-fetch';
 import { loadStore } from './extraction-store';
+import { Pacer, DEFAULTS } from './human-pacing';
 
 const OUT = 'scripts/walmart-enrich/out';
 const CACHE = `${OUT}/extraction-cache.json`;
@@ -21,6 +27,11 @@ function arg(flag: string, def: string): string {
 async function main(): Promise<void> {
   const since = arg('--since', '2026-01-01');
   const maxPages = Number(arg('--pages', '500')) || 500;
+  const pacer = new Pacer({
+    minMs: Number(arg('--min-delay', String(DEFAULTS.minMs))) || DEFAULTS.minMs,
+    maxMs: Number(arg('--max-delay', String(DEFAULTS.maxMs))) || DEFAULTS.maxMs,
+    longEvery: Number(arg('--long-every', String(DEFAULTS.longEvery))),
+  });
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
   const store = loadStore(CACHE);
   const now = new Date().toISOString();
@@ -35,6 +46,8 @@ async function main(): Promise<void> {
 
     let extracted = 0, skipped = 0, reconMismatch = 0, noItems = 0, unsettled = 0;
     for (const r of missing) {
+      const w = await pacer.wait();
+      if (w.long) console.log(`  … pausing ${(w.ms / 1000).toFixed(1)}s`);
       let f: Awaited<ReturnType<typeof fetchOrderJson>>;
       try { f = await fetchOrderJson(page, r.orderId); }
       catch (e) { console.error(`stop at ${r.orderId}: ${(e as Error).message}`); break; }
