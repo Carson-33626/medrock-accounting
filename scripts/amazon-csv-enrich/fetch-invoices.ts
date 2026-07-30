@@ -53,8 +53,12 @@ async function main(): Promise<void> {
     const unknown = [...onlyOrders].filter((id) => !accountOfOrder.has(id));
     if (unknown.length) console.log(`  (skip ${unknown.length} order id(s) absent from the cached reports: ${unknown.join(', ')})`);
   } else {
+    // Always pool EVERY entity, even when --accounts narrows the charge side. matchCharges' confidence
+    // depends on the whole pool (a txn claimed by two charges is contested), and a charge can pair to a
+    // txn in another entity's books — narrowing the pool could hide such a pair and strand it right back
+    // at needs_invoice_fetch, which is the bug this file exists to prevent.
     const pool: RampTxn[] = [];
-    for (const e of accounts) pool.push(...await getReceiptlessAmazonTxns(e, await rampToken(e, SCOPES_READ), rampPages));
+    for (const e of ALL_ENTITIES) pool.push(...await getReceiptlessAmazonTxns(e, await rampToken(e, SCOPES_READ), rampPages));
     const { confident } = matchCharges(charges, pool);
     console.log(`matched ${confident.length} confident charge(s) across ${pool.length} receiptless Ramp txn(s)`);
     targets = confident.map((m) => ({ orderId: m.charge.primaryOrderId, account: accountOfOrder.get(m.charge.primaryOrderId) ?? accounts[0] }));
@@ -73,7 +77,14 @@ async function main(): Promise<void> {
   for (const t of todo) { const l = byAccount.get(t.account) ?? []; l.push(t.orderId); byAccount.set(t.account, l); }
   const totalPlanned = limit ? Math.min(limit, todo.length) : todo.length;
   console.log(`fetch plan: ${todo.length} missing invoice(s) of ${seen.size} distinct target order(s)${limit ? ` (capped ${limit})` : ''}${byAccount.size ? ` across accounts: ${[...byAccount.keys()].join(', ')}` : ''}`);
-  if (!todo.length) { console.log('nothing to fetch — every target order already has a cached invoice'); return; }
+  if (!todo.length) {
+    // Distinguish "all cached" from "no targets at all" — after a seam bug that stranded pairs for two
+    // sweeps, telling an operator everything is cached when nothing matched is the wrong reassurance.
+    console.log(seen.size
+      ? 'nothing to fetch — every target order already has a cached invoice'
+      : 'nothing to fetch — NO target orders resolved (no confident pairs, or no --orders id matched a cached report)');
+    return;
+  }
 
   let fetched = 0, failed = 0;
   await withAmazonPage(async (page) => {

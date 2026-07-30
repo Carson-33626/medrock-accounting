@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { assembleStatus } from './sweep-ui-status';
 import type { StatusDeps, FileInfo, PanelStatus, SweepStateFile } from './sweep-ui-status';
 
@@ -29,7 +29,7 @@ function cardByKey(status: PanelStatus, key: string) {
   return card;
 }
 
-describe('assembleStatus â€” never touches real fs/network (fully-faked deps)', () => {
+describe('assembleStatus — never touches real fs/network (fully-faked deps)', () => {
   it('produces exactly the six documented vendor cards', async () => {
     const status = await assembleStatus(baseDeps());
     expect(status.vendors.map((v) => v.key).sort()).toEqual(
@@ -116,7 +116,7 @@ describe('assembleStatus â€” never touches real fs/network (fully-faked dep
     });
   });
 
-  describe('amazon (API-only) â€” always green, no actions', () => {
+  describe('amazon (API-only) — always green, no actions', () => {
     it('is always green regardless of env/fs/network state', async () => {
       const status = await assembleStatus(baseDeps());
       const card = cardByKey(status, 'amazon');

@@ -131,16 +131,24 @@ async function main(): Promise<void> {
       // TOCTOU re-check: the eligibility fetch and this write can be minutes apart across a full
       // run, and an accountant-triggered Ramp sync can flip a txn NOT_SYNC_READY -> something else
       // in between. Writing after that flip would disturb a txn QBO already considers reconciled.
-      const check = await rampGet<{ sync_status?: string | null }>(t.entity, `/transactions/${t.id}`, token[t.entity]);
-      const stillEligible = check.status === 200 && check.body.sync_status === 'NOT_SYNC_READY';
+      // The same GET also re-reads `receipts`: the pool's receiptless filter was evaluated minutes
+      // (or a prior run) ago, and Ramp indexes a fresh upload with a lag, so a txn that gained a
+      // receipt since pooling must not get a second one — there is NO receipt-delete API, which
+      // makes a duplicate permanent. This check, not the idempotency key, is the real guard.
+      const check = await rampGet<{ sync_status?: string | null; receipts?: string[] | null }>(t.entity, `/transactions/${t.id}`, token[t.entity]);
+      const alreadyHasReceipt = check.status === 200 && (check.body.receipts ?? []).length > 0;
+      const stillEligible = check.status === 200 && check.body.sync_status === 'NOT_SYNC_READY' && !alreadyHasReceipt;
       if (!stillEligible) {
-        const statusVal = check.status === 200 ? String(check.body.sync_status ?? 'null') : `HTTP ${check.status}`;
+        const statusVal = check.status === 200
+          ? (alreadyHasReceipt ? 'receipt_already_present' : String(check.body.sync_status ?? 'null'))
+          : `HTTP ${check.status}`;
         appendAudit(AUDIT_PATH, {
           runId, mode: 'live', vendor: VENDOR, entity: t.entity, txnId: t.id, action: 'skip',
           invoiceKey: m.charge.primaryOrderId, amountCents: t.amountCents, status: check.status,
-          detail: `sync_status_changed: ${statusVal}`, priorMemo: t.memo, priorLineItems,
+          detail: alreadyHasReceipt ? 'receipt_already_present' : `sync_status_changed: ${statusVal}`,
+          priorMemo: t.memo, priorLineItems,
         });
-        notes.push('sync_status_changed');
+        notes.push(alreadyHasReceipt ? 'receipt_already_present' : 'sync_status_changed');
         stats.skipped++;
       } else {
         let attachOk = false;
@@ -156,7 +164,7 @@ async function main(): Promise<void> {
             setAside.push([t.id, t.entity, t.date, (t.amountCents / 100).toFixed(2), 'skip', 'no_user_id'].map(csv).join(','));
           } else {
             const pdf = readFileSync(pdfPath);
-            const att = await attachReceipt(t.entity, t.id, pdf, `amazon-${m.charge.primaryOrderId}.pdf`, token[t.entity], t.userId, amazonCsvReceiptKey(t.id, m.charge.primaryOrderId));
+            const att = await attachReceipt(t.entity, t.id, pdf, `amazon-${m.charge.primaryOrderId}.pdf`, token[t.entity], t.userId, amazonCsvReceiptKey(t.id));
             attachOk = att.status >= 200 && att.status < 300;
             appendAudit(AUDIT_PATH, {
               runId, mode: 'live', vendor: VENDOR, entity: t.entity, txnId: t.id, action: attachOk ? 'attach_receipt' : 'error',

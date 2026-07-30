@@ -94,7 +94,10 @@ async function main(): Promise<void> {
   if (toprx.needsYou) needsYou.push(toprx.needsYou);
   if (uline.needsYou) needsYou.push(uline.needsYou);
   if (args.vendors.includes('walmart') && !wmCdp.reachable) needsYou.push(`Walmart extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into walmart.com`);
-  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign each Business login into a CDP Chrome, then run scripts/amazon-csv-enrich/run-extract.ts --account <label>');
+  // Name the CURRENT extractor (run-extract-txns.ts) and the invoice fetch. This string is the one piece of
+  // operator guidance read every week; when it named the retired run-extract.ts, the caches it produced were
+  // not the ones the attach pairs from, and confident pairs went unattached for two sweeps.
+  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run scripts/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then scripts/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
   console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
 
   // ---- S1 scan ----
@@ -173,7 +176,7 @@ async function main(): Promise<void> {
       if (cap0Uncapped) console.log('  amazon-csv-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
       jobs.push(await runChild(cap0Uncapped ? 'amazon-csv-attach (limit_0)' : 'amazon-csv-attach', attachLive(['scripts/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));
     }
-    else needsYou.push('Amazon-CSV attach skipped: no charge caches yet (run run-extract per Business login first)');
+    else needsYou.push('Amazon-CSV attach skipped: no transactions.csv cached yet (run run-extract-txns.ts --account <ENT> per Business account first)');
   }
 
   for (const j of jobs) {
