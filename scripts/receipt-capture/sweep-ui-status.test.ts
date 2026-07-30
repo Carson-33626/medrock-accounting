@@ -39,12 +39,12 @@ describe('assembleStatus — never touches real fs/network (fully-faked deps)', 
 
   describe('toprx light', () => {
     it('green when all three entities have creds', async () => {
-      const env = { TopRX_FL: 'u', TopRX_FL_Pass: 'p', TopRX_TN: 'u', TopRX_TN_Pass: 'p', TopRX_TX: 'u', TopRX_TX_Pass: 'p' } as NodeJS.ProcessEnv;
+      const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', TopRX_FL: 'u', TopRX_FL_Pass: 'p', TopRX_TN: 'u', TopRX_TN_Pass: 'p', TopRX_TX: 'u', TopRX_TX_Pass: 'p' };
       const status = await assembleStatus(baseDeps({ env }));
       expect(cardByKey(status, 'toprx').light).toBe('green');
     });
     it('amber when only some entities have creds', async () => {
-      const env = { TopRX_FL: 'u', TopRX_FL_Pass: 'p' } as NodeJS.ProcessEnv;
+      const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', TopRX_FL: 'u', TopRX_FL_Pass: 'p' };
       const status = await assembleStatus(baseDeps({ env }));
       expect(cardByKey(status, 'toprx').light).toBe('amber');
     });

@@ -6,7 +6,7 @@ import { checkTopRx, checkUline, checkCdp } from './sweep-preflight';
 
 describe('checkTopRx', () => {
   it('lists only entities with both cred vars', () => {
-    const env = { TopRX_FL: 'u', TopRX_FL_Pass: 'p', TopRX_TN: 'u' } as NodeJS.ProcessEnv;
+    const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', TopRX_FL: 'u', TopRX_FL_Pass: 'p', TopRX_TN: 'u' };
     const r = checkTopRx(env);
     expect(r.entities).toEqual(['FL']);
     expect(r.available).toBe(true);
