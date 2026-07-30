@@ -105,8 +105,19 @@ async function main(): Promise<void> {
 
   if (args.extractOnly) { console.log(`\nEXTRACT-ONLY: wrote ${OUT}/extraction-index.csv (${store.all().length}). No Ramp calls.`); return; }
 
-  // ---- SPLIT phase: match cache -> Ramp charges, preview/write (never re-fetches Walmart) ----
-  const token = await rampToken(ENTITY, args.live ? SCOPES_WRITE : SCOPES_READ);
+  // ---- SPLIT phase: RETIRED FOR LIVE WRITES 2026-07-30 ----
+  // Superseded by run-cdp.ts (extract) + run-cdp-split.ts (split). This copy is FL-only, has no
+  // transaction-state gate (it PATCHes SYNCED txns — the HTTP 403 bug), no receipt-count gate, and
+  // order-scoped idempotency keys that cannot give a second charge on one order its receipt. It also
+  // writes preview_splits.csv / set_aside.csv / rollback.json to the SAME paths as run-cdp-split, so a
+  // live run here would clobber that runner's audit and undo trail. Dry-run preview still works.
+  if (args.live) {
+    console.error('walmart-enrich/run.ts live writes are RETIRED (2026-07-30) - use run-cdp-split.ts, which is multi-entity and state-gated.');
+    console.error('It also shares this script\'s output paths, so a live run here would clobber its rollback.json.');
+    process.exit(1);
+  }
+  console.error('NOTE: run.ts is superseded by run-cdp.ts + run-cdp-split.ts - this dry-run is inspection-only.');
+  const token = await rampToken(ENTITY, SCOPES_READ);
   const gl = await buildGlIndex(ENTITY, token);
   const txns: RampTxn[] = (await getRampTransactions(ENTITY, token, 40))
     .filter((t) => /walmart/i.test(t.merchantName ?? '') && !isTxnEnriched(t.priorLineItems));

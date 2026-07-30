@@ -19,9 +19,10 @@ export interface RetailerProfile {
 export const WALMART: RetailerProfile = {
   key: 'walmart',
   label: 'Walmart',
-  // Anchored so it cannot swallow Sam's Club: Ramp reports that merchant as "Sam's Club", but a loose
-  // /walmart/i would still match descriptors like "WALMART.COM SAMS" if Ramp ever normalises differently.
-  merchantPattern: /walmart/i,
+  // Anchored at the start so a future "Walmart Fuel"/"Walmart Pharmacy" is still Walmart, but a
+  // descriptor that merely CONTAINS the word (e.g. "WALMART.COM SAMS") cannot be swallowed here and then
+  // missed by the Sam's profile. Ramp reports these two as exactly "Walmart" and "Sam's Club" today.
+  merchantPattern: /^walmart\b/i,
   cacheFile: 'scripts/walmart-enrich/out/extraction-cache.json',
   pdfDir: 'scripts/walmart-enrich/.receipts_cache',
   outDir: 'scripts/walmart-enrich/out',
@@ -30,7 +31,9 @@ export const WALMART: RetailerProfile = {
 export const SAMS: RetailerProfile = {
   key: 'sams',
   label: "Sam's Club",
-  merchantPattern: /sam'?s club/i,
+  // `.?` covers the straight apostrophe, the curly U+2019 Ramp sometimes emits, and no apostrophe at all;
+  // a literal `'` would silently match nothing on a curly variant.
+  merchantPattern: /sam.?s\s*club/i,
   cacheFile: 'scripts/walmart-enrich/out/sams/extraction-cache.json',
   pdfDir: 'scripts/walmart-enrich/.receipts_cache/sams',
   outDir: 'scripts/walmart-enrich/out/sams',

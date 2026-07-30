@@ -19,10 +19,21 @@ export function matchOrders(orders: WalmartOrder[], txns: RampTxn[], windowDays 
   const used = new Set<string>();
 
   for (const order of orders) {
-    const cands = txns.filter((t) =>
-      !used.has(t.id) &&
+    // Candidates BEFORE the claim filter: an order whose same-amount candidates span two entities can
+    // never be resolved safely, because a claim by an earlier order could collapse the set to a single
+    // survivor in the WRONG company and that survivor would score "confident". The amounts still tie out,
+    // so nothing downstream would flag it — one purchase's itemization and receipt would simply land on
+    // another entity's books. Refuse rather than guess. (The pool became multi-entity on 2026-07-30; a
+    // single-entity pool is unaffected, since every candidate then shares one entity by construction.)
+    const allCands = txns.filter((t) =>
       t.amountCents === order.totalCents &&
       daysBetween(t.date, order.date) <= windowDays);
+    if (new Set(allCands.map((t) => t.entity)).size > 1) {
+      ambiguous.push(order);
+      continue;
+    }
+
+    const cands = allCands.filter((t) => !used.has(t.id));
     if (cands.length === 1) {
       confident.push({ order, txn: cands[0] });
       used.add(cands[0].id);

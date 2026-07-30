@@ -25,26 +25,44 @@ import { buildGlIndex } from '../amazon-enrich/gl-resolve';
 import type { GlIndex } from '../amazon-enrich/gl-resolve';
 import { rampToken, patchSplit } from '../amazon-enrich/client';
 import { attachReceipt, receiptIdempotencyKey } from './ramp-receipts';
-import { getRampTransactions } from '../ramp-split-push/ramp-client';
+import { getRampTransactions, rampGet } from '../ramp-split-push/ramp-client';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 import type { ParsedReceipt } from '../amazon-enrich/receipt-parser';
 import type { RampTxn, Entity } from '../ramp-split-push/types';
 
-const SCOPES_READ = 'transactions:read accounting:read';
-const SCOPES_WRITE = 'transactions:read transactions:write receipts:write accounting:read';
+// receipts:read so the attach gate can see receipts the txn already has — without it the count is
+// unknown and every attach is (correctly) refused.
+const SCOPES_READ = 'transactions:read receipts:read accounting:read';
+const SCOPES_WRITE = 'transactions:read transactions:write receipts:read receipts:write accounting:read';
 
 interface Args { live: boolean; cap: number; since: string; rampPages: number; entities: Entity[]; profile: RetailerProfile }
 function parseArgs(): Args {
   const a = process.argv.slice(2);
-  const get = (f: string): string | null => { const i = a.indexOf(f); return i !== -1 && a[i + 1] ? a[i + 1] : null; };
+  // Accept BOTH `--flag value` and `--flag=value`. The `=` form is house style elsewhere (run-sweep
+  // invokes run-uline as `--entity=FL,TN`), and silently ignoring it here would turn an intended
+  // single-entity pilot into a live run across all three.
+  const get = (f: string): string | null => {
+    const eq = a.find((x) => x.startsWith(`${f}=`));
+    if (eq) return eq.slice(f.length + 1) || null;
+    const i = a.indexOf(f);
+    return i !== -1 && a[i + 1] && !a[i + 1].startsWith('--') ? a[i + 1] : null;
+  };
+  const num = (f: string, def: number): number => {
+    const raw = get(f);
+    if (raw === null) return def;
+    const n = Number(raw);
+    // A malformed cap must never silently mean "uncapped" on a live run.
+    if (!Number.isFinite(n) || n < 0) throw new Error(`${f} must be a non-negative number (got "${raw}")`);
+    return n;
+  };
   const entityArg = get('--entity');
   const entities: Entity[] = entityArg ? entityArg.split(',').map((s) => s.trim()).filter(Boolean) as Entity[] : [...ALL_ENTITIES];
   for (const e of entities) if (!ALL_ENTITIES.includes(e)) throw new Error(`Unknown --entity ${e as string} (expected FL, TN, or TX)`);
   return {
     live: a.includes('--live'),
-    cap: Number(get('--cap') ?? '0') || 0,
+    cap: num('--cap', 0),
     since: get('--since') ?? '2024-01-01',
-    rampPages: Number(get('--ramp-pages') ?? '60') || 60,
+    rampPages: num('--ramp-pages', 60) || 60,
     entities,
     profile: resolveProfile(get('--retailer') ?? 'walmart'),
   };
@@ -65,8 +83,8 @@ async function main(): Promise<void> {
   if (store.all().length === 0) throw new Error(`Empty cache at ${profile.cacheFile}. Run the ${profile.label} EXTRACT first.`);
 
   // Per-entity write context; the pooled match picks one by the winning txn's entity.
-  const token: Record<string, string> = {};
-  const glByEntity: Record<string, GlIndex> = {};
+  const token: Partial<Record<Entity, string>> = {};
+  const glByEntity: Partial<Record<Entity, GlIndex>> = {};
   const openTxns: RampTxn[] = [];
   let fetched = 0, merchantTxns = 0;
   for (const e of args.entities) {
@@ -91,21 +109,42 @@ async function main(): Promise<void> {
     .map((r) => ({ orderId: r.orderId, date: r.date, totalCents: r.totalCents }));
   const match = matchOrders(cachedOrders, openTxns);
 
-  const preview: string[] = ['order_id,entity,txn_id,txn_date,amount,line_desc,split_amount,gl_name,confidence,coded,pdf,mode'];
+  // Append one rollback row per split the moment its PATCH succeeds. Buffering them to the end of the
+  // loop meant a throw, or run-sweep's 30-minute child kill, discarded the undo record for every split
+  // already written — and this runner now writes across three entities instead of one.
+  const rollbackPath = `${OUT}/rollback.json`;
+  interface RollbackRow { entity: Entity; txn_id: string; order_id: string; prior_line_items: unknown }
+  const flushedTxnIds = new Set<string>(
+    (existsSync(rollbackPath) ? JSON.parse(readFileSync(rollbackPath, 'utf8')) as RollbackRow[] : []).map((r) => r.txn_id),
+  );
+  let rollbackAdded = 0;
+  const recordRollback = (row: RollbackRow): void => {
+    if (flushedTxnIds.has(row.txn_id)) return;
+    const prior: RollbackRow[] = existsSync(rollbackPath) ? JSON.parse(readFileSync(rollbackPath, 'utf8')) as RollbackRow[] : [];
+    writeFileSync(rollbackPath, JSON.stringify([...prior, row], null, 2));
+    flushedTxnIds.add(row.txn_id);
+    rollbackAdded++;
+  };
+
+  const preview: string[] = ['order_id,entity,txn_id,txn_date,amount,would_split,would_attach,line_desc,split_amount,gl_name,confidence,coded,pdf,mode'];
   const aside: string[] = ['order_id,reason,detail'];
-  const rollback: { entity: Entity; txn_id: string; order_id: string; prior_line_items: unknown }[] = [];
   for (const o of match.ambiguous) aside.push([o.orderId, 'ambiguous_match', `total=${(o.totalCents / 100).toFixed(2)}`].map(csv).join(','));
   for (const o of match.unmatched) aside.push([o.orderId, 'no_ramp_match', `total=${(o.totalCents / 100).toFixed(2)}`].map(csv).join(','));
 
-  let writes = 0, pdfsWritten = 0, attachFails = 0;
+  let attempts = 0, splitsWritten = 0, attachesWritten = 0, pdfsWritten = 0, attachFails = 0;
   for (const m of match.confident) {
     const rec = store.get(m.order.orderId)!;
     const entity = m.txn.entity;
+    // A match can only be written with ITS OWN entity's credentials and chart of accounts. If the pool
+    // ever carries a txn from an entity this run did not fetch, set it aside — never fall back to another
+    // entity's token or GL ids, which would post one company's purchase to another's books.
+    const entityToken = token[entity];
+    const entityGl = glByEntity[entity];
+    if (!entityToken || !entityGl) { aside.push([m.order.orderId, 'entity_not_fetched', `entity=${entity}`].map(csv).join(',')); continue; }
     if (rec.parsedTotalCents !== m.txn.amountCents) { aside.push([m.order.orderId, 'no_reconcile', `inv=${rec.parsedTotalCents} txn=${m.txn.amountCents}`].map(csv).join(',')); continue; }
-    // Re-consult the gate: the pool filter only proved SOME write was allowed, not which.
-    const gate = decideWrites(m.txn);
+    let gate = decideWrites(m.txn);
     if (gate.blockedReason !== null) { aside.push([m.order.orderId, gate.blockedReason, `txn=${m.txn.id}`].map(csv).join(',')); continue; }
-    const built = buildSplit(toParsed(rec, profile), m.txn.amountCents, glByEntity[entity]);
+    const built = buildSplit(toParsed(rec, profile), m.txn.amountCents, entityGl);
     if (!built) { aside.push([m.order.orderId, 'build_fail', ''].map(csv).join(',')); continue; }
 
     // Generate the itemized receipt PDF for this match (written to disk for review in every mode).
@@ -113,48 +152,68 @@ async function main(): Promise<void> {
     const pdfPath = `${PDF_DIR}/${profile.key}-${m.order.orderId}.pdf`;
     writeFileSync(pdfPath, pdf); pdfsWritten++;
 
-    const capped = args.live && args.cap > 0 && writes >= args.cap;
+    // Cap ATTEMPTS, not successes: a run whose writes keep failing must still stop at the cap. Counting
+    // only successes let `--cap 1` PATCH every match after the first failure, which is how 12 txns were
+    // hit with 403s on 2026-07-30.
+    const capped = args.live && args.cap > 0 && attempts >= args.cap;
     const mode = args.live && !capped ? 'live' : 'dry_run';
     if (mode === 'live') {
-      let wrote = false;
+      attempts++;
+      // TOCTOU: eligibility was snapshotted before three entity fetches and up to N writes ago. An
+      // accountant syncing, or another runner attaching, in that window would make this write a 403 or —
+      // for a receipt — a permanent duplicate. Re-read the transaction and re-decide against live state.
+      const fresh = await rampGet<{ state?: string | null; sync_status?: string | null; receipts?: string[] | null }>(entity, `/transactions/${m.txn.id}`, entityToken);
+      if (fresh.status !== 200) { aside.push([m.order.orderId, 'recheck_failed', `HTTP ${fresh.status}`].map(csv).join(',')); continue; }
+      gate = decideWrites({
+        ...m.txn,
+        state: fresh.body.state ?? null,
+        syncStatus: fresh.body.sync_status ?? null,
+        receiptCount: fresh.body.receipts == null ? undefined : fresh.body.receipts.length,
+      });
+      if (gate.blockedReason !== null) { aside.push([m.order.orderId, gate.blockedReason, `changed_since_scan txn=${m.txn.id}`].map(csv).join(',')); continue; }
+
+      let splitOk = false;
       if (gate.canSplit) {
-        const res = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), token[entity]);
-        if (res.status < 200 || res.status >= 300) { aside.push([m.order.orderId, 'write_fail', `HTTP ${res.status}`].map(csv).join(',')); continue; }
-        wrote = true;
-        rollback.push({ entity, txn_id: m.txn.id, order_id: m.order.orderId, prior_line_items: m.txn.priorLineItems });
+        const res = await patchSplit(entity, m.txn.id, built.lines.map((l) => ({ amount: l.amount, memo: l.memo, accounting_field_selections: l.accounting_field_selections })), entityToken);
+        if (res.status >= 200 && res.status < 300) {
+          splitOk = true; splitsWritten++;
+          recordRollback({ entity, txn_id: m.txn.id, order_id: m.order.orderId, prior_line_items: m.txn.priorLineItems });
+        } else {
+          aside.push([m.order.orderId, 'write_fail', `HTTP ${res.status}`].map(csv).join(','));
+        }
       } else {
         aside.push([m.order.orderId, 'split_skipped', 'already_enriched'].map(csv).join(','));
       }
-      if (gate.canAttach) {
+      // Attaching an itemized receipt to a txn whose lines we could not write would document a split
+      // that does not exist — hold the receipt until the split lands.
+      if (gate.canSplit && !splitOk) {
+        aside.push([m.order.orderId, 'attach_deferred', 'split_failed_first'].map(csv).join(','));
+      } else if (gate.canAttach) {
         if (!m.txn.userId) { aside.push([m.order.orderId, 'attach_fail', 'no user_id on txn'].map(csv).join(',')); attachFails++; }
         else {
-          const att = await attachReceipt(entity, m.txn.id, pdf, `${profile.key}-${m.order.orderId}.pdf`, token[entity], m.txn.userId, receiptIdempotencyKey(profile.key, m.txn.id));
-          if (att.status < 200 || att.status >= 300) { aside.push([m.order.orderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(',')); attachFails++; }
-          else wrote = true;
+          const att = await attachReceipt(entity, m.txn.id, pdf, `${profile.key}-${m.order.orderId}.pdf`, entityToken, m.txn.userId, receiptIdempotencyKey(profile.key, m.txn.id));
+          // DEVELOPER_7005 = this exact key already uploaded, i.e. this runner already attached to this
+          // txn. That is the idempotency guard doing its job, not a failure.
+          const already = att.status === 400 && JSON.stringify(att.body).includes('DEVELOPER_7005');
+          if ((att.status >= 200 && att.status < 300) || already) attachesWritten++;
+          else { aside.push([m.order.orderId, 'attach_fail', `HTTP ${att.status}`].map(csv).join(',')); attachFails++; }
         }
       } else {
         aside.push([m.order.orderId, 'attach_skipped', 'receipt_exists'].map(csv).join(','));
       }
-      if (wrote) writes++;
     }
     for (const l of built.lines) {
-      preview.push([m.order.orderId, entity, m.txn.id, m.txn.date, (m.txn.amountCents / 100).toFixed(2), l.desc, (l.amount / 100).toFixed(2), l.glName, l.confidence, l.coded, pdfPath, mode].map(csv).join(','));
+      preview.push([m.order.orderId, entity, m.txn.id, m.txn.date, (m.txn.amountCents / 100).toFixed(2), gate.canSplit ? 'Y' : 'N', gate.canAttach ? 'Y' : 'N', l.desc, (l.amount / 100).toFixed(2), l.glName, l.confidence, l.coded, pdfPath, mode].map(csv).join(','));
     }
   }
 
   writeFileSync(`${OUT}/preview_splits.csv`, preview.join('\n'));
   writeFileSync(`${OUT}/set_aside.csv`, aside.join('\n'));
-  if (rollback.length) {
-    const path = `${OUT}/rollback.json`;
-    const prior: typeof rollback = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : [];
-    const seen = new Set(prior.map((r) => r.txn_id));
-    writeFileSync(path, JSON.stringify([...prior, ...rollback.filter((r) => !seen.has(r.txn_id))], null, 2));
-  }
-  console.log(`\n${profile.label} MODE: ${args.live ? `LIVE (cap ${args.cap || '∞'}, ${writes} written, ${attachFails} attach-fail)` : 'DRY-RUN (no writes; PDFs generated for review)'}`);
+  console.log(`\n${profile.label} MODE: ${args.live ? `LIVE (cap ${args.cap || '∞'}, ${attempts} attempted: ${splitsWritten} split, ${attachesWritten} attached, ${attachFails} attach-fail)` : 'DRY-RUN (no writes; PDFs generated for review)'}`);
   console.log(`eligible orders ${cachedOrders.length} | confident ${match.confident.length} | ambiguous ${match.ambiguous.length} | unmatched ${match.unmatched.length} | PDFs ${pdfsWritten}`);
   const byEntity = new Map<string, number>();
   for (const m of match.confident) byEntity.set(m.txn.entity, (byEntity.get(m.txn.entity) ?? 0) + 1);
   console.log(`confident by entity: ${[...byEntity.entries()].map(([e, n]) => `${e}=${n}`).join(' ') || '(none)'}`);
-  console.log(`Wrote ${OUT}/preview_splits.csv (${preview.length - 1} lines), ${OUT}/set_aside.csv (${aside.length - 1})${rollback.length ? `, ${OUT}/rollback.json (+${rollback.length})` : ''}. PDFs in ${PDF_DIR}/`);
+  console.log(`Wrote ${OUT}/preview_splits.csv (${preview.length - 1} lines), ${OUT}/set_aside.csv (${aside.length - 1})${rollbackAdded ? `, ${OUT}/rollback.json (+${rollbackAdded})` : ''}. PDFs in ${PDF_DIR}/`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
