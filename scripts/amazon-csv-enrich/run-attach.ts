@@ -6,21 +6,19 @@
 //   npx tsx scripts/amazon-csv-enrich/run-attach.ts [--entity FL|TN|TX] [--from 2026-04-01 --to 2026-05-31] [--live] [--cap N] [--ramp-pages 260]
 import '../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { parseCsvRows } from './csv-parser';
-import { unwrapExcel, parseMoneyCents, parseMDY } from './csv-fields';
 import { matchCharges } from './matcher';
 import { getReceiptlessAmazonTxns, rampToken } from './client';
-import { sharedPdfPath } from './paths';
+import { loadTxnReportCharges } from './txn-report';
+import { amazonCsvReceiptKey } from './receipt-key';
+import { sharedPdfPath, OUT_ROOT } from './paths';
 import { collectOrderIds, composeMemo, postMemo } from '../receipt-capture/amazon-memo';
 import { appendAudit } from '../receipt-capture/audit';
 import { attachReceipt } from '../walmart-enrich/ramp-receipts';
 import { rampGet } from '../ramp-split-push/ramp-client';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
-import type { AmazonCharge } from './types';
 
-const ROOT = 'scripts/amazon-csv-enrich/out';
-const OUT = `${ROOT}/_attach`;
+const OUT = `${OUT_ROOT}/_attach`;
 const AUDIT_PATH = 'scripts/receipt-capture/out/receipt-capture-audit.csv';
 const VENDOR = 'amazon-csv';
 const SCOPES_READ = 'transactions:read receipts:read';
@@ -30,33 +28,6 @@ function argVal(f: string, d: string): string { const i = process.argv.indexOf(f
 const has = (f: string): boolean => process.argv.includes(f);
 function csv(v: unknown): string { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 const inWin = (d: string, from: string, to: string): boolean => (!from || d >= from) && (!to || d <= to);
-
-// Ported from the retired split runners' charge-level pairing (run-recon-split.ts / reconcile-txns.ts):
-// one row per Payment Reference ID (= one card charge = one Ramp txn target), carrying every Order ID
-// it reconciles to plus the card last-4 the matcher uses as a same-amount tiebreaker. No split/GL fields.
-function parseTxnReport(text: string): AmazonCharge[] {
-  const byRef = new Map<string, AmazonCharge>();
-  for (const r of parseCsvRows(text)) {
-    if (unwrapExcel(r['Transaction Type'] ?? '').toLowerCase() !== 'charge') continue;
-    const paymentRef = unwrapExcel(r['Payment Reference ID'] ?? '');
-    if (!paymentRef) continue;
-    const orderId = unwrapExcel(r['Order ID'] ?? '');
-    let c = byRef.get(paymentRef);
-    if (!c) {
-      const last4 = unwrapExcel(r['Payment Identifier'] ?? '');
-      const cents = parseMoneyCents(r['Payment Amount'] ?? '');
-      c = {
-        paymentRef, orderIds: [], primaryOrderId: orderId, accountGroup: unwrapExcel(r['Account Group'] ?? ''),
-        chargeCents: cents, payDate: parseMDY(r['Transaction Date'] ?? ''),
-        cardLast4: last4 && last4 !== 'N/A' ? last4 : null, items: [], itemsTotalCents: cents,
-      };
-      byRef.set(paymentRef, c);
-    }
-    if (orderId && !c.orderIds.includes(orderId)) c.orderIds.push(orderId);
-    if (!c.primaryOrderId && orderId) c.primaryOrderId = orderId;
-  }
-  return [...byRef.values()];
-}
 
 interface PlanRow {
   txnId: string; date: string; amountCents: number; entity: Entity; orderIds: string[];
@@ -91,19 +62,15 @@ async function main(): Promise<void> {
   const plan: PlanRow[] = [];
   const setAside: string[] = ['txn_id,entity,date,amount,reason,detail'];
 
-  // Pool charges from each entity's cached Transactions report; a missing report just narrows the
-  // pairing pool for that entity (its eligible txns still get a plan row, unmatched).
-  const byRef = new Map<string, AmazonCharge>();
-  for (const e of entities) {
-    const p = `${ROOT}/${e}/transactions.csv`;
-    if (!existsSync(p)) {
-      console.log(`[${e}] no transactions.csv cached - skipping (run the extract for this entity first)`);
-      setAside.push(['', e, '', '', 'no_transactions_csv', p].map(csv).join(','));
-      continue;
-    }
-    for (const c of parseTxnReport(readFileSync(p, 'utf8'))) if (!byRef.has(c.paymentRef)) byRef.set(c.paymentRef, c);
+  // Pool charges from each entity's cached Transactions report (the same loader fetch-invoices.ts targets
+  // from, so a confident pair's invoice is always among the fetched ones); a missing report just narrows
+  // the pairing pool for that entity (its eligible txns still get a plan row, unmatched).
+  const loaded = loadTxnReportCharges(entities);
+  for (const m of loaded.missing) {
+    console.log(`[${m.account}] no transactions.csv cached - skipping (run the extract for this entity first)`);
+    setAside.push(['', m.account, '', '', 'no_transactions_csv', m.path].map(csv).join(','));
   }
-  let charges = [...byRef.values()];
+  let charges = loaded.charges;
   if (from || to) charges = charges.filter((c) => inWin(c.payDate, from, to));
 
   // Pool receiptless-eligible Ramp Amazon txns for the requested entities.
@@ -189,7 +156,7 @@ async function main(): Promise<void> {
             setAside.push([t.id, t.entity, t.date, (t.amountCents / 100).toFixed(2), 'skip', 'no_user_id'].map(csv).join(','));
           } else {
             const pdf = readFileSync(pdfPath);
-            const att = await attachReceipt(t.entity, t.id, pdf, `amazon-${m.charge.primaryOrderId}.pdf`, token[t.entity], t.userId, `amazon-csv-receipt-${m.charge.primaryOrderId}`);
+            const att = await attachReceipt(t.entity, t.id, pdf, `amazon-${m.charge.primaryOrderId}.pdf`, token[t.entity], t.userId, amazonCsvReceiptKey(t.id, m.charge.primaryOrderId));
             attachOk = att.status >= 200 && att.status < 300;
             appendAudit(AUDIT_PATH, {
               runId, mode: 'live', vendor: VENDOR, entity: t.entity, txnId: t.id, action: attachOk ? 'attach_receipt' : 'error',

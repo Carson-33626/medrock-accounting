@@ -150,10 +150,21 @@ survive a cleanup.
   running with remote debugging enabled (`chrome.exe --remote-debugging-port=9222
   --user-data-dir=C:\wm-chrome-profile`) and signed into walmart.com. Start it, then re-run the
   sweep (or run `npx tsx scripts/walmart-enrich/run-cdp.ts` directly).
-- **Amazon-CSV extract per Business login**: each Amazon Business account must be extracted
-  separately (outside the sweep). Sign into each Business account in a Chrome session, then run
-  `npx tsx scripts/amazon-csv-enrich/run-extract.ts --account <label>` once per login. This
-  captures the CSV order history and charge details for later attachment.
+- **Amazon-CSV extract per Business account**: extraction happens outside the sweep because it
+  needs a signed-in browser. Sign ONE Business login into a CDP Chrome
+  (`chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\amz-chrome-profile`), then run
+  `npx tsx scripts/amazon-csv-enrich/run-extract-txns.ts --account FL` (then `TN`, `TX` — the
+  account switcher moves the one login between businesses). Each run writes
+  `out/<ACCOUNT>/transactions.csv`, the Transactions report that `fetch-invoices.ts` and
+  `run-attach.ts` both pair from. Then fetch the invoice PDFs for the pairs that will actually be
+  attached: `npx tsx scripts/amazon-csv-enrich/fetch-invoices.ts`. The sweep's
+  `amazon-csv-attach` child is gated on `transactions.csv`, and attaches only pairs whose invoice
+  is already cached — so extract → fetch-invoices → sweep, in that order.
+
+  The legacy `run-extract.ts` (per-order `charges.json`) belongs to the retired split pipeline and
+  is NOT the attach path's source. Don't mix them: keying anything on `charges.json` is what
+  silently stranded FL's confident pairs at `needs_invoice_fetch` through two sweeps (fixed
+  2026-07-30 by routing every consumer through `txn-report.ts`).
 - **Fresh ULINE MyOrderHistory export**: for category-enriched GL splits, export your current
   account's full `MyOrderHistory.csv` from ULINE's Export tab, then pass `--csv <path>` to
   `run-uline.ts`. Not required for basic matching — category defaults are used if the CSV is

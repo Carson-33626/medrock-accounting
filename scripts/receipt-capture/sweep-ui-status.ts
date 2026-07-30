@@ -13,6 +13,7 @@
 // directly against deps.statePath instead.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { checkTopRx, checkCdp } from './sweep-preflight';
+import { txnReportPath } from '../amazon-csv-enrich/paths';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 
 export type Light = 'green' | 'amber' | 'red';
@@ -104,7 +105,10 @@ function amazonCard(): VendorCard {
 }
 
 function amazonCsvCard(deps: StatusDeps): VendorCard {
-  const perAccount = AMAZON_CSV_ACCOUNTS.map((a) => ({ account: a, info: deps.statePath(`scripts/amazon-csv-enrich/out/${a}/charges.json`) }));
+  // transactions.csv, NOT the legacy charges.json: it is what the panel's extract buttons write and what
+  // fetch-invoices/run-attach pair from. Keying the light on charges.json showed a panel-driven flow as
+  // red 0/3 while it was in fact fully cached (parked seam, closed 2026-07-30).
+  const perAccount = AMAZON_CSV_ACCOUNTS.map((a) => ({ account: a, info: deps.statePath(txnReportPath(a)) }));
   const present = perAccount.filter((a) => a.info && a.info.exists);
   const pdfCount = deps.listDir(AMAZON_CSV_PDF_DIR).length;
   let light: Light = 'red';

@@ -166,7 +166,9 @@ async function main(): Promise<void> {
   }
   if (want('amazon-csv')) {
     const root = 'scripts/amazon-csv-enrich/out';
-    const hasCache = existsSync(root) && readdirSync(root, { withFileTypes: true }).some((d) => d.isDirectory() && d.name !== '_attach' && existsSync(join(root, d.name, 'charges.json')));
+    // Gate on transactions.csv — the report run-attach actually pairs from. The old charges.json gate
+    // could skip the attach entirely on a machine that had only ever run the current extractor.
+    const hasCache = existsSync(root) && readdirSync(root, { withFileTypes: true }).some((d) => d.isDirectory() && !d.name.startsWith('_') && existsSync(join(root, d.name, 'transactions.csv')));
     if (hasCache) {
       if (cap0Uncapped) console.log('  amazon-csv-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
       jobs.push(await runChild(cap0Uncapped ? 'amazon-csv-attach (limit_0)' : 'amazon-csv-attach', attachLive(['scripts/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));

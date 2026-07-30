@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+﻿import { describe, it, expect, vi } from 'vitest';
 import { assembleStatus } from './sweep-ui-status';
 import type { StatusDeps, FileInfo, PanelStatus, SweepStateFile } from './sweep-ui-status';
 
@@ -29,7 +29,7 @@ function cardByKey(status: PanelStatus, key: string) {
   return card;
 }
 
-describe('assembleStatus — never touches real fs/network (fully-faked deps)', () => {
+describe('assembleStatus â€” never touches real fs/network (fully-faked deps)', () => {
   it('produces exactly the six documented vendor cards', async () => {
     const status = await assembleStatus(baseDeps());
     expect(status.vendors.map((v) => v.key).sort()).toEqual(
@@ -116,7 +116,7 @@ describe('assembleStatus — never touches real fs/network (fully-faked deps)', 
     });
   });
 
-  describe('amazon (API-only) — always green, no actions', () => {
+  describe('amazon (API-only) â€” always green, no actions', () => {
     it('is always green regardless of env/fs/network state', async () => {
       const status = await assembleStatus(baseDeps());
       const card = cardByKey(status, 'amazon');
@@ -126,29 +126,29 @@ describe('assembleStatus — never touches real fs/network (fully-faked deps)', 
   });
 
   describe('amazon-csv light (per-account cache ages + invoice-pdf count)', () => {
-    it('red when zero accounts have a charges.json', async () => {
+    it('red when zero accounts have a transactions.csv', async () => {
       const status = await assembleStatus(baseDeps());
       expect(cardByKey(status, 'amazon-csv').light).toBe('red');
     });
     it('amber when only some accounts are cached', async () => {
-      const statePath = fileMap({ 'scripts/amazon-csv-enrich/out/FL/charges.json': { exists: true, mtimeMs: daysAgo(1) } });
+      const statePath = fileMap({ 'scripts/amazon-csv-enrich/out/FL/transactions.csv': { exists: true, mtimeMs: daysAgo(1) } });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('amber');
     });
     it('green when all three accounts are cached and fresh', async () => {
       const statePath = fileMap({
-        'scripts/amazon-csv-enrich/out/FL/charges.json': { exists: true, mtimeMs: daysAgo(1) },
-        'scripts/amazon-csv-enrich/out/TN/charges.json': { exists: true, mtimeMs: daysAgo(2) },
-        'scripts/amazon-csv-enrich/out/TX/charges.json': { exists: true, mtimeMs: daysAgo(3) },
+        'scripts/amazon-csv-enrich/out/FL/transactions.csv': { exists: true, mtimeMs: daysAgo(1) },
+        'scripts/amazon-csv-enrich/out/TN/transactions.csv': { exists: true, mtimeMs: daysAgo(2) },
+        'scripts/amazon-csv-enrich/out/TX/transactions.csv': { exists: true, mtimeMs: daysAgo(3) },
       });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('green');
     });
     it('amber when all three accounts are cached but the oldest is stale (>= 14 days)', async () => {
       const statePath = fileMap({
-        'scripts/amazon-csv-enrich/out/FL/charges.json': { exists: true, mtimeMs: daysAgo(1) },
-        'scripts/amazon-csv-enrich/out/TN/charges.json': { exists: true, mtimeMs: daysAgo(20) },
-        'scripts/amazon-csv-enrich/out/TX/charges.json': { exists: true, mtimeMs: daysAgo(3) },
+        'scripts/amazon-csv-enrich/out/FL/transactions.csv': { exists: true, mtimeMs: daysAgo(1) },
+        'scripts/amazon-csv-enrich/out/TN/transactions.csv': { exists: true, mtimeMs: daysAgo(20) },
+        'scripts/amazon-csv-enrich/out/TX/transactions.csv': { exists: true, mtimeMs: daysAgo(3) },
       });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('amber');
