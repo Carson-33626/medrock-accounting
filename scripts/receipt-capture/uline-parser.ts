@@ -30,7 +30,11 @@ function toCents(s: string): number {
 }
 
 const MONEY = '(?:\\d{1,3}(?:,\\d{3})*)?\\.\\d{2}';
-const TAIL_RE = new RegExp(`(${MONEY})\\s*(${MONEY})\\s*$`);
+// A trailing "T" marks a TAXABLE line ("17.0068.00T") — the invoice footer spells this out:
+// "'T' DENOTES A TAXABLE LINE." Without allowing it, findItemTail never resolves such an item,
+// parseItems runs on into the next item's start line and returns null, and the whole invoice is
+// rejected. Any invoice containing a single taxable line was unparseable.
+const TAIL_RE = new RegExp(`(${MONEY})\\s*(${MONEY})\\s*T?\\s*$`);
 
 interface ItemTail { unitPriceCents: number; extendedCents: number; matchStart: number }
 
@@ -110,12 +114,20 @@ export function parseUlineInvoice(text: string): VendorParsed | null {
   const shippingCents = toCents(shippingLine);
   if (![subTotalCents, taxCents, shippingCents].every(Number.isFinite)) return null;
 
-  // Final charged total: printed on its own "$XXX.XX" line after "AMOUNT DUE".
+  // Final total: printed after "AMOUNT DUE" as "$XXX.XX" at the END of a line. Three real layouts
+  // must all land here (all three were rejected before 2026-08-03):
+  //   card, short brand : "CHARGED TO VISA ENDING IN 3395" / "$373.08"   -> total alone on a line
+  //   card, long brand  : "CHARGED TO AMERICAN EXP ENDING IN" / "3029 $363.46"
+  //                       the brand wraps, pushing the last-4 onto the total's line
+  //   NET 30 terms      : "AMOUNT DUE" / "$ 201.64"
+  //                       no "CHARGED TO" line exists at all, and "$" is spaced off the amount
+  // The literal "$" is what separates this from the item rows below it: item prices always print
+  // bare ("17.0068.00T"), never with a $. The stub's "$_________________" carries no digits.
   const amountDueIdx = lines.findIndex((l) => /^AMOUNT DUE$/i.test(l));
   if (amountDueIdx === -1) return null;
   let parsedTotalCents: number | null = null;
   for (let k = amountDueIdx + 1; k < lines.length; k++) {
-    const m = /^\$([\d,]+\.\d{2})$/.exec(lines[k]);
+    const m = /\$\s*([\d,]+\.\d{2})\s*$/.exec(lines[k]);
     if (m) { parsedTotalCents = toCents(m[1]); break; }
   }
   if (parsedTotalCents === null) return null;

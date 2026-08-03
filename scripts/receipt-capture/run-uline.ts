@@ -44,7 +44,7 @@ import type { GlIndex } from '../amazon-enrich/gl-resolve';
 import { rampToken } from '../ramp-split-push/ramp-client';
 import { appendAudit } from './audit';
 import { loadConsumedStore } from './uline-consumed';
-import { parseNumericFlag } from './cli-args';
+import { parseNumericFlag, resolveSince } from './cli-args';
 import type { Entity, RampTxn } from '../ramp-split-push/types';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 
@@ -129,7 +129,7 @@ function parseArgs(): Args {
 
   return {
     entities,
-    since: get('--since') ?? '2025-09-01',
+    since: resolveSince(get('--since')),
     live: argv.includes('--live'),
     limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
     csvPath: get('--csv'),
@@ -360,10 +360,19 @@ async function extractEntity(
   return withUlineContext(entity, async (page) => {
     await assertAccountMatches(entity, page);
 
-    const roster = await scrapeUlineRoster(page);
+    // The grid is endless-scroll, so the roster only reaches back as far as we scroll — `since`
+    // has to drive the scrape itself, not just filter what it happened to return.
+    const roster = await scrapeUlineRoster(page, { since });
+    const undated = roster.filter((r) => r.date === '');
     const inWindow = roster.filter((r) => r.date >= since);
     const missing = inWindow.filter((r) => !store.has(r.invoiceNumber));
     console.log(`[${entity}] roster: ${roster.length} invoice(s), ${inWindow.length} on/after ${since}, ${missing.length} to extract`);
+    // A dateless invoice is dropped by the window filter above. That used to happen to 37% of the
+    // roster silently (the Date column is blank on every row after the first of its date group);
+    // if it ever recurs, it must be loud.
+    if (undated.length > 0) {
+      console.log(`[${entity}] [warn] ${undated.length} roster invoice(s) have no parsed date and were skipped: ${undated.slice(0, 5).map((r) => r.invoiceNumber).join(', ')}`);
+    }
 
     let fetched = 0;
     let parseFailures = 0;

@@ -6,6 +6,15 @@ import type { UlineCsvRow } from './uline-parser';
 import type { VendorParsed } from './vendor-split';
 
 const text = readFileSync(join(__dirname, 'fixtures', 'uline-invoice-sample.txt'), 'utf8');
+// Real invoice 201423174 (fetched live 2026-08-03). Paid on AMERICAN EXPRESS: the longer brand
+// name wraps the closing line, so the last-4 and the total share a line ("3029 $363.46") instead
+// of the total sitting alone as it does on the VISA invoices. 98 of 148 invoices failed to parse
+// on this alone.
+const amexText = readFileSync(join(__dirname, 'fixtures', 'uline-invoice-amex.txt'), 'utf8');
+// Real invoice 205369450 (fetched live 2026-08-03). NET 30 TERMS, not a card payment: there is no
+// "CHARGED TO ..." closing line at all, a remittance stub sits above the totals, and the total
+// prints as "$ 201.64" with a space after the dollar sign.
+const net30Text = readFileSync(join(__dirname, 'fixtures', 'uline-invoice-net30.txt'), 'utf8');
 
 function emptyParsed(desc: string, amountCents: number): VendorParsed {
   return {
@@ -30,6 +39,37 @@ describe('parseUlineInvoice', () => {
   });
   it('returns null on unrecognized text', () => {
     expect(parseUlineInvoice('nope')).toBeNull();
+  });
+
+  it('reads the total when the card brand wraps it onto the last-4 line (Amex)', () => {
+    const parsed = parseUlineInvoice(amexText);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.parsedTotalCents).toBe(36346);
+  });
+
+  it('reads the total on a NET 30 invoice, where "$" is spaced off the amount', () => {
+    const parsed = parseUlineInvoice(net30Text);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.parsedTotalCents).toBe(20164);
+  });
+
+  it('reconciles a NET 30 invoice despite the remittance stub above the totals', () => {
+    const parsed = parseUlineInvoice(net30Text);
+    expect(parsed).not.toBeNull();
+    const itemsTotal = parsed!.items.reduce((a, b) => a + b.amountCents, 0);
+    expect(itemsTotal).toBe(18060);
+    expect(parsed!.shippingCents).toBe(2104);
+    expect(itemsTotal + parsed!.taxCents + parsed!.shippingCents).toBe(parsed!.parsedTotalCents);
+  });
+
+  it('reconciles an Amex invoice including its taxable "T" line', () => {
+    const parsed = parseUlineInvoice(amexText);
+    expect(parsed).not.toBeNull();
+    const itemsTotal = parsed!.items.reduce((a, b) => a + b.amountCents, 0);
+    expect(itemsTotal).toBe(30420);
+    expect(parsed!.taxCents).toBe(510);
+    expect(parsed!.shippingCents).toBe(5416);
+    expect(itemsTotal + parsed!.taxCents + parsed!.shippingCents).toBe(parsed!.parsedTotalCents);
   });
 });
 

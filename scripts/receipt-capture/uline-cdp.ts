@@ -26,22 +26,24 @@
 // task 9 owns the --entity contract and the stop/continue decision.
 import { connectChrome } from '../walmart-enrich/cdp-session';
 import type { Browser, Locator, Page } from '@playwright/test';
+import { rowsToInvoices, shouldKeepScrolling } from './uline-roster';
+import { PERIOD_FLOOR } from './cli-args';
+import type { ColumnMap, UlineInvoice } from './uline-roster';
 
 export const ULINE_CDP_URL = process.env.ULINE_CDP_URL ?? 'http://127.0.0.1:9222';
 const ORDER_HISTORY_URL = 'https://www.uline.com/MyAccount/MyOrderHistory';
 const GRID_SELECTOR = '.invoicedOrders.k-grid';
-const NEXT_PAGER_SELECTOR = '.k-pager-nav[title*="next" i]';
-// Hard safety cap on pagination in case a bug (or a site change) breaks the pager-disabled
-// stopping condition — matches the convention in toprx-roster.ts.
-const DEFAULT_MAX_PAGES = 100;
+// Hard safety cap on the endless-scroll loop in case a site change breaks the growth/date
+// stopping conditions. ~100 line rows load per scroll, so this covers ~6,000 line rows.
+const DEFAULT_MAX_SCROLLS = 60;
+// Matches run-uline.ts's own --since default (the 2026 period floor); scrapeUlineRoster is also
+// called by probes that pass nothing, and a roster that silently stops at "recent" is the bug
+// this replaced.
+const DEFAULT_SINCE = PERIOD_FLOOR;
 const SETTLE_MS = 1200;
 const PDF_FETCH_TIMEOUT_MS = 30_000;
 
-export interface UlineInvoice {
-  invoiceNumber: string;
-  orderNumber: string;
-  date: string;
-}
+export type { UlineInvoice } from './uline-roster';
 
 export class UlineInvoicePdfError extends Error {}
 
@@ -99,19 +101,6 @@ function normalizeHeader(s: string): string {
   return s.toLowerCase().replace(/[^a-z]/g, '');
 }
 
-// MM/DD/YYYY -> YYYY-MM-DD. ULINE's Date column renders as plain text in this format (evidence:
-// "07/23/2026" in the captured grid); anything else is left as-is defensively rather than guessed.
-function normalizeDate(raw: string): string {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
-  return m ? `${m[3]}-${m[1]}-${m[2]}` : raw.trim();
-}
-
-interface ColumnMap {
-  date: number;
-  orderNumber: number;
-  invoiceNumber: number;
-}
-
 // The invoiced-orders Kendo grid renders ONE ROW PER PRODUCT LINE, not one row per order — Date /
 // Order # / Invoice / Folio # / PO # repeat identically across every line of a multi-item order
 // (evidence: captured grid header carries Category/Model #/Description/Qty/etc alongside the
@@ -147,41 +136,44 @@ async function readColumnMap(page: Page): Promise<ColumnMap> {
   return { date, orderNumber, invoiceNumber };
 }
 
+// Pull the whole grid body out of the DOM in ONE evaluate, then hand the raw cell text to the
+// pure collapser. Reading it row-by-row through locators is not just slower — it also loses the
+// top-to-bottom ordering guarantee that the date carry-down depends on.
 async function readGridRows(page: Page, cols: ColumnMap): Promise<UlineInvoice[]> {
-  const rows = grid(page).locator('tbody tr.k-table-row');
-  const rowCount = await rows.count();
-  const out: UlineInvoice[] = [];
-  for (let r = 0; r < rowCount; r++) {
-    const cells = rows.nth(r).locator('td');
-    const [dateRaw, orderNumber, invoiceNumber] = await Promise.all([
-      cells.nth(cols.date).textContent(),
-      cells.nth(cols.orderNumber).textContent(),
-      cells.nth(cols.invoiceNumber).textContent(),
-    ]);
-    const inv = (invoiceNumber ?? '').trim();
-    const ord = (orderNumber ?? '').trim();
-    if (!inv || !ord) continue; // un-invoiced / malformed row — nothing to match a receipt against
-    out.push({ invoiceNumber: inv, orderNumber: ord, date: normalizeDate(dateRaw ?? '') });
-  }
-  return out;
+  const raw: string[][] = await page.evaluate((sel: string) => {
+    const g = document.querySelector(sel);
+    if (!g) return [];
+    return [...g.querySelectorAll('tbody tr.k-table-row')].map((tr) =>
+      [...tr.querySelectorAll('td')].map((td) => (td.textContent ?? '').trim()),
+    );
+  }, GRID_SELECTOR);
+  return rowsToInvoices(raw, cols);
 }
 
-async function isNextDisabled(page: Page): Promise<boolean> {
-  const next = page.locator(NEXT_PAGER_SELECTOR).first();
-  if ((await next.count()) === 0) return true;
-  return next.evaluate(
-    (el) => el.classList.contains('k-disabled') || el.getAttribute('aria-disabled') === 'true',
+async function countGridRows(page: Page): Promise<number> {
+  return page.evaluate(
+    (sel: string) => document.querySelectorAll(`${sel} tbody tr.k-table-row`).length,
+    GRID_SELECTOR,
   );
 }
 
 /**
- * Scrape the FULL invoiced-orders roster from MyOrderHistory, deduped to one entry per invoice
- * (the grid is line-item-granular — see readColumnMap comment). Pages through the Kendo pager
- * until its "next" control is disabled/missing, a page adds no new invoices (loop guard), or
- * `maxPages` is hit.
+ * Scrape the invoiced-orders roster from MyOrderHistory back to `since`, deduped to one entry per
+ * invoice (the grid is line-item-granular — see readColumnMap comment).
+ *
+ * There is NO pager on this page: the grid is endless-scroll, loading ~100 more line rows each
+ * time the bottom is reached (verified live 2026-08-03: 0 -> 100 -> 200 -> 300 -> 400 -> 500).
+ * The previous implementation looked for a Kendo pager, found nothing, and read "control missing"
+ * as "end of roster" — silently capping the roster at the first ~100 line rows (~6 weeks of a
+ * 2-year history) with no error. Scroll until the row count stops growing, until the oldest
+ * loaded row predates `since`, or until the safety cap.
  */
-export async function scrapeUlineRoster(page: Page, opts: { maxPages?: number } = {}): Promise<UlineInvoice[]> {
-  const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
+export async function scrapeUlineRoster(
+  page: Page,
+  opts: { since?: string; maxScrolls?: number } = {},
+): Promise<UlineInvoice[]> {
+  const since = opts.since ?? DEFAULT_SINCE;
+  const maxScrolls = opts.maxScrolls ?? DEFAULT_MAX_SCROLLS;
   if (!/MyOrderHistory/i.test(page.url())) {
     await page.goto(ORDER_HISTORY_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForTimeout(SETTLE_MS);
@@ -189,26 +181,41 @@ export async function scrapeUlineRoster(page: Page, opts: { maxPages?: number } 
   assertNotSignIn(page);
   await page.waitForSelector(GRID_SELECTOR, { timeout: 20_000 });
 
-  const byInvoice = new Map<string, UlineInvoice>();
-  for (let p = 1; p <= maxPages; p++) {
-    const cols = await readColumnMap(page);
-    const rows = await readGridRows(page, cols);
-    let added = 0;
-    for (const row of rows) {
-      if (!byInvoice.has(row.invoiceNumber)) { byInvoice.set(row.invoiceNumber, row); added++; }
-    }
-    console.log(`  ULINE roster page ${p}: ${rows.length} line row(s), +${added} new invoice(s)`);
+  let previousRowCount = -1;
+  let currentRowCount = await countGridRows(page);
+  let scrolls = 0;
+  let oldestDate = '';
 
-    if (await isNextDisabled(page)) { console.log('  next-page control disabled/missing — end of roster'); break; }
-    if (added === 0 && p > 1) { console.log('  page added no new invoices — stopping (looped/duplicate)'); break; }
+  for (;;) {
+    if (!shouldKeepScrolling({ previousRowCount, currentRowCount, oldestDate, since, scrolls, maxScrolls })) break;
 
-    await page.locator(NEXT_PAGER_SELECTOR).first().click({ timeout: 8_000 }).catch((e) => {
-      console.log(`  next-page click failed: ${(e as Error).message.split('\n')[0]}`);
-    });
+    await page.evaluate((sel: string) => {
+      const content = document.querySelector(`${sel} .k-grid-content`);
+      if (content instanceof HTMLElement) content.scrollTop = content.scrollHeight;
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    }, GRID_SELECTOR);
     await page.waitForTimeout(SETTLE_MS);
     assertNotSignIn(page);
+
+    scrolls++;
+    previousRowCount = currentRowCount;
+    currentRowCount = await countGridRows(page);
+
+    const cols = await readColumnMap(page);
+    const seen = await readGridRows(page, cols);
+    const dated = seen.map((r) => r.date).filter((d) => d !== '').sort();
+    oldestDate = dated[0] ?? '';
+    console.log(`  ULINE roster scroll ${scrolls}: ${currentRowCount} line row(s), ${seen.length} invoice(s), oldest ${oldestDate || 'n/a'}`);
   }
-  return [...byInvoice.values()];
+
+  if (scrolls >= maxScrolls) {
+    console.log(`  [warn] hit the ${maxScrolls}-scroll safety cap — roster may be incomplete before ${since}`);
+  }
+
+  const cols = await readColumnMap(page);
+  const roster = await readGridRows(page, cols);
+  console.log(`  ULINE roster: ${currentRowCount} line row(s) -> ${roster.length} invoice(s) after ${scrolls} scroll(s)`);
+  return roster;
 }
 
 function isPdfBuffer(buf: Buffer): boolean {
