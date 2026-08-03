@@ -1,6 +1,7 @@
 // Attach a receipt PDF to a Ramp transaction (multipart POST /receipts, scope receipts:write).
 // Field names follow the Ramp Developer API receipt-upload shape: transaction_id + receipt file.
 import type { Entity } from '../ramp-split-push/types';
+import { rampGet, rampToken } from '../ramp-split-push/ramp-client';
 
 const BASE = 'https://api.ramp.com/developer/v1';
 
@@ -27,6 +28,37 @@ export function buildReceiptForm(pdf: Buffer, filename: string, transactionId: s
   return form;
 }
 
+// Only an ACTIVE Ramp user may be named as a receipt's uploader. Anything else — suspended,
+// inactive, or a status Ramp adds later that we have not vetted — is refused. This is deliberately
+// a whitelist: an unrecognised status must not gamble an idempotency key, because a failed upload
+// still consumes the key and permanently strands that transaction (see the test file for the
+// cdb41b2b evidence trail).
+export function isUploadableUserStatus(status: string | null): boolean {
+  return status === 'USER_ACTIVE';
+}
+
+// One lookup per user per process; the same cardholder owns many transactions in a run.
+const userStatusCache = new Map<string, string | null>();
+
+export async function fetchUserStatus(entity: Entity, userId: string): Promise<string | null> {
+  const key = `${entity}|${userId}`;
+  const hit = userStatusCache.get(key);
+  if (hit !== undefined) return hit;
+  let status: string | null = null;
+  try {
+    const token = await rampToken(entity, 'users:read');
+    const res = await rampGet<{ status?: string }>(entity, `/users/${userId}`, token);
+    status = res.status === 200 ? (res.body.status ?? null) : null;
+  } catch {
+    status = null; // unknown -> refused by isUploadableUserStatus, which is the safe direction
+  }
+  userStatusCache.set(key, status);
+  return status;
+}
+
+/** Refusal shape returned instead of POSTing when the uploader user is not active. */
+export const RECEIPT_SKIP_INACTIVE_USER = 'cardholder_not_active';
+
 export async function attachReceipt(
   entity: Entity,
   transactionId: string,
@@ -36,7 +68,20 @@ export async function attachReceipt(
   userId: string,
   idempotencyKey: string,
 ): Promise<{ status: number; body: unknown }> {
-  void entity; // entity is encoded in the token; kept in the signature for call-site symmetry/logging
+  // PRE-FLIGHT, before any network write: a non-active uploader cannot succeed, and merely trying
+  // burns the idempotency key forever. Refuse without touching POST /receipts.
+  const status = await fetchUserStatus(entity, userId);
+  if (!isUploadableUserStatus(status)) {
+    return {
+      status: 0,
+      body: {
+        skipped: RECEIPT_SKIP_INACTIVE_USER,
+        user_id: userId,
+        user_status: status ?? 'unknown',
+        message: `Cardholder user ${userId} is ${status ?? 'unknown'}, not USER_ACTIVE — upload refused so the idempotency key stays unburned.`,
+      },
+    };
+  }
   const res = await fetch(`${BASE}/receipts`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` }, // do NOT set Content-Type; fetch sets the multipart boundary
