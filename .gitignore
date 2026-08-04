@@ -58,3 +58,6 @@ scripts/receipt-capture/out/
 .vercel
 .env*
 !.env.example
+
+# SDD scratch (ledgers, briefs, review packages) — never committed
+.superpowers/
