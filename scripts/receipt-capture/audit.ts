@@ -11,7 +11,8 @@ export interface AuditRow {
   txnId: string;
   // create_draft/attach_pdf added for the Letco bill-draft pipeline (run-letco.ts) — additive only,
   // every existing receipt-attach caller's action values are still valid members of this union.
-  action: 'attach_receipt' | 'memo' | 'split' | 'unsplit' | 'skip' | 'error' | 'create_draft' | 'attach_pdf';
+  // patch_draft_gl = enrich mode: GL-coding added to a draft bill the bookkeeper already created.
+  action: 'attach_receipt' | 'memo' | 'split' | 'unsplit' | 'skip' | 'error' | 'create_draft' | 'attach_pdf' | 'patch_draft_gl';
   invoiceKey: string;
   amountCents: number;
   status: number | null;

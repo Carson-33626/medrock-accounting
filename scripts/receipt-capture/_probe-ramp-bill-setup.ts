@@ -17,7 +17,11 @@ interface VendorPage { data?: RampVendor[]; page?: { next?: string } }
 const EXPECTED_GL_FIELD_EXTERNAL_ID = 'QuickbooksCategory';
 
 async function main(): Promise<void> {
-  console.log('=== Step 1: Letco vendor id per entity ===');
+  // WRONG SOURCE — kept only for reference. /accounting/vendors returns the ACCOUNTING-provider
+  // (QBO) vendor ids; feeding one to POST /bills gets HTTP 422 {"vendor_id":["Not a valid UUID."]},
+  // which is exactly how the 2026-08-04 FL live pilot failed. The Bills API wants the Bill Pay
+  // vendor UUID from GET /vendors — use _probe-billpay-vendor-id.ts for LETCO_RAMP_VENDOR_*.
+  console.log('=== Step 1: Letco vendor id per entity (ACCOUNTING ids — NOT the bill vendor_id) ===');
   for (const entity of ALL_ENTITIES) {
     const token = await rampToken(entity, 'accounting:read');
     let url: string | null = '/accounting/vendors?page_size=100';

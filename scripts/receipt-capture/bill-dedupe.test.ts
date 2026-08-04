@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { dedupeVerdict } from './bill-dedupe';
 
-const none = { inRegistry: false, qbDocNumbers: new Set<string>(), rampInvoiceNumbers: new Set<string>() };
+const none = {
+  inRegistry: false,
+  qbDocNumbers: new Set<string>(),
+  rampInvoiceNumbers: new Set<string>(),
+  rampDraftInvoiceNumbers: new Set<string>(),
+};
 
 describe('dedupeVerdict', () => {
   it('creates when the invoice is unknown everywhere', () => {
@@ -29,7 +34,18 @@ describe('dedupeVerdict', () => {
   });
 
   it('checks the registry first so a crashed run cannot re-create', () => {
-    const facts = { inRegistry: true, qbDocNumbers: new Set(['C335-176896']), rampInvoiceNumbers: new Set<string>() };
+    const facts = { ...none, inRegistry: true, qbDocNumbers: new Set(['C335-176896']) };
     expect(dedupeVerdict('C335-176896', facts)).toBe('skip_registry');
+  });
+
+  // The 2026-08-04 live pilot duplicated a draft the bookkeeper had already entered: GET /bills
+  // excludes DRAFT-status bills, so this layer is the only thing that sees her work.
+  it('skips when the bookkeeper already has a DRAFT for it in Ramp', () => {
+    expect(dedupeVerdict('C335-176896', { ...none, rampDraftInvoiceNumbers: new Set(['C335-176896']) })).toBe('skip_draft');
+  });
+
+  it('still reports the QuickBooks hit when an invoice is in both QB and a Ramp draft', () => {
+    const facts = { ...none, qbDocNumbers: new Set(['C335-176896']), rampDraftInvoiceNumbers: new Set(['C335-176896']) };
+    expect(dedupeVerdict('C335-176896', facts)).toBe('skip_quickbooks');
   });
 });

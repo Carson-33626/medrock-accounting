@@ -12,7 +12,7 @@
 // cards below reimplement its FL/TN-joint, TX-solo shape (see sweep-preflight.ts's own comment)
 // directly against deps.statePath instead.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { checkTopRx, checkCdp } from './sweep-preflight';
+import { checkTopRx, checkLetco, checkCdp } from './sweep-preflight';
 import { txnReportPath } from '../amazon-csv-enrich/paths';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 import { SAMS } from '../walmart-enrich/retailer-profile';
@@ -130,6 +130,22 @@ function amazonCsvCard(deps: StatusDeps): VendorCard {
   };
 }
 
+// Letco is the "invoice -> draft bill" category: portal creds only, no session file, no CDP, no
+// cache. So the light tracks the ONE thing that can actually block it — creds per entity. The Sam's
+// lesson applies in reverse here: do not invent a cache-freshness signal a vendor does not have,
+// or the card reads amber forever for a pipeline that is perfectly healthy.
+function letcoCard(deps: StatusDeps): VendorCard {
+  const r = checkLetco(deps.env);
+  const light: Light = r.entities.length === ALL_ENTITIES.length ? 'green' : r.entities.length > 0 ? 'amber' : 'red';
+  return {
+    key: 'letco',
+    label: 'Letco (bills)',
+    light,
+    detail: `${r.detail} — enrich only; codes drafts the bookkeeper already entered`,
+    actions: ['letco-enrich-dry', 'letco-enrich-FL', 'letco-enrich-TN', 'letco-enrich-TX'],
+  };
+}
+
 function lastSweep(deps: StatusDeps): PanelStatus['lastSweep'] {
   const state = deps.sweepState();
   if (!state || state.history.length === 0) return null;
@@ -154,6 +170,7 @@ export async function assembleStatus(deps: StatusDeps): Promise<PanelStatus> {
     await cdpRetailerCard('sams', "Sam's Club", SAMS.cacheFile, deps),
     amazonCard(),
     amazonCsvCard(deps),
+    letcoCard(deps),
   ];
   return {
     vendors,

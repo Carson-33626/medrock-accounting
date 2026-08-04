@@ -90,6 +90,107 @@ export async function createDraftBill(
   return { status: res.status, body: parsed };
 }
 
+// ---- reading and patching drafts someone else created ----
+//
+// GET /bills does NOT return DRAFT-status bills — they live only in this collection. That gap is how
+// the first live pilot created a duplicate of a draft the bookkeeper had already entered, so any
+// dedupe that claims to know what Ramp holds MUST read this too.
+export interface RampDraftSelection {
+  external_code?: string | null;
+  category_info?: { type?: string | null; external_id?: string | null } | null;
+}
+
+export interface RampDraftLine {
+  amount?: { amount?: number } | null;
+  memo?: string | null;
+  accounting_field_selections?: RampDraftSelection[];
+}
+
+// NOT every accounting_field_selection is GL coding. Medisca's drafts carry a
+// `{category_info:{type:'BILLABLE', external_id:'QuickbooksBillable'}, external_code:null}`
+// selection meaning "Billable = false" — a flag, not an account. Treating any selection as "already
+// coded" both overstates how much of the backlog is done and makes enrich skip drafts that have no
+// GL account at all. Only a GL_ACCOUNT selection counts.
+export function isGlCoded(selections: RampDraftSelection[] | undefined): boolean {
+  return (selections ?? []).some((s) =>
+    s.category_info?.type === 'GL_ACCOUNT' || (s.external_code ?? '') !== '');
+}
+
+export interface RampDraftBill {
+  id: string;
+  invoice_number?: string | null;
+  memo?: string | null;
+  created_at?: string | null;
+  amount?: { amount?: number } | null;
+  vendor?: { id?: string; name?: string | null } | null;
+  bill_owner?: { first_name?: string | null; last_name?: string | null } | null;
+  line_items?: RampDraftLine[];
+}
+
+interface DraftPage { data?: RampDraftBill[]; page?: { next?: string | null } }
+
+export async function listDraftBills(
+  entity: Entity,
+  token: string,
+  get: <T>(entity: Entity, pathOrUrl: string, token: string) => Promise<{ status: number; body: T }>,
+  maxPages = 50,
+): Promise<RampDraftBill[]> {
+  const out: RampDraftBill[] = [];
+  let url: string | null = '/bills/drafts?page_size=100';
+  for (let i = 0; i < maxPages && url !== null; i++) {
+    const res: { status: number; body: DraftPage } = await get<DraftPage>(entity, url, token);
+    if (res.status !== 200) throw new Error(`Ramp /bills/drafts failed (${entity}): HTTP ${res.status}`);
+    const rows = res.body.data ?? [];
+    out.push(...rows);
+    if (rows.length === 0) break;
+    url = res.body.page?.next ?? null;
+  }
+  return out;
+}
+
+export interface PatchDraftLinesBody {
+  line_items: DraftBillLine[];
+}
+
+// PATCH line_items REPLACES the whole array, so this takes the draft's FULL line set, not a delta.
+// Only line_items is sent: every other field on the draft is the bookkeeper's and stays untouched.
+export function buildPatchLinesBody(
+  lines: CodedLine[],
+  glFieldExternalId: string,
+  accountOptionIds: Record<string, string>,
+): PatchDraftLinesBody {
+  return {
+    line_items: lines.map((l) => {
+      const option = accountOptionIds[l.account];
+      if (option === undefined) throw new Error(`No Ramp GL option mapped for account ${l.account}`);
+      return {
+        amount: l.amountCents / 100,
+        memo: l.memo,
+        accounting_field_selections: [
+          { field_external_id: glFieldExternalId, field_option_external_id: option },
+        ],
+      };
+    }),
+  };
+}
+
+export async function patchDraftBillLines(
+  entity: Entity,
+  draftId: string,
+  body: PatchDraftLinesBody,
+  token: string,
+): Promise<{ status: number; body: unknown }> {
+  void entity;
+  const res = await fetch(`${BASE}/bills/drafts/${draftId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  let parsed: unknown = null;
+  try { parsed = await res.json(); } catch { parsed = null; }
+  return { status: res.status, body: parsed };
+}
+
 export async function attachBillDocument(
   entity: Entity,
   draftId: string,

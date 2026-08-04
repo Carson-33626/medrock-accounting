@@ -42,6 +42,19 @@ const REGISTRY: Record<string, ActionBuilder> = {
   'fetch-invoices': () => ({ kind: 'child', label: 'Amazon-CSV fetch invoices', argv: ['scripts/amazon-csv-enrich/fetch-invoices.ts'] }),
   // run-attach.ts is dry unless --live is passed (README) — omitting it entirely is the dry mode.
   'attach-amazon-csv-dry': () => ({ kind: 'child', label: 'Amazon-CSV attach (dry)', argv: ['scripts/amazon-csv-enrich/run-attach.ts'] }),
+  // Letco = the "invoice -> draft bill" job category: no Ramp card txns, no browser, no bootstrap.
+  // Enrich GL-codes draft bills the bookkeeper already entered and creates nothing, so the dry
+  // action is genuinely read-only and the live one cannot produce a duplicate bill.
+  'letco-enrich-dry': () => ({ kind: 'child', label: 'Letco enrich (dry-run, all entities)', argv: ['scripts/receipt-capture/run-letco.ts', '--entity=FL', '--mode=enrich'] }),
+  ...Object.fromEntries((['FL', 'TN', 'TX'] as const).map((e) => [
+    `letco-enrich-${e}`,
+    // Armed like sweep-live: this one writes GL coding onto bills a human owns. Same rule as the
+    // sweep gate — enforced here, not only in the UI, so a stray POST cannot skip it.
+    ((body: ActionRequestBody) => {
+      if (body.armed !== true) return { error: `letco-enrich-${e} requires armed:true`, code: 400 };
+      return { kind: 'child', label: `Letco enrich ${e} (LIVE)`, argv: ['scripts/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--live', '--limit', '50'] };
+    }) as ActionBuilder,
+  ])),
   'sweep-dry': () => ({ kind: 'child', label: 'Sweep (dry-run)', argv: ['scripts/receipt-capture/run-sweep.ts', '--dry-run'] }),
   // run-sweep.ts is LIVE BY DEFAULT (README) — the panel's own arming gate is the only thing
   // standing between a stray click and an uncapped live run, so it's enforced here, not just in

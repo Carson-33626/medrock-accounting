@@ -1,8 +1,17 @@
-// Letco/Fagron orchestrator: login -> paged invoice roster -> per invoice: dedupe (registry, then
-// QuickBooks DocNumber, then Ramp Bill Pay invoice_number) -> fetch detail -> parse -> reconcile ->
-// GL-code -> (dry-run: plan row only | --live: create a Ramp DRAFT bill + attach the invoice PDF +
-// record the consumed-bill registry). We never finalise a bill — a human reviews/releases the draft
-// in Ramp, and Ramp syncs it to QuickBooks from there.
+// Letco/Fagron orchestrator. TWO MODES — see the addendum in
+// docs/superpowers/specs/2026-08-04-letco-fagron-bill-capture-design.md:
+//
+//   --mode=enrich (DEFAULT)  GL-code the draft bills the bookkeeper has ALREADY entered in Ramp.
+//                            She creates a draft for every Letco invoice and codes the GL by hand
+//                            before sending it for approval; enrich takes that coding step off her.
+//                            Never creates anything, so it cannot duplicate her work.
+//   --mode=create            Create drafts for invoices nobody has entered yet (13 of 38 as of
+//                            2026-08-04). Only safe now that dedupe reads /bills/drafts as well.
+//
+// The 2026-08-04 live pilot created a perfectly-formed DUPLICATE because `GET /bills` silently
+// excludes DRAFT-status bills, so the dedupe could not see the bookkeeper's own drafts. Both modes
+// now read `GET /bills/drafts`. We never finalise a bill in either mode — a human reviews and
+// releases the draft in Ramp, and Ramp syncs it to QuickBooks from there.
 //
 // Unlike run-uline.ts/run-toprx.ts, this is NOT a card-transaction-matching pipeline: Letco has
 // zero Ramp card transactions (paid by bank autopay), so there is no worklist/matcher stage at all.
@@ -17,7 +26,7 @@
 // cannot stop a caller from hitting a cart/checkout endpoint. Only the three verified read
 // endpoints (roster POST, detail GET, PDF GET) are ever passed here.
 //
-//   npx tsx scripts/receipt-capture/run-letco.ts --entity=FL [--since 2026-05-01] [--live] [--limit 5]
+//   npx tsx scripts/receipt-capture/run-letco.ts --entity=FL [--mode=enrich|create] [--since 2026-05-01] [--live] [--limit 5]
 import '../ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { LetcoSession } from './letco-session';
@@ -28,8 +37,13 @@ import { codeLetcoInvoice, LETCO_PRODUCT_ACCOUNT, LETCO_SHIPPING_ACCOUNT } from 
 import { dedupeVerdict } from './bill-dedupe';
 import type { DedupeFacts, DedupeVerdict } from './bill-dedupe';
 import { loadConsumedBillStore } from './bill-consumed';
-import { buildDraftBillBody, createDraftBill, attachBillDocument } from './bill-draft';
-import type { DraftBillInput } from './bill-draft';
+import {
+  buildDraftBillBody, createDraftBill, attachBillDocument,
+  listDraftBills, buildPatchLinesBody, patchDraftBillLines, isGlCoded,
+} from './bill-draft';
+import type { DraftBillInput, RampDraftBill } from './bill-draft';
+import { planDraftEnrichment } from './letco-enrich';
+import type { DraftLine } from './letco-enrich';
 import { appendAudit } from './audit';
 import { resolveSince, parseNumericFlag } from './cli-args';
 import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
@@ -53,7 +67,8 @@ const MAX_ROSTER_PAGES = 100;
 const QB_DEDUPE_FLOOR = '2026-01-01';
 
 // ---- args ----
-interface Args { entity: Entity; since: string; live: boolean; limit: number }
+export type RunMode = 'create' | 'enrich';
+interface Args { entity: Entity; since: string; live: boolean; limit: number; mode: RunMode }
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
@@ -65,13 +80,18 @@ function parseArgs(): Args {
   };
   const entityArg = get('--entity');
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) {
-    throw new Error('Usage: npx tsx scripts/receipt-capture/run-letco.ts --entity=FL|TN|TX [--since 2026-05-01] [--live] [--limit 5]');
+    throw new Error('Usage: npx tsx scripts/receipt-capture/run-letco.ts --entity=FL|TN|TX [--mode=enrich|create] [--since 2026-05-01] [--live] [--limit 5]');
+  }
+  const modeArg = get('--mode') ?? 'enrich';
+  if (modeArg !== 'create' && modeArg !== 'enrich') {
+    throw new Error(`Unknown --mode "${modeArg}". Use --mode=enrich (GL-code the bookkeeper's existing drafts) or --mode=create (create drafts she does not have).`);
   }
   return {
     entity: entityArg as Entity,
     since: resolveSince(get('--since')),
     live: argv.includes('--live'),
     limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
+    mode: modeArg,
   };
 }
 
@@ -259,6 +279,133 @@ function residualRow(item: RosterItem, entity: Entity, notes: string): PlanRow {
   };
 }
 
+// ---- enrich mode ----
+// Only the bookkeeper's Letco drafts are touched. Identified by vendor id first (authoritative) and
+// by the C335- invoice prefix second, because a draft she typed by hand may predate the vendor link.
+function isLetcoDraft(d: RampDraftBill, vendorId: string): boolean {
+  if ((d.vendor?.id ?? '') === vendorId) return true;
+  if (/letco|fagron/i.test(d.vendor?.name ?? '')) return true;
+  return /^C335-/i.test((d.invoice_number ?? '').trim());
+}
+
+function toDraftLines(d: RampDraftBill): DraftLine[] {
+  return (d.line_items ?? []).map((l) => ({
+    amountCents: l.amount?.amount ?? 0,
+    memo: l.memo ?? '',
+    // isGlCoded, not "has any selection": a Billable=false flag is a selection but not GL coding,
+    // and counting it as coded would make enrich skip a draft that still needs an account.
+    coded: isGlCoded(l.accounting_field_selections),
+  }));
+}
+
+interface EnrichRow {
+  invoiceNumber: string;
+  draftId: string;
+  entity: Entity;
+  owner: string;
+  totalCents: number;
+  lineCount: number;
+  verdict: string;
+  notes: string;
+}
+
+function enrichRowLine(r: EnrichRow): string {
+  return [
+    r.invoiceNumber, r.draftId, r.entity, r.owner,
+    (r.totalCents / 100).toFixed(2), String(r.lineCount), r.verdict, r.notes,
+  ].map(csv).join(',');
+}
+
+async function runEnrich(
+  entity: Entity,
+  args: Args,
+  runId: string,
+  session: LetcoSession,
+  roster: RosterItem[],
+  token: string,
+  vendorId: string,
+  glFieldExternalId: string,
+  accountOptionIds: Record<string, string>,
+): Promise<void> {
+  const byInvoice = new Map(roster.map((r) => [r.documentId.trim().toUpperCase(), r]));
+  const drafts = (await listDraftBills(entity, token, rampGet)).filter((d) => isLetcoDraft(d, vendorId));
+  console.log(`[${entity}] Ramp drafts: ${drafts.length} Letco draft(s) found`);
+
+  const rows: EnrichRow[] = [];
+  const counts = { patch: 0, skip_already_coded: 0, residual: 0 };
+  let liveWrites = 0;
+
+  for (const draft of drafts) {
+    const invoiceNumber = (draft.invoice_number ?? '').trim();
+    const owner = `${draft.bill_owner?.first_name ?? ''} ${draft.bill_owner?.last_name ?? ''}`.trim();
+    const draftLines = toDraftLines(draft);
+    const base = {
+      invoiceNumber: invoiceNumber === '' ? '(none)' : invoiceNumber,
+      draftId: draft.id, entity, owner,
+      totalCents: draft.amount?.amount ?? 0,
+      lineCount: draftLines.length,
+    };
+    const residual = (notes: string): void => {
+      counts.residual++;
+      rows.push({ ...base, verdict: 'residual', notes });
+    };
+
+    // Cheapest refusal first: an already-coded draft needs no portal round-trip at all. This is also
+    // what makes enrich idempotent — after we patch, every line is coded, so a re-run lands here.
+    if (draftLines.length > 0 && draftLines.some((l) => l.coded)) {
+      counts.skip_already_coded++;
+      rows.push({ ...base, verdict: 'skip_already_coded', notes: 'already_coded' });
+      continue;
+    }
+
+    const item = invoiceNumber === '' ? undefined : byInvoice.get(invoiceNumber.toUpperCase());
+    if (item === undefined) {
+      // Without the portal invoice there is nothing to reconcile against, and memo text alone is not
+      // enough to post money on. Widening --since is the fix when this is just an out-of-window date.
+      residual(`no_roster_match:not_in_window_since_${args.since}`);
+      continue;
+    }
+
+    const detailRes = await session.get(item.detailUrl);
+    if (detailRes.status !== 200) { residual(`detail_fetch_failed:HTTP_${detailRes.status}`); continue; }
+    const parsed = parseLetcoDetail(detailRes.text, item.totalCents);
+    if (parsed === null) { residual('reconcile_failed'); continue; }
+
+    const plan = planDraftEnrichment(draftLines, parsed);
+    if (!plan.ok) { residual(plan.reason); continue; }
+
+    counts.patch++;
+    const executeLive = args.live && liveWrites < args.limit;
+    if (!executeLive) {
+      const coding = plan.lines.map((l) => `${(l.amountCents / 100).toFixed(2)}->${l.account}`).join(' ');
+      rows.push({ ...base, verdict: 'patch', notes: `${args.live ? 'over_limit' : 'dry_run'} ${coding}` });
+      continue;
+    }
+
+    const body = buildPatchLinesBody(plan.lines, glFieldExternalId, accountOptionIds);
+    const res = await patchDraftBillLines(entity, draft.id, body, token);
+    const ok = res.status >= 200 && res.status < 300;
+    liveWrites++;
+    appendAudit(AUDIT_PATH, {
+      runId, mode: 'live', vendor: VENDOR, entity, txnId: draft.id,
+      action: ok ? 'patch_draft_gl' : 'error', invoiceKey: invoiceNumber,
+      amountCents: base.totalCents, status: res.status,
+      detail: JSON.stringify(res.body).slice(0, 500), priorMemo: draft.memo ?? null, priorLineItems: '',
+    });
+    rows.push({ ...base, verdict: 'patch', notes: ok ? `live_patched ${plan.lines.length} line(s)` : `patch_failed:HTTP_${res.status}` });
+  }
+
+  const planPath = `${OUT}/letco-enrich-plan-${entity}.csv`;
+  const header = 'invoice_number,draft_id,entity,owner,total,line_count,verdict,notes';
+  writeFileSync(planPath, [header, ...rows.map(enrichRowLine)].join('\n') + '\n');
+
+  console.log(
+    `[${entity}] drafts=${drafts.length} | patch=${counts.patch} skip_already_coded=${counts.skip_already_coded} ` +
+    `residual=${counts.residual} | ${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`,
+  );
+  console.log(`[${entity}] wrote ${planPath} (${rows.length} rows)`);
+}
+
 async function runLetco(entity: Entity, args: Args, runId: string): Promise<void> {
   // Fail loudly BEFORE touching the portal or Ramp if this entity's coding config is incomplete —
   // cheaper than discovering it mid-run on invoice #40.
@@ -272,8 +419,10 @@ async function runLetco(entity: Entity, args: Args, runId: string): Promise<void
   const glFieldExternalId = requireEnv('RAMP_GL_FIELD_EXTERNAL_ID');
   const accountOptionIds = accountOptionIdsFor(entity);
 
+  // Enrich mode never creates anything, so the consumed registry (whose only job is to stop a
+  // crashed run from re-creating a draft) is neither read nor able to block it.
   const consumed = loadConsumedBillStore(CONSUMED_PATH);
-  if (consumed.corrupt) {
+  if (consumed.corrupt && args.mode === 'create') {
     if (args.live) {
       throw new Error(
         `LETCO_CONSUMED_REGISTRY_CORRUPT: ${CONSUMED_PATH} failed to parse — hard stop before any ` +
@@ -297,20 +446,32 @@ async function runLetco(entity: Entity, args: Args, runId: string): Promise<void
     console.log(`[${entity}] [warn] ${creditNotes.length} non-invoice row(s) reported, NOT processed: ${creditNotes.slice(0, 5).map((r) => r.DocumentId ?? '?').join(', ')}`);
   }
 
-  const qbDocNumbers = await fetchQbLetcoDocNumbers(entity, QB_DEDUPE_FLOOR);
   const rampScope = args.live ? SCOPES_WRITE : SCOPES_READ;
   const token = await rampToken(entity, rampScope);
+
+  if (args.mode === 'enrich') {
+    await runEnrich(entity, args, runId, session, roster, token, vendorId, glFieldExternalId, accountOptionIds);
+    return;
+  }
+
+  const qbDocNumbers = await fetchQbLetcoDocNumbers(entity, QB_DEDUPE_FLOOR);
   const rampBills = await fetchRampBills(entity, token);
   const rampInvoiceNumbers = new Set(rampBills.map((b) => (b.invoice_number ?? '').trim()).filter((s) => s !== ''));
-  console.log(`[${entity}] dedupe facts: QB docNumbers=${qbDocNumbers.size} (since ${QB_DEDUPE_FLOOR}), Ramp bills w/ invoice#=${rampInvoiceNumbers.size}, registry entries=${Object.keys(consumed.all()).length}`);
+  // The layer whose absence produced a duplicate on 2026-08-04: GET /bills excludes DRAFT-status
+  // bills, so without this the bookkeeper's own drafts are invisible to create mode.
+  const rampDrafts = await listDraftBills(entity, token, rampGet);
+  const rampDraftInvoiceNumbers = new Set(
+    rampDrafts.filter((d) => isLetcoDraft(d, vendorId)).map((d) => (d.invoice_number ?? '').trim()).filter((s) => s !== ''),
+  );
+  console.log(`[${entity}] dedupe facts: QB docNumbers=${qbDocNumbers.size} (since ${QB_DEDUPE_FLOOR}), Ramp bills w/ invoice#=${rampInvoiceNumbers.size}, Ramp DRAFTS w/ invoice#=${rampDraftInvoiceNumbers.size}, registry entries=${Object.keys(consumed.all()).length}`);
 
   const rows: PlanRow[] = [];
-  const counts: Record<PlanVerdict, number> = { create: 0, skip_registry: 0, skip_quickbooks: 0, skip_ramp: 0, residual: 0 };
+  const counts: Record<PlanVerdict, number> = { create: 0, skip_registry: 0, skip_quickbooks: 0, skip_ramp: 0, skip_draft: 0, residual: 0 };
   let liveWrites = 0;
 
   for (const item of roster) {
     const invoiceNumber = item.documentId;
-    const facts: DedupeFacts = { inRegistry: consumed.has(invoiceNumber), qbDocNumbers, rampInvoiceNumbers };
+    const facts: DedupeFacts = { inRegistry: consumed.has(invoiceNumber), qbDocNumbers, rampInvoiceNumbers, rampDraftInvoiceNumbers };
     const verdict = dedupeVerdict(invoiceNumber, facts);
 
     if (verdict !== 'create') {
@@ -425,7 +586,7 @@ async function runLetco(entity: Entity, args: Args, runId: string): Promise<void
 
   console.log(
     `[${entity}] roster=${roster.length} | create=${counts.create} skip_registry=${counts.skip_registry} ` +
-    `skip_quickbooks=${counts.skip_quickbooks} skip_ramp=${counts.skip_ramp} residual=${counts.residual} | ` +
+    `skip_quickbooks=${counts.skip_quickbooks} skip_ramp=${counts.skip_ramp} skip_draft=${counts.skip_draft} residual=${counts.residual} | ` +
     `${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`,
   );
   console.log(`[${entity}] wrote ${planPath} (${rows.length} rows)`);
@@ -435,7 +596,7 @@ async function main(): Promise<void> {
   const args = parseArgs();
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
   const runId = `letco-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  console.log(`run ${runId} | entity=${args.entity} | since=${args.since} | mode=${args.live ? `LIVE (limit ${args.limit})` : 'DRY-RUN'}`);
+  console.log(`run ${runId} | entity=${args.entity} | mode=${args.mode} | since=${args.since} | ${args.live ? `LIVE (limit ${args.limit})` : 'DRY-RUN'}`);
   try {
     await runLetco(args.entity, args, runId);
   } catch (e) {

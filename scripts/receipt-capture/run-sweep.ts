@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 
 import { join } from 'node:path';
 import { scanEntity, rollupByMerchant, scanCsvLine, SCAN_CSV_HEADER } from './sweep-scan';
 import type { ScanRow } from './sweep-scan';
-import { checkTopRx, checkUline, checkCdp } from './sweep-preflight';
+import { checkTopRx, checkUline, checkLetco, checkCdp } from './sweep-preflight';
 import { runChild } from './sweep-exec';
 import type { ChildResult } from './sweep-exec';
 import { parseNumericFlag } from './cli-args';
@@ -20,8 +20,13 @@ const OUT = 'scripts/receipt-capture/out/sweep';
 const STATE_PATH = `${OUT}/state.json`;
 const ULINE_STATE_DIR = 'scripts/receipt-capture/.state';
 const WM_CDP = process.env.WM_CDP_URL ?? 'http://127.0.0.1:9222';
-const ALL_VENDORS = ['toprx', 'uline', 'amazon', 'walmart', 'sams', 'amazon-csv'] as const;
+const ALL_VENDORS = ['toprx', 'uline', 'amazon', 'walmart', 'sams', 'amazon-csv', 'letco'] as const;
 type Vendor = (typeof ALL_VENDORS)[number];
+// The SECOND job category (design spec §"Sweep and panel integration"): "invoice -> draft bill".
+// These vendors have NO Ramp card transactions, so they neither appear in the receiptless scan nor
+// move its numbers — reporting them under "Vendor jobs" would imply they should have, and a reader
+// would go looking for a scan delta that can never exist. They get their own report section.
+const BILL_VENDORS: readonly Vendor[] = ['letco'];
 
 interface SweepState { lastScanCsv: string | null; history: { runId: string; total: number; cents: number }[] }
 
@@ -87,13 +92,16 @@ async function main(): Promise<void> {
   const state = loadState();
   const needsYou: string[] = [];
   const jobs: ChildResult[] = [];
+  const billJobs: ChildResult[] = [];
 
   // ---- S0 preflight ----
   const toprx = checkTopRx(process.env);
   const uline = checkUline(ULINE_STATE_DIR);
+  const letco = checkLetco(process.env);
   const wmCdp = await checkCdp(WM_CDP);
   if (toprx.needsYou) needsYou.push(toprx.needsYou);
   if (uline.needsYou) needsYou.push(uline.needsYou);
+  if (letco.needsYou) needsYou.push(letco.needsYou);
   // Walmart and Sam's share ONE Chrome profile and one CDP port — the same sign-in serves both sites,
   // and their extract children run sequentially, so there is no contention.
   if (args.vendors.includes('walmart') && !wmCdp.reachable) needsYou.push(`Walmart extract skipped (${wmCdp.detail}). Launch: chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\\wm-chrome-profile and sign into walmart.com`);
@@ -102,7 +110,7 @@ async function main(): Promise<void> {
   // operator guidance read every week; when it named the retired run-extract.ts, the caches it produced were
   // not the ones the attach pairs from, and confident pairs went unattached for two sweeps.
   if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run scripts/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then scripts/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
-  console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
+  console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] letco[${letco.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
 
   // ---- S1 scan ----
   let before: ScanRow[] = [];
@@ -200,7 +208,20 @@ async function main(): Promise<void> {
     else needsYou.push('Amazon-CSV attach skipped: no transactions.csv cached yet (run run-extract-txns.ts --account <ENT> per Business account first)');
   }
 
-  for (const j of jobs) {
+  // ---- S2b bill jobs: invoice -> draft bill ----
+  // ENRICH ONLY. Enrich GL-codes draft bills the bookkeeper has already entered; it creates nothing,
+  // so it cannot duplicate her work, and it is idempotent (a coded line makes the next run skip the
+  // draft). `--mode=create` is deliberately NOT run here: it would start taking data entry off her
+  // without her having agreed to stop, which is a conversation, not a sweep default. Run it by hand.
+  if (want('letco') && letco.available) {
+    for (const e of letco.entities) {
+      billJobs.push(await runChild(`letco-enrich-${e}`, live([
+        'scripts/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--limit', lim,
+      ])));
+    }
+  }
+
+  for (const j of [...jobs, ...billJobs]) {
     const note = j.label.startsWith('uline') && j.code === 2 ? ' (session expired - re-run bootstrap)'
       : j.label.startsWith('uline') && j.code === 3 ? ' (account identity mismatch - check ULINE_ACCOUNT env)'
       : j.label.startsWith('uline') && j.code === 4 ? ' (consumed-invoice registry corrupt - hard stop, inspect out/uline-consumed.json)' : '';
@@ -248,6 +269,17 @@ async function main(): Promise<void> {
     `## Vendor jobs`,
     ...jobs.flatMap((j) => [`### ${j.label} — ${j.ok ? 'OK' : `FAIL (exit ${j.code ?? 'timeout'})`}`, ...j.summaryLines.map((l) => `- ${l}`), j.ok ? '' : '```\n' + j.stdoutTail.slice(-1200) + '\n```']),
     ``,
+    // Separate section on purpose: these vendors have no Ramp card transactions, so the Scan
+    // numbers above neither include them nor move when they succeed. Counting them as "vendor jobs"
+    // would invite exactly that misreading.
+    ...(billJobs.length ? [
+      `## Bill jobs (invoice → draft bill)`,
+      `These vendors have no Ramp card transactions, so they do not appear in the scan above.`,
+      `Enrich GL-codes draft bills the bookkeeper already entered; it never creates a bill.`,
+      ``,
+      ...billJobs.flatMap((j) => [`### ${j.label} — ${j.ok ? 'OK' : `FAIL (exit ${j.code ?? 'timeout'})`}`, ...j.summaryLines.map((l) => `- ${l}`), j.ok ? '' : '```\n' + j.stdoutTail.slice(-1200) + '\n```']),
+      ``,
+    ] : []),
     `## Needs you`,
     ...(needsYou.length ? needsYou.flatMap((n) => n.split('\n').map((line) => `- [ ] ${line}`)) : ['- nothing — fully automatic this week']),
     ``,

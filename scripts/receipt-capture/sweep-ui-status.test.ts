@@ -30,11 +30,31 @@ function cardByKey(status: PanelStatus, key: string) {
 }
 
 describe('assembleStatus — never touches real fs/network (fully-faked deps)', () => {
-  it('produces exactly the seven documented vendor cards', async () => {
+  it('produces exactly the eight documented vendor cards', async () => {
     const status = await assembleStatus(baseDeps());
     expect(status.vendors.map((v) => v.key).sort()).toEqual(
-      ['amazon', 'amazon-csv', 'sams', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
+      ['amazon', 'amazon-csv', 'letco', 'sams', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
     );
+  });
+
+  // Letco is the first BILL vendor on the panel — creds are the only thing that can block it, so
+  // the light must not depend on a session file or cache it will never have.
+  describe('letco light', () => {
+    const env = (vars: Record<string, string>): NodeJS.ProcessEnv => vars as NodeJS.ProcessEnv;
+
+    it('green when all three entities have portal creds', async () => {
+      const status = await assembleStatus(baseDeps({
+        env: env({ LETCO_FL: 'a', LETCO_FL_Pass: 'b', LETCO_TN: 'c', LETCO_TN_Pass: 'd', LETCO_TX: 'e', LETCO_TX_Pass: 'f' }),
+      }));
+      expect(cardByKey(status, 'letco').light).toBe('green');
+    });
+
+    it('amber on partial creds and red on none', async () => {
+      const partial = await assembleStatus(baseDeps({ env: env({ LETCO_FL: 'a', LETCO_FL_Pass: 'b' }) }));
+      expect(cardByKey(partial, 'letco').light).toBe('amber');
+      const none = await assembleStatus(baseDeps({ env: env({}) }));
+      expect(cardByKey(none, 'letco').light).toBe('red');
+    });
   });
 
   describe('toprx light', () => {

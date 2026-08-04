@@ -50,6 +50,20 @@ export function checkUline(stateDir: string): VendorAvailability {
   };
 }
 
+// Letco is a BILL job, not a receipt job: it has zero Ramp card transactions, so it contributes
+// nothing to the receiptless scan. It needs only portal creds — no browser, no bootstrap, no CDP.
+export function checkLetco(env: NodeJS.ProcessEnv): VendorAvailability {
+  const entities = ALL_ENTITIES.filter((e) => Boolean(env[`LETCO_${e}`]) && Boolean(env[`LETCO_${e}_Pass`]));
+  const missing = ALL_ENTITIES.filter((e) => !entities.includes(e));
+  return {
+    vendor: 'letco',
+    entities: [...entities],
+    available: entities.length > 0,
+    detail: `creds for ${entities.join(',') || 'none'}`,
+    needsYou: missing.length ? `Letco creds missing for ${missing.join(', ')} (web/.env.local LETCO_<ENT> / LETCO_<ENT>_Pass)` : null,
+  };
+}
+
 export async function checkCdp(url: string, timeoutMs = 1500): Promise<{ reachable: boolean; detail: string }> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
