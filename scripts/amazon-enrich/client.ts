@@ -181,8 +181,19 @@ export async function patchMemo(
   token: string,
 ): Promise<{ status: number; body: unknown }> {
   void entity; // entity is encoded in the token; kept for call-site symmetry
-  const res = await fetch(`${BASE}/transactions/${txnId}`, {
-    method: 'PATCH',
+  // WAS A SILENT NO-OP until 2026-08-04. This used to PATCH /transactions/{id} with {memo}, but
+  // that endpoint accepts ONLY `line_items` ("Split a transaction into line items, or update an
+  // existing split") — there is no memo field on it. Ramp ignored the unknown key and returned 200
+  // with the unchanged transaction, so every caller logged a successful memo write that never
+  // happened: 22 TopRx + 34 ULINE + 7 amazon-csv rows in receipt-capture-audit.csv.
+  //
+  // Found when the TopRx trial's memo "succeeded" yet GET /memos still returned the bookkeeper's
+  // original text. The real endpoint is POST /memos/{transaction_id} (scope memos:write, which
+  // every caller already requests) — the same one run-amazon.ts and ramp-memo-fill.ts use, whose
+  // 2,057-memo backfill was therefore real. Fixed here rather than at each call site so all four
+  // callers are corrected at once.
+  const res = await fetch(`${BASE}/memos/${txnId}`, {
+    method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ memo }),
   });
