@@ -9,7 +9,9 @@ export interface AuditRow {
   vendor: string;
   entity: string;
   txnId: string;
-  action: 'attach_receipt' | 'memo' | 'split' | 'unsplit' | 'skip' | 'error';
+  // create_draft/attach_pdf added for the Letco bill-draft pipeline (run-letco.ts) — additive only,
+  // every existing receipt-attach caller's action values are still valid members of this union.
+  action: 'attach_receipt' | 'memo' | 'split' | 'unsplit' | 'skip' | 'error' | 'create_draft' | 'attach_pdf';
   invoiceKey: string;
   amountCents: number;
   status: number | null;
