@@ -263,6 +263,12 @@ async function runLetco(entity: Entity, args: Args, runId: string): Promise<void
   // Fail loudly BEFORE touching the portal or Ramp if this entity's coding config is incomplete —
   // cheaper than discovering it mid-run on invoice #40.
   const vendorId = requireEnv(`LETCO_RAMP_VENDOR_${entity}`);
+  // Confirmed empirically (2026-08-04), not inferred: every bill Ramp already holds carries a
+  // non-null entity_id, one distinct value per entity (verified against a real Letco TX bill,
+  // invoice C335-162940). Sending null here would be guessing against that evidence — resolved
+  // strictly per entity, same requireEnv treatment as the vendor/GL option ids, because a wrong
+  // value here puts the bill in the wrong company's books.
+  const entityId = requireEnv(`RAMP_ENTITY_ID_${entity}`);
   const glFieldExternalId = requireEnv('RAMP_GL_FIELD_EXTERNAL_ID');
   const accountOptionIds = accountOptionIdsFor(entity);
 
@@ -374,11 +380,8 @@ async function runLetco(entity: Entity, args: Args, runId: string): Promise<void
     if (!existsSync(PDF_DIR)) mkdirSync(PDF_DIR, { recursive: true });
     writeFileSync(`${PDF_DIR}/letco-${entity}-${invoiceNumber}.pdf`, pdfRes.buffer);
 
-    // entityId left null: no verified Ramp entity_id source exists yet for this multi-entity setup
-    // (Task 8's residual risk — buildDraftBillBody already omits entity_id entirely when null).
-    // Confirm at the Task 12 live pilot before ever passing a real value here.
     const input: DraftBillInput = {
-      vendorId, entityId: null, invoiceNumber: item.documentId, issuedAt: item.documentDate, dueAt, memo,
+      vendorId, entityId, invoiceNumber: item.documentId, issuedAt: item.documentDate, dueAt, memo,
       lines: coded, glFieldExternalId, accountOptionIds,
     };
     const body = buildDraftBillBody(input);
