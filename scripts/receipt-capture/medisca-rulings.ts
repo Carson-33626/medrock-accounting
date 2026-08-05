@@ -64,6 +64,17 @@ export const ITEM_RULINGS: ItemRuling[] = [
       'are all from early 2025 before she settled.',
   },
   {
+    // The PORTAL's spelling of the gloves — the order page says "Nitrile Gloves 9" 4mil" where her
+    // books say "Gloves, Blue Nitrile Powder-Free, (S - 9"- 4 mil) ...", so description history can
+    // never match it. Same item, same call as the blank-memo line ruling below: all 16 glove lines
+    // in her history are 1220.20, and Carson ruled gloves -> lab supplies inventory on 2026-08-05.
+    sample: 'Nitrile Gloves 9" 4mil',
+    account: '1220.20',
+    rationale:
+      'Lab supplies inventory. Portal wording of the recurring S/M/L glove order; every one of the ' +
+      '16 glove lines in her QuickBooks history is 1220.20, without exception.',
+  },
+  {
     sample: 'Stir-Bar Positioner/Retriever 12"',
     account: '1220.20',
     rationale:
