@@ -64,7 +64,7 @@ const MODES: Mode[] = ['refresh', 'enrich', 'create'];
 // Never capture or create into a period accounting has closed. Advance this as months close.
 const PERIOD_FLOOR = '2026-05-01';
 
-interface Args { mode: Mode; entity: Entity; historySince: string; since: string; live: boolean; limit: number; force: boolean }
+interface Args { mode: Mode; entity: Entity; historySince: string; since: string; invoice: string | null; live: boolean; limit: number; force: boolean }
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
@@ -93,6 +93,9 @@ function parseArgs(): Args {
     // gates what create may WRITE) there is no safety reason to limit it — and a deep cache is what
     // feeds the SKU map, since the teaching set is precisely the old, already-coded invoices.
     since: get('--since') ?? PERIOD_FLOOR,
+    // Create-only: restrict the run to one invoice number. Exists so a live PILOT can pick a
+    // deliberate target instead of whatever sorts first by date.
+    invoice: get('--invoice'),
     live: argv.includes('--live'),
     limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
     force: argv.includes('--force'),
@@ -294,8 +297,9 @@ async function runCreate(args: Args, runId: string): Promise<void> {
   // The floor is enforced HERE, not only at capture: the cache may deliberately hold years of
   // history (it feeds the SKU map), but create must never propose a draft into a closed period.
   const all = cache.all().filter((r) => r.entity === args.entity);
-  const cached = all.filter((r) => r.invoiceDate >= PERIOD_FLOOR);
-  console.log(`[${args.entity}] cache: ${all.length} invoice(s), ${cached.length} on/after ${PERIOD_FLOOR}`);
+  const cached = all.filter((r) => r.invoiceDate >= PERIOD_FLOOR)
+    .filter((r) => args.invoice === null || normalizeInvoiceNumber(r.invoiceNumber) === normalizeInvoiceNumber(args.invoice));
+  console.log(`[${args.entity}] cache: ${all.length} invoice(s), ${cached.length} on/after ${PERIOD_FLOOR}${args.invoice ? ` (filtered to ${args.invoice})` : ''}`);
 
   // The registry is the only idempotency Ramp's draft-create has. Same discipline as Letco: a
   // corrupt registry hard-stops a live run (an empty-looking registry would re-create every bill)
