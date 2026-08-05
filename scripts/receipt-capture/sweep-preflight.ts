@@ -64,6 +64,18 @@ export function checkLetco(env: NodeJS.ProcessEnv): VendorAvailability {
   };
 }
 
+export function checkMedisca(env: NodeJS.ProcessEnv): VendorAvailability {
+  const entities = ALL_ENTITIES.filter((e) => Boolean(env[`MEDISCA_${e}`]) && Boolean(env[`MEDISCA_${e}_Pass`]));
+  const missing = ALL_ENTITIES.filter((e) => !entities.includes(e));
+  return {
+    vendor: 'medisca',
+    entities: [...entities],
+    available: entities.length > 0,
+    detail: `creds for ${entities.join(',') || 'none'}`,
+    needsYou: missing.length ? `Medisca creds missing for ${missing.join(', ')} (web/.env.local MEDISCA_<ENT> / MEDISCA_<ENT>_Pass)` : null,
+  };
+}
+
 export async function checkCdp(url: string, timeoutMs = 1500): Promise<{ reachable: boolean; detail: string }> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);

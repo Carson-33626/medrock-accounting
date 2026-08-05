@@ -12,7 +12,7 @@
 // cards below reimplement its FL/TN-joint, TX-solo shape (see sweep-preflight.ts's own comment)
 // directly against deps.statePath instead.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { checkTopRx, checkLetco, checkCdp } from './sweep-preflight';
+import { checkTopRx, checkLetco, checkMedisca, checkCdp } from './sweep-preflight';
 import { txnReportPath } from '../amazon-csv-enrich/paths';
 import { ALL_ENTITIES } from '../ramp-split-push/types';
 import { SAMS } from '../walmart-enrich/retailer-profile';
@@ -146,6 +146,36 @@ function letcoCard(deps: StatusDeps): VendorCard {
   };
 }
 
+function mediscaCard(deps: StatusDeps): VendorCard {
+  const r = checkMedisca(deps.env);
+  // Cache age IS a real signal here (unlike Letco, which has no cache): the create pipeline reads
+  // only the local cache, so a stale cache means missing new invoices — a coverage gap a refresh
+  // fixes, never a correctness problem, because an issued invoice is immutable.
+  const caches = ALL_ENTITIES
+    .map((e) => deps.statePath(`scripts/receipt-capture/out/medisca-cache-${e}.json`))
+    .filter((f): f is FileInfo => f !== null && f.exists);
+  const oldest = caches.length === 0 ? null : Math.min(...caches.map((f) => f.mtimeMs));
+  const ageHours = oldest === null ? null : Math.round((deps.now() - oldest) / 3_600_000);
+  const cacheNote = caches.length === 0
+    ? 'no cache yet — run refresh'
+    : `cache ${caches.length}/${ALL_ENTITIES.length} entities, oldest ${ageHours}h old`;
+  const light: Light = r.entities.length === ALL_ENTITIES.length
+    ? (caches.length === ALL_ENTITIES.length ? 'green' : 'amber')
+    : r.entities.length > 0 ? 'amber' : 'red';
+  return {
+    key: 'medisca',
+    label: 'Medisca (bills)',
+    light,
+    detail: `${r.detail} — ${cacheNote}; enrich codes her drafts, create builds the missing ones`,
+    actions: [
+      'medisca-refresh-FL', 'medisca-refresh-TN', 'medisca-refresh-TX',
+      'medisca-enrich-dry', 'medisca-create-dry',
+      'medisca-enrich-FL', 'medisca-enrich-TN', 'medisca-enrich-TX',
+      'medisca-create-FL', 'medisca-create-TN', 'medisca-create-TX',
+    ],
+  };
+}
+
 function lastSweep(deps: StatusDeps): PanelStatus['lastSweep'] {
   const state = deps.sweepState();
   if (!state || state.history.length === 0) return null;
@@ -171,6 +201,7 @@ export async function assembleStatus(deps: StatusDeps): Promise<PanelStatus> {
     amazonCard(),
     amazonCsvCard(deps),
     letcoCard(deps),
+    mediscaCard(deps),
   ];
   return {
     vendors,

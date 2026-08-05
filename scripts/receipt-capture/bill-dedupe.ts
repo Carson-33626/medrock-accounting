@@ -20,8 +20,14 @@ export interface DedupeFacts {
 
 export type DedupeVerdict = 'create' | 'skip_registry' | 'skip_quickbooks' | 'skip_ramp' | 'skip_draft';
 
+/**
+ * Leading zeros are stripped because QuickBooks does not preserve the vendor's padding: Medisca
+ * invoice "03865107" is stored as DocNumber "3865107". Comparing raw would miss that match and
+ * create a duplicate of a bill already in the books — the precise failure this module exists to
+ * prevent. Letco's numbers ("C335-176896") carry no leading zeros, so they are unaffected.
+ */
 function normalizeKey(s: string): string {
-  return s.trim().toLowerCase();
+  return s.trim().toLowerCase().replace(/^0+(?=.)/, '');
 }
 
 function hasKey(set: Set<string>, key: string): boolean {

@@ -12,9 +12,24 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+export interface CachedOrderLine {
+  sku: string;
+  name: string;
+  amountCents: number;
+  lot: string;
+  /** quantity still back-ordered; a fully back-ordered line was not billed on this invoice */
+  backOrdered: number;
+}
+
 export interface CachedBillLine {
   desc: string;
   amountCents: number;
+  /**
+   * Vendor SKU, when the line could be joined unambiguously to the order page. Empty when it could
+   * not — several lines sharing one amount (the three $120 gloves) are indistinguishable, and a
+   * guessed SKU becomes a wrong GL account on every future invoice carrying it.
+   */
+  sku: string;
 }
 
 export interface CachedInvoice {
@@ -32,11 +47,25 @@ export interface CachedInvoice {
   listSubtotalCents: number;
   listBalanceCents: number;
   paid: boolean;
-  /** from the PDF */
+  /** from the PDF — authoritative for what was BILLED */
   lines: CachedBillLine[];
-  shippingCents: number;
-  otherChargesCents: number;
-  discountCents: number;
+  /**
+   * From the order detail page, stored in its OWN right rather than only as an enrichment of the
+   * billed lines. It may include items that were back-ordered and never billed, so it is not a
+   * substitute for `lines` — but it is available even when the PDF is an image with no text layer,
+   * which every Medisca invoice before 2026-08-03 is. That makes it the only route to SKUs for the
+   * historical invoices, and those are precisely the ones already coded in QuickBooks, i.e. the
+   * teaching set the SKU map is learned from.
+   */
+  orderLines: CachedOrderLine[];
+  /**
+   * The totals block's two anchors, stored raw. Deliberately NOT decomposed into
+   * shipping/discount/other: the block omits its zero columns and which ones are omitted varies, and
+   * the difference means different things — on a SHIPPING invoice the lines are gross and tie to the
+   * subtotal, on a DISCOUNTED one the discount is already inside the line amounts and they tie to
+   * the total. Naming the difference "shipping" would assert something the document does not say.
+   */
+  pdfSubtotalCents: number;
   pdfTotalCents: number;
   pdfPath: string;
   /** null when the PDF parsed cleanly; a reason string when it did not */
@@ -95,28 +124,55 @@ function csvCell(v: unknown): string {
 export function cacheToCsv(rows: CachedInvoice[]): string {
   const header = [
     'invoice_number', 'order_number', 'entity', 'invoice_date', 'due_date',
-    'list_subtotal', 'list_total', 'balance', 'paid', 'line_count',
-    'lines_sum', 'shipping', 'other_charges', 'discount', 'pdf_total',
+    'list_total', 'balance', 'paid', 'line_count', 'lines_sum',
+    'pdf_subtotal', 'pdf_total', 'adjustment', 'ties_to',
     'reconciles', 'parse_error', 'pdf_path', 'fetched_at',
   ].join(',');
 
   const body = [...rows]
     .sort((a, b) => a.invoiceDate.localeCompare(b.invoiceDate) || a.invoiceNumber.localeCompare(b.invoiceNumber))
     .map((r) => {
-      const linesSum = r.lines.reduce((a, l) => a + l.amountCents, 0);
-      const reconciles = r.parseError === null
-        && linesSum + r.shippingCents + r.otherChargesCents - r.discountCents === r.pdfTotalCents
-        && r.pdfTotalCents === r.listTotalCents;
+      const v = reconcileInvoice(r);
       return [
         r.invoiceNumberRaw, r.orderNumber, r.entity, r.invoiceDate, r.dueDate,
-        (r.listSubtotalCents / 100).toFixed(2), (r.listTotalCents / 100).toFixed(2),
-        (r.listBalanceCents / 100).toFixed(2), r.paid ? 'paid' : 'unpaid', String(r.lines.length),
-        (linesSum / 100).toFixed(2), (r.shippingCents / 100).toFixed(2),
-        (r.otherChargesCents / 100).toFixed(2), (r.discountCents / 100).toFixed(2),
-        (r.pdfTotalCents / 100).toFixed(2),
-        reconciles ? 'yes' : 'NO', r.parseError ?? '', r.pdfPath, r.fetchedAt,
+        (r.listTotalCents / 100).toFixed(2), (r.listBalanceCents / 100).toFixed(2),
+        r.paid ? 'paid' : 'unpaid', String(r.lines.length), (v.linesSumCents / 100).toFixed(2),
+        (r.pdfSubtotalCents / 100).toFixed(2), (r.pdfTotalCents / 100).toFixed(2),
+        (v.adjustmentCents / 100).toFixed(2), v.tiesTo,
+        v.reconciles ? 'yes' : 'NO', r.parseError ?? '', r.pdfPath, r.fetchedAt,
       ].map(csvCell).join(',');
     });
 
   return [header, ...body].join('\n') + '\n';
+}
+
+export interface ReconcileVerdict {
+  reconciles: boolean;
+  linesSumCents: number;
+  /** what a draft would need as an extra line to reach the invoice total */
+  adjustmentCents: number;
+  /** which anchor the lines tie to: 'subtotal' | 'total' | 'both' | 'neither' */
+  tiesTo: string;
+}
+
+/**
+ * Medisca uses two conventions and they tie to different anchors — see medisca-create.ts. Lines
+ * matching NEITHER anchor is the real failure (a dropped or duplicated line); matching either is fine.
+ */
+export function reconcileInvoice(r: CachedInvoice): ReconcileVerdict {
+  const linesSumCents = r.lines.reduce((a, l) => a + l.amountCents, 0);
+  const matchesSubtotal = linesSumCents === r.pdfSubtotalCents;
+  const matchesTotal = linesSumCents === r.pdfTotalCents;
+  const tiesTo = matchesSubtotal && matchesTotal ? 'both'
+    : matchesSubtotal ? 'subtotal'
+      : matchesTotal ? 'total' : 'neither';
+  return {
+    reconciles: r.parseError === null
+      && r.lines.length > 0
+      && (matchesSubtotal || matchesTotal)
+      && r.pdfTotalCents === r.listTotalCents,
+    linesSumCents,
+    adjustmentCents: r.listTotalCents - linesSumCents,
+    tiesTo,
+  };
 }

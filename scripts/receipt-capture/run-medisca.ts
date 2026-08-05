@@ -1,28 +1,44 @@
-// Medisca orchestrator — ENRICH ONLY. See
-// docs/superpowers/specs/2026-08-04-medisca-draft-enrichment-design.md
+// Medisca orchestrator. Specs:
+//   docs/superpowers/specs/2026-08-04-medisca-draft-enrichment-design.md   (enrich)
+//   docs/superpowers/specs/2026-08-05-medisca-create-mode-design.md        (refresh + create)
 //
-// Kristina enters every Medisca invoice as a Ramp draft (77 of them right now, ALL uncoded) and
-// codes the GL by hand before sending for approval. This takes that coding step off her by
-// replaying her OWN QuickBooks history onto the drafts she has not coded yet.
+// THREE MODES, and the cache is the seam between them:
 //
-// There is deliberately NO create mode. Letco has one because 13 of its invoices had no draft at
-// all; every Medisca invoice already has one. Creating would only duplicate her work — the exact
-// failure the Letco pilot produced on 2026-08-04.
+//   refresh   portal -> local cache + PDFs.  READ-ONLY: no Ramp, no QuickBooks, no writes anywhere.
+//   enrich    GL-codes the drafts Kristina has ALREADY keyed, by replaying her QB history.
+//   create    builds the drafts she has not keyed yet, reading the CACHE ONLY — never the portal.
 //
-// Unlike Letco this needs NO portal session at all: Ramp's drafts already carry the invoice PDF,
-// per-line amounts and shipping as its own line, and the risk here is product CATEGORY, which the
-// portal's free text would not resolve any better than the memo already does.
+// Splitting capture from writing is what makes planning offline, repeatable and reviewable: the same
+// cache replays an identical plan, writes work from a snapshot a human has looked at, and a vendor
+// outage cannot block a create run.
 //
-//   npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL [--history-since 2023-01-01] [--live] [--limit 5]
+// Create exists because enrich only halves her work — it codes what she has already typed. The point
+// is to remove the typing. It targets ONLY invoices no system has yet: everything already in
+// QuickBooks, in a Ramp bill, or in a Ramp draft is deduped out, because creating those would
+// double-book, which is exactly what the Letco pilot did on 2026-08-04.
+//
+//   npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL --mode=refresh [--force]
+//   npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL --mode=create
+//   npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL [--mode=enrich] [--live] [--limit 5]
 import '../ramp-split-push/load-env';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import {
   listDraftBills, buildPatchLinesBody, patchDraftBillLines, isGlCoded,
+  buildDraftBillBody, createDraftBill, attachBillDocument,
 } from './bill-draft';
-import type { RampDraftBill } from './bill-draft';
+import type { RampDraftBill, DraftBillBody } from './bill-draft';
+import { loadConsumedBillStore } from './bill-consumed';
 import { planMediscaEnrichment, recordHistory } from './medisca-gl';
 import type { MediscaHistory, MediscaDraftLine } from './medisca-gl';
 import { buildRulings, RULED_BY } from './medisca-rulings';
+import { MediscaSession } from './medisca-session';
+import { refreshEntity } from './medisca-refresh';
+import { loadBillCache, normalizeInvoiceNumber } from './bill-cache';
+import { planMediscaCreate } from './medisca-create';
+import { joinInvoiceLines, buildSkuHistory, toSkuMapFile } from './medisca-sku';
+import type { SkuObservation, QbCodedLine } from './medisca-sku';
+import { dedupeVerdict } from './bill-dedupe';
+import type { DedupeFacts } from './bill-dedupe';
 import { appendAudit } from './audit';
 import { parseNumericFlag } from './cli-args';
 import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
@@ -42,7 +58,13 @@ const VENDOR_RE = /medisca/i;
 // genuinely new items and genuine inconsistencies, not a thin corpus.
 const DEFAULT_HISTORY_SINCE = '2023-01-01';
 
-interface Args { entity: Entity; historySince: string; live: boolean; limit: number }
+type Mode = 'refresh' | 'enrich' | 'create';
+const MODES: Mode[] = ['refresh', 'enrich', 'create'];
+
+// Never capture or create into a period accounting has closed. Advance this as months close.
+const PERIOD_FLOOR = '2026-05-01';
+
+interface Args { mode: Mode; entity: Entity; historySince: string; live: boolean; limit: number; force: boolean }
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
@@ -52,15 +74,23 @@ function parseArgs(): Args {
     const i = argv.indexOf(flag);
     return i !== -1 && argv[i + 1] ? argv[i + 1] : null;
   };
+  const usage =
+    'Usage: npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL|TN|TX ' +
+    '[--mode=refresh|enrich|create] [--history-since 2023-01-01] [--force] [--live] [--limit 5]';
+
   const entityArg = get('--entity');
-  if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) {
-    throw new Error('Usage: npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL|TN|TX [--history-since 2023-01-01] [--live] [--limit 5]');
-  }
+  if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) throw new Error(usage);
+
+  const modeArg = (get('--mode') ?? 'enrich') as Mode;
+  if (!MODES.includes(modeArg)) throw new Error(usage);
+
   return {
+    mode: modeArg,
     entity: entityArg as Entity,
     historySince: get('--history-since') ?? DEFAULT_HISTORY_SINCE,
     live: argv.includes('--live'),
     limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
+    force: argv.includes('--force'),
   };
 }
 
@@ -110,6 +140,72 @@ async function buildHistory(since: string): Promise<{ history: MediscaHistory; b
   return { history, bills, lines };
 }
 
+/**
+ * QuickBooks Medisca bill lines, keyed by normalised invoice number. This is the teaching set for
+ * the SKU map: where an invoice exists on both sides, its portal lines and its QB lines describe the
+ * same goods, so joining them by amount reveals which account she gave each SKU.
+ */
+async function buildQbLineIndex(since: string): Promise<Map<string, QbCodedLine[]>> {
+  const out = new Map<string, QbCodedLine[]>();
+  for (const entity of ALL_ENTITIES) {
+    const rows = await qbQueryAll<QbBill & { DocNumber?: string }>(
+      ENTITY_TO_QB_LOCATION[entity], 'Bill', `WHERE TxnDate >= '${since}'`,
+    );
+    for (const b of rows.filter((r) => VENDOR_RE.test(r.VendorRef?.name ?? ''))) {
+      const key = normalizeInvoiceNumber(b.DocNumber ?? '');
+      if (key === '') continue;
+      out.set(key, (b.Line ?? [])
+        .map((l) => ({
+          account: (l.AccountBasedExpenseLineDetail?.AccountRef?.name ?? '').split(' ')[0],
+          amountCents: Math.round(((l as { Amount?: number }).Amount ?? 0) * 100),
+        }))
+        .filter((l) => l.account !== ''));
+    }
+  }
+  return out;
+}
+
+/**
+ * The four dedupe layers, minus the registry (checked per invoice). Both systems are consulted
+ * because Medisca bills reach the books by two routes, and `GET /bills` silently excludes DRAFTs —
+ * the omission that produced a duplicate of the bookkeeper's own draft on 2026-08-04.
+ */
+async function buildDedupeFacts(entity: Entity): Promise<Omit<DedupeFacts, 'inRegistry'>> {
+  const qbDocNumbers = new Set<string>();
+  for (const e of ALL_ENTITIES) {
+    const rows = await qbQueryAll<QbBill & { DocNumber?: string }>(
+      ENTITY_TO_QB_LOCATION[e], 'Bill', `WHERE TxnDate >= '2025-01-01'`,
+    );
+    for (const b of rows.filter((r) => VENDOR_RE.test(r.VendorRef?.name ?? ''))) {
+      const d = (b.DocNumber ?? '').trim();
+      if (d !== '') qbDocNumbers.add(d);
+    }
+  }
+
+  const token = await rampToken(entity, SCOPES_READ);
+  const rampDraftInvoiceNumbers = new Set<string>();
+  for (const d of await listDraftBills(entity, token, rampGet)) {
+    if (VENDOR_RE.test(d.vendor?.name ?? '') && (d.invoice_number ?? '') !== '') {
+      rampDraftInvoiceNumbers.add((d.invoice_number ?? '').trim());
+    }
+  }
+
+  const rampInvoiceNumbers = new Set<string>();
+  interface BillPage { data?: { invoice_number?: string | null; vendor?: { name?: string | null } | null }[]; page?: { next?: string | null } }
+  let url: string | null = '/bills?page_size=100';
+  for (let i = 0; i < 50 && url !== null; i++) {
+    const res: { status: number; body: BillPage } = await rampGet<BillPage>(entity, url, token);
+    for (const b of res.body.data ?? []) {
+      if (VENDOR_RE.test(b.vendor?.name ?? '') && (b.invoice_number ?? '') !== '') {
+        rampInvoiceNumbers.add((b.invoice_number ?? '').trim());
+      }
+    }
+    url = res.body.page?.next ?? null;
+  }
+
+  return { qbDocNumbers, rampInvoiceNumbers, rampDraftInvoiceNumbers };
+}
+
 function isMediscaDraft(d: RampDraftBill, vendorId: string): boolean {
   if ((d.vendor?.id ?? '') === vendorId) return true;
   return VENDOR_RE.test(d.vendor?.name ?? '');
@@ -141,11 +237,263 @@ function planLine(r: PlanRow): string {
   ].map(csv).join(',');
 }
 
+// ---- refresh ----
+// Portal -> local cache. Read-only: no Ramp, no QuickBooks, no writes to any system of record.
+async function runRefresh(args: Args): Promise<void> {
+  const session = await MediscaSession.login(args.entity);
+  console.log(`[${args.entity}] logged in: customer=${session.customerCode} company=${session.company}`);
+
+  const res = await refreshEntity(
+    session,
+    {
+      entity: args.entity,
+      periodFloor: PERIOD_FLOOR,
+      force: args.force,
+      outDir: OUT,
+      pdfDir: `${OUT}/pdf/medisca`,
+      now: () => new Date().toISOString(),
+    },
+    (msg: string) => console.log(msg),
+  );
+
+  console.log(
+    `[${args.entity}] refresh: listed=${res.listed} fetched=${res.fetched} ` +
+    `reused=${res.reused} failed=${res.failed}`,
+  );
+  console.log(`[${args.entity}] cache ${res.cachePath}`);
+  console.log(`[${args.entity}] export ${res.csvPath}`);
+}
+
+// ---- create ----
+// Reads the LOCAL CACHE only — no portal access, so a vendor outage cannot block a create run and
+// the plan is reproducible from a reviewed snapshot.
+interface CreateRow {
+  invoiceNumber: string; entity: Entity; invoiceDate: string; dueDate: string;
+  totalCents: number; lineCount: number; verdict: string; accounts: string; notes: string;
+}
+
+function extractDraftId(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const id = (body as { id?: unknown }).id;
+  return typeof id === 'string' && id !== '' ? id : null;
+}
+
+const CONSUMED_PATH = `${OUT}/medisca-consumed.json`;
+
+async function runCreate(args: Args, runId: string): Promise<void> {
+  const cachePath = `${OUT}/medisca-cache-${args.entity}.json`;
+  if (!existsSync(cachePath)) {
+    throw new Error(`No cache at ${cachePath}. Run --mode=refresh first — create never touches the portal.`);
+  }
+  const cache = loadBillCache(cachePath);
+  const cached = cache.all().filter((r) => r.entity === args.entity);
+  console.log(`[${args.entity}] cache: ${cached.length} invoice(s)`);
+
+  // The registry is the only idempotency Ramp's draft-create has. Same discipline as Letco: a
+  // corrupt registry hard-stops a live run (an empty-looking registry would re-create every bill)
+  // but only warns a dry-run.
+  const consumed = loadConsumedBillStore(CONSUMED_PATH);
+  if (consumed.corrupt && args.live) {
+    throw new Error(
+      `MEDISCA_CONSUMED_REGISTRY_CORRUPT: ${CONSUMED_PATH} failed to parse — hard stop before any ` +
+      `live write. Inspect/restore before retrying --live.`,
+    );
+  }
+
+  // Live-only config, resolved BEFORE any work so a missing var fails on invoice #0, not #40.
+  const vendorId = args.live ? requireEnv(`MEDISCA_RAMP_VENDOR_${args.entity}`) : '';
+  const entityId = args.live ? requireEnv(`RAMP_ENTITY_ID_${args.entity}`) : '';
+  const glFieldExternalId = requireEnv('RAMP_GL_FIELD_EXTERNAL_ID');
+  const token = await rampToken(args.entity, args.live ? SCOPES_WRITE : SCOPES_READ);
+  const gl = await buildGlIndex(args.entity, token);
+  const accountOptionIds: Record<string, string> = {};
+  for (const [code, id] of gl.byCode) accountOptionIds[code] = id;
+
+  const { history } = await buildHistory(args.historySince);
+  const rulings = buildRulings();
+
+  // The SKU map is learned from the overlap between what the portal captured and what she has
+  // already coded in QuickBooks — the same replay-her-decisions principle as the description
+  // classifier, keyed on product identity instead of prose.
+  // Learn from the ORDER lines, not the billed lines. Every invoice before 2026-08-03 is an
+  // image-only PDF with no extractable lines, and those are exactly the invoices already coded in
+  // QuickBooks — the only ones that can teach anything. Reading the billed lines instead produced a
+  // SKU map with zero observations, because the invoices carrying SKUs were the new ones QB has
+  // never seen.
+  //
+  // Pooled across ALL entities for the same reason the description history is: account codes are
+  // company-wide, and TX alone is too thin to learn from.
+  const qbByInvoice = await buildQbLineIndex(args.historySince);
+  const observations: SkuObservation[] = [];
+  for (const e of ALL_ENTITIES) {
+    const path = `${OUT}/medisca-cache-${e}.json`;
+    if (!existsSync(path)) continue;
+    for (const inv of loadBillCache(path).all()) {
+      const qbLines = qbByInvoice.get(normalizeInvoiceNumber(inv.invoiceNumber));
+      if (qbLines === undefined) continue;
+      observations.push(...joinInvoiceLines(
+        inv.orderLines
+          .filter((l) => l.sku !== '')
+          .map((l) => ({ sku: l.sku, amountCents: l.amountCents })),
+        qbLines,
+      ));
+    }
+  }
+  const skuHistory = buildSkuHistory(observations);
+  const skuFile = toSkuMapFile(skuHistory, new Date().toISOString());
+  writeFileSync(`${OUT}/medisca-sku-map.json`, JSON.stringify(skuFile, null, 2));
+  console.log(
+    `[${args.entity}] SKU map: ${observations.length} observation(s) -> ` +
+    `${Object.keys(skuFile.resolved).length} resolved, ${Object.keys(skuFile.ambiguous).length} contested`,
+  );
+
+  const facts = await buildDedupeFacts(args.entity);
+  console.log(
+    `[${args.entity}] dedupe: ${facts.qbDocNumbers.size} QB, ${facts.rampInvoiceNumbers.size} Ramp bills, ` +
+    `${facts.rampDraftInvoiceNumbers.size} Ramp drafts`,
+  );
+
+  const rows: CreateRow[] = [];
+  const counts: Record<string, number> = {};
+  const bump = (k: string): void => { counts[k] = (counts[k] ?? 0) + 1; };
+  let liveWrites = 0;
+
+  for (const inv of cached.sort((a, b) => a.invoiceDate.localeCompare(b.invoiceDate))) {
+    const base = {
+      invoiceNumber: inv.invoiceNumberRaw, entity: args.entity,
+      invoiceDate: inv.invoiceDate, dueDate: inv.dueDate,
+      totalCents: inv.listTotalCents, lineCount: inv.lines.length,
+    };
+
+    const verdict = dedupeVerdict(inv.invoiceNumber, { ...facts, inRegistry: consumed.has(inv.invoiceNumberRaw) });
+    if (verdict !== 'create') {
+      bump(verdict);
+      rows.push({ ...base, verdict, accounts: '', notes: 'already recorded' });
+      continue;
+    }
+
+    const plan = planMediscaCreate({
+      invoiceNumberRaw: inv.invoiceNumberRaw,
+      listTotalCents: inv.listTotalCents,
+      pdfLines: inv.lines.map((l) => ({ amountCents: l.amountCents, unitPriceCents: 0, text: l.desc })),
+      pdfTotals: inv.parseError !== null || inv.lines.length === 0
+        ? null
+        : { subtotalCents: inv.pdfSubtotalCents, totalCents: inv.pdfTotalCents },
+      orderLines: inv.orderLines.map((l) => ({
+        sku: l.sku, name: l.name, qty: 0, backOrdered: l.backOrdered,
+        unitPriceCents: 0, amountCents: l.amountCents, lot: l.lot,
+      })),
+    }, { skuHistory, descriptionHistory: history, rulings });
+
+    if (!plan.ok) {
+      bump(plan.reason);
+      rows.push({ ...base, verdict: plan.reason, accounts: '', notes: plan.detail });
+      continue;
+    }
+
+    const label = plan.coded ? 'create_coded' : 'create_uncoded';
+    const accounts = plan.lines.map((l) => `${(l.amountCents / 100).toFixed(2)}->${l.account ?? '??'}[${l.reason}]`).join(' ');
+    const adjNote = plan.adjustmentCents === 0 ? '' : `adjustment ${(plan.adjustmentCents / 100).toFixed(2)}`;
+
+    const executeLive = args.live && liveWrites < args.limit;
+    if (!executeLive) {
+      bump(label);
+      rows.push({ ...base, verdict: label, accounts, notes: [adjNote, args.live ? 'over_limit' : 'dry_run'].filter((s) => s !== '').join(' ') });
+      continue;
+    }
+
+    // ---- live: create the draft, record the registry, attach the cached PDF ----
+    // A CODED plan uses the standard body builder; an UNCODED one gets the same lines with NO
+    // accounting selections at all — all-or-nothing, a half-coded draft looks reviewed.
+    let body: DraftBillBody;
+    const memo = `Medisca invoice ${inv.invoiceNumberRaw} (order ${inv.orderNumber})`;
+    if (plan.coded) {
+      body = buildDraftBillBody({
+        vendorId, entityId, invoiceNumber: inv.invoiceNumberRaw,
+        issuedAt: inv.invoiceDate, dueAt: inv.dueDate, memo,
+        lines: plan.lines.map((l) => ({ amountCents: l.amountCents, memo: l.memo, account: l.account as string })),
+        glFieldExternalId, accountOptionIds,
+      });
+    } else {
+      body = {
+        vendor_id: vendorId, invoice_number: inv.invoiceNumberRaw,
+        issued_at: inv.invoiceDate, due_at: inv.dueDate, memo,
+        line_items: plan.lines.map((l) => ({ amount: l.amountCents / 100, memo: l.memo, accounting_field_selections: [] })),
+        entity_id: entityId,
+      };
+    }
+
+    const created = await createDraftBill(args.entity, body, token);
+    const createOk = created.status >= 200 && created.status < 300;
+    const draftId = createOk ? extractDraftId(created.body) : null;
+    appendAudit(AUDIT_PATH, {
+      runId, mode: 'live', vendor: VENDOR, entity: args.entity, txnId: draftId ?? '',
+      action: createOk ? 'create_draft' : 'error', invoiceKey: inv.invoiceNumberRaw,
+      amountCents: inv.listTotalCents, status: created.status,
+      detail: JSON.stringify(created.body).slice(0, 500), priorMemo: null, priorLineItems: '',
+    });
+    liveWrites++;
+
+    if (!createOk || draftId === null) {
+      bump('create_failed');
+      rows.push({ ...base, verdict: label, accounts, notes: `create_draft_failed:HTTP_${created.status}` });
+      continue;
+    }
+
+    // Recorded BEFORE the attach: a crash between create and attach must leave the registry knowing
+    // this invoice already has a draft — an un-attached draft is a small cleanup, a duplicate is not.
+    consumed.record(inv.invoiceNumberRaw, draftId, args.entity);
+
+    let attachNote = 'no_pdf_cached';
+    if (inv.pdfPath !== '' && existsSync(inv.pdfPath)) {
+      const attach = await attachBillDocument(
+        args.entity, draftId, readFileSync(inv.pdfPath), `${inv.invoiceNumberRaw}.pdf`, token,
+      );
+      const attachOk = attach.status >= 200 && attach.status < 300;
+      attachNote = attachOk ? 'pdf_attached' : `pdf_attach_failed:HTTP_${attach.status}`;
+      appendAudit(AUDIT_PATH, {
+        runId, mode: 'live', vendor: VENDOR, entity: args.entity, txnId: draftId,
+        action: attachOk ? 'attach_pdf' : 'error', invoiceKey: inv.invoiceNumberRaw,
+        amountCents: inv.listTotalCents, status: attach.status,
+        detail: JSON.stringify(attach.body).slice(0, 300), priorMemo: null, priorLineItems: '',
+      });
+    }
+
+    bump(`${label}_live`);
+    rows.push({ ...base, verdict: label, accounts, notes: [`live_created draft_id=${draftId}`, attachNote, adjNote].filter((s) => s !== '').join(' ') });
+  }
+
+  const planPath = `${OUT}/medisca-create-plan-${args.entity}.csv`;
+  writeFileSync(planPath, [
+    'invoice_number,entity,invoice_date,due_date,total,line_count,verdict,accounts,notes',
+    ...rows.map((r) => [
+      r.invoiceNumber, r.entity, r.invoiceDate, r.dueDate, (r.totalCents / 100).toFixed(2),
+      String(r.lineCount), r.verdict, r.accounts, r.notes,
+    ].map(csv).join(',')),
+  ].join('\n') + '\n');
+
+  console.log(`[${args.entity}] ${Object.entries(counts).map(([k, n]) => `${k}=${n}`).join(' ')}`);
+  console.log(
+    `[${args.entity}] wrote ${planPath} (${rows.length} rows) | ` +
+    `${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'} | run ${runId}`,
+  );
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
   const runId = `medisca-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  console.log(`run ${runId} | entity=${args.entity} | history since ${args.historySince} | ${args.live ? `LIVE (limit ${args.limit})` : 'DRY-RUN'}`);
+  console.log(`run ${runId} | mode=${args.mode} | entity=${args.entity} | ${args.live ? `LIVE (limit ${args.limit})` : 'DRY-RUN'}`);
+
+  if (args.mode === 'refresh') {
+    await runRefresh(args);
+    return;
+  }
+  if (args.mode === 'create') {
+    await runCreate(args, runId);
+    return;
+  }
+  console.log(`  history since ${args.historySince}`);
 
   const vendorId = requireEnv(`MEDISCA_RAMP_VENDOR_${args.entity}`);
   const glFieldExternalId = requireEnv('RAMP_GL_FIELD_EXTERNAL_ID');

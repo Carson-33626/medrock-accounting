@@ -18,13 +18,14 @@ function invoice(overrides: Partial<CachedInvoice> = {}): CachedInvoice {
     listBalanceCents: 35000,
     paid: false,
     lines: [
-      { desc: 'Gloves, Blue Nitrile Powder-Free, (M)', amountCents: 12000 },
-      { desc: 'Gloves, Blue Nitrile Powder-Free, (S)', amountCents: 12000 },
-      { desc: 'Gloves, Blue Nitrile Powder-Free, (L)', amountCents: 12000 },
+      { desc: 'Gloves (M)', amountCents: 12000, sku: '5743-01' },
+      { desc: 'Gloves (S)', amountCents: 12000, sku: '' },
+      { desc: 'Gloves (L)', amountCents: 12000, sku: '' },
     ],
-    shippingCents: -1000,
-    otherChargesCents: 0,
-    discountCents: 0,
+    orderLines: [
+      { sku: '5743-01', name: 'Nitrile Gloves 9" 4mil', amountCents: 12000, lot: '223592/A', backOrdered: 0 },
+    ],
+    pdfSubtotalCents: 36000,
     pdfTotalCents: 35000,
     pdfPath: 'out/pdf/medisca/FL-04245590.pdf',
     parseError: null,
@@ -118,17 +119,47 @@ describe('loadBillCache', () => {
 });
 
 describe('cacheToCsv', () => {
-  it('reconciles a real invoice including its negative shipping credit', () => {
-    // 3x $120 gloves less a $10 shipping credit = $350, matching both the PDF and the list row.
+  it('reconciles a SHIPPING invoice, whose lines tie to the SUBTOTAL', () => {
+    // 3x $120 gloves = $360 subtotal, less a $10 shipping charge that appears only in the totals
+    // block = $350 total. The lines here are GROSS.
     const csv = cacheToCsv([invoice()]);
     const row = csv.trim().split('\n')[1];
-    expect(row).toContain('360.00'); // lines_sum
-    expect(row).toContain('-10.00'); // shipping credit
+    expect(row).toContain('360.00');  // lines_sum
+    expect(row).toContain('-10.00');  // the adjustment a draft needs to reach the invoice total
+    expect(row.split(',')).toContain('subtotal');
     expect(row.split(',')).toContain('yes');
   });
 
-  it('flags an invoice whose lines do not sum to its total', () => {
-    const csv = cacheToCsv([invoice({ lines: [{ desc: 'partial', amountCents: 100 }] })]);
+  it('reconciles a DISCOUNTED invoice, whose lines tie to the TOTAL instead', () => {
+    // Real invoice 04245602. SUB-TOTAL 357.00 is the undiscounted list price and the 10% is already
+    // baked into every line AMOUNT, so the lines sum to 321.30 — the TOTAL. Requiring the subtotal
+    // rejected every discounted invoice; two of the three entities had one on the first refresh.
+    const csv = cacheToCsv([invoice({
+      lines: [
+        { desc: 'Capsule Coni-Snap', amountCents: 10710, sku: '1895-01' },
+        { desc: 'Capsule Coni-Snap', amountCents: 21420, sku: '1112-01' },
+      ],
+      pdfSubtotalCents: 35700,
+      pdfTotalCents: 32130,
+      listTotalCents: 32130,
+    })]);
+    const row = csv.trim().split('\n')[1].split(',');
+    expect(row).toContain('total');
+    expect(row).toContain('yes');
+  });
+
+  it('refuses lines matching NEITHER anchor — the dropped-line failure', () => {
+    const csv = cacheToCsv([invoice({ lines: [{ desc: 'only one glove', amountCents: 12000, sku: '' }] })]);
+    const row = csv.trim().split('\n')[1].split(',');
+    expect(row).toContain('neither');
+    expect(row).toContain('NO');
+  });
+
+  it('never reconciles an invoice with no lines at all', () => {
+    // An image-only PDF yields zero lines and zero totals, which would otherwise "tie" trivially.
+    const csv = cacheToCsv([invoice({
+      lines: [], pdfSubtotalCents: 0, pdfTotalCents: 0, listTotalCents: 0,
+    })]);
     expect(csv.trim().split('\n')[1].split(',')).toContain('NO');
   });
 

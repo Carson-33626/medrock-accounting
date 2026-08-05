@@ -30,10 +30,10 @@ function cardByKey(status: PanelStatus, key: string) {
 }
 
 describe('assembleStatus — never touches real fs/network (fully-faked deps)', () => {
-  it('produces exactly the eight documented vendor cards', async () => {
+  it('produces exactly the nine documented vendor cards', async () => {
     const status = await assembleStatus(baseDeps());
     expect(status.vendors.map((v) => v.key).sort()).toEqual(
-      ['amazon', 'amazon-csv', 'letco', 'sams', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
+      ['amazon', 'amazon-csv', 'letco', 'medisca', 'sams', 'toprx', 'uline-FLTN', 'uline-TX', 'walmart'].sort(),
     );
   });
 

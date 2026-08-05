@@ -49,3 +49,43 @@ describe('dedupeVerdict', () => {
     expect(dedupeVerdict('C335-176896', facts)).toBe('skip_quickbooks');
   });
 });
+
+describe('zero-padding — QuickBooks does not preserve it', () => {
+  const empty = {
+    inRegistry: false,
+    qbDocNumbers: new Set<string>(),
+    rampInvoiceNumbers: new Set<string>(),
+    rampDraftInvoiceNumbers: new Set<string>(),
+  };
+
+  it('matches a padded portal number against an unpadded QuickBooks DocNumber', () => {
+    // Medisca invoice 03865107 is stored in QB as "3865107". Missing this creates a duplicate of a
+    // bill already in the books.
+    expect(dedupeVerdict('03865107', { ...empty, qbDocNumbers: new Set(['3865107']) }))
+      .toBe('skip_quickbooks');
+  });
+
+  it('matches in the other direction too', () => {
+    expect(dedupeVerdict('3865107', { ...empty, qbDocNumbers: new Set(['03865107']) }))
+      .toBe('skip_quickbooks');
+  });
+
+  it('matches a padded number against a Ramp DRAFT', () => {
+    expect(dedupeVerdict('04245588', { ...empty, rampDraftInvoiceNumbers: new Set(['4245588']) }))
+      .toBe('skip_draft');
+  });
+
+  it('leaves Letco-style numbers alone', () => {
+    expect(dedupeVerdict('C335-176896', { ...empty, qbDocNumbers: new Set(['C335-176896']) }))
+      .toBe('skip_quickbooks');
+    expect(dedupeVerdict('C335-176896', empty)).toBe('create');
+  });
+
+  it('does not collapse a bare zero into an empty key', () => {
+    expect(dedupeVerdict('0', { ...empty, qbDocNumbers: new Set(['0']) })).toBe('skip_quickbooks');
+  });
+
+  it('still creates when nothing matches', () => {
+    expect(dedupeVerdict('04245588', { ...empty, qbDocNumbers: new Set(['4245589']) })).toBe('create');
+  });
+});

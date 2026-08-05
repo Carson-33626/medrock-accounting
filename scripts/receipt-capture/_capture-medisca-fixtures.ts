@@ -31,6 +31,16 @@ async function main(): Promise<void> {
     writeFileSync(`${DIR}/medisca-invoice-${inv}.pdf`, pdf);
     console.log(`invoice ${inv}: ${pdf.length} bytes`);
   }
+
+  // Order detail pages — the real line-item source (SKU, name, qty, unit price, subtotal, lot).
+  //   04557192 -> invoice 04245590, three glove lines
+  //   04461596 -> invoice 04245588, one Bimatoprost line
+  //   04518277 -> invoice 04245589, a large multi-line order ($15,833)
+  for (const order of ['04557192', '04461596', '04518277']) {
+    const res = await fl.get(`/dashboard/orders/${order}`);
+    writeFileSync(`${DIR}/medisca-order-${order}.html`, res.text);
+    console.log(`order ${order}: HTTP ${res.status}, ${res.text.length} bytes`);
+  }
 }
 
 main().catch((e: unknown) => { console.error((e as Error).message); process.exit(1); });
