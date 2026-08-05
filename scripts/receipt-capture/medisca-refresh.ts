@@ -196,6 +196,11 @@ export async function refreshEntity(
     }
 
     cache.put(record);
+    // A full-history refresh runs to ~1,700 invoices; without a heartbeat it is indistinguishable
+    // from a hang. Every put() is already flushed, so progress shown here is progress kept.
+    if ((fetched + failed) % 25 === 0) {
+      log(`  ... ${fetched + failed}/${inPeriod.length - reused} fetched (${failed} failed)`);
+    }
   }
 
   const all = cache.all().filter((r) => r.entity === opts.entity);

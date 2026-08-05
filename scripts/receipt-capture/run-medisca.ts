@@ -64,7 +64,7 @@ const MODES: Mode[] = ['refresh', 'enrich', 'create'];
 // Never capture or create into a period accounting has closed. Advance this as months close.
 const PERIOD_FLOOR = '2026-05-01';
 
-interface Args { mode: Mode; entity: Entity; historySince: string; live: boolean; limit: number; force: boolean }
+interface Args { mode: Mode; entity: Entity; historySince: string; since: string; live: boolean; limit: number; force: boolean }
 
 function parseArgs(): Args {
   const argv = process.argv.slice(2);
@@ -76,7 +76,8 @@ function parseArgs(): Args {
   };
   const usage =
     'Usage: npx tsx scripts/receipt-capture/run-medisca.ts --entity=FL|TN|TX ' +
-    '[--mode=refresh|enrich|create] [--history-since 2023-01-01] [--force] [--live] [--limit 5]';
+    '[--mode=refresh|enrich|create] [--since 2023-01-01 (refresh capture window)] ' +
+    '[--history-since 2023-01-01] [--force] [--live] [--limit 5]';
 
   const entityArg = get('--entity');
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) throw new Error(usage);
@@ -88,6 +89,10 @@ function parseArgs(): Args {
     mode: modeArg,
     entity: entityArg as Entity,
     historySince: get('--history-since') ?? DEFAULT_HISTORY_SINCE,
+    // Refresh-only: how far back to CAPTURE. Capture is read-only, so unlike PERIOD_FLOOR (which
+    // gates what create may WRITE) there is no safety reason to limit it — and a deep cache is what
+    // feeds the SKU map, since the teaching set is precisely the old, already-coded invoices.
+    since: get('--since') ?? PERIOD_FLOOR,
     live: argv.includes('--live'),
     limit: parseNumericFlag('--limit', get('--limit'), 5, 'clamp'),
     force: argv.includes('--force'),
@@ -247,7 +252,7 @@ async function runRefresh(args: Args): Promise<void> {
     session,
     {
       entity: args.entity,
-      periodFloor: PERIOD_FLOOR,
+      periodFloor: args.since,
       force: args.force,
       outDir: OUT,
       pdfDir: `${OUT}/pdf/medisca`,
@@ -286,8 +291,11 @@ async function runCreate(args: Args, runId: string): Promise<void> {
     throw new Error(`No cache at ${cachePath}. Run --mode=refresh first — create never touches the portal.`);
   }
   const cache = loadBillCache(cachePath);
-  const cached = cache.all().filter((r) => r.entity === args.entity);
-  console.log(`[${args.entity}] cache: ${cached.length} invoice(s)`);
+  // The floor is enforced HERE, not only at capture: the cache may deliberately hold years of
+  // history (it feeds the SKU map), but create must never propose a draft into a closed period.
+  const all = cache.all().filter((r) => r.entity === args.entity);
+  const cached = all.filter((r) => r.invoiceDate >= PERIOD_FLOOR);
+  console.log(`[${args.entity}] cache: ${all.length} invoice(s), ${cached.length} on/after ${PERIOD_FLOOR}`);
 
   // The registry is the only idempotency Ramp's draft-create has. Same discipline as Letco: a
   // corrupt registry hard-stops a live run (an empty-looking registry would re-create every bill)
