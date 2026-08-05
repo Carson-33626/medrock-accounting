@@ -3,6 +3,7 @@ import {
   normalizeItem, recordHistory, classifyLine, planMediscaEnrichment, MIN_CONFIDENCE,
 } from './medisca-gl';
 import type { MediscaHistory, MediscaDraftLine } from './medisca-gl';
+import { buildRulings, ITEM_RULINGS, LINE_RULINGS } from './medisca-rulings';
 
 function historyOf(entries: [string, string][]): MediscaHistory {
   const h: MediscaHistory = new Map();
@@ -149,5 +150,121 @@ describe('planMediscaEnrichment', () => {
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.lines.reduce((a, l) => a + l.amountCents, 0)).toBe(13500);
+  });
+});
+
+describe('human rulings', () => {
+  const rulings = buildRulings();
+
+  // 7x 1220.10 / 1x 1220.05 = 87.5% — the real history that blocked three drafts.
+  const ambiguous = historyOf([
+    ...Array<[string, string]>(7).fill(['Tranexamic Acid, USP', '1220.10']),
+    ['Tranexamic Acid, USP', '1220.05'],
+  ]);
+
+  it('resolves an item history refuses as ambiguous', () => {
+    expect(classifyLine('Tranexamic Acid, USP', ambiguous).account).toBeNull();
+    const plan = planMediscaEnrichment(
+      [{ amountCents: 246300, memo: 'Tranexamic Acid, USP', coded: false }],
+      ambiguous,
+      { rulings },
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.lines[0].account).toBe('1220.10');
+    expect(plan.lines[0].reason).toBe('item_ruling');
+  });
+
+  it('NEVER overrides her own confident history', () => {
+    // She has since coded this item 1220.05 consistently. Her practice must win over the standing
+    // ruling, otherwise a ruling silently freezes the books at the day it was made.
+    const changed = historyOf(Array<[string, string]>(10).fill(['Tranexamic Acid, USP', '1220.05']));
+    const plan = planMediscaEnrichment(
+      [{ amountCents: 246300, memo: 'Tranexamic Acid, USP', coded: false }],
+      changed,
+      { rulings },
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.lines[0].account).toBe('1220.05');
+    expect(plan.lines[0].reason).toContain('history');
+  });
+
+  it('matches a ruling through normalisation, not exact text', () => {
+    // The Ramp memo carries a lot/qty tail the ruling's sample does not.
+    const plan = planMediscaEnrichment(
+      [{ amountCents: 5200, memo: 'Stir-Bar Positioner/Retriever 12" Lot:228149/A Exp:N/A Qty:2', coded: false }],
+      new Map(),
+      { rulings },
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.lines[0].account).toBe('1220.20');
+  });
+
+  it('codes the memo-less glove line by draft position', () => {
+    const lines: MediscaDraftLine[] = [
+      { amountCents: 6000, memo: 'Gloves, Blue Nitrile Powder-Free, (S - 9"- 4 mil)', coded: false },
+      { amountCents: 6000, memo: 'Gloves, Blue Nitrile Powder-Free, (M - 9"- 4 mil)', coded: false },
+      { amountCents: 6000, memo: '', coded: false },
+    ];
+    const gloves = historyOf([
+      ['Gloves, Blue Nitrile Powder-Free, (S - 9"- 4 mil)', '1220.20'],
+      ['Gloves, Blue Nitrile Powder-Free, (M - 9"- 4 mil)', '1220.20'],
+    ]);
+    const plan = planMediscaEnrichment(lines, gloves, { rulings, draftId: LINE_RULINGS[0].draftId });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.lines.map((l) => l.account)).toEqual(['1220.20', '1220.20', '1220.20']);
+    expect(plan.lines[2].reason).toBe('line_ruling');
+  });
+
+  it('drops a line ruling when the amount no longer matches — the draft moved under us', () => {
+    const plan = planMediscaEnrichment(
+      [
+        { amountCents: 6000, memo: 'Gloves, Blue Nitrile Powder-Free, (S - 9"- 4 mil)', coded: false },
+        { amountCents: 6000, memo: 'Gloves, Blue Nitrile Powder-Free, (M - 9"- 4 mil)', coded: false },
+        { amountCents: 9900, memo: '', coded: false },
+      ],
+      historyOf([
+        ['Gloves, Blue Nitrile Powder-Free, (S - 9"- 4 mil)', '1220.20'],
+        ['Gloves, Blue Nitrile Powder-Free, (M - 9"- 4 mil)', '1220.20'],
+      ]),
+      { rulings, draftId: LINE_RULINGS[0].draftId },
+    );
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.reason).toBe('unclassifiable');
+  });
+
+  it('does not apply a line ruling to a different draft', () => {
+    const plan = planMediscaEnrichment(
+      [{ amountCents: 6000, memo: '', coded: false }],
+      new Map(),
+      { rulings, draftId: 'some-other-draft' },
+    );
+    expect(plan.ok).toBe(false);
+  });
+
+  it('still refuses an unruled, unknown item', () => {
+    const plan = planMediscaEnrichment(
+      [{ amountCents: 1000, memo: 'Something She Has Never Bought', coded: false }],
+      new Map(),
+      { rulings },
+    );
+    expect(plan.ok).toBe(false);
+  });
+
+  it('rules no item into a capitalisation account', () => {
+    // 1500.02 (Fixed Assets) and 8220 (Suspense) are judgement calls that stay hers by construction.
+    for (const r of ITEM_RULINGS) expect(['1500.02', '8220']).not.toContain(r.account);
+    for (const r of LINE_RULINGS) expect(['1500.02', '8220']).not.toContain(r.account);
+  });
+
+  it('rejects two rulings that disagree on the same item', () => {
+    expect(() => buildRulings([
+      { sample: 'Widget', account: '1220.10', rationale: 'a' },
+      { sample: 'Widget', account: '1220.20', rationale: 'b' },
+    ], [])).toThrow(/Conflicting/);
   });
 });

@@ -22,6 +22,7 @@ import {
 import type { RampDraftBill } from './bill-draft';
 import { planMediscaEnrichment, recordHistory } from './medisca-gl';
 import type { MediscaHistory, MediscaDraftLine } from './medisca-gl';
+import { buildRulings, RULED_BY } from './medisca-rulings';
 import { appendAudit } from './audit';
 import { parseNumericFlag } from './cli-args';
 import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
@@ -153,6 +154,9 @@ async function main(): Promise<void> {
   const { history, bills, lines } = await buildHistory(args.historySince);
   console.log(`[${args.entity}] history (all entities): ${bills} QB Medisca bill(s), ${lines} coded line(s), ${history.size} distinct item(s)`);
 
+  const rulings = buildRulings();
+  console.log(`[${args.entity}] rulings: ${rulings.byItem.size} item + ${rulings.byLine.size} line, ruled by ${RULED_BY}`);
+
   // Option ids are resolved from THIS entity's live chart of accounts rather than env vars: Medisca
   // spans at least six accounts (vs Letco's two), and the Ramp option id differs per entity, so
   // hardcoding them would mean 18 env vars and a silent mis-post the day one changes.
@@ -165,7 +169,7 @@ async function main(): Promise<void> {
   console.log(`[${args.entity}] Ramp drafts: ${drafts.length} Medisca draft(s)`);
 
   const rows: PlanRow[] = [];
-  const counts = { patch: 0, skip_already_coded: 0, unclassifiable: 0, other: 0 };
+  const counts = { patch: 0, skip_already_coded: 0, unclassifiable: 0, other: 0, byRuling: 0 };
   let liveWrites = 0;
 
   for (const draft of drafts) {
@@ -179,7 +183,7 @@ async function main(): Promise<void> {
       lineCount: draftLines.length,
     };
 
-    const plan = planMediscaEnrichment(draftLines, history);
+    const plan = planMediscaEnrichment(draftLines, history, { rulings, draftId: draft.id });
     if (!plan.ok) {
       if (plan.reason === 'already_coded') counts.skip_already_coded++;
       else if (plan.reason === 'unclassifiable') counts.unclassifiable++;
@@ -198,7 +202,10 @@ async function main(): Promise<void> {
     }
 
     counts.patch++;
-    const accounts = plan.lines.map((l) => `${(l.amountCents / 100).toFixed(2)}->${l.account}`).join(' ');
+    // The reason travels with each line: a human ruling is not the same evidence as her own history,
+    // and anyone auditing this CSV must be able to tell the two apart at a glance.
+    const accounts = plan.lines.map((l) => `${(l.amountCents / 100).toFixed(2)}->${l.account}[${l.reason}]`).join(' ');
+    if (plan.lines.some((l) => l.reason.endsWith('_ruling'))) counts.byRuling++;
     const executeLive = args.live && liveWrites < args.limit;
     if (!executeLive) {
       rows.push({ ...base, verdict: 'patch', accounts, notes: args.live ? 'over_limit' : 'dry_run' });
@@ -225,7 +232,8 @@ async function main(): Promise<void> {
   ].join('\n') + '\n');
 
   console.log(
-    `[${args.entity}] drafts=${drafts.length} | patch=${counts.patch} skip_already_coded=${counts.skip_already_coded} ` +
+    `[${args.entity}] drafts=${drafts.length} | patch=${counts.patch} (${counts.byRuling} via ruling) ` +
+    `skip_already_coded=${counts.skip_already_coded} ` +
     `unclassifiable=${counts.unclassifiable} other=${counts.other} | ` +
     `${args.live ? `live writes=${liveWrites} (limit ${args.limit})` : 'dry-run (no writes)'}`,
   );

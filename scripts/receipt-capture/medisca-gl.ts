@@ -10,6 +10,8 @@
 // map mined from her QuickBooks history, applied only where she has been consistent. An item she
 // has never coded, or has coded inconsistently, is refused and left for her.
 import { LETCO_SHIPPING_ACCOUNT } from './letco-gl';
+// Type-only: medisca-rulings.ts imports normalizeItem from here, so a value import would be a cycle.
+import type { MediscaRulings } from './medisca-rulings';
 
 /** account code -> how many times she coded this description to it */
 export type MediscaHistory = Map<string, Map<string, number>>;
@@ -25,6 +27,8 @@ export interface MediscaCodedLine {
   amountCents: number;
   memo: string;
   account: string;
+  /** how this account was arrived at — carried into the plan CSV so every write is explainable */
+  reason: string;
 }
 
 export type MediscaRefusal =
@@ -100,7 +104,42 @@ export function classifyLine(memo: string, history: MediscaHistory): LineVerdict
   return decide(history.get(candidates[0]) as Map<string, number>, 'fuzzy');
 }
 
-export function planMediscaEnrichment(lines: MediscaDraftLine[], history: MediscaHistory): MediscaPlan {
+/**
+ * A line-level ruling is matched on draft + position + AMOUNT. The amount is the guard: if she edits
+ * the draft before we run, the ruling stops applying instead of silently coding a different line.
+ */
+function resolveRuling(
+  line: MediscaDraftLine,
+  index: number,
+  opts: PlanOptions,
+): { account: string; reason: string } | null {
+  const rulings = opts.rulings;
+  if (rulings === undefined) return null;
+
+  if (opts.draftId !== undefined) {
+    const lr = rulings.byLine.get(`${opts.draftId}:${index}`);
+    if (lr !== undefined && lr.amountCents === line.amountCents) {
+      return { account: lr.account, reason: 'line_ruling' };
+    }
+  }
+
+  const ir = rulings.byItem.get(normalizeItem(line.memo));
+  if (ir !== undefined) return { account: ir.account, reason: 'item_ruling' };
+  return null;
+}
+
+export interface PlanOptions {
+  /** human rulings, applied only where history refuses (see medisca-rulings.ts) */
+  rulings?: MediscaRulings;
+  /** required for line-level rulings to resolve; omit and only item rulings apply */
+  draftId?: string;
+}
+
+export function planMediscaEnrichment(
+  lines: MediscaDraftLine[],
+  history: MediscaHistory,
+  opts: PlanOptions = {},
+): MediscaPlan {
   if (lines.length === 0) return { ok: false, reason: 'no_lines', detail: 'draft has no line items' };
   // Any GL coding at all means she is mid-judgement on this bill — 1220.05 vs 1220.10 and the
   // 1500.02 capitalisation calls are hers. "Fill in the blanks" is not a safe operation.
@@ -108,14 +147,24 @@ export function planMediscaEnrichment(lines: MediscaDraftLine[], history: Medisc
 
   const coded: MediscaCodedLine[] = [];
   const refusals: string[] = [];
-  for (const l of lines) {
+  lines.forEach((l, i) => {
+    // Her own history is consulted FIRST and always wins. A ruling is a fallback for what she has
+    // not answered, never an override of what she has — so if she starts coding a ruled item
+    // consistently some other way, the ruling simply stops being reached.
     const v = classifyLine(l.memo, history);
-    if (v.account === null) {
-      refusals.push(`"${l.memo.slice(0, 40)}" -> ${v.reason}`);
-      continue;
+    if (v.account !== null) {
+      coded.push({ amountCents: l.amountCents, memo: l.memo, account: v.account, reason: v.reason });
+      return;
     }
-    coded.push({ amountCents: l.amountCents, memo: l.memo, account: v.account });
-  }
+
+    const ruled = resolveRuling(l, i, opts);
+    if (ruled !== null) {
+      coded.push({ amountCents: l.amountCents, memo: l.memo, account: ruled.account, reason: ruled.reason });
+      return;
+    }
+
+    refusals.push(`"${l.memo.slice(0, 40)}" -> ${v.reason}`);
+  });
   // All-or-nothing: a partially coded draft looks reviewed when it is not.
   if (refusals.length > 0) return { ok: false, reason: 'unclassifiable', detail: refusals.join(' | ') };
   return { ok: true, lines: coded };
