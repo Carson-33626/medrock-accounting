@@ -7,11 +7,8 @@ import {
   journalEntryLines,
   type RollbackMonthValue,
 } from '@/lib/inventory/monthly-close';
-import {
-  getBalanceSheetInventory,
-  LOCATION_MAPPING,
-  type Location,
-} from '@/lib/quickbooks-multi';
+import { getBalanceSheetInventory, type Location } from '@/lib/quickbooks-multi';
+import { QB_LOCATIONS } from '@/lib/qb-links';
 import type {
   CloseBasis,
   LocationJE,
@@ -54,8 +51,10 @@ function monthEndDate(month: string): string | null {
   return last.toISOString().slice(0, 10);
 }
 
+// Inventory monthly close is MedRock-only — FOCAS has no drug inventory, so this
+// guard deliberately scans QB_LOCATIONS (the trio) rather than the full LOCATION_MAPPING.
 function isKnownLocation(location: string): location is Location {
-  return Object.prototype.hasOwnProperty.call(LOCATION_MAPPING, location);
+  return (QB_LOCATIONS as string[]).includes(location);
 }
 
 function toMonthValue(r: RollbackCloseRow): RollbackMonthValue {
