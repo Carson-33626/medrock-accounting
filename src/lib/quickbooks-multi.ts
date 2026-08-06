@@ -48,14 +48,14 @@ interface QuickBooksTokens {
   refresh_token: string;
   expires_at: number; // Unix timestamp
   realm_id: string; // Company ID
-  location: Location; // MedRock FL | MedRock TN | MedRock TX
-  company_name?: string; // Medrock FLORIDA | TENNESSEE | TEXAS
+  location: Location; // MedRock FL | MedRock TN | MedRock TX | FOCAS
+  company_name?: string; // Medrock FLORIDA | TENNESSEE | TEXAS | FOCAS Institute
 }
 
 /**
  * Get OAuth authorization URL to initiate QB connection
  *
- * @param location - Location identifier (e.g., 'MedRock FL', 'MedRock TN', 'MedRock TX')
+ * @param location - Location identifier (e.g., 'MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS')
  */
 export function getAuthorizationUrl(location: Location): string {
   const params = new URLSearchParams({
@@ -208,6 +208,7 @@ export async function getValidTokens(location: Location): Promise<QuickBooksToke
     expires_at: new Date(tokenRow.expires_at).getTime(),
     realm_id: tokenRow.realm_id,
     location: tokenRow.location as Location,
+    company_name: tokenRow.company_name ?? undefined,
   };
 
   // Check if token is expired (with 5 min buffer)
@@ -217,6 +218,9 @@ export async function getValidTokens(location: Location): Promise<QuickBooksToke
     try {
       const refreshed = await refreshAccessToken(tokens.refresh_token, location);
       refreshed.realm_id = tokens.realm_id; // Preserve realm_id
+      // Preserve the real company name — refreshAccessToken never sets it, and
+      // storeTokens falls back to the LOCATION_MAPPING placeholder when absent.
+      refreshed.company_name = tokens.company_name;
 
       await storeTokens(refreshed);
       return refreshed;

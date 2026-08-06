@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     totalRules += rules.length;
     printPreview(entity, rules);
   }
-  console.log(`\nTOTAL rules across FL/TN/TX: ${totalRules}`);
+  console.log(`\nTOTAL rules across FL/TN/TX/FOCAS: ${totalRules}`);
 
   if (!apply) {
     console.log('\nPreview only — no DB writes. Pass --apply to upsert into accounting.payroll_account_map.');

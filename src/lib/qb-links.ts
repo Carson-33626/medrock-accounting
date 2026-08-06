@@ -21,17 +21,17 @@ import { getRdsPool } from './rds';
 import { qbQueryAll, type Location } from './quickbooks-multi';
 import type { QbDocType, QbSyncResult } from '@/types/qb-links';
 
+/** The subset of Location that has drug inventory and can be synced here. */
+export type InventoryLocation = Exclude<Location, 'FOCAS'>;
+
 /** QB company (token) location -> purchase_lots.location */
-export const QB_TO_RDS_LOCATION: Record<Location, string> = {
+export const QB_TO_RDS_LOCATION: Record<InventoryLocation, string> = {
   'MedRock FL': 'MedRock Florida',
   'MedRock TN': 'MedRock Tennessee',
   'MedRock TX': 'MedRock Texas',
-  // FOCAS has no drug inventory; key exists only to satisfy Record<Location, …>.
-  // QB_LOCATIONS below (the sync scope) deliberately stays MedRock-only.
-  'FOCAS': 'FOCAS Institute',
 };
 
-export const QB_LOCATIONS: Location[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+export const QB_LOCATIONS: InventoryLocation[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 
 /** Receiving window starts 2025-06-16; pad for bills dated slightly earlier. */
 const WINDOW_START = '2025-06-01';
@@ -300,7 +300,7 @@ async function replaceDocSnapshot(client: PoolClient, location: Location, docs: 
  * Full sync for one location: snapshot QBO docs, auto-match receipts, upsert
  * links. Existing manual/rejected decisions are preserved.
  */
-export async function syncQbLinks(location: Location): Promise<QbSyncResult> {
+export async function syncQbLinks(location: InventoryLocation): Promise<QbSyncResult> {
   const rdsLocation = QB_TO_RDS_LOCATION[location];
   const { docs, bills, purchases, billPayments } = await fetchDocs(location);
 

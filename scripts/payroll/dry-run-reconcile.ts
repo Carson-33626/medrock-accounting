@@ -204,7 +204,7 @@ async function main(): Promise<void> {
     const built = buildJournal(rows, accountMap, employeeMap);
     const draft: JournalDraft | undefined = built.drafts.find((d) => d.entity === entity);
     if (!draft) {
-      console.log('  buildJournal produced no draft for this entity (rows excluded as FOCS/1099/unknown pay group?).');
+      console.log('  buildJournal produced no draft for this entity (rows excluded as 1099/unknown pay group?).');
       continue;
     }
 

@@ -1,7 +1,7 @@
 /**
  * QuickBooks Connection Status API - Multi-Location
  *
- * Returns connection status for all locations (FL, TN, TX).
+ * Returns connection status for all locations (FL, TN, TX, FOCAS).
  */
 
 import { NextResponse } from 'next/server';

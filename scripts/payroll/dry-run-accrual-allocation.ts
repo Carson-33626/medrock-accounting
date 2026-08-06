@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   const monthArg = process.argv[3]; // YYYY-MM
 
   if (!entityArg || !monthArg || !/^\d{4}-\d{2}$/.test(monthArg)) {
-    throw new Error('usage: dry-run-accrual-allocation.ts "<Entity>" YYYY-MM  (Entity: MedRock FL | MedRock TN | MedRock TX)');
+    throw new Error('usage: dry-run-accrual-allocation.ts "<Entity>" YYYY-MM  (Entity: MedRock FL | MedRock TN | MedRock TX | FOCAS)');
   }
   if (!POSTABLE_ENTITIES.includes(entityArg as Entity)) {
     throw new Error(`usage: entity must be one of ${POSTABLE_ENTITIES.join(', ')} — got "${entityArg}"`);

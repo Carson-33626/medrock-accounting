@@ -3,7 +3,7 @@
  *
  * Handles the OAuth redirect from QuickBooks after user authorizes the app.
  * Exchanges the authorization code for access/refresh tokens.
- * Supports multiple locations (FL, TN, TX) via state parameter.
+ * Supports multiple locations (FL, TN, TX, FOCAS) via state parameter.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

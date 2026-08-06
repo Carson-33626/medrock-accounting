@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncQbLinks, QB_LOCATIONS } from '@/lib/qb-links';
-import type { Location } from '@/lib/quickbooks-multi';
+import { syncQbLinks, QB_LOCATIONS, type InventoryLocation } from '@/lib/qb-links';
 import type { QbSyncResult } from '@/types/qb-links';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +11,7 @@ export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const locParam = searchParams.get('location');
 
-  const locations: Location[] =
+  const locations: InventoryLocation[] =
     locParam && locParam !== 'all'
       ? QB_LOCATIONS.filter((l) => l === locParam)
       : QB_LOCATIONS;
