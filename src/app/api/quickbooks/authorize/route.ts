@@ -6,19 +6,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizationUrl, type Location } from '@/lib/quickbooks-multi';
+import { getAuthorizationUrl, LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const location = searchParams.get('location') as Location | null;
+    const locationParam = searchParams.get('location');
 
-    // Validate location
-    if (!location || !['MedRock FL', 'MedRock TN', 'MedRock TX'].includes(location)) {
+    // Validate location against the configured companies
+    if (!locationParam || !(locationParam in LOCATION_MAPPING)) {
       return NextResponse.redirect(
         new URL('/admin/quickbooks?error=invalid_location', request.url)
       );
     }
+    const location = locationParam as Location;
 
     // Generate OAuth URL with location in state parameter
     const authUrl = getAuthorizationUrl(location);

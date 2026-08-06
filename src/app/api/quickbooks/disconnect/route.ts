@@ -5,20 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { disconnect, type Location } from '@/lib/quickbooks-multi';
+import { disconnect, LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
 
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const location = searchParams.get('location') as Location | null;
+    const locationParam = searchParams.get('location');
 
-    // Validate location
-    if (!location || !['MedRock FL', 'MedRock TN', 'MedRock TX'].includes(location)) {
+    // Validate location against the configured companies
+    if (!locationParam || !(locationParam in LOCATION_MAPPING)) {
       return NextResponse.json(
-        { error: 'Invalid location. Must be "MedRock FL", "MedRock TN", or "MedRock TX"' },
+        { error: `Invalid location. Expected one of: ${Object.keys(LOCATION_MAPPING).join(', ')}` },
         { status: 400 }
       );
     }
+    const location = locationParam as Location;
 
     // Delete tokens from database
     await disconnect(location);

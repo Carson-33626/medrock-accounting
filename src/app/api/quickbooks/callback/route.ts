@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { exchangeCodeForTokens, storeTokens, type Location } from '@/lib/quickbooks-multi';
+import { exchangeCodeForTokens, fetchCompanyName, storeTokens, LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,20 +34,22 @@ export async function GET(request: NextRequest) {
     }
 
     // State parameter contains the location
-    const location = state as Location;
-
-    // Validate location
-    if (!['MedRock FL', 'MedRock TN', 'MedRock TX'].includes(location)) {
+    if (!(state in LOCATION_MAPPING)) {
       return NextResponse.redirect(
         new URL('/admin/quickbooks?error=invalid_location', request.url)
       );
     }
+    const location = state as Location;
 
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(code, location);
 
     // Store realmId from URL (sometimes not in token response)
     tokens.realm_id = realmId;
+
+    // Record the realm's actual company name (falls back to LOCATION_MAPPING inside storeTokens).
+    const companyName = await fetchCompanyName(tokens.access_token, realmId);
+    if (companyName) tokens.company_name = companyName;
 
     // Save to database
     await storeTokens(tokens);
