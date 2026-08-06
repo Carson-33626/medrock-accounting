@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     }
 
     // State parameter contains the location
-    if (!(state in LOCATION_MAPPING)) {
+    if (!(Object.keys(LOCATION_MAPPING) as string[]).includes(state)) {
       return NextResponse.redirect(
         new URL('/admin/quickbooks?error=invalid_location', request.url)
       );

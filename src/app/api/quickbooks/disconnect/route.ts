@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const locationParam = searchParams.get('location');
 
     // Validate location against the configured companies
-    if (!locationParam || !(locationParam in LOCATION_MAPPING)) {
+    if (!locationParam || !(Object.keys(LOCATION_MAPPING) as string[]).includes(locationParam)) {
       return NextResponse.json(
         { error: `Invalid location. Expected one of: ${Object.keys(LOCATION_MAPPING).join(', ')}` },
         { status: 400 }

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const locationParam = searchParams.get('location');
 
     // Validate location against the configured companies
-    if (!locationParam || !(locationParam in LOCATION_MAPPING)) {
+    if (!locationParam || !(Object.keys(LOCATION_MAPPING) as string[]).includes(locationParam)) {
       return NextResponse.redirect(
         new URL('/admin/quickbooks?error=invalid_location', request.url)
       );
