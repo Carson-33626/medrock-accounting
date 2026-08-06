@@ -33,6 +33,38 @@ describe('COMPANY LOAN - EE - PRINCIPAL POST-TAX', () => {
 });
 
 /**
+ * Regression cover for the child-support processing fee mapping (Barbara, 2026-08-05) — the
+ * remaining ~$2 half of the $252 residual (COMPANY LOAN above was the ~$250 half). An
+ * employer-paid fee, so unlike the EE-side 'CHILD PAYMENTS' credit it needs a Debit expense
+ * line (QBO 6500.80) plus the standard '*' withholdings-pool credit to stay balanced.
+ */
+describe('CHILD PAYMENTS - ER', () => {
+  const COLUMN = 'CHILD PAYMENTS - ER';
+
+  it('debits Payroll Processing Fees with the Child Support Fee memo, for every postable entity', () => {
+    for (const entity of POSTABLE_ENTITIES) {
+      const debits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Debit');
+      expect(debits, `${entity} debit`).toHaveLength(1);
+      expect(debits[0]?.accountName).toBe('Payroll Expense -:Payroll Processing Fees');
+      expect(debits[0]?.memo).toBe('Child Support Fee');
+      expect(debits[0]?.costCenter).toBe('*');
+      expect(debits[0]?.isCogs).toBe(false);
+      expect(debits[0]?.active).toBe(true);
+    }
+  });
+
+  it('credits the withholdings pool so the employer double-entry stays balanced', () => {
+    for (const entity of POSTABLE_ENTITIES) {
+      const credits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Credit');
+      expect(credits, `${entity} credit`).toHaveLength(1);
+      expect(credits[0]?.accountName).toBe('Payroll Withholdings');
+      expect(credits[0]?.costCenter).toBe('*');
+      expect(credits[0]?.creditBucket).toBe('Other');
+    }
+  });
+});
+
+/**
  * Pooled '*' debit specials (MEDICAL - ER, CAR ALLOWANCE, REIMBURSEMENT, BONUS) used to emit a
  * single memo-less line per account, so an accountant saw one lumped 'Accrued Payroll Liability'
  * figure with no department (Barbara 2026-07-21, screenshot 2). They now split per cost center

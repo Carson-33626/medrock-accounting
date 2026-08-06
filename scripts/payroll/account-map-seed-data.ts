@@ -373,6 +373,36 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     active: true,
   });
 
+  // CHILD PAYMENTS - ER (Barbara, 2026-08-05): ADP's employer-paid child-support processing fee
+  // (~$2) — the other half of the $252 residual traced 2026-07-20 (COMPANY LOAN above was the
+  // ~$250 half; this one was deliberately left unmapped pending her account call). Debits QBO
+  // 6500.80 'Payroll Processing Fees' (a sub of 6500 'Payroll Expense -', so the name carries the
+  // parent prefix like Employer Taxes does) with her requested memo, and credits the standard
+  // withholdings pool like every other employer cost so the JE stays balanced.
+  rules.push(
+    {
+      entity,
+      adpColumn: 'CHILD PAYMENTS - ER',
+      costCenter: '*',
+      accountName: 'Payroll Expense -:Payroll Processing Fees',
+      postingType: 'Debit',
+      isCogs: false,
+      creditBucket: null,
+      active: true,
+      memo: 'Child Support Fee',
+    },
+    {
+      entity,
+      adpColumn: 'CHILD PAYMENTS - ER',
+      costCenter: '*',
+      accountName: 'Payroll Withholdings',
+      postingType: 'Credit',
+      isCogs: false,
+      creditBucket: 'Other',
+      active: true,
+    },
+  );
+
   // --- Real-dollar "specials" confirmed against Amy's actual 03/27/2026 JE (Debit-only, like
   // wage-earning columns — their Credit-side offset is already captured by the generic NET PAY
   // credit rule above, since these amounts flow through to the employee's take-home pay). Fixed
