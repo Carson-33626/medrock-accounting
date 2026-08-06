@@ -19,6 +19,7 @@ const LOCATIONS = [
   { key: 'MedRock FL', name: 'Florida', qbCompany: 'Medrock FLORIDA' },
   { key: 'MedRock TN', name: 'Tennessee', qbCompany: 'Medrock TENNESSEE' },
   { key: 'MedRock TX', name: 'Texas', qbCompany: 'Medrock TEXAS' },
+  { key: 'FOCAS', name: 'FOCAS', qbCompany: 'FOCAS Institute' },
 ] as const;
 
 export function QuickBooksConnectionManager() {
@@ -191,7 +192,7 @@ export function QuickBooksConnectionManager() {
       )}
 
       {/* Location connection cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {LOCATIONS.map((location) => {
           const status = connectionStatus?.details[location.key];
           const isConnected = status?.connected || false;
