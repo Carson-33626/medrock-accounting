@@ -10,7 +10,7 @@ import { SearchableSelect } from './SearchableSelect';
  * the RDS pool (`pg`) / QuickBooks client, which must never land in a client bundle.
  * Same convention as MappingsTab.tsx / ReviewTab.tsx.
  */
-type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX' | 'FOCAS';
 type PostingType = 'Debit' | 'Credit';
 type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
@@ -56,7 +56,7 @@ interface ApiErrorBody {
   error?: string;
 }
 
-const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 // Valid cost centers ('*' = all roles) — a constrained dropdown, NOT free text: a free-text field
 // let a stray value like '*PHARM' (default '*' + typed 'PHARM') save a rule that matched neither the

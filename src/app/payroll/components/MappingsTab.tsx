@@ -23,7 +23,7 @@ import { SearchableSelect } from './SearchableSelect';
  * modules pull in the RDS pool (`pg`) / QuickBooks client, which must never land in a
  * client bundle.
  */
-type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX' | 'FOCAS';
 type PostingType = 'Debit' | 'Credit';
 type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
@@ -72,7 +72,7 @@ interface ApiErrorBody {
   error?: string;
 }
 
-const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
 
 function isEntity(value: string): value is Entity {

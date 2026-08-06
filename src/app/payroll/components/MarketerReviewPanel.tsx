@@ -10,7 +10,7 @@ import { SearchableSelect } from './SearchableSelect';
  * those modules pull in the RDS pool (`pg`) / QuickBooks client, which must never land in
  * a client bundle. Same convention as UnmappedColumnsPanel.tsx / MappingsTab.tsx.
  */
-type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX' | 'FOCAS';
 
 interface MarketerReviewItem {
   positionId: string;
@@ -50,7 +50,7 @@ interface ApiErrorBody {
   error?: string;
 }
 
-const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS'];
 
 function isEntity(value: string): value is Entity {
   return (ENTITIES as string[]).includes(value);
