@@ -13,6 +13,9 @@ const IE_MATRIX: Readonly<Record<Entity, Readonly<Partial<Record<Entity, string>
   'MedRock FL': { 'MedRock TN': 'Due from MedRock TN, LLC', 'MedRock TX': 'Due From MedRock TX, LLC' },
   'MedRock TN': { 'MedRock FL': 'Due to Medrock Pharmacy, LLC', 'MedRock TX': 'Due From MedRock TX, LLC' },
   'MedRock TX': { 'MedRock FL': 'Due to Medrock Pharmacy', 'MedRock TN': 'Due to Medrock Tennessee' },
+  // No FOCAS inter-entity accounts are known yet (fresh QB access, 2026-08-05).
+  // ieAccountFor throws on any FOCAS pair, which surfaces the gap instead of guessing.
+  'FOCAS': {},
 };
 
 export function ieAccountFor(holder: Entity, counterparty: Entity): string {

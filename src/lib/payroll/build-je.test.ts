@@ -97,14 +97,15 @@ describe('buildJournal', () => {
     expect(unmappedColumnDetails).toHaveLength(0);
   });
 
-  it('excludes FOCS rows from drafts', () => {
+  it('builds FOCS rows into a FOCAS draft; empty FOCAS map -> zero lines, columns unmapped', () => {
     const rows = [baseRow({ pay_group: 'FOCS' })];
-    const { drafts, excluded } = buildJournal(rows, accountMap, empMap);
-    expect(drafts).toHaveLength(0);
-    expect(excluded).toHaveLength(1);
-    expect(excluded[0]?.payGroup).toBe('FOCS');
-    expect(excluded[0]?.reason).toContain('FOCS');
-    expect(excluded[0]?.count).toBe(1);
+    const { drafts, excluded, unmappedColumns } = buildJournal(rows, accountMap, empMap);
+    expect(excluded).toHaveLength(0);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]?.entity).toBe('FOCAS');
+    // accountMap fixture has no entity==='FOCAS' rules, so nothing resolves:
+    expect(drafts[0]?.lines).toHaveLength(0);
+    expect(unmappedColumns).toContain('REGULAR PAY - EARNING');
   });
 
   it('surfaces 1099 and unknown pay groups as excluded, not silently dropped', () => {

@@ -19,4 +19,8 @@ describe('ieAccountFor', () => {
   it('throws for a single entity (no self account)', () => {
     expect(() => ieAccountFor('MedRock FL', 'MedRock FL')).toThrow(/single entity/);
   });
+  it('throws for FOCAS pairs until real Due To/From accounts are added', () => {
+    expect(() => ieAccountFor('FOCAS', 'MedRock FL')).toThrow('no inter-entity account');
+    expect(() => ieAccountFor('MedRock FL', 'FOCAS')).toThrow('no inter-entity account');
+  });
 });

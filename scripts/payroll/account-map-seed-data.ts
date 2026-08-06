@@ -14,6 +14,11 @@
 import type { AccountMapRule, CreditBucket, Entity } from '../../src/lib/payroll/types';
 import { DEPT_LABEL } from '../../src/lib/payroll/cost-center';
 
+/** Entities whose seed rules exist. FOCAS joins once its probe-derived rules land
+ *  (spec §4) — until then buildSeedAccountMap('FOCAS') returns []. */
+export type SeededEntity = Exclude<Entity, 'FOCAS'>;
+export const SEEDED_ENTITIES: SeededEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+
 const COST_CENTERS = ['LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET'] as const;
 type CostCenter = (typeof COST_CENTERS)[number];
 
@@ -64,7 +69,7 @@ const OT_WAGE_ACCOUNT: Partial<Record<CostCenter, string>> = {
 };
 
 /** State-UI employer-cost ADP column is state-specific; verified present in live vocab for all 3 states. */
-const STATE_UI_COLUMN: Record<Entity, string> = {
+const STATE_UI_COLUMN: Record<SeededEntity, string> = {
   'MedRock FL': 'FL STATE - UNEMPLOYMENT INSURANCE ER',
   'MedRock TN': 'TN STATE - UNEMPLOYMENT INSURANCE ER',
   'MedRock TX': 'TX STATE - UNEMPLOYMENT INSURANCE ER',
@@ -100,7 +105,7 @@ const OUT_OF_STATE_UI_ER_COLUMNS = [
  * using the FL (parent LLC) column as a placeholder for MedRock TX pending Amy's confirmation of
  * which policy/column actually carries TX employees' WC cost.
  */
-const WC_COLUMN: Record<Entity, string> = {
+const WC_COLUMN: Record<SeededEntity, string> = {
   'MedRock FL': 'WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX',
   'MedRock TN': 'WORKERS COMPENSATION INSURANCE - MEDROCK TN LLC - POST-TAX',
   'MedRock TX': 'WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX',
@@ -119,7 +124,7 @@ const WC_COLUMN: Record<Entity, string> = {
  * account TX's garnishment deductions actually post to; using 'Payroll Withholdings' (TN's
  * pattern) as the default.
  */
-const GARNISHMENT_ACCOUNT: Record<Entity, string> = {
+const GARNISHMENT_ACCOUNT: Record<SeededEntity, string> = {
   'MedRock FL': 'Employee Garnishment Liability',
   'MedRock TN': 'Payroll Withholdings',
   'MedRock TX': 'Payroll Withholdings',
@@ -245,6 +250,7 @@ function addPerDeptDebitSpecial(
 }
 
 export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
+  if (entity === 'FOCAS') return [];
   const rules: AccountMapRule[] = [];
 
   // --- Wage earnings: Debit, per cost_center ---

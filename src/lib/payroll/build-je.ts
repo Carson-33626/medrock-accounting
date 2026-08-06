@@ -69,7 +69,6 @@ export interface ExcludedGroup { payGroup: string; reason: string; count: number
 /** Human-readable reason a row's pay_group is non-postable, given the raw (untrimmed) value. */
 export function exclusionReason(payGroup: string): string {
   const g = payGroup.trim().toUpperCase();
-  if (g === 'FOCS') return 'FOCS (FOCAS Institute) — no QuickBooks company connected';
   if (g === '1099') return '1099 contractor — separate handling, not a W-2 payroll JE';
   if (g === '') return 'blank pay group';
   return `unknown pay group: ${payGroup}`;
@@ -114,7 +113,7 @@ export function buildJournal(
 
   for (const row of rows) {
     const ent = entityForPayGroup(row.pay_group);
-    if (ent === 'FOCS_EXCLUDED' || ent === null) {
+    if (ent === null) {
       const key = row.pay_group;
       const existing = excluded.get(key);
       if (existing) { existing.count++; } else { excluded.set(key, { payGroup: key, reason: exclusionReason(key), count: 1 }); }

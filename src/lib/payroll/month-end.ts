@@ -12,7 +12,9 @@ import { ieAccountFor } from './inter-entity';
 import { monthTag, monthEndIso, monthEndAdp, longMonthName, type Month } from './month';
 import { EOM_ENTITIES } from './revenue-rule';
 
-const SHORT_ENT: Record<Entity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX' };
+// FOCAS key satisfies the exhaustive Record; EOM stays trio-only via EOM_ENTITIES, so this
+// entry is never actually looked up by buildMonthEndAllocation.
+const SHORT_ENT: Record<Entity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX', 'FOCAS': 'FOCAS' };
 const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3', fifty: '50/50' };
 
 export function eomDocNumber(entity: Entity, m: Month): string {

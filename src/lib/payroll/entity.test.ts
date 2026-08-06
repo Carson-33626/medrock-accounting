@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { entityForPayGroup } from './entity';
+import { entityForPayGroup, POSTABLE_ENTITIES } from './entity';
 describe('entityForPayGroup', () => {
   it('maps pay groups to QB companies', () => {
     expect(entityForPayGroup('MRFL')).toBe('MedRock FL');
     expect(entityForPayGroup('MRTN')).toBe('MedRock TN');
     expect(entityForPayGroup('MRTX')).toBe('MedRock TX');
+    expect(entityForPayGroup('FOCS')).toBe('FOCAS');
   });
-  it('flags FOCS as excluded and unknown as null', () => {
-    expect(entityForPayGroup('FOCS')).toBe('FOCS_EXCLUDED');
+  it('returns null for unknown pay groups', () => {
     expect(entityForPayGroup('ZZZ')).toBeNull();
+  });
+  it('lists FOCAS as postable', () => {
+    expect(POSTABLE_ENTITIES).toContain('FOCAS');
   });
 });

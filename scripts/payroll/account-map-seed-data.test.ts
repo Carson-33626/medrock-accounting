@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSeedAccountMap } from './account-map-seed-data';
-import { POSTABLE_ENTITIES } from '../../src/lib/payroll/entity';
+import { buildSeedAccountMap, SEEDED_ENTITIES } from './account-map-seed-data';
 import { buildJournal } from '../../src/lib/payroll/build-je';
 import type { PayrollRow } from '../../src/lib/payroll/types';
 
@@ -13,14 +12,14 @@ describe('COMPANY LOAN - EE - PRINCIPAL POST-TAX', () => {
   const COLUMN = 'COMPANY LOAN - EE - PRINCIPAL POST-TAX';
 
   it('is mapped for every postable entity', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const matches = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN);
       expect(matches, `${entity} should map ${COLUMN}`).toHaveLength(1);
     }
   });
 
   it('credits QBO 1215 Employee Advances, not the withholdings pool', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const rule = buildSeedAccountMap(entity).find((r) => r.adpColumn === COLUMN);
       // Repaying an advance retires an asset — it must not land in the liability pool.
       expect(rule?.accountName).toBe('Employee Advances');
@@ -42,7 +41,7 @@ describe('CHILD PAYMENTS - ER', () => {
   const COLUMN = 'CHILD PAYMENTS - ER';
 
   it('debits Payroll Processing Fees with the Child Support Fee memo, for every postable entity', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const debits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Debit');
       expect(debits, `${entity} debit`).toHaveLength(1);
       expect(debits[0]?.accountName).toBe('Payroll Expense -:Payroll Processing Fees');
@@ -54,7 +53,7 @@ describe('CHILD PAYMENTS - ER', () => {
   });
 
   it('credits the withholdings pool so the employer double-entry stays balanced', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const credits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Credit');
       expect(credits, `${entity} credit`).toHaveLength(1);
       expect(credits[0]?.accountName).toBe('Payroll Withholdings');
@@ -82,7 +81,7 @@ describe('pooled debit specials split by department memo', () => {
   ];
 
   it('emits one memo-labelled debit per cost center plus a memo-less * fallback, per entity', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const rules = buildSeedAccountMap(entity);
       for (const { column, account, memoPrefix } of SPECIALS) {
         const debits = rules.filter((r) => r.adpColumn === column && r.postingType === 'Debit');
@@ -105,7 +104,7 @@ describe('pooled debit specials split by department memo', () => {
     // PTHOLIDAY (paid holiday) is a wage earning like HOLIDAY PAY - EARNING — it was missing from
     // the seed, so it kept surfacing as "new column detected". It should map per cost center to the
     // regular wage account with a "<Dept> Wages" memo, exactly like the other earning columns.
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const rules = buildSeedAccountMap(entity).filter((r) => r.adpColumn === 'PTHOLIDAY - EARNING');
       const perDept = rules.filter((r) => r.postingType === 'Debit' && r.costCenter !== '*');
       expect(perDept.length, entity).toBe(NINE_COST_CENTERS);
@@ -119,7 +118,7 @@ describe('pooled debit specials split by department memo', () => {
   });
 
   it('MEDICAL - ER keeps its single * Health credit to the withholdings pool (credit side unchanged)', () => {
-    for (const entity of POSTABLE_ENTITIES) {
+    for (const entity of SEEDED_ENTITIES) {
       const credits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === 'MEDICAL - ER' && r.postingType === 'Credit');
       expect(credits).toHaveLength(1);
       expect(credits[0]?.costCenter).toBe('*');
@@ -146,5 +145,11 @@ describe('pooled debit specials split by department memo', () => {
     expect(accrued).toHaveLength(2); // one per department, same account
     expect(accrued.find((l) => l.memo === 'ER Medical - Admin')?.amount).toBe(500);
     expect(accrued.find((l) => l.memo === 'ER Medical - Accounting')?.amount).toBe(300);
+  });
+});
+
+describe('FOCAS seed', () => {
+  it('is empty until the probe-derived rules land (spec §4)', () => {
+    expect(buildSeedAccountMap('FOCAS')).toEqual([]);
   });
 });

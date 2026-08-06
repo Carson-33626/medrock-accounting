@@ -8,7 +8,7 @@ export interface PayrollRow {
   row_key: string; updated_at: string; sensitive: SensitiveRow;
 }
 
-export type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+export type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX' | 'FOCAS';
 export type PostingType = 'Debit' | 'Credit';
 export type LineOrigin = 'generated' | 'manual' | 'inter_entity';
 export type JeKind = 'pay_date' | 'accrual' | 'reversal' | 'allocation';

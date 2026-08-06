@@ -153,7 +153,7 @@ export async function buildMarketerEmployeeMap(): Promise<EmployeeMapRule[]> {
   const rules: EmployeeMapRule[] = [];
   for (const row of rows) {
     let entity = entityForPayGroup(row.pay_group);
-    if (entity === 'FOCS_EXCLUDED' || entity === null) continue; // FOCS/1099/unknown pay group -- skip
+    if (entity === null) continue; // 1099/unknown pay group -- skip
 
     const hit = resolveMarket(row.name, repMarket);
     if (!hit) {
