@@ -3,8 +3,7 @@ import { sharesFromPresence, EOM_ENTITIES, type RevenueTest } from './revenue-ru
 
 const test = (fl: number, tn: number, tx: number): RevenueTest => ({
   month: '2026-03',
-  // EOM stays trio-only (EOM_ENTITIES); FOCAS is a placeholder never read by sharesFromPresence.
-  income: { 'MedRock FL': fl, 'MedRock TN': tn, 'MedRock TX': tx, 'FOCAS': 0 },
+  income: { 'MedRock FL': fl, 'MedRock TN': tn, 'MedRock TX': tx },
 });
 
 describe('sharesFromPresence', () => {

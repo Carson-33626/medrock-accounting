@@ -4,7 +4,7 @@ import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { getEomRun } from '@/lib/payroll/eom-store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
-import { EOM_ENTITIES } from '@/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, type EomEntity } from '@/lib/payroll/revenue-rule';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
 import type { Month } from '@/lib/payroll/month';
@@ -30,11 +30,11 @@ function monthFromPayDate(payDate: string): Month {
  * without any/unknown — narrows the union by hand and bails to null on any shape
  * mismatch (missing run row, missing shares, corrupt JSON) rather than throwing.
  */
-function readShares(revenue: JsonValue): Record<Entity, number> | null {
+function readShares(revenue: JsonValue): Record<EomEntity, number> | null {
   if (typeof revenue !== 'object' || revenue === null || Array.isArray(revenue)) return null;
   const shares = revenue.shares;
   if (typeof shares !== 'object' || shares === null || Array.isArray(shares)) return null;
-  const out = {} as Record<Entity, number>;
+  const out = {} as Record<EomEntity, number>;
   for (const e of EOM_ENTITIES) {
     const v = shares[e];
     if (typeof v !== 'number') return null;

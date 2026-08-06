@@ -2,13 +2,17 @@ import type { Entity } from './types';
 import { monthEndIso, type Month } from './month';
 import { getMonthlyProfitAndLoss } from '../quickbooks-multi';
 
-export const EOM_ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+/** EOM stays trio-only (Barbara's rule only ever covered FL/TN/TX): every Record keyed by
+ *  this type is genuinely populated for all its keys, unlike a bare `Record<Entity, …>`
+ *  which would silently promise a 'FOCAS' entry EOM never fills in. */
+export type EomEntity = Exclude<Entity, 'FOCAS'>;
+export const EOM_ENTITIES: EomEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 
 /** Per-company QB P&L total income for one month — the inputs to the presence test,
  *  kept so the End of Month tab can show WHY the split came out the way it did. */
 export interface RevenueTest {
   month: string; // 'YYYY-MM'
-  income: Record<Entity, number>;
+  income: Record<EomEntity, number>;
 }
 
 /**
@@ -17,11 +21,11 @@ export interface RevenueTest {
  * summing to 100 (0 for the rest), or null when no location has revenue (caller
  * surfaces the error; no allocation is possible).
  */
-export function sharesFromPresence(test: RevenueTest): Record<Entity, number> | null {
+export function sharesFromPresence(test: RevenueTest): Record<EomEntity, number> | null {
   const withRevenue = EOM_ENTITIES.filter((e) => test.income[e] > 0);
   if (withRevenue.length === 0) return null;
   const share = 100 / withRevenue.length;
-  const out = {} as Record<Entity, number>;
+  const out = {} as Record<EomEntity, number>;
   for (const e of EOM_ENTITIES) out[e] = withRevenue.includes(e) ? share : 0;
   return out;
 }
@@ -33,7 +37,7 @@ export async function fetchRevenuePresence(m: Month): Promise<RevenueTest> {
   const month = `${m.year}-${String(m.month).padStart(2, '0')}`;
   const startDate = `${month}-01`;
   const endDate = monthEndIso(m);
-  const income = {} as Record<Entity, number>;
+  const income = {} as Record<EomEntity, number>;
   for (const e of EOM_ENTITIES) {
     const rows = await getMonthlyProfitAndLoss({ location: e, startDate, endDate, accounting_method: 'Accrual' });
     const row = rows.find((r) => r.month === month);

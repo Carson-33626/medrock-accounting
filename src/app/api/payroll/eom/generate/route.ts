@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { requireAdmin } from '@/lib/auth';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromPresence, type RevenueTest } from '@/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, fetchRevenuePresence, sharesFromPresence, type EomEntity, type RevenueTest } from '@/lib/payroll/revenue-rule';
 import { fetchAllocationPool, type PoolLine } from '@/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '@/lib/payroll/month-end';
 import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '@/lib/payroll/eom-store';
 import { saveDraft, loadDraft, type JsonValue } from '@/lib/payroll/store';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
-import type { Entity, JournalLine } from '@/lib/payroll/types';
+import type { JournalLine } from '@/lib/payroll/types';
 import type { Month } from '@/lib/payroll/month';
 
 export const dynamic = 'force-dynamic';
@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `no location has revenue for ${month}` }, { status: 422 });
       }
       // thirds/fifty groups never read the shares record — an all-zero placeholder keeps
-      // buildMonthEndAllocation's signature (Record<Entity, number>) satisfied.
-      shares = Object.fromEntries(EOM_ENTITIES.map((e) => [e, 0])) as Record<Entity, number>;
+      // buildMonthEndAllocation's signature (Record<EomEntity, number>) satisfied.
+      shares = Object.fromEntries(EOM_ENTITIES.map((e) => [e, 0])) as Record<EomEntity, number>;
     }
 
     const drafts = buildMonthEndAllocation(pool, shares, m);

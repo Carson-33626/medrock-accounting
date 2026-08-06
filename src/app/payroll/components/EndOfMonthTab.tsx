@@ -22,13 +22,16 @@ import { DirectionsBanner } from './DirectionsBanner';
  * QbJournalEntryPayload/PostResult). Not imported directly — those modules pull in the RDS
  * pool (`pg`) / QuickBooks client, which must never land in a client bundle.
  */
-type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
+// Named to match src/lib/payroll/revenue-rule.ts's EomEntity — this tab's scope is
+// deliberately trio-only (Barbara's presence rule never covered FOCAS), distinct from the
+// wider 4-member Entity the rest of payroll now uses.
+type EomEntity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX';
 type HeaderStatus = 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
 type PoolRule = 'revenue' | 'thirds' | 'fifty' | 'passthrough' | 'unknown';
 
 interface PayrollHeader {
   id: number;
-  entity: Entity;
+  entity: EomEntity;
   status: HeaderStatus;
   qb_doc_number: string | null;
   txn_date: string | null;
@@ -46,7 +49,7 @@ interface JournalLine {
 }
 
 interface PoolLine {
-  entity: Entity;
+  entity: EomEntity;
   txnType: string;
   txnId: string;
   txnDate: string;
@@ -57,17 +60,17 @@ interface PoolLine {
   memo: string | null;
   amount: number;
   rule: PoolRule;
-  counterparty: Entity | null;
+  counterparty: EomEntity | null;
 }
 
 interface RevenueTest {
   month: string;
-  income: Record<Entity, number>;
+  income: Record<EomEntity, number>;
 }
 
 interface RevenueSnapshot {
   test: RevenueTest;
-  shares: Record<Entity, number> | null;
+  shares: Record<EomEntity, number> | null;
 }
 
 interface EomRun {
@@ -123,8 +126,8 @@ interface ApiErrorBody {
   error?: string;
 }
 
-const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
-const SHORT_ENT: Record<Entity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX' };
+const ENTITIES: EomEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+const SHORT_ENT: Record<EomEntity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX' };
 const RULE_LABEL: Record<PoolRule, string> = {
   revenue: 'Revenue %',
   thirds: '1/3 split',
@@ -157,7 +160,7 @@ function previousMonth(): string {
 
 /** 'FL % Allo 2026.06' — client-side mirror of month-end.ts eomDocNumber, used only for
  *  not-yet-posted drafts (a posted card shows the real header.qb_doc_number instead). */
-function draftDocNumber(entity: Entity, month: string): string {
+function draftDocNumber(entity: EomEntity, month: string): string {
   return `${SHORT_ENT[entity]} % Allo ${month.replace('-', '.')}`;
 }
 
@@ -177,7 +180,7 @@ export function EndOfMonthTab() {
   const [busyHeaderId, setBusyHeaderId] = useState<number | null>(null);
   const [dryRunPayloads, setDryRunPayloads] = useState<Record<number, QbJournalEntryPayload>>({});
   // Draft sub-tab (mirrors the split-payroll review): one tab per location + Combined.
-  const [draftTab, setDraftTab] = useState<Entity | 'combined'>('MedRock FL');
+  const [draftTab, setDraftTab] = useState<EomEntity | 'combined'>('MedRock FL');
   // Stale-response guard for `load` (mirrors ReviewTab.loadDraft's requestSeqRef): bumped at the
   // start of every call. A slow response for a month the user has since switched away from would
   // otherwise land after a newer call's response and clobber the current month's data.
@@ -279,7 +282,7 @@ export function EndOfMonthTab() {
   }, []);
 
   const handlePostLive = useCallback(
-    async (headerId: number, entity: Entity) => {
+    async (headerId: number, entity: EomEntity) => {
       const confirmed = window.confirm(
         `This will POST a LIVE journal entry to QuickBooks for ${entity}. This writes to the real general ledger and cannot be undone from here. Continue?`,
       );
@@ -312,7 +315,7 @@ export function EndOfMonthTab() {
   // Clamp the sub-tab to a location that actually has a draft this month (an entity can be
   // absent when it has no legs, e.g. fifty-rule-only months).
   const availableEntities = headers.map((h) => h.entity);
-  const activeDraft: Entity | 'combined' =
+  const activeDraft: EomEntity | 'combined' =
     draftTab === 'combined'
       ? 'combined'
       : availableEntities.includes(draftTab)
@@ -569,7 +572,7 @@ function RevenueCard({
 }
 
 interface PoolBucket {
-  entity: Entity;
+  entity: EomEntity;
   rule: PoolRule;
   accountName: string;
   net: number;
@@ -606,7 +609,7 @@ function PoolCard({
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
   const buckets = useMemo(() => groupPool(pool), [pool]);
   const byEntity = useMemo(() => {
-    const map = new Map<Entity, PoolBucket[]>();
+    const map = new Map<EomEntity, PoolBucket[]>();
     for (const b of buckets) {
       const list = map.get(b.entity) ?? [];
       list.push(b);

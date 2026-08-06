@@ -10,17 +10,20 @@ import type { PoolLine } from './qb-pool';
 import { largestRemainderCents } from './allocation';
 import { ieAccountFor } from './inter-entity';
 import { monthTag, monthEndIso, monthEndAdp, longMonthName, type Month } from './month';
-import { EOM_ENTITIES } from './revenue-rule';
+import { EOM_ENTITIES, type EomEntity } from './revenue-rule';
 
-// FOCAS key satisfies the exhaustive Record; EOM stays trio-only via EOM_ENTITIES, so this
-// entry is never actually looked up by buildMonthEndAllocation.
+// entity: Entity (not EomEntity) because eomDocNumber is also called from eom/post/route.ts
+// with header.entity, which is a plain DB column typed Entity — the route can't statically
+// prove a posted allocation header's entity excludes FOCAS. FOCAS key satisfies the
+// exhaustive Record; EOM generation itself stays trio-only via EOM_ENTITIES/EomEntity below,
+// so the FOCAS entry is never actually looked up by buildMonthEndAllocation.
 const SHORT_ENT: Record<Entity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX', 'FOCAS': 'FOCAS' };
 const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3', fifty: '50/50' };
 
 export function eomDocNumber(entity: Entity, m: Month): string {
   return `${SHORT_ENT[entity]} % Allo ${monthTag(m)}`;
 }
-export function eomPrivateNote(shares: Record<Entity, number>, m: Month): string {
+export function eomPrivateNote(shares: Record<EomEntity, number>, m: Month): string {
   const pct = EOM_ENTITIES.map((e) => `${SHORT_ENT[e]} ${shares[e].toFixed(2)}%`).join(' / ');
   return `Month-end allocation — ${longMonthName(m)} ${m.year}. Revenue rule: ${pct}`;
 }
@@ -45,7 +48,7 @@ function signedLine(c: number, acct: string, memo: string, side: 'source' | 'rec
 }
 
 export function buildMonthEndAllocation(
-  pool: PoolLine[], shares: Record<Entity, number>, m: Month,
+  pool: PoolLine[], shares: Record<EomEntity, number>, m: Month,
 ): JournalDraft[] {
   // 1-2. Net cents per (entity, account, rule, counterparty)
   const groups = new Map<string, { entity: Entity; accountName: string; rule: string; counterparty: Entity | null; cents: number }>();

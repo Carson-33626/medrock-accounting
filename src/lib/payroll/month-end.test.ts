@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { buildMonthEndAllocation, eomDocNumber, eomPrivateNote } from './month-end';
+import type { EomEntity } from './revenue-rule';
 import type { PoolLine } from './qb-pool';
 import type { Entity, JournalDraft } from './types';
 
 const M = { year: 2026, month: 3 };
-const THIRDS: Record<Entity, number> = { 'MedRock FL': 100 / 3, 'MedRock TN': 100 / 3, 'MedRock TX': 100 / 3, 'FOCAS': 0 };
-const FL_TN: Record<Entity, number> = { 'MedRock FL': 50, 'MedRock TN': 50, 'MedRock TX': 0, 'FOCAS': 0 };
+const THIRDS: Record<EomEntity, number> = { 'MedRock FL': 100 / 3, 'MedRock TN': 100 / 3, 'MedRock TX': 100 / 3 };
+const FL_TN: Record<EomEntity, number> = { 'MedRock FL': 50, 'MedRock TN': 50, 'MedRock TX': 0 };
 
 const pl = (entity: Entity, account: string, amount: number, rule: PoolLine['rule'], counterparty: Entity | null = null): PoolLine => ({
   entity, txnType: 'JournalEntry', txnId: '1', txnDate: '2026-03-15', docNumber: null,
