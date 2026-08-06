@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { buildApWeeklyReport } from '@/lib/ap-weekly';
-import { LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
+import { buildApWeeklyReport, AP_LOCATIONS, type ApLocation } from '@/lib/ap-weekly';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,13 +15,13 @@ export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
     const locationParam = sp.get('location');
-    if (!locationParam || !(locationParam in LOCATION_MAPPING)) {
+    if (!locationParam || !(AP_LOCATIONS as string[]).includes(locationParam)) {
       return NextResponse.json(
-        { error: `Missing or invalid location. Expected one of: ${Object.keys(LOCATION_MAPPING).join(', ')}` },
+        { error: `Missing or invalid location. Expected one of: ${AP_LOCATIONS.join(', ')}` },
         { status: 400 },
       );
     }
-    const location = locationParam as Location;
+    const location = locationParam as ApLocation;
 
     const reportDate = sp.get('reportDate') ?? new Date().toISOString().slice(0, 10);
     if (!ISO_DATE_RE.test(reportDate)) {

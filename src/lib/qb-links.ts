@@ -26,6 +26,9 @@ export const QB_TO_RDS_LOCATION: Record<Location, string> = {
   'MedRock FL': 'MedRock Florida',
   'MedRock TN': 'MedRock Tennessee',
   'MedRock TX': 'MedRock Texas',
+  // FOCAS has no drug inventory; key exists only to satisfy Record<Location, …>.
+  // QB_LOCATIONS below (the sync scope) deliberately stays MedRock-only.
+  'FOCAS': 'FOCAS Institute',
 };
 
 export const QB_LOCATIONS: Location[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];

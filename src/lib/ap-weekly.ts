@@ -18,7 +18,11 @@ import { qbQueryAll, type Location } from './quickbooks-multi';
 
 export type RampEntity = 'FL' | 'TN' | 'TX';
 
-export const LOCATION_TO_RAMP_ENTITY: Record<Location, RampEntity> = {
+/** AP weekly is a MedRock-only report — FOCAS is excluded by type. */
+export type ApLocation = Exclude<Location, 'FOCAS'>;
+export const AP_LOCATIONS: ApLocation[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+
+export const LOCATION_TO_RAMP_ENTITY: Record<ApLocation, RampEntity> = {
   'MedRock FL': 'FL',
   'MedRock TN': 'TN',
   'MedRock TX': 'TX',
@@ -308,7 +312,7 @@ async function fetchQbBillsByIds(location: Location, ids: string[]): Promise<Map
 
 // ── Report builder ──────────────────────────────────────────────────────────
 
-export async function buildApWeeklyReport(location: Location, reportDate: string): Promise<ApWeeklyReport> {
+export async function buildApWeeklyReport(location: ApLocation, reportDate: string): Promise<ApWeeklyReport> {
   const rampEntity = LOCATION_TO_RAMP_ENTITY[location];
   const dueCutoff = addDays(reportDate, 7);
   const errors: SourceError[] = [];

@@ -28,6 +28,8 @@ export const LOCATION_MAPPING = {
   'MedRock FL': 'Medrock FLORIDA',
   'MedRock TN': 'Medrock TENNESSEE',
   'MedRock TX': 'Medrock TEXAS',
+  // Display default only — the callback stores the realm's real CompanyName at connect time.
+  'FOCAS': 'FOCAS Institute',
 } as const;
 
 // Reverse mapping: QuickBooks company name -> Internal name
@@ -35,6 +37,7 @@ export const QB_TO_LOCATION_MAPPING = {
   'Medrock FLORIDA': 'MedRock FL',
   'Medrock TENNESSEE': 'MedRock TN',
   'Medrock TEXAS': 'MedRock TX',
+  'FOCAS Institute': 'FOCAS',
 } as const;
 
 export type Location = keyof typeof LOCATION_MAPPING;
@@ -99,6 +102,25 @@ export async function exchangeCodeForTokens(code: string, location: Location): P
     realm_id: data.realmId || '',
     location,
   };
+}
+
+/**
+ * Real company name from QBO CompanyInfo — called once at OAuth connect so the
+ * token row records what the realm actually is, not the LOCATION_MAPPING guess.
+ * Never throws: connect must succeed even if this lookup fails.
+ */
+export async function fetchCompanyName(accessToken: string, realmId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${QB_API_BASE}/company/${realmId}/companyinfo/${realmId}?minorversion=75`,
+      { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as { CompanyInfo?: { CompanyName?: string } };
+    return data.CompanyInfo?.CompanyName ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -1174,7 +1196,7 @@ export async function isConnected(location: Location): Promise<boolean> {
  * Check connection status for all locations
  */
 export async function getConnectionStatus(): Promise<Record<Location, boolean>> {
-  const locations: Location[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+  const locations = Object.keys(LOCATION_MAPPING) as Location[];
   const status: Record<string, boolean> = {};
 
   await Promise.all(
