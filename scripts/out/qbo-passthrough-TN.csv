@@ -1,0 +1,61 @@
+entity,is_amazon,txn_id,date,amount,merchant,holder,ramp_memo,qb_found,memo_in_private_note,memo_in_line_desc,qb_private_note,qb_line_descs,qb_doc_number,qb_payee,qb_account,ramp_has_receipt,qb_has_attachment
+TN,N,6cda65bf-b412-492a-bb46-e64506723adb,2026-07-16,52.88,Sunoco,Frank Browne,Sunoco — Fuel and Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Sunoco,Ramp,Y,Y
+TN,N,eda51c34-168b-4e61-a427-5178dff506ee,2026-07-16,55.04,Circle K,Robert Wilhoit,Circle K — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Circle K,Ramp,Y,Y
+TN,N,5893d7ee-b782-49be-ac37-758716e6af1f,2026-07-14,47.35,Exxon,Isabel Babbie,Exxon — Gas: FUEL,Y,N,N,Isabel Babbie,Isabel Babbie,,Exxon,Ramp,Y,Y
+TN,N,66a45a85-e353-4e04-830f-faff7b5b90b9,2026-07-14,84.11,QuikTrip,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,QuikTrip,Ramp,Y,Y
+TN,N,f78c5f03-5be2-41e1-9747-871c1915e5d2,2026-07-14,50.21,Gulf Oil,Frank Browne,Gulf Oil — Fuel and Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Gulf Oil,Ramp,Y,Y
+TN,N,a56495a3-27e3-4499-8fa9-1266c4154b33,2026-07-14,46.18,Shell,Rona Ivey,Shell — Gas: FUEL,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,6c705f23-5b81-4965-b68a-6f76f0069709,2026-07-13,48.00,Speedway,Alan Mayrer,Speedway — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Speedway,Ramp,Y,Y
+TN,N,5eddc562-a73d-4053-b71b-6c37e49e9825,2026-07-13,52.08,Shell,Frank Browne,Shell — Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Shell,Ramp,Y,Y
+TN,N,829532a4-485d-4679-a2a5-9de45446fcf1,2026-07-13,72.57,BP,Isabel Babbie,BP — Gas: FUEL,Y,N,N,Isabel Babbie,Isabel Babbie,,BP,Ramp,Y,Y
+TN,N,b1729241-92c8-42bb-88fa-59df90b6df26,2026-07-13,5.86,Wawa,Robert Wilhoit,Out of town meal,Y,Y,Y,Robert Wilhoit - Out of town meal,Robert Wilhoit - Out of town meal,,Wawa,Ramp,Y,Y
+TN,N,4b405e74-9d1d-4ee4-b149-4c7dccc46307,2026-07-13,50.32,7-Eleven,Robert Wilhoit,7-Eleven — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,7-Eleven,Ramp,Y,Y
+TN,N,c5cb89a5-fb7c-42d9-bf95-921d28638d47,2026-07-13,76.38,RaceTrac,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,RaceTrac,Ramp,Y,Y
+TN,N,70d3a516-8c4c-43c7-a775-65a63b07e5d7,2026-07-12,35.59,Shell,Rona Ivey,Shell — Gas: FUEL,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,4eeebe01-41b3-4491-ba0d-83fd4b15d350,2026-07-09,47.60,Circle K,Deonte Sales,Circle K — Gas: FUEL,Y,N,N,Deonte Sales,Deonte Sales,,Circle K,Ramp,Y,Y
+TN,N,b77a44e8-31d6-4b89-8c28-cbf7fae94515,2026-07-08,73.43,QuikTrip,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,QuikTrip,Ramp,Y,Y
+TN,N,5be719b6-a5f9-48a6-9eef-06b27477d968,2026-07-08,9.55,Circle K,Nicole  Fitzgerald,Circle K — Gas: FUEL,Y,N,N,Nicole  Fitzgerald,Nicole  Fitzgerald,,Circle K,Ramp,Y,Y
+TN,N,2b547cb0-727e-45b6-bb87-d5dd3049991b,2026-07-08,49.40,Sheetz,Robert Wilhoit,Sheetz — Fuel and Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Sheetz,Ramp,Y,Y
+TN,N,bf055c5e-b148-417c-b544-770a94d34387,2026-07-08,46.00,Nouria,Frank Browne,Nouria — Fuel and Gas: REGULAR,Y,N,N,Frank Browne,Frank Browne,,Nouria,Ramp,Y,Y
+TN,N,5038c21e-f98a-4d9b-a264-08462ab843d0,2026-07-08,45.50,Sheetz,Alan Mayrer,Sheetz — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Sheetz,Ramp,Y,Y
+TN,N,69ab3b93-c4c5-4b7f-82cf-0c3acbb0d5b3,2026-07-07,55.68,Maverik,Nicole  Fitzgerald,Maverik — Fuel and Gas: FUEL,Y,N,N,Nicole  Fitzgerald,Nicole  Fitzgerald,,Maverik,Ramp,Y,Y
+TN,N,8a6458c1-f351-49fc-90a4-e1d47de7791b,2026-07-07,48.77,7-Eleven,Robert Wilhoit,7-Eleven — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,7-Eleven,Ramp,Y,Y
+TN,N,2c8e0998-9f44-4e29-8a89-2f1e8663d6f0,2026-07-06,51.80,Marathon,Alan Mayrer,Marathon — Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Marathon,Ramp,Y,Y
+TN,N,ad7be9d3-6298-4d74-aabc-653e88d23682,2026-07-06,49.08,Circle K,Deonte Sales,Circle K — Gas: UNL-REG,Y,N,N,Deonte Sales,Deonte Sales,,Circle K,Ramp,Y,Y
+TN,N,bc459ceb-2b6f-494d-9706-a2b644a82094,2026-07-06,54.23,Shell,Frank Browne,Shell — Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Shell,Ramp,Y,Y
+TN,N,37e8df73-d5c0-4d07-aa38-a57d94887018,2026-07-06,22.20,RaceWay,Sydney Klinowski,RaceWay — Fuel and Gas: Unl-87,Y,N,N,Sydney Klinowski,Sydney Klinowski,,Raceway,Ramp,Y,Y
+TN,N,5140ac8e-0518-48e6-ba25-a8a1274d1a8e,2026-07-03,35.07,Speedway,Sydney Klinowski,Speedway — Fuel and Gas: FUEL,Y,N,N,Sydney Klinowski,Sydney Klinowski,,Speedway,Ramp,Y,Y
+TN,N,50a70b38-f7e2-4e32-aadf-4d583a51c8c3,2026-07-02,79.91,RaceTrac,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,RaceTrac,Ramp,Y,Y
+TN,N,12fdc188-03f4-4cf9-a86d-091fdab78e84,2026-07-02,51.32,Circle K,Robert Wilhoit,Circle K — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Circle K,Ramp,Y,Y
+TN,N,15e9f17b-8686-4e4e-ba05-883edac93131,2026-07-01,83.61,BP,Isabel Babbie,BP — Gas: UNLEADED REGULAR,Y,N,N,Isabel Babbie,Isabel Babbie,,BP,Ramp,Y,Y
+TN,N,beba5e38-585f-4fe5-b39e-b3692e89bcd2,2026-07-01,71.49,RaceTrac,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,RaceTrac,Ramp,Y,Y
+TN,N,86235934-d97e-4e6b-93ee-bd8fdb3437a4,2026-07-01,49.35,Murphy USA,Robert Wilhoit,Murphy USA — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Murphy USA,Ramp,Y,Y
+TN,N,1c869bff-aff4-4941-a37e-bb8484832b2f,2026-07-01,0.37,Murphy USA,Robert Wilhoit,Murphy USA — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Murphy USA,Ramp,Y,Y
+TN,N,9c9c07fb-6ec7-427f-9602-92950884ed7e,2026-07-01,37.48,MAPCO,Sydney Klinowski,MAPCO — Gas: FUEL,Y,N,N,Sydney Klinowski,Sydney Klinowski,,Mapco,Ramp,Y,Y
+TN,N,9cd99d6d-19db-41e5-bd36-5ff92caff2a9,2026-07-01,50.22,Sheetz,Alan Mayrer,Sheetz — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Sheetz,Ramp,Y,Y
+TN,N,0272e569-0d4c-4547-aee7-044ab8457d72,2026-07-01,48.12,Shell,Rona Ivey,Shell — Gas: FUEL,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,eea2a5e3-0930-48bc-96a0-1e2473dedff8,2026-06-30,20.00,Citgo,Robert Wilhoit,Citgo — Gas: PREPAY CR #08,Y,N,N,Robert Wilhoit,Robert Wilhoit,,Citgo,Ramp,Y,Y
+TN,N,209be000-a174-4791-89fb-846fe469c07e,2026-06-29,49.61,Sheetz,Alan Mayrer,Sheetz — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Sheetz,Ramp,Y,Y
+TN,N,5c2bc161-77ba-464e-abdf-0a3202b9da10,2026-06-29,56.68,Exxon,Frank Browne,Exxon — Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Exxon,Ramp,Y,Y
+TN,N,93db1f60-87d4-41a4-bc3d-68b4b0c95032,2026-06-29,56.51,BP,Robert Wilhoit,BP — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,BP,Ramp,Y,Y
+TN,N,59fb8a0e-99c9-47cc-bab8-704a34c003c7,2026-06-26,64.79,Sheetz,Alan Mayrer,Sheetz — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Sheetz,Ramp,Y,Y
+TN,N,8c846918-0f2f-4fb6-980d-459afdc4b64f,2026-06-26,45.00,Shell,Rona Ivey,Shell — Gas: REGULAR CA,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,d02f20c2-d0d6-4ab8-9351-b3c8126f3c3f,2026-06-25,62.56,Exxon,Frank Browne,Exxon — Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Exxon,Ramp,Y,Y
+TN,N,71206ca8-cfa6-4313-96dc-dfef871c1506,2026-06-25,41.21,BP,Robert Wilhoit,BP — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,BP,Ramp,Y,Y
+TN,N,76aca9be-fc42-4bc3-924b-85c5f168624a,2026-06-24,50.00,RaceTrac,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,RaceTrac,Ramp,Y,Y
+TN,N,aab135f6-fd2b-4344-b97c-a5bb7379c783,2026-06-24,51.85,Circle K,Deonte Sales,Circle K — Gas: UNL-REG,Y,N,N,Deonte Sales,Deonte Sales,,Circle K,Ramp,Y,Y
+TN,N,63541d82-838d-48f3-ae4c-d92c672bc17d,2026-06-24,62.28,BP,Alan Mayrer,BP — Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,BP,Ramp,Y,Y
+TN,N,994db986-8464-48a1-9c52-bf2267a2960b,2026-06-24,47.72,PC Optimum,Robert Wilhoit,PC Optimum — Fuel and Gas: UNLD,Y,N,N,Robert Wilhoit,Robert Wilhoit,,PC Optimum,Ramp,Y,Y
+TN,N,e6788931-bb20-4f29-9096-960330d92690,2026-06-23,56.80,Exxon,Frank Browne,Exxon — Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Exxon,Ramp,Y,Y
+TN,N,0ea05a7b-6cca-42b8-a67c-e883aef1e06b,2026-06-22,34.79,Murphy USA,Nicole  Fitzgerald,Murphy USA — Gas: FUEL PREPAY #08,Y,N,N,Nicole  Fitzgerald,Nicole  Fitzgerald,,Murphy USA,Ramp,Y,Y
+TN,N,f991eac1-9082-420d-9f8c-95d3808d7a4d,2026-06-22,59.42,BP,Robert Wilhoit,BP — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,BP,Ramp,Y,Y
+TN,N,7c08690b-68bb-4728-97b0-ca9c474f24c9,2026-06-22,61.13,Sheetz,Alan Mayrer,Sheetz — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Sheetz,Ramp,Y,Y
+TN,N,1b402472-a330-42f4-ac14-20bb96e1015c,2026-06-22,78.02,Speedway,Isabel Babbie,Speedway — Fuel and Gas: UNLEADED REGULAR,Y,N,N,Isabel Babbie,Isabel Babbie,,Speedway,Ramp,Y,Y
+TN,N,5d2d4a9a-d23f-4459-8186-c8f689a33f17,2026-06-22,61.80,QuikTrip,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,QuikTrip,Ramp,Y,Y
+TN,N,86ced4a6-68c2-4418-92e8-0ebeb0d1a4fb,2026-06-22,45.00,Shell,Rona Ivey,Shell — Gas: REGULAR CA,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,393b7657-b904-45e1-ba65-0b609c73c3d5,2026-06-19,85.50,RaceTrac,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,RaceTrac,Ramp,Y,Y
+TN,N,a74d98ae-f7a0-4fc9-919c-ff0298c83125,2026-06-18,45.00,Shell,Rona Ivey,Shell — Gas: REGULAR CA PUMP# 7,Y,N,N,Rona Ivey,Rona Ivey,,Shell,Ramp,Y,Y
+TN,N,292c1647-e879-4605-9b8c-337ccfca72b0,2026-06-18,75.92,QuikTrip,Kerry Walker,Business Gas,Y,Y,Y,Kerry Walker - Business Gas,Kerry Walker - Business Gas,,QuikTrip,Ramp,Y,Y
+TN,N,b67e5e4e-0768-4b14-9ab5-c90a1bad5bba,2026-06-17,64.16,BP,Robert Wilhoit,BP — Gas: FUEL,Y,N,N,Robert Wilhoit,Robert Wilhoit,,BP,Ramp,Y,Y
+TN,N,e5228fd6-2b36-49f8-b95a-68928ceaae0b,2026-06-17,56.50,Casey's,Alan Mayrer,Casey's — Fuel and Gas: FUEL,Y,N,N,Alan Mayrer,Alan Mayrer,,Casey's,Ramp,Y,Y
+TN,N,3d9c20b7-b47b-4207-a3b1-2233fcb5fd47,2026-06-17,59.91,Gulf Oil,Frank Browne,Gulf Oil — Fuel and Gas: FUEL,Y,N,N,Frank Browne,Frank Browne,,Gulf Oil,Ramp,Y,Y

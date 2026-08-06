@@ -1,0 +1,260 @@
+merchant,ramp_category,coded_lines,top_gl,top_acct,agreement_pct,manual_top_gl,manual_lines
+Amazon,Books and Newspapers,1887,Suspense,8220,48,Suspense,511
+ezCater,Restaurants,560,Client Presentation,6800.10,88,Client Presentation,115
+Walmart,General Merchandise,239,Office Expense,6200.80,28,Compound Ingredient Inventory,60
+Doordash,Restaurants,234,Client Presentation,6800.10,52,Client Presentation,52
+Shell,Fuel and Gas,194,Gas,6200.12,98,Gas,28
+Starbucks,Restaurants,184,Client Presentation,6800.10,54,Meals,51
+Circle K,Fuel and Gas,105,Gas,6200.12,99,Gas,36
+Uber,Taxi and Rideshare,93,Car Rental/Hired Car,6830.10,98,Car Rental/Hired Car,84
+Exxon,Fuel and Gas,92,Gas,6200.12,99,Gas,24
+Sam's Club,General Merchandise,84,Office Expense,6200.80,61,Meals,11
+QuikTrip,Fuel and Gas,76,Gas,6200.12,100,Gas,11
+Pura Vida Miami,Restaurants,75,Meals,6800.20,68,Client Presentation,22
+Uber Eats,Restaurants,72,Client Presentation,6800.10,71,Client Presentation,22
+7-Eleven,Fuel and Gas,70,Gas,6200.12,97,Gas,45
+American Airlines,Airlines,67,Airfare/Transportation,6830.05,96,Airfare/Transportation,27
+Chick-Fil-A,Restaurants,64,Client Presentation,6800.10,70,Meals,10
+NTTA,Travel Misc,62,Parking/Tolls,6200.13,73,Parking/Tolls,45
+Nothing Bundt Cakes,Supermarkets and Grocery Stores,62,Meals,6800.20,63,Meals,23
+Speedway,Fuel and Gas,53,Gas,6200.12,98,Gas,1
+Anthropic,SaaS / Software,50,Software Support Fees,6200.97,86,Software Support Fees,40
+BP,Fuel and Gas,50,Gas,6200.12,100,Gas,6
+ULINE,General Merchandise,44,Office Expense,6200.80,80,Office Expense,1
+Publix,Supermarkets and Grocery Stores,37,Meals,6800.20,51,Meals,8
+Cosmetic Packaging - AutoPay,General Merchandise,37,Office Expense,6200.80,89,Compound Packaging Inventory,2
+RaceTrac,Fuel and Gas,37,Gas,6200.12,97,Gas,17
+Chipotle,Restaurants,34,Client Presentation,6800.10,82,Meals,3
+Courtyard by Marriott,Lodging,33,Hotels,6830.20,85,Hotels,17
+LinkedIn,Books and Newspapers,32,Recruiting,6200.90,100,Recruiting,2
+TopRx,General Merchandise,29,Office Expense,6200.80,97,"Due From MedRock TX, LLC",1
+Panera Bread,Restaurants,29,Client Presentation,6800.10,59,Meals,5
+EasyPost,Shipping,28,Postage Machine - Stamps.com,1225,93,Postage Machine - Stamps.com,8
+UPS,Shipping,26,Sales & Marketing - Other,6800.30,69,Sales & Marketing - Other,18
+Tim Hortons,Restaurants,26,Client Presentation,6800.10,73,Meals,7
+Sheetz,Fuel and Gas,26,Gas,6200.12,100,(none manual),0
+Dunkin' Donuts,Restaurants,25,Client Presentation,6800.10,52,Meals,5
+Gate,Fuel and Gas,24,Gas,6200.12,96,Gas,10
+"Houston, TX",Fuel and Gas,23,Gas,6200.12,100,Gas,12
+Target,General Merchandise,23,Sales & Marketing - Other,6800.30,52,Sales & Marketing - Other,12
+Aloft,Lodging,23,Hotels,6830.20,96,Hotels,10
+Southwest Airlines,Airlines,22,Airfare/Transportation,6830.05,100,Airfare/Transportation,4
+Chevron,Fuel and Gas,22,Gas,6200.12,100,Gas,13
+Wawa,Fuel and Gas,21,Gas,6200.12,95,Gas,9
+Hampton Inn,Lodging,21,Hotels,6830.20,100,Hotels,7
+MakingCosmetics Inc.,Other,18,Suspense,8220,89,Compound Ingredient Inventory,1
+Hilton Hotels,Lodging,18,Hotels,6830.20,94,Hotels,3
+LAZ Parking,Parking,18,Parking/Tolls,6200.13,100,Parking/Tolls,1
+QDOBA Mexican Eats,Restaurants,18,Client Presentation,6800.10,100,(none manual),0
+Adobe,Office,17,Sales & Marketing - Other,6800.30,47,Sales & Marketing - Other,8
+Marriott,Lodging,17,Hotels,6830.20,76,Hotels,3
+USPS,Government Services,17,Sales & Marketing - Other,6800.30,82,Sales & Marketing - Other,14
+Lyft,Taxi and Rideshare,15,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,13
+Tropical Smoothie Cafe,Restaurants,15,Client Presentation,6800.10,67,Meals,4
+Lowe's,General Merchandise,14,Lab Supplies,5000.25,29,Lab Supplies,4
+Fairfield Inn & Suites,Lodging,14,Hotels,6830.20,100,Hotels,10
+Mobil@ 2935,Fuel and Gas,14,Gas,6200.12,100,Gas,14
+Allegiant,Airlines,14,Airfare/Transportation,6830.05,100,Airfare/Transportation,3
+Gulf Oil,Fuel and Gas,14,Gas,6200.12,100,(none manual),0
+Hospital Pharmaceutical,General Merchandise,13,Office Expense,6200.80,85,Commercial Rx Inventory,1
+Integral Rx,General Merchandise,13,Office Expense,6200.80,69,Compound Ingredient Inventory,2
+SpringHill Suites,Lodging,13,Hotels,6830.20,100,Hotels,7
+BUC-EE'S,Fuel and Gas,13,Gas,6200.12,92,Gas,11
+Kroger,Fuel and Gas,13,Gas,6200.12,62,Gas,8
+Delta Air Lines,Airlines,13,Airfare/Transportation,6830.05,100,(none manual),0
+Illinois Tollway,Travel Misc,13,Parking/Tolls,6200.13,100,Parking/Tolls,13
+Staples,Office supplies and cleaning,12,Office Supplies,6200.85,50,Sales & Marketing - Other,4
+"Stericycle, Inc. - AutoPay",Professional Services,12,Lab Services,6200.55,100,(none manual),0
+Extra Space Storage,Other,12,Rent Expense,6710,100,(none manual),0
+SunPass,Travel Misc,12,Parking/Tolls,6200.13,75,Parking/Tolls,9
+Murphy USA,Fuel and Gas,12,Gas,6200.12,100,Gas,7
+Delicass,Supermarkets and Grocery Stores,12,Meals,6800.20,100,Meals,12
+Flower Child,Restaurants,12,Client Presentation,6800.10,100,(none manual),0
+MAPCO,Fuel and Gas,11,Gas,6200.12,100,Gas,2
+Sara Glove Company,General Merchandise,11,Office Expense,6200.80,100,(none manual),0
+Office Depot,Other,11,Office Supplies,6200.85,55,Sales & Marketing - Other,5
+eBay,General Merchandise,11,Suspense,8220,36,Suspense,4
+Olive Garden,Restaurants,11,Client Presentation,6800.10,55,Meals,2
+AutoExpreso,Travel Misc,11,Parking/Tolls,6200.13,100,Parking/Tolls,11
+Crumbl Cookies,Supermarkets and Grocery Stores,10,Meals,6800.20,100,Meals,7
+US Plastics,General Merchandise,10,Office Expense,6200.80,90,(none manual),0
+Canva,Professional Services,10,Dues & Subscriptions,6200.45,50,Dues & Subscriptions,5
+Metropolis,Parking,10,Parking/Tolls,6200.13,100,Parking/Tolls,7
+Expedia,Travel Misc,10,Hotels,6830.20,40,Hotels,4
+Love's Travel Stop,Fuel and Gas,10,Gas,6200.12,100,Gas,4
+DropperBottles.com,General Merchandise,9,Office Expense,6200.80,89,(none manual),0
+Jersey Mike's Subs,Restaurants,9,Client Presentation,6800.10,56,Meals,2
+Craft Kafe,Restaurants,9,Client Presentation,6800.10,100,Client Presentation,9
+Fedex,Professional Services,9,Sales & Marketing - Other,6800.30,44,Sales & Marketing - Other,4
+CAVA,Restaurants,9,Client Presentation,6800.10,67,Meals,2
+Advocate Sherman Hospital,Parking,9,Parking/Tolls,6200.13,100,Parking/Tolls,9
+Github,SaaS / Software,9,Research & Development Costs,5000.50,100,Research & Development Costs,9
+Garrett Brands,Supermarkets and Grocery Stores,9,Sales & Marketing - Other,6800.30,78,Sales & Marketing - Other,7
+FREEDOMPARK,Taxi and Rideshare,8,Parking/Tolls (travel related),6830.35,63,Parking/Tolls (travel related),5
+KT Advisory Services,Taxes and tax preparation,8,Consulting Fees,6600.10,100,(none manual),0
+WebstaurantStore,General Merchandise,8,Suspense,8220,63,Dues & Subscriptions,3
+Google Workspace,Office,8,Software Support Fees,6200.97,100,(none manual),0
+Papa John's Pizza,Restaurants,8,Client Presentation,6800.10,63,Suspense,1
+Marathon,Fuel and Gas,8,Gas,6200.12,100,Gas,2
+Indeed,Advertising,8,Recruiting,6200.90,100,Recruiting,8
+Pappadeaux Seafood Kitchen,Restaurants,8,Meals,6830.25,38,Meals,3
+Whole Foods Market,Supermarkets and Grocery Stores,8,Meals,6800.20,63,Meals,5
+Frontier,Airlines,8,Airfare/Transportation,6830.05,100,Airfare/Transportation,3
+Hilton Garden Inn,Lodging,8,Hotels,6830.20,100,(none manual),0
+oak drugs,General Merchandise,7,Office Expense,6200.80,100,(none manual),0
+Thrifty,Car Rental,7,Car Rental/Hired Car,6830.10,86,Car Rental/Hired Car,1
+La Segunda Central Bakery,Restaurants,7,Meals,6800.20,86,Meals,4
+Lady Baker,Supermarkets and Grocery Stores,7,Meals,6800.20,71,Client Presentation,2
+Paypal,General Merchandise,7,Software Support Fees,6200.97,29,Accrued Expenses,1
+Citgo,Fuel and Gas,7,Gas,6200.12,100,Gas,2
+Jimmy John's,Restaurants,7,Meals,6830.25,43,Meals,3
+Enterprise,Car Rental,7,Car Rental/Hired Car,6830.10,86,Suspense,1
+Thirsty Lion Gastropub and Grill,Restaurants,7,Meals,6830.25,86,Meals,6
+Angelitos Cafe,Restaurants,7,Client Presentation,6800.10,100,Client Presentation,7
+Jaxville Aviation Auth Pa,Parking,7,Parking/Tolls,6200.13,86,Parking/Tolls,1
+Subway,Restaurants,7,Meals,6830.25,86,Meals,6
+United,Airlines,7,Airfare/Transportation,6830.05,100,(none manual),0
+City Barbeque,Restaurants,7,Client Presentation,6800.10,100,(none manual),0
+Mochinut,Restaurants,7,Client Presentation,6800.10,86,Meals,1
+Quality Inn,Lodging,7,Hotels,6830.20,100,(none manual),0
+Conoco,Fuel and Gas,7,Gas,6200.12,100,(none manual),0
+Tolls,Travel Misc,7,Parking/Tolls,6200.13,100,Parking/Tolls,7
+Medical Plaza Professional Building,Parking,6,Parking/Tolls,6200.13,83,Parking/Tolls,4
+Stamps.com,Shipping,6,Postage/Shipping Cost,5000.40,100,(none manual),0
+Hertz,Car Rental,6,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,4
+Sunoco,Fuel and Gas,6,Gas,6200.12,100,Gas,1
+Panda Express,Restaurants,6,Meals,6800.20,50,Meals,2
+Wolfmoon,Restaurants,6,Meals,6800.20,67,Meals,2
+Parking,Parking,6,Parking/Tolls,6200.13,100,Parking/Tolls,4
+Hopdoddy Burger Bar,Restaurants,6,Meals,6830.25,50,Meals,3
+LongHorn Steakhouse,Restaurants,6,Client Presentation,6800.10,50,Meals,3
+Avis Rent A Car,Car Rental,6,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,3
+Cira's Cookies,Supermarkets and Grocery Stores,6,Meals,6800.20,100,Meals,6
+Groome Transportation,Taxi and Rideshare,6,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,6
+Walgreens,Supermarkets and Grocery Stores,6,Sales & Marketing - Other,6800.30,50,Sales & Marketing - Other,3
+Home 2 Suites by Hilton,Lodging,6,Hotels,6830.20,67,Airfare/Transportation,1
+Choice Hotels,Lodging,6,Hotels,6830.20,100,(none manual),0
+Outback Steakhouse,Restaurants,6,Client Presentation,6800.10,67,Meals,1
+Coffee Concrete,Restaurants,5,Meals,6800.20,100,Meals,1
+eFax,Books and Newspapers,5,Office Expense,6200.80,60,Phone Expense,1
+Dfw Airport Parking,Parking,5,Parking/Tolls,6200.13,100,Parking/Tolls,1
+La Quinta Inn & Suites,Lodging,5,Hotels,6830.20,80,Meals,1
+Fairmont Hotels,Travel Misc,5,Parking/Tolls,6200.13,60,Parking/Tolls,3
+Holiday Inn,Lodging,5,Hotels,6830.20,100,Hotels,1
+Amz Hyper,Electronics,5,Suspense,8220,60,Computer Supplies & Equipment,1
+CVS Pharmacy,Supermarkets and Grocery Stores,5,Sales & Marketing - Other,6800.30,40,Sales & Marketing - Other,2
+Trader Joe's,Supermarkets and Grocery Stores,5,Meals,6800.20,60,Meals,3
+Vevor,General Merchandise,5,Shipping Packaging Material Inventory,1220.30,60,Shipping Packaging Material Inventory,3
+Group Parking,Parking,5,Parking/Tolls,6200.13,100,Parking/Tolls,5
+The Sourdough Co.,Restaurants,5,Meals,6800.20,100,Meals,5
+Bottlemate Inc.,General Merchandise,5,Compound Packaging Inventory,1220.15,60,Suspense,1
+The Home Depot,General Merchandise,5,Non-Capital Lab Equipment,6200.75,60,Non-Capital Lab Equipment,3
+RaceWay,Fuel and Gas,5,Gas,6200.12,100,Gas,1
+Booking.com,Lodging,5,Hotels,6830.20,100,Hotels,5
+Hudson's Place,Restaurants,5,Client Presentation,6800.10,80,Meals,1
+South Coast Deli,Restaurants,5,Client Presentation,6800.10,100,(none manual),0
+Casey's,Fuel and Gas,5,Gas,6200.12,100,(none manual),0
+Doubletree By Hilton,Lodging,5,Hotels,6830.20,80,Meals,1
+Autodesk,SaaS / Software,5,Research & Development Costs,5000.50,100,Research & Development Costs,5
+Vercel,SaaS / Software,5,Research & Development Costs,5000.50,80,Research & Development Costs,4
+Jewell Gas Express,Fuel and Gas,5,Gas,6200.12,100,(none manual),0
+ARCO,Fuel and Gas,5,Gas,6200.12,100,(none manual),0
+Get Go Cafe & Market,Fuel and Gas,5,Gas,6200.12,80,Meals,1
+Tailwind,Restaurants,4,Meals,6800.20,50,Meals,2
+Amoco,Fuel and Gas,4,Gas,6200.12,100,Gas,1
+Costco,General Merchandise,4,Gas,6200.12,75,Gas,3
+Intuit,SaaS / Software,4,Software Support Fees,6200.97,75,Due from Mabany Realty,1
+TXU Energy,Utilities,4,Utilities,6100.30,75,Electricity,1
+Newegg,General Merchandise,4,Office Expense,6200.80,25,Suspense,1
+Chef Point Bar & Restaurant,Restaurants,4,Client Presentation,6800.10,50,Client Presentation,2
+Busy Bee,Fuel and Gas,4,Gas,6200.12,100,Gas,2
+Westchase Pizza & Pasta,Restaurants,4,Employee Appreciation,6500.55,100,Employee Appreciation,4
+Cafe Madeline,Restaurants,4,Meals,6800.20,75,Meals,3
+Estacionamiento Hospital San Francisco,Parking,4,Parking/Tolls,6200.13,100,Parking/Tolls,4
+Best Buy,Electronics,4,Sales & Marketing - Other,6800.30,50,Sales & Marketing - Other,2
+Bravo Supermarkets,Supermarkets and Grocery Stores,4,Employee Appreciation,6500.55,100,Employee Appreciation,4
+Harris Teeter,Supermarkets and Grocery Stores,4,Meals,6800.20,50,Meals,2
+Shake Shack,Restaurants,4,Client Presentation,6800.10,100,(none manual),0
+Hotel Sylva,Lodging,4,Hotels,6830.20,100,(none manual),0
+Weigel's,Fuel and Gas,4,Gas,6200.12,100,(none manual),0
+Grubhub,Restaurants,4,Client Presentation,6800.10,50,Meals,1
+McMaster-Carr,General Merchandise,4,Research & Development Costs,5000.50,75,Research & Development Costs,3
+Seven Sundays Coffee,Restaurants,4,Meals,6800.20,75,Meals,3
+ngrok,SaaS / Software,4,Software Support Fees,6200.97,100,Software Support Fees,4
+McAlister's Deli,Restaurants,4,Meals,6800.20,75,Meals,3
+Pita Way,Restaurants,4,Client Presentation,6800.10,100,(none manual),0
+maryland,Travel Misc,4,Parking/Tolls,6200.13,100,Parking/Tolls,4
+Breeze Airways,Airlines,4,Airfare/Transportation,6830.05,100,(none manual),0
+Medicaleshop,General Merchandise,3,Office Expense,6200.80,100,(none manual),0
+"Kalchem International, Inc.",Other,3,Suspense,8220,100,(none manual),0
+PayByPhone,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,2
+H-E-B,Supermarkets and Grocery Stores,3,Meals,6800.20,100,Meals,1
+H-E-B Gas,Fuel and Gas,3,Gas,6200.12,100,Gas,1
+Shipley Do-Nuts,Restaurants,3,Meals,6800.20,100,(none manual),0
+Firebirds Wood Fired Grill,Restaurants,3,Client Presentation,6800.10,67,(none manual),0
+Sonic Drive-In,Restaurants,3,Meals,6800.20,67,(none manual),0
+Whataburger,Restaurants,3,Meals,6800.20,100,Meals,1
+Orkin,Other,3,Office Expense,6200.80,100,(none manual),0
+Text Request,SaaS / Software,3,Software Support Fees,6200.97,100,(none manual),0
+Lexium PLLC,Legal,3,Legal Fees,6600.15,100,(none manual),0
+Hotwire,Travel Misc,3,Hotels,6830.20,67,Hotels,2
+Easirent.Com Orlando,Car Rental,3,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,2
+BLVD at Lenox,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+Texaco,Fuel and Gas,3,Gas,6200.12,100,Gas,1
+Sourdough & Co.,Restaurants,3,Meals,6800.20,100,(none manual),0
+Residence Inn,Lodging,3,Hotels,6830.20,100,(none manual),0
+Mangos,Restaurants,3,Meals,6800.20,67,Meals,1
+"Fort Lauderdale, FL",General Merchandise,3,Employee Appreciation,6500.55,67,Employee Appreciation,2
+Pita Jungle,Restaurants,3,Client Presentation,6800.10,67,(none manual),0
+ParkJockey,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+Einstein Bros. Bagels,Restaurants,3,Client Presentation,6800.10,67,Employee Appreciation,1
+Trinity Episcopal School,Religious Organizations,3,Charitable Donations,6200.30,67,Parking/Tolls,1
+YOUYU Noodle Bar,Restaurants,3,Meals,6800.20,100,Meals,3
+Ft Brook Gar,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+City of Miami Beach,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+The Printer Depo,Electronics,3,Suspense,8220,67,Suspense,2
+Cumberland Farms,Fuel and Gas,3,Gas,6200.12,100,Gas,1
+La La Land Kind Cafe,Restaurants,3,Meals,6800.20,67,Meals,2
+La Segunda Kennedy,Restaurants,3,Meals,6800.20,67,Meals,2
+MOBIL,Fuel and Gas,3,Gas,6200.12,100,Gas,3
+San Miguel Parking,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+Parking Management Company,Parking,3,Parking/Tolls,6200.13,67,Parking/Tolls (travel related),1
+Wintzell's Oyster House,Restaurants,3,Meals,6830.25,33,Meals,1
+Original Oyster House,Restaurants,3,Meals,6830.25,33,Meals,1
+Ad Bos Vend Restaurant,Restaurants,3,Meals,6830.25,67,Meals,2
+Renaissance Hotels,Restaurants,3,Meals,6830.25,33,Meals,1
+Dollar Rent A Car,Car Rental,3,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,1
+CLINICA LAS AMERICAS,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+Parkmedia Metro Parkin,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+U-Haul,Car Rental,3,Suspense,8220,67,Suspense,2
+Marquez Graciani Asset,Parking,3,Parking/Tolls,6200.13,100,Parking/Tolls,3
+The Reserve Culinary Tavern,Restaurants,3,Meals,6830.25,100,Meals,3
+6122 Tpa Illy Espressa Restaurant,Restaurants,3,Meals,6830.25,100,Meals,3
+SIGIS,Charitable donations,3,Dues & Subscriptions,6200.45,67,Dues & Subscriptions,2
+Raising Cane's Chicken Fingers,Restaurants,3,Client Presentation,6800.10,100,Client Presentation,1
+Alamo,Car Rental,3,Car Rental/Hired Car,6830.10,100,Car Rental/Hired Car,3
+Chicken Salad Chick,Restaurants,3,Client Presentation,6800.10,100,Client Presentation,1
+Sheraton,Lodging,3,Hotels,6830.20,100,(none manual),0
+Pilot Flying J,Fuel and Gas,3,Gas,6200.12,100,(none manual),0
+Insomnia Cookies,Restaurants,3,Client Presentation,6800.10,67,Meals,1
+Original ChopShop,Restaurants,3,Client Presentation,6800.10,100,(none manual),0
+Red Robin,Restaurants,3,Client Presentation,6800.10,100,(none manual),0
+Maverik,Fuel and Gas,3,Gas,6200.12,100,(none manual),0
+Lenny's Sub Shop,Restaurants,3,Client Presentation,6800.10,100,(none manual),0
+Donut World,Supermarkets and Grocery Stores,3,Client Presentation,6800.10,67,Meals,1
+Domino's Pizza,Restaurants,3,Client Presentation,6800.10,67,Employee Appreciation,1
+Portofino's Italian Restaurant,Restaurants,3,Meals,6800.20,67,Meals,2
+Nayax,Parking,3,Parking/Tolls,6200.13,67,Parking/Tolls,2
+Mellow Mushroom,Restaurants,3,Client Presentation,6800.10,67,Meals,1
+Hudson News,Books and Newspapers,3,Meals,6800.20,67,Meals,2
+Pittsburgh,Supermarkets and Grocery Stores,3,Meals,6800.20,100,Meals,3
+Pharmacy Technician Certification Board,Education,3,Employee Certification/Accreditation,6500.60,100,Employee Certification/Accreditation,3
+Ab Petroleum,Fuel and Gas,3,Gas,6200.12,100,(none manual),0
+Google Cloud,Professional Services,3,Software Support Fees,6200.97,100,Software Support Fees,3
+King Soopers,Fuel and Gas,3,Gas,6200.12,67,Gas,2
+Amazon Web Services,Office,3,Software Support Fees,6200.97,100,Software Support Fees,3
+Amerisource Receivables,Medical,3,Commercial Rx Inventory,1220.05,33,Commercial Rx Inventory,1
+Carolina Ale House,Restaurants,3,Meals,6800.20,67,Meals,2
+Allianz Travel Insurance,Insurance,3,Airfare/Transportation,6830.05,100,Airfare/Transportation,3
+Roosters,Restaurants,3,Sales & Marketing - Other,6800.30,67,Sales & Marketing - Other,2
+Einsteinbros_Mobile Restaurant,Restaurants,3,Meals,6800.20,100,Meals,3

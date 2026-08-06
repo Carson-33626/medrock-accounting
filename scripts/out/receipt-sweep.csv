@@ -1,0 +1,774 @@
+entity,txn_id,date,amount,merchant,cardholder,sync_status,approved,memo
+TN,4456532d-8aae-4f5d-8f09-d333e0ced7f9,2026-07-18,19.25,088 Braums Store Restaurant,Grant Powell,NOT_SYNC_READY,N,088 Braums Store Restaurant — Restaurants
+TX,d3b8b4b8-b798-4cc0-b005-105c50180428,2026-04-14,11.00,Ace Hardware,Darik Carson,NOT_SYNC_READY,Y,requested receipt
+TX,1407724f-acc1-4276-a76f-592b89b1c958,2026-06-09,558.44,ACE Rent A Car,Darik Carson,NOT_SYNC_READY,N,ACE Rent A Car — Car Rental
+FL,aff53a61-0444-4095-a721-eb5a6db1bc0e,2026-04-04,293.53,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,needs receipt
+FL,97165ce1-c507-48aa-81a1-e7bbb1a9eff8,2026-04-06,46.00,Amazon,Marissa Dickie,NOT_SYNC_READY,N,need receipt
+FL,96063275-6258-44ec-a7bd-df6d0b56f413,2026-04-07,47.44,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,need receipt
+TN,57a79f21-4dcd-4972-a82f-b2254adcc042,2026-04-07,7.57,Amazon,Nicole  Fitzgerald,NOT_SYNC_READY,N,Amazon purchase
+FL,10b1ce97-3237-486b-aa09-88ee58eaad2c,2026-04-10,-45.45,Amazon,Darik Carson,NOT_SYNC_READY,Y,Amazon purchase
+TN,4d6b4727-61f1-4420-a794-1d8469719635,2026-04-11,-7.57,Amazon,Nicole  Fitzgerald,NOT_SYNC_READY,N,Amazon purchase
+FL,4009ec49-0426-4934-9abc-a665a0105635,2026-04-14,-13.64,Amazon,Darik Carson,NOT_SYNC_READY,Y,need receipt
+FL,eacf0dc3-878e-487c-a324-44bc6b534f40,2026-04-15,13.68,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,need receipt
+FL,7365619e-fa08-44c4-9290-438aaa31a9b9,2026-04-20,-90.90,Amazon,Darik Carson,NOT_SYNC_READY,Y,Amazon purchase
+FL,d248c62b-7b8e-4533-9f8c-50a737f0f398,2026-04-20,-45.45,Amazon,Darik Carson,NOT_SYNC_READY,Y,Amazon purchase
+FL,7a4d6b53-aad1-4e0e-8220-a2e913eda768,2026-04-27,97.05,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,7ab7c677-945f-4bda-80ba-3961dadade0e,2026-04-27,212.03,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,b9e602cf-3b89-4aa4-b628-eb03557060bb,2026-05-06,-101.14,Amazon,Darik Carson,NOT_SYNC_READY,Y,Amazon purchase
+FL,1efcdd1c-f8ee-4d42-85af-9bb5f21be61b,2026-05-07,140.64,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,2bcc208d-81e3-4c5b-a802-601b015baaa7,2026-05-08,45.56,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,024d3bc6-2973-4564-b68f-854edb63230e,2026-05-08,-36.99,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,0cebc68f-8bb2-4be0-8e23-c172f57dbfaf,2026-05-15,-3.24,Amazon,Darik Carson,NOT_SYNC_READY,Y,Amazon purchase
+FL,e97c7e38-7d7a-4030-8034-e1fe536d9388,2026-05-15,-65.97,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,2de5b7e6-77aa-419b-ac93-0df8ec2a7d59,2026-05-19,-119.49,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+TX,4d3f758c-0541-4506-b4b5-78cc05f37933,2026-05-21,-300.04,Amazon,Ash Ahmed,NOT_SYNC_READY,Y,Amazon purchase
+TX,0678964c-f06b-4226-a754-c8a17c8ba138,2026-05-21,-300.04,Amazon,Ash Ahmed,NOT_SYNC_READY,Y,Amazon purchase
+FL,5d975c10-6a77-4943-87d7-f166e71e7790,2026-05-22,-65.97,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,006b125e-e640-4950-8f2a-2eab186f27c9,2026-05-26,-131.94,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,1b0b5865-fc46-4db3-bdc9-29f2d8f2c6c7,2026-06-09,38.99,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,727e7c6c-6e1d-4e29-ab1a-307f9a852aa1,2026-06-09,83.43,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,a9879f0f-b708-498d-9a2e-08a6f3331a8b,2026-06-13,-24.66,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,61eff194-e369-4f5f-a192-55d0f6767fd0,2026-06-13,-22.78,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,85141bef-6692-46e7-9097-c6d469121482,2026-06-13,94.99,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,1d9c479f-68c1-4986-82d5-4f47b6f377ca,2026-06-23,39.98,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,021e93b7-84dd-4f77-88d5-1d8c9715b865,2026-06-23,96.99,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,afc7d058-3308-4f08-b973-066218b3325d,2026-06-23,96.99,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,88bd6154-c9f5-444c-8945-20bace5bf3ff,2026-06-26,112.98,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,5d5dcfd9-5318-417f-938d-ae4de2035cee,2026-06-30,148.54,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,4700f89e-a6ca-4b3f-bf7e-4d5afa614f30,2026-07-01,405.59,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,f8a4be97-4335-4be7-9c5c-369541fb75dc,2026-07-02,89.98,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,20aae20d-c878-4abd-9b69-8a61e60d398f,2026-07-07,148.54,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,8e73e194-91c9-4af5-91a2-751fed50d9e2,2026-07-09,-48.97,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Amazon purchase
+FL,e55899cc-7c73-46d3-a0f8-834c17edce49,2026-07-10,773.56,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,317a9500-2ba8-4b46-b906-525b139f84b9,2026-07-13,76.70,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,e7c3b6f0-b0c5-4534-8da8-707eaf2c7095,2026-07-16,62.05,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,91dbed7b-3833-432a-b233-cb38c4c8f431,2026-07-23,20.97,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,Amazon purchase
+FL,59dc00c5-e9cc-4e36-a222-ad0b9cdb4b58,2026-07-24,393.65,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+FL,16ac91c0-dcec-4218-b051-8ef689330070,2026-07-24,55.73,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+FL,ef441b98-88f7-4e9f-96fc-04aec673b35e,2026-07-24,25.96,Amazon,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+TX,f3301fcf-834a-4b64-b4fa-d1eab21a9a67,2026-05-03,473.40,American Airlines,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+FL,ae5d6cfd-ee25-4aa1-ae04-232bec08ff6e,2026-07-27,734.80,American Airlines,Marissa Dickie,NOT_SYNC_READY,N,
+TN,ac90bdc1-7b6e-46ec-8c16-fd3c14232619,2026-03-10,222.00,Amerisource Receivables,Amy Murphy,NOT_SYNC_READY,Y,
+TN,5e72eb4a-8b9e-43e5-8b27-feb33e16affe,2026-03-11,166.52,Amerisource Receivables,Amy Murphy,NOT_SYNC_READY,Y,
+FL,6dcae493-1457-4a1c-91fe-6f702940c58e,2026-03-12,1605.96,Amz Hyper,Alexander Graulau-lugo,NOT_SYNC_READY,Y,invoice has been entered. PC Liquidations- match it after invoice approved.
+FL,cfe0e834-c201-4c6a-90b0-e865115ded4b,2026-04-08,1775.96,Amz Hyper,Darik Carson,NOT_SYNC_READY,N,*Missing Receipt* have requested 3x 05/22/2026
+FL,6831f174-024e-43f9-9523-1e867f8ed382,2026-04-21,169.96,Anthropic,Darik Carson,NOT_SYNC_READY,N,Requested Receipt
+FL,87d06ded-b1b6-4541-84fd-08bb6baefd27,2026-05-15,14.99,Apple Services,Veronica Denha,NOT_SYNC_READY,Y,(KG:?) Not sure what this is — I did not authorize this or recall authorizing it
+TN,3d0d6cb9-0b8c-4f59-8a80-6de1e9ff6f21,2026-05-07,19.25,Asian Chao,Lucas Lockwood,SYNC_READY,N,"Asian Chao — Restaurants. Lucas Lockwood
+May 12, 3:06 PM
+Marked as 'I don't have a Receipt'
+Forgot to upload receipt - eating very quickly in between flights in airport before connecting flight."
+TN,aa370594-41e4-44e5-bda0-08e24969f6e6,2026-07-16,1.00,Baltimore County Revenue Authority,Rona Ivey,NOT_SYNC_READY,N,Baltimore County Revenue Authority — Parking
+FL,5e5eca9a-9fc0-4f65-8567-3a82eb77dccf,2026-06-26,-100.00,Bayshore Mediterranean Grill,Kelli Hippenmeyer,NOT_SYNC_READY,Y,Refund for Down payment for reservation for 6/30 dinner with USF- receipt will be uploaded after the dinner
+FL,13123af8-7e24-4ff5-9483-cd25bcb3998d,2026-03-02,334.16,Berlin Packaging,Ash Ahmed,NOT_SYNC_READY,Y,
+TX,c7f2138e-7a6e-4c8c-bcc3-eb099614511c,2026-05-16,24.81,Berlin Packaging,Darik Carson,NOT_SYNC_READY,Y,
+TN,27808a21-94aa-47cd-adc7-e714ee8d8d56,2026-06-05,110.38,Berlin Packaging,Mary Claire Barnes,NOT_SYNC_READY,N,Berlin Packaging — General Merchandise
+TX,491b206f-192a-4fe3-b8dc-9d201fa59f4e,2026-05-07,470.87,Best Buy,Ash Ahmed,NOT_SYNC_READY,N,Best Buy — Sales & Marketing - Other
+TN,a9627c86-4363-4c0e-98c2-e918024f94a2,2026-07-01,633.64,Best Buy,Mary Claire Barnes,NOT_SYNC_READY,N,Best Buy — Sales & Marketing - Other
+TN,75862fbc-1bdb-4612-a119-8c2bfcfc516b,2026-05-13,5.00,Blue Water Bridge,Isabel Babbie,NOT_SYNC_READY,N,Blue Water Bridge — Government Services
+FL,9cdb538a-1d78-4e5b-9513-ef2d1995d4d0,2025-10-02,412.08,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,eb0d8c4c-8d85-43e7-a771-eaac80629bf5,2025-11-06,398.86,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,09442e8d-e114-401e-8f9b-5e8ca9a1fe9e,2025-11-07,405.78,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,4d5dc74e-25e8-485e-b23a-01e7c1f627d6,2025-11-12,405.65,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d798d079-4e54-4524-9923-ed0d90501b7f,2025-11-21,404.87,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,04a0fc68-7317-43ab-8ae9-78c2fbadb6c6,2025-12-08,624.76,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,03db1ee0-5409-4fd4-afba-7298d84c8607,2025-12-22,813.51,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,48e42a3f-a03d-48a7-9e24-a883c0ed0dff,2026-01-12,400.90,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,a662c4c3-eaf0-46e4-9c4a-f31e10d31eda,2026-01-21,399.90,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,99efe7b2-7f72-4af9-ad27-2adf14b57162,2026-03-18,470.84,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,a1b13d32-9a8f-4ce4-9329-a601bcecb102,2026-03-31,615.12,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,1e8366a4-e93d-4bb8-8cf3-7a3ad890988f,2026-04-20,619.66,Bonita Pharmaceuticals,Amy Murphy,NOT_SYNC_READY,Y,
+FL,7672c162-c9cb-4aba-b5c8-5f54df8106fa,2026-06-22,412.34,Bonita Pharmaceuticals,Darik Carson,NOT_SYNC_READY,Y,
+TN,f89e77bf-94c1-4ba3-aa85-77a40e588dd2,2026-07-13,322.64,Bonita Pharmaceuticals,Darik Carson,NOT_SYNC_READY,Y,
+FL,9509375b-aaf4-45e2-af2e-91c11e97e8e3,2026-07-17,673.64,Bonita Pharmaceuticals,Darik Carson,NOT_SYNC_READY,N,Bonita Pharmaceuticals — General Merchandise
+FL,56d5312e-4e79-4a17-ab5b-63ea0aabb053,2026-02-16,476.20,Bottlemate Inc.,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,82950fcb-a25b-4f64-b81a-2f7cccae1b39,2026-04-17,2406.75,Bottlemate Inc.,Mary Claire Barnes,NOT_SYNC_READY,Y,invoice in bill pay
+FL,fa52d3d8-1236-4b46-b19f-aa238faaf71e,2026-06-02,9.84,Chick-Fil-A,Alexander Graulau-lugo,NOT_SYNC_READY,N,Chick-Fil-A — Meals
+TX,a647ed04-9aca-4518-9ad3-eed54c2af9a8,2026-06-23,40.42,Chick-Fil-A,Oanh Nguyen,NOT_SYNC_READY,Y,
+TN,ece43fe5-5f63-49eb-b73d-a017dcd5a7d4,2026-07-02,64.71,Chick-Fil-A,Rona Ivey,NOT_SYNC_READY,N,Chick-Fil-A — Meals
+TX,792acae7-dc0c-4254-bd59-5fda285d5fb2,2026-04-22,35.26,Chicken Express,Oanh Nguyen,NOT_SYNC_READY,Y,requested receipt
+TX,44064c3f-5c7a-4210-9f94-9388e1181c7b,2026-06-22,62.79,Chipotle,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,b36d6088-90ad-4406-9b65-151f2f4583fd,2026-05-03,3.99,Choice Hotels,Ash Ahmed,NOT_SYNC_READY,Y,
+TX,ba3e6aba-5402-4938-8f9a-be4bee19b4b8,2026-05-05,450.93,Choice Hotels,Ash Ahmed,NOT_SYNC_READY,N,Choice Hotels — Lodging
+TN,e4814ff2-5ae8-432c-8b3c-72e60d7295a6,2026-05-06,15.96,Choice Hotels,Darik Carson,NOT_SYNC_READY,N,Choice Hotels — Lodging
+TN,9184dd85-b8a0-405a-b2c8-08179a819615,2026-06-06,19.95,Choice Hotels,Grant Powell,NOT_SYNC_READY,N,Choice Hotels — Lodging
+TN,aefbee94-40a1-40a6-8034-72b426736a21,2026-07-07,263.58,City Barbeque,Alan Mayrer,NOT_SYNC_READY,N,"This was a charge for a lunch ordered at incorrect location. I have called in and had the transaction refunded, so waiting on the credit back. Should be visible in the next few days."
+TN,fe59d344-052c-40d2-9de1-8fa1bb727049,2026-07-09,-263.58,City BBQ,Alan Mayrer,NOT_SYNC_READY,Y,Cancelled transaction.
+TN,d4976fcc-19c9-4ed7-b217-3fdbb238b142,2026-07-07,112.35,City of Chattanooga Wastewater Dept - AutoPay,Darik Carson,NOT_SYNC_READY,Y,
+TN,6ce039f8-3049-4dee-a7fa-be92497e7da1,2026-06-04,300.80,Comcast,Darik Carson,NOT_SYNC_READY,N,Comcast — Utilities
+TN,b325f586-139b-4ee1-ab02-f62a69393d0a,2026-07-04,300.80,Comcast,Darik Carson,NOT_SYNC_READY,N,Comcast — Utilities
+FL,7c15a6e8-4269-46ee-ad6c-5b68cd4ecd43,2026-03-17,1565.96,Container and Packaging,Darik Carson,NOT_SYNC_READY,Y,
+TX,8a39787d-d43b-4289-b73c-7cf8f34e5208,2026-05-06,10.26,Copy and Ship HQ Keller,Darik Carson,NOT_SYNC_READY,Y,
+TX,e540052f-6d06-47d6-ba7b-69a2c6dff921,2026-05-07,4.28,Copy and Ship HQ Keller,Darik Carson,NOT_SYNC_READY,Y,
+TX,070b59fa-00eb-4d2b-aa80-96141683b35a,2026-05-18,288.63,Cosmetic Packaging,Darik Carson,NOT_SYNC_READY,N,Cosmetic Packaging — Compound Packaging Inventory
+TX,b975c375-e492-48c1-9541-66c81713af0d,2026-07-06,1109.65,Cosmetic Packaging,Darik Carson,NOT_SYNC_READY,N,Cosmetic Packaging — Compound Packaging Inventory
+TX,52794609-e765-4e1e-8cc8-e17a1415c37a,2026-07-08,1885.70,Cosmetic Packaging,Darik Carson,NOT_SYNC_READY,N,Cosmetic Packaging — Compound Packaging Inventory
+TX,4c699ef5-71e8-41d6-a6f1-f583b30ebb6d,2026-07-16,1020.68,Cosmetic Packaging,Darik Carson,NOT_SYNC_READY,N,Cosmetic Packaging — Compound Packaging Inventory
+TN,fcc92340-873a-4033-868f-599def84cd60,2026-02-16,1233.41,Cosmetic Packaging - AutoPay,Lindsey Hardesty,NOT_SYNC_READY,Y,
+TN,c7621ffd-d26a-423c-a081-2494f56553bc,2026-02-24,3769.47,Cosmetic Packaging - AutoPay,Lindsey Hardesty,NOT_SYNC_READY,Y,
+TN,3662a6c9-6f2a-43d2-a2c6-e80f53f4f4dc,2026-02-25,1999.89,Cosmetic Packaging - AutoPay,Lindsey Hardesty,NOT_SYNC_READY,Y,
+TN,ac1277b4-4bf1-46f3-876a-aeb050f4a833,2026-02-27,9036.65,Cosmetic Packaging - AutoPay,Lindsey Hardesty,NOT_SYNC_READY,Y,
+FL,b62dc122-45f6-4469-a428-5c77f35bd894,2026-03-11,2454.92,Cosmetic Packaging - AutoPay,Ash Ahmed,NOT_SYNC_READY,Y,requested invoice
+FL,b2665514-cf06-45e5-b34a-90d28f3b5aa8,2026-03-12,2424.77,Cosmetic Packaging - AutoPay,Alexander Graulau-lugo,NOT_SYNC_READY,Y,requested invoice
+FL,f30608fa-6630-4e38-9853-c93fdb0b3481,2026-03-31,2380.93,Cosmetic Packaging - AutoPay,Alexander Graulau-lugo,NOT_SYNC_READY,Y,requested invoice from Alex & vendor
+TX,d86f3d9e-2ee7-4d91-b484-70770a6364cb,2026-07-20,14.89,Cousin's Bar-B-Q,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,0aaef933-534f-4e66-925b-8f77eaa74f64,2026-06-15,23.24,Cracker Barrel Old Country Store,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,a5631202-753f-4515-8ff7-511f3e59effc,2026-05-13,49.47,Crumbl Cookies,Isabel Babbie,NOT_SYNC_READY,N,Crumbl Cookies — Meals
+TN,f05dbba2-8024-44ba-89a8-d7e3e1f40138,2026-07-15,31.00,Dc 178 300 East Pratt Street,Rona Ivey,NOT_SYNC_READY,N,Dc 178 300 East Pratt Street — Parking
+TN,f0aa9e50-e27f-461d-bf7b-e8a9758f803c,2026-07-14,28.80,Deep Ellum,Tiffany Mitchell,NOT_SYNC_READY,N,Deep Ellum — Restaurants
+TN,f38afff0-40cb-4812-98cf-8ccbbf0aab99,2026-05-12,14.99,Delta Air Lines,Lucas Lockwood,SYNC_READY,N,"Delta Air Lines — Airlines. Lucas Lockwood
+Jun 2, 10:35 AM
+Marked as 'I don't have a Receipt'
+Receipt was not provided, Delta account not providing receipt either."
+TN,0c28457d-4387-4952-b146-f7f276fda431,2026-05-12,19.99,Delta Air Lines,Lucas Lockwood,SYNC_READY,N,"Lucas Lockwood Jun 2, 10:35 AM
+Marked as 'I don't have a Receipt'
+Receipt was not provided, Delta account not providing receipt either.
+Delta Air Lines — Airlines"
+TX,327d7c75-9a4f-429c-9e92-78a493821024,2026-04-16,674.00,Department of Regulatory Agencies,Darik Carson,NOT_SYNC_READY,N,requested receipt
+TX,bb1e5092-eb37-4589-afaa-d4c5aa64482e,2026-05-08,2.00,Dfw Airport Parking,Ash Ahmed,NOT_SYNC_READY,Y,
+TX,1fe27609-567c-44e3-aa6a-2ed8a34472f0,2026-06-10,2.00,Dfw Airport Parking,Darik Carson,NOT_SYNC_READY,Y,
+TX,4855eb75-fe6c-4df3-a4c3-20f787635a48,2026-07-16,2.00,Dfw Airport Parking,Darik Carson,NOT_SYNC_READY,Y,
+TX,6e5e4e68-558d-47d2-be14-d5e96dcc3b3b,2026-07-19,2.00,Dfw Airport Parking,Darik Carson,NOT_SYNC_READY,Y,
+TN,f4dc4789-6658-4cba-9b57-d430f0529c67,2026-06-29,350.00,DHP Online Licensing,Ash Ahmed,NOT_SYNC_READY,N,DHP Online Licensing — Government Services
+TX,13ad7a60-4f73-4ba9-ad7e-6e9dfbce30a1,2026-07-22,23.45,Donut Palace,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,493ab8a5-31fd-4683-891d-c4075ceb7031,2026-05-22,31.94,Doordash,Mary Claire Barnes,NOT_SYNC_READY,N,Doordash — Client Presentation
+TX,09d16859-bdd6-4325-a322-7c4eef41e2c8,2026-05-22,9.99,Doordash,Oanh Nguyen,NOT_SYNC_READY,Y,
+TN,e8634a00-92a9-46e7-ac71-07b892ca0756,2026-05-23,27.48,Doordash,Mary Claire Barnes,NOT_SYNC_READY,N,Doordash — Client Presentation
+TN,1bad4d9b-bb61-479f-87b9-d125586fc82d,2026-06-10,31.61,Doordash,Mary Claire Barnes,NOT_SYNC_READY,N,Doordash — Client Presentation
+TX,884291ae-cf5e-4994-8932-413a2f7e8fd6,2026-06-22,9.99,Doordash,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,7f042c7d-4683-4aea-b3c1-629c1f9aebcc,2026-06-30,70.82,Doordash,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,772e68cc-07ef-45fc-8b78-6229b5877fbe,2026-07-09,-108.59,Doordash,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,a3d700a7-2114-4483-afa6-a274a0502a95,2026-07-21,100.16,Doordash,Rona Ivey,NOT_SYNC_READY,N,Doordash — Client Presentation
+TX,c3ed1d5e-7f17-4c26-8fcb-bd1b19d97567,2026-07-22,9.99,Doordash,Oanh Nguyen,NOT_SYNC_READY,Y,Monthly DoorDash renewal cost
+FL,14bd7d41-d3aa-4415-b964-b84bec1d4603,2026-01-28,267.46,DropperBottles.com,Ash Ahmed,SYNC_READY,Y,
+FL,dda36822-f2e8-4e4b-9be1-c473e2c59822,2026-03-02,1087.84,DropperBottles.com,Alexander Graulau-lugo,NOT_SYNC_READY,Y,invoice in bill pay
+FL,c802bed5-d7aa-4133-982b-17ca031bb48b,2026-03-16,992.80,DropperBottles.com,Alexander Graulau-lugo,NOT_SYNC_READY,Y,requested invoice
+FL,2a3c6f60-89ad-4ae0-a428-032cdf48775e,2026-03-31,1061.20,DropperBottles.com,Alexander Graulau-lugo,NOT_SYNC_READY,Y,"requested invoice from Alex & vendor, again 04/06"
+TX,8fd03e06-1d91-4a24-a816-965679537214,2026-06-03,327.69,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,DropperBottles.com — Compound Packaging Inventory
+TX,6db662ce-5e53-4307-9fe7-dffd9e9f7a57,2026-06-22,327.22,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,DropperBottles.com — Compound Packaging Inventory
+FL,5cf3b820-d891-4668-b77b-c06c3a5a8c2b,2026-07-21,1082.80,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,DropperBottles.com — Compound Packaging Inventory
+TX,ac159169-b345-4ac3-984a-6b718e88f35b,2026-07-21,650.99,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,DropperBottles.com — Compound Packaging Inventory
+TN,e32a55d0-4da4-4193-b716-0df9868c2f3c,2026-07-22,976.60,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,DropperBottles.com — Compound Packaging Inventory
+TN,cf67a90c-1416-458d-8efe-dbcd7988aaa8,2026-07-24,263.00,DropperBottles.com,Darik Carson,NOT_SYNC_READY,N,
+TX,0b327c44-3f58-4fd3-a5cf-5260a206173d,2026-05-22,190.75,Drugzone,Darik Carson,NOT_SYNC_READY,N,Drugzone — Supermarkets and Grocery Stores
+FL,e595fa9a-1090-4d1e-836d-504935c48a73,2026-06-02,269.86,Easirent.Com Orlando,Alexander Graulau-lugo,NOT_SYNC_READY,N,Easirent.Com Orlando — Car Rental/Hired Car
+FL,5de5b344-db33-4459-b8ff-6c7169c1b1fb,2026-07-05,50.00,eFax,Darik Carson,NOT_SYNC_READY,N,eFax — Books and Newspapers
+TX,bb31126f-766b-43fa-87c8-3bf10524c86c,2026-06-01,69.06,Einsteinbros_Mobile Restaurant,Oanh Nguyen,NOT_SYNC_READY,Y,CANCELED
+TX,c6218cee-a929-4e1e-ac94-997883979deb,2026-06-23,-69.06,Einsteinbros_Mobile Restaurant,Oanh Nguyen,NOT_SYNC_READY,Y,Refund for CANCELED
+TN,2f567414-4fe5-4173-ad31-3d2ce8b32d45,2026-05-25,65.00,Enterprise,Audrey Freebeck,SYNC_READY,N,Enterprise reversed this charge. Should drop within 1 week
+TN,d39f3ca1-a5ec-4c19-a191-d2b2d7c308ce,2026-06-06,-65.00,Enterprise,Audrey Freebeck,NOT_SYNC_READY,N,Refund for Enterprise reversed this charge. Should drop within 1 week
+TX,e39284e4-41b9-4bb1-bbe7-b1c2225d1753,2026-06-29,196.40,Enterprise,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,87d21caa-a83c-4b0d-a1c3-ccbc1ef3d8b3,2026-05-29,-66.00,Expedia,Darik Carson,SYNC_READY,N,Expedia — Hotels
+TN,e4fa61bc-9844-4965-8850-e1b7e64d7a85,2026-05-29,-336.62,Expedia,Darik Carson,SYNC_READY,N,Expedia — Hotels
+TN,04cc4ca3-dcd7-4e5f-8ee7-c5b7858e97b6,2026-07-18,317.56,Expedia TAAP,Tiffany Mitchell,NOT_SYNC_READY,N,Expedia TAAP — Travel Misc
+FL,ec3e9be3-796d-414c-836d-082d2e11893b,2026-06-04,408.47,Extra Space Storage,Amy Murphy,NOT_SYNC_READY,N,Extra Space Storage — Other
+FL,a6a0c496-7df4-4861-af86-c4ff31eea77e,2026-06-04,371.47,Extra Space Storage,Amy Murphy,NOT_SYNC_READY,N,Extra Space Storage — Other
+FL,fc403e4f-ee56-4513-bf44-9aa25aa7636d,2026-06-04,407.47,Extra Space Storage,Amy Murphy,NOT_SYNC_READY,N,Extra Space Storage — Other
+FL,74444e9b-a69d-4579-9f5d-bf4d56fdb239,2026-07-04,408.47,Extra Space Storage,Darik Carson,NOT_SYNC_READY,N,Extra Space Storage — Other
+FL,0d698998-822e-49d4-a9e6-cfdc046cc300,2026-07-04,371.47,Extra Space Storage,Darik Carson,NOT_SYNC_READY,N,Extra Space Storage — Other
+FL,63ca14a8-6a35-4627-8bb2-a5f1347946d8,2026-07-13,30.78,Exxon,Alexander Graulau-lugo,NOT_SYNC_READY,N,No receipts food/snack TN trip
+TX,f6a9c4eb-dc7e-4a36-a0d4-60cac7605f6e,2026-07-03,40.00,EZ TAG,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,1692e512-ab78-4036-9f3c-750292f53e2d,2026-07-24,41.69,Fajita Pete's - Spring,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,bd9ae71f-250d-4a6e-a5bc-a43017828fa0,2026-07-21,43.32,Fast Stop,Sydney Klinowski,NOT_SYNC_READY,N,
+TX,56a99c29-636a-4387-8ac4-718fb90354a3,2026-07-22,17.89,Fleet Coffee,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,36bd76f1-2808-4402-b44f-b73f4f0d3ff6,2026-07-23,25.00,Four Seasons,Oanh Nguyen,NOT_SYNC_READY,Y,
+FL,ec41fb2e-dbc8-4206-afdb-672b9865ba2f,2026-06-29,214.42,Frontier Communications,Darik Carson,NOT_SYNC_READY,N,Frontier Communications — Utilities
+FL,97f78695-27fa-48e7-a366-9cfa2310d634,2026-07-27,214.71,Frontier Communications,Darik Carson,NOT_SYNC_READY,N,
+TN,15cefa83-d5a7-42d6-a291-40efe89ba5f6,2026-07-08,6.78,Globo Mercado,Nicole  Fitzgerald,NOT_SYNC_READY,N,Globo Mercado — General Merchandise
+TN,6a807d60-14ee-4e36-bc84-65f34942a5c4,2026-07-24,70.00,GLORY HOLDINGS LLC,Isabel Babbie,NOT_SYNC_READY,N,
+TN,b3f32eca-bbcf-49de-90d7-c8b1befde23d,2026-06-02,3.00,Goodman Garage,Alan Mayrer,NOT_SYNC_READY,N,"Parking garage when visiting UC Dermatology, no receipt given"
+TN,7b087f75-27aa-4f62-a396-93f56733c3c0,2026-07-01,0.02,Google Cloud,Grant Powell,NOT_SYNC_READY,N,Google Cloud — Software Support Fees
+FL,56a1ce2d-72d2-4887-88ca-0c62ba102335,2026-01-01,427.00,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+FL,91cf7568-52c6-4640-a822-fd048ba99f36,2026-02-01,427.90,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+FL,881f4331-434c-4e52-84f9-a95a927ec4d9,2026-03-01,468.50,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+FL,02bf3a77-c62f-4899-a4eb-4ddef3fc86c6,2026-04-01,520.25,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+FL,324cb6c1-7e60-4a58-bc0e-ca4fd8533223,2026-05-01,529.90,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+FL,26768f62-f2da-48fa-b3b2-f67e83cd7e84,2026-06-01,532.00,Google Workspace,Amy Murphy,NOT_SYNC_READY,Y,
+TN,93c58c7d-e69e-420a-879f-94a1ff395b0b,2026-02-06,283.54,Grainger Industrial Supply,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,3ad1a051-0a9a-476a-8381-b683a7dec8b3,2026-03-04,174.92,Grainger Industrial Supply,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,8a2c99b0-10e6-4604-8c97-b70ec3096d0a,2026-03-24,230.23,Grainger Industrial Supply,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TX,2a72b26d-baec-4833-a521-bc81d34b961a,2026-05-07,158.02,Grainger Industrial Supply,Darik Carson,NOT_SYNC_READY,N,Grainger Industrial Supply — General Merchandise
+TN,307a53dc-313a-4528-90de-5082b19f56fb,2026-05-19,249.97,Grainger Industrial Supply,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,a12c3be5-ffdf-47da-8818-fa0e87b6e2ed,2026-06-22,60.00,Grand Hotel,Tiffany Mitchell,NOT_SYNC_READY,Y,Shipping charge / Post conference.
+TN,1dd4fe8e-b646-47e3-b6cb-37253ed84d63,2026-05-03,14.95,Grubhub,Mary Claire Barnes,NOT_SYNC_READY,N,Grubhub — Restaurants
+TX,2fa6bf3a-4cd3-4601-85d0-a25c776ed50f,2026-04-06,30.00,Gs1 Us,Darik Carson,NOT_SYNC_READY,Y,requested receipt
+TX,c63e1a9e-f9ed-4fa1-8541-e1ab714d07d8,2026-07-07,49.96,H-E-B,Oanh Nguyen,NOT_SYNC_READY,Y,"Snack for offices, lost receipt, 2 meat, cheese, and fruit board"
+TN,4eeec755-d571-43d0-9163-4851c6d237dd,2026-07-02,89.00,HC Clerk & Master,Ash Ahmed,NOT_SYNC_READY,N,HC Clerk & Master — Government Services
+TN,2ee300c0-1b45-4bf7-8f10-1f890199a3a3,2026-05-08,3.00,Hendrickson Associate Restaurant,Lucas Lockwood,NOT_SYNC_READY,N,Hendrickson Associate Restaurant — Restaurants
+TN,d5f1b4aa-81f9-441f-a438-ff8fe598add8,2026-06-12,117.46,Hhcrx,Darik Carson,NOT_SYNC_READY,N,Hhcrx — Supermarkets and Grocery Stores
+TN,604bacd4-8901-4d57-86df-23fa40daf157,2026-06-09,17.68,Hopdoddy Burger Bar,Grant Powell,NOT_SYNC_READY,N,Hopdoddy Burger Bar — Meals
+FL,be216d90-9435-42ee-9b40-d4397f1a41f9,2025-10-17,371.94,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,See Bill Pay Invoice
+FL,70e645f7-0e66-47f3-8b6d-214dbdd4180e,2025-10-23,464.04,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,51a447f6-2d95-466d-8840-4bee9efe81de,2025-10-31,365.51,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,4f69ab69-59f5-4969-b1f9-5c78bf327415,2025-12-10,370.82,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,fde1db63-69c9-488d-967e-c6bd189b3440,2025-12-30,494.16,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,63cba516-2eb8-481c-8cad-74cf16d93216,2026-02-05,540.01,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,8a4bf5d1-7b72-480d-86cb-cd2873e79322,2026-02-13,811.34,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,53aca4e3-d237-483b-8641-ed3915d5ca4e,2026-02-20,353.02,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3f0ceced-b08c-4f26-9c28-dc65d14b314e,2026-03-02,362.40,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,Real Value invoice in bill pay
+FL,c2cb098e-6c31-448a-a47f-0c3da7ee1c47,2026-03-04,356.64,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,939bb916-57a9-4bc3-8c65-5d6d54e417a3,2026-03-04,958.00,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,b5c5cc15-292a-436f-9144-b36e2a4a2a9a,2026-03-09,852.72,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,18c093be-68f3-47cf-8e34-935a8f590fe7,2026-04-03,894.44,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,N,"amount doesn't match to invoices. requested receipt for open bills for Fl 07/20/2026 from vendor so I can match open payments. pays more than one invoice at the time, doesn't provide receipt."
+FL,b5c6a1de-954e-43c1-89d7-928ed8e6fd83,2026-04-16,361.20,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,51ee2db7-caa0-4b99-8b55-0e6045dc99f3,2026-04-20,707.49,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,f362456c-af83-4026-a39d-8c11ae5afc4f,2026-04-24,376.78,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,6accf47d-d968-4b8f-95f1-440ae11fd780,2026-05-13,432.18,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ef225af7-86fc-458c-ae20-bc16377db944,2026-05-14,419.94,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,e7cd5fee-8807-48a7-b42e-3a1643ca54df,2026-05-15,1253.64,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,a202a898-4464-476f-9373-587a16f05dfb,2026-05-20,514.80,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+FL,53e16871-ffb8-4359-82b2-ec63123c19f5,2026-06-01,1282.14,Hospital Pharmaceutical,Amy Murphy,NOT_SYNC_READY,Y,
+TX,dea4ee8c-097b-43a0-a8f3-9a9521c0566c,2026-06-16,926.35,Hospital Pharmaceutical,Darik Carson,NOT_SYNC_READY,N,Hospital Pharmaceutical — General Merchandise
+TX,61bcb970-e2b5-4446-9fe0-9e48efd4f7cb,2026-07-02,177.00,Hospital Pharmaceutical,Darik Carson,NOT_SYNC_READY,Y,
+FL,ab752046-23b6-4472-a716-0d33ba1fe59e,2026-07-16,434.30,Hospital Pharmaceutical,Darik Carson,NOT_SYNC_READY,Y,
+FL,1cda09c7-1235-4f6c-8474-09a08f6a4256,2026-07-23,446.90,Hospital Pharmaceutical,Darik Carson,NOT_SYNC_READY,N,
+FL,3ffe19c0-47e2-4556-b426-a88d680dc296,2026-07-24,383.40,Hospital Pharmaceutical,Darik Carson,NOT_SYNC_READY,N,
+TX,56e31f1e-34ff-4e16-885b-7c4a1380ae7c,2026-04-27,173.20,Hotwire,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+TX,1b48c980-4717-4240-991a-c65d781216ef,2026-05-03,100.30,Hotwire,Ash Ahmed,NOT_SYNC_READY,N,Hotwire — Hotels
+TX,edfccdda-9f6f-40d0-9071-9b5d63e74654,2026-05-03,166.58,Hotwire,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+FL,d76cd822-2402-4aab-b27a-804151a5cc3d,2026-07-23,40.85,"Houston, TX",Armani Blanton,NOT_SYNC_READY,N,Houston Trip Gas
+TX,ab940fff-3b08-4315-98a7-4fe17bd18c80,2026-06-15,9.15,In N Out Mart,Tiffany Mitchell,NOT_SYNC_READY,Y,
+FL,78c07d53-5d9a-4601-a13b-ef65ec721ec2,2025-11-04,502.13,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,eecaccf8-82ac-4557-b1b9-ab4efe14bcf8,2025-11-07,504.38,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,daa349ee-9920-4c2f-935c-ecc8fc93ca47,2025-11-12,505.83,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,a62997af-0663-4876-87bb-78ceee2eae09,2025-11-12,514.17,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,6da41ac2-6fda-4a3c-94b6-083d0f4d71d6,2025-11-17,524.61,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,b53093c5-8581-49c3-ac1c-540786fb20e1,2025-11-26,501.70,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,989e139b-393d-4446-a806-7795405bdc92,2025-11-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,17d8dd2a-9530-4479-bf17-38b41308b3ba,2025-11-30,502.08,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,9050bac6-3155-433a-b61f-537e8768b84f,2025-12-02,530.78,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,bae08866-85b0-4e9e-b39e-dcdfe15bf632,2025-12-04,549.21,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ae6a9994-0f3b-4d85-80f7-88256a7b7329,2025-12-08,505.16,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,49dfd829-eb47-4731-a849-b9f09e9e3ab6,2025-12-11,500.43,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,17404b63-92c4-4859-9ef1-e5e1764998cc,2025-12-16,509.92,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,b8aa5bf4-595f-4a6a-a9fb-e4095e2a0b0c,2025-12-22,524.42,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,b9889ba2-c7d8-4de6-89dc-36e24803b18b,2025-12-26,501.33,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,485b0d1d-4dec-41d1-80eb-1ecbc0549e3c,2025-12-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,225a8490-cc8a-4f0e-b178-09e7e13e7294,2026-01-05,504.19,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,197b7066-540b-400a-8615-865134b520a9,2026-01-10,509.89,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d50926ea-e60a-4c3d-af80-d4236be92ab2,2026-01-13,524.79,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,4f8e9272-5282-4268-8442-71ae79fdd08e,2026-01-15,511.12,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,57dece3e-b264-45c3-ac69-b83fbd736ea1,2026-01-22,515.97,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,968d2bd3-c33a-4a5d-976b-377ff43cf914,2026-01-23,536.98,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3b51f963-0c7e-4ef0-9355-258586cc2f92,2026-01-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,24715ee1-bb93-4e76-8064-a1c06c1d88c1,2026-01-28,524.76,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,82f4bb65-172c-47d3-afcf-63c09c65f5a4,2026-02-02,501.28,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,70673dce-2908-4612-bb86-b11d9fbf6229,2026-02-06,542.59,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,54d49d10-ebca-4701-b7fb-349ae3e4fb61,2026-02-12,509.37,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ecc86092-b7b2-42c7-9509-c73d8a41ed6c,2026-02-16,503.97,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,a9b9f8b2-56d1-45b1-bc16-23755b6a9851,2026-02-19,549.80,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,857e75db-e6ea-421f-98ac-6b2c60a9a0d4,2026-02-23,690.26,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,c9c13567-c6ad-40fe-9410-1a3c038d7ab6,2026-02-25,560.33,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3d221dd1-fc55-48b0-8018-f6f7c6232144,2026-02-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,8de8fcf8-4e8f-4b8d-b720-8b60ec73866a,2026-03-02,276.88,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,9c016dbe-3b9f-46a1-b73a-c64ba08ad893,2026-03-09,507.83,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,bbad64a5-6e9b-4361-a454-3a9e78f99b28,2026-03-13,514.06,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,40b3125e-599f-45af-aeee-94eb4576fe27,2026-03-25,500.84,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,340eb365-2867-4fb8-ab1d-4d1c9beec9bd,2026-03-25,500.98,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,01279084-b4cb-4272-84c1-afa771af0c5b,2026-03-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,e61ad2a2-caa3-493b-bfa1-28027ad05669,2026-03-30,619.52,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,bb2c2402-efa8-4a82-8dea-b1e4a4c1f51b,2026-03-31,578.67,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,7f401f7b-253d-432b-9a01-c5edb53f25aa,2026-03-31,690.77,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,04136902-38bc-4674-88b5-751ea32f5cc6,2026-04-02,286.19,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,03ad9934-ec6f-4a5c-a704-cbd1bdfbf7ad,2026-04-03,613.60,Indeed,Amy Murphy,NOT_SYNC_READY,Y,invoice in bill pay drafts
+FL,41778612-c24d-4154-8f92-2c1a7fdc5316,2026-04-05,512.32,Indeed,Amy Murphy,NOT_SYNC_READY,Y,invoice in bill pay drafts
+FL,83c4eddc-ffec-4309-91f9-4ddc459ba8c3,2026-04-07,536.42,Indeed,Amy Murphy,NOT_SYNC_READY,Y,requested invoice from Amy M
+FL,9c5b6fdb-c056-4d20-8119-706948442fae,2026-04-08,505.20,Indeed,Amy Murphy,NOT_SYNC_READY,Y,requested invoice from Amy M
+FL,04e76752-e673-48c2-bb89-8bbaf56ff581,2026-04-15,504.19,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,7f196562-0560-4c27-9e4d-0643d56015b0,2026-04-26,120.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,requested invoice
+FL,b64194aa-4c13-45c2-a80a-305dcbbfb96b,2026-04-29,503.16,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,0267b924-dd39-47e2-ac79-6427a416f6a6,2026-05-02,510.30,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,5edcb381-84fc-4863-a924-4dc38dd2ce0a,2026-05-20,500.36,Indeed,Amy Murphy,NOT_SYNC_READY,Y,requested invoice
+FL,c0f314d8-68f6-4d67-8bb9-10b402115b27,2026-05-26,510.00,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ddf500ea-a166-49b0-b593-1d9d06c5f17a,2026-06-02,500.49,Indeed,Amy Murphy,NOT_SYNC_READY,Y,
+FL,30a3ab7b-8c5d-4084-a7d4-a9d25fb6bf2c,2026-06-26,514.15,Indeed,Darik Carson,NOT_SYNC_READY,Y,
+FL,9d27dc8a-efd3-4f5e-bb95-853b8d76379a,2026-06-29,502.88,Indeed,Darik Carson,NOT_SYNC_READY,Y,
+FL,9f7b3f59-fe81-4d48-ac48-2983110e6be5,2026-06-30,500.46,Indeed,Darik Carson,NOT_SYNC_READY,Y,
+FL,a05d25c4-b9c7-4797-8ae3-74961c5b6488,2026-07-08,569.67,Indeed,Darik Carson,NOT_SYNC_READY,Y,
+FL,632ad0e3-ca07-410c-b0fd-ae2c0a82c619,2026-07-16,510.51,Indeed,Darik Carson,NOT_SYNC_READY,N,Indeed — Recruiting
+TN,879dd8b9-0ca7-41c7-b94a-be050535e24a,2026-07-16,56.79,Insomnia Cookies,Rona Ivey,NOT_SYNC_READY,N,Insomnia Cookies — Restaurants
+FL,b78d966d-0c51-4c06-a68f-476c71f9f236,2026-03-02,1301.01,Integral Rx,Alexander Graulau-lugo,NOT_SYNC_READY,Y,833.26+212.7+255.05=1301.01
+FL,bf1e1d49-64e3-45a2-b225-300baeee3982,2026-07-16,1119.99,Integral Rx,Alexander Graulau-lugo,NOT_SYNC_READY,N,Integral Rx — Compound Ingredient Inventory
+TN,a880cc87-8411-4f97-9465-417b67877fda,2026-07-16,268.62,Integral Rx,Mary Claire Barnes,NOT_SYNC_READY,N,Integral Rx — Compound Ingredient Inventory
+FL,5631da64-1d53-421e-a421-5ef9ca43253e,2026-04-25,20.25,Intuit,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+FL,15e0389a-68db-432e-9b97-47b3618195da,2026-05-25,20.25,Intuit,Ash Ahmed,NOT_SYNC_READY,N,Intuit — SaaS / Software. Requested receipt from Ash 07/21/2026
+FL,cf7223fa-130d-4d3d-aef1-4bde8bbd39b7,2026-06-25,40.51,Intuit,Ash Ahmed,NOT_SYNC_READY,N,Intuit — SaaS / Software
+FL,ce208fb9-26a4-42f8-8dbf-582102e8bec1,2026-07-25,40.51,Intuit,Ash Ahmed,NOT_SYNC_READY,N,
+TN,e0c6f887-d410-4c22-9f63-fa73cba9e03e,2026-03-04,234.89,iPrint Technologies,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,ab6ee582-af95-4a3b-b428-90e17a5382eb,2026-06-02,26.40,J'S Donut,Marissa Dickie,NOT_SYNC_READY,N,Treats for Plano Derm Offices
+TN,f2e85daf-fb18-48fe-b6ad-95c6c78a9f02,2025-12-15,930.25,"Jams Wholesale, LLC",Amy Murphy,NOT_SYNC_READY,Y,
+TN,348bcf23-c527-4740-b356-b2bc9dd7c8b8,2026-01-15,470.89,"Jams Wholesale, LLC",Amy Murphy,NOT_SYNC_READY,Y,
+TN,a29bb4d3-0e42-4472-b774-5e55da050b28,2026-05-15,174.15,"Jams Wholesale, LLC",Amy Murphy,NOT_SYNC_READY,Y,
+TX,8833468c-6faf-45fd-9734-45d683178a1b,2026-05-07,39.71,Jersey Mike's Subs,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,71a93242-0f0f-406f-a389-41c94343e44e,2026-05-19,30.06,Jersey Mike's Subs,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,fdabb64c-eff2-4ce7-9edd-b78648891e08,2026-07-24,12.08,Jersey Mike's Subs,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,05de3f6a-8bff-40de-b4bd-c5e3f201878b,2026-07-13,38.00,Johnson Donuts,Chris Utesch,NOT_SYNC_READY,Y,
+TX,c0dffc31-56e3-40b9-9b44-fce5a0968403,2026-06-24,280.00,Kalchem,Darik Carson,NOT_SYNC_READY,Y,
+TN,b68fed10-071c-408a-92dd-bd6b02539ad8,2026-06-08,103.15,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,N,"Kalchem International, Inc. — Compound Ingredient Inventory"
+TN,f2d9f814-0053-4dc3-ab5c-c5bc38da74d0,2026-06-11,250.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,Y,
+FL,71530014-3904-47c9-b9ee-7c76133a0809,2026-07-07,692.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,Y,
+TN,3cb0164b-e80a-4e0e-9bdc-7bbaa7ff5d7c,2026-07-13,140.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,Y,
+TN,df7b0fe3-f95c-4ab5-8dd0-31d8079aed00,2026-07-14,95.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,Y,
+FL,d4df4259-d408-43ea-be53-7e481ef2d46c,2026-07-22,190.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,N,"Kalchem International, Inc. — Compound Ingredient Inventory"
+FL,0d5ac3d5-1344-4264-bd12-8cb48f06ca59,2026-07-23,280.00,"Kalchem International, Inc.",Darik Carson,NOT_SYNC_READY,N,
+FL,135dbd99-c298-4662-889d-55bd6650fdb6,2026-07-12,-1028.10,L&N Label,Chris Utesch,NOT_SYNC_READY,Y,"Refund for Labels for Lab (FL)
+Brand stickers for new insulated bags"
+FL,cc76c60f-33ba-4976-b319-d822916c2b41,2026-07-28,425.33,la Madeleine,Armani Blanton,NOT_SYNC_READY,N,
+TX,a73a5a33-e4ab-43ce-9f01-42fe050b4907,2026-04-24,906.71,Labconco Corporation,Darik Carson,NOT_SYNC_READY,N,requested receipt
+FL,613907c6-c314-4768-9df8-acef02ee7a01,2026-06-09,99.48,Lady Baker,Veronica Denha,NOT_SYNC_READY,N,Business meeting expense- HC 18- Hollywood derm
+TX,29766295-f03c-45cb-9f4f-2cad296a1ed4,2026-06-30,3.00,LAZ Parking - Strictly Pediatrics Garage,Oanh Nguyen,NOT_SYNC_READY,Y,Parking at Dell Children’s Derm parking garage
+FL,366ea994-0c55-4aa2-97f5-6b9a4988679c,2025-11-26,521.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,effe79fc-ee1b-4be9-8309-e7bc72274ead,2025-12-11,419.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,2a4c2ec3-2e30-4baa-9dda-e80910c3af22,2025-12-24,529.25,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,bcf22c8d-446b-41bf-aa7f-720230177c09,2026-01-02,529.25,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,52541ab7-c040-4682-9705-5bbf5684cc14,2026-01-08,551.75,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,2530a0c4-c592-4876-9b61-d8f773846367,2026-01-11,558.75,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d74245e4-78be-41d8-a68d-a5c41fb79021,2026-01-18,532.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d015fa9d-c84f-41e4-b1a7-8a944cd209a6,2026-01-20,152.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,f7b012d2-5177-47a7-9b57-bf2b41710123,2026-02-03,556.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,59870da0-9863-48f7-83d5-fefd92e5c797,2026-02-10,574.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,22e5bc1f-d498-45ed-9eca-6cc62e6b1c8a,2026-02-15,608.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,526be38f-509e-4088-b1a5-fc71cd313aef,2026-02-24,1026.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,f110750e-fde8-4303-9cbb-72f15d98d740,2026-02-24,513.00,LinkedIn,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3173019c-7f2e-4137-8e27-94c1f31f2ed4,2026-03-22,580.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,invoice in bp drafts
+FL,4121a8f4-c46d-4437-a9ab-8e77455ebf73,2026-03-24,609.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,
+FL,b6e441ef-7044-4f5d-bd1d-8ce1184a9bb4,2026-03-26,630.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,
+FL,4de59a23-a2ed-4413-bc01-79c24b02d831,2026-03-31,633.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,
+FL,a648498d-3a74-464d-970e-f2f251e5eaef,2026-04-03,588.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,invoice in bill pay drafts
+FL,9caa124e-5b4c-4b1c-919a-c35cc524fb99,2026-04-07,230.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,invoice in bill pay drafts
+FL,f266960d-357e-42c0-8956-77639ebb5084,2026-05-07,366.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,Y,requested invoice
+FL,2b7ac2a1-83ea-4530-a16a-f8b572274087,2026-06-05,116.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,N,LinkedIn — Recruiting
+FL,383aa957-d110-4de9-aa23-c714f098f643,2026-06-16,610.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,N,LinkedIn — Recruiting
+FL,ce525ec9-496c-4ddf-907e-0a1848550583,2026-06-20,380.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,N,LinkedIn — Recruiting
+FL,c986c1a8-8a2a-43a3-a281-7a0de3ef1859,2026-07-28,210.00,LinkedIn,Amy Wiley,NOT_SYNC_READY,N,
+FL,25e0e2d1-7272-4839-9abf-c8f4987aae1b,2026-02-11,359.74,MakingCosmetics Inc.,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,cdf4d02b-7010-40b7-8d05-c74b284099e4,2026-03-23,71.52,MakingCosmetics Inc.,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+FL,9255f703-1714-4e8b-9165-40ac23aba843,2026-03-27,491.65,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,Y,
+FL,01b61e1e-0773-4cbe-9af8-76f4a84cb1fb,2026-04-01,29.58,MakingCosmetics Inc.,Alexander Graulau-lugo,NOT_SYNC_READY,Y,invoice in bill pay drafts
+FL,6d50cb7d-ec21-4ab5-9c12-d5ae1dc5c483,2026-04-10,70.98,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,requested receipt
+TX,6e35ec15-69de-478d-9f8a-a747a984128f,2026-04-15,55.46,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,Y,requested receipt
+FL,0c3f6093-e1c3-4c61-a289-a65134e07ad0,2026-04-24,1188.86,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,requested receipt
+FL,45059ef1-969a-49c5-bb2b-c0ffc452f48d,2026-04-24,98.89,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,requested receipt
+TX,76ee324d-1bf9-43cf-9947-de3c0a97e9fb,2026-04-24,427.44,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,requested receipt
+FL,763506f6-d679-4445-ad7e-25ddd44ae9cb,2026-05-01,1560.88,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,MakingCosmetics Inc. — Compound Ingredient Inventory
+FL,23e37579-9a9b-41c1-91fc-27cbd635c992,2026-05-01,2296.70,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,MakingCosmetics Inc. — Compound Ingredient Inventory
+TX,b81bb09e-56a4-4ca6-8d37-089cf11c96d0,2026-05-01,1560.88,MakingCosmetics Inc.,Darik Carson,NOT_SYNC_READY,N,requested receipt
+FL,87e9b6b4-f04b-4079-b687-14a371381173,2026-06-04,200.85,MakingCosmetics Inc.,Alexander Graulau-lugo,NOT_SYNC_READY,N,MakingCosmetics Inc. — Compound Ingredient Inventory
+FL,c34a187b-035d-4d2e-8cb7-c9d408a2ed51,2026-06-14,158.33,Marriott,Tiffany Mitchell,NOT_SYNC_READY,Y,Hotel stay for business travel
+FL,df078141-85cb-4643-9774-fa307f363942,2026-06-16,-158.33,Marriott,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TX,aa49f817-1daf-474c-86a7-bdb3e0c3fb75,2026-06-21,183.30,Marriott,Nicole  Fitzgerald,NOT_SYNC_READY,N,Marriott — Hotels
+TX,da4893a2-db85-4acc-8789-174ccf592cf5,2026-07-07,10.16,McDonald's,Oanh Nguyen,NOT_SYNC_READY,Y,Personal breakfast in extended territory
+TX,80bf8270-0011-4302-be7a-35faf075db6e,2026-07-08,2.00,Medical Plaza Professional Building,Tiffany Mitchell,NOT_SYNC_READY,Y,
+FL,ad16f441-2951-4d2f-896e-719fd356764a,2026-07-23,-149.68,Medicaleshop,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Refund for lab ingredient
+TN,16e5333d-c384-423b-8d1a-16be9c768a94,2026-05-20,1.00,"Medrock Pharmacy, LLC",Grant Powell,NOT_SYNC_READY,N,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores"
+TN,19c4c39b-978c-4061-8b55-8700dfddc8f0,2026-05-20,1.00,"Medrock Pharmacy, LLC",Grant Powell,NOT_SYNC_READY,N,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores"
+TN,bea22c73-d6b0-43cd-b221-3a310b0621bb,2026-06-11,1.00,"Medrock Pharmacy, LLC",Grant Powell,NOT_SYNC_READY,N,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores"
+TN,e738dcec-4b5c-4449-9bbd-00dba4314cdf,2026-07-16,1.00,"Medrock Pharmacy, LLC",Grant Powell,NOT_SYNC_READY,N,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores"
+TN,d5a8e07f-ce3c-436a-bed5-944236c3f478,2026-07-16,1.00,"Medrock Pharmacy, LLC",Grant Powell,NOT_SYNC_READY,N,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores"
+FL,6e1f1abe-1050-48b8-90ba-6ffe2df20124,2026-06-09,8.00,Miami Design District,Veronica Denha,NOT_SYNC_READY,N,Parking
+FL,8e658e8b-1e74-4e50-8cc9-cde18e794912,2026-06-08,2.25,Miami Parking Authority,Veronica Denha,NOT_SYNC_READY,N,Miami Parking Authority — Parking
+FL,f3642707-ec7f-4577-97e1-11d4a3604507,2026-06-09,455.70,Microsoft Office / Azure,Darik Carson,NOT_SYNC_READY,N,Microsoft Office / Azure — SaaS / Software
+FL,0812091f-566a-4fd9-b664-78fc30dfd306,2026-07-09,455.70,Microsoft Office / Azure,Darik Carson,NOT_SYNC_READY,N,Microsoft Office / Azure — SaaS / Software
+TX,8ef6c03f-97b5-4b8c-b65c-fab4e30c8182,2026-06-05,3.00,Midtown Medical,Oanh Nguyen,NOT_SYNC_READY,Y,Parking
+TX,574f58d4-bc78-4ba0-afc7-ec9499f5a213,2026-06-08,100.91,NDC Distributors,Darik Carson,NOT_SYNC_READY,Y,
+TN,7061c8d5-0511-4dba-9ea8-20da5246f874,2026-05-13,175.00,Nj Prof License Fee,Darik Carson,NOT_SYNC_READY,N,Nj Prof License Fee — Government Services
+FL,6f98736e-7bc3-4637-9ae0-715d2e9e4eba,2026-07-20,59.98,Nothing Bundt Cakes,Armani Blanton,NOT_SYNC_READY,N,Rosebranch Dermatology Snack: 10ppl
+FL,0ee3d993-67ce-4089-ab7a-e7c9db196c36,2026-06-04,521.82,oak drugs,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+FL,c1db2253-33af-4f44-97e5-a93754d6bfae,2026-06-09,521.10,oak drugs,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+TN,5bae77a3-f3a2-4554-83e4-1c33cb826237,2026-06-11,619.69,oak drugs,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,dc1439b1-5e2c-4ece-8caf-2a51dd2be887,2026-06-17,1054.90,oak drugs,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,44e02700-2967-47bb-908b-d17fa88fc223,2026-06-19,504.00,oak drugs,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+FL,22b92678-3fd3-455d-8339-71059985765c,2026-07-02,682.08,oak drugs,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+TN,efaa8c52-c07d-4d41-ad14-6ba815220bd9,2026-07-02,374.80,oak drugs,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TX,37262dc9-7409-428c-80e5-bca883b95b91,2026-07-15,296.90,oak drugs,Darik Carson,NOT_SYNC_READY,Y,
+FL,257cff03-6fe6-42fa-bbcf-6b7f38c7d7d3,2026-07-28,20.00,OpenAI,Darik Carson,NOT_SYNC_READY,N,
+TN,61039233-5739-4442-82c2-24ba4e6e757b,2026-07-21,503.78,Origin Hotel Red Rocks,Megan Vathanvarin,NOT_SYNC_READY,N,
+FL,1ccbede7-c6a0-46cb-a2d3-55a97d477682,2026-05-21,127.22,Orkin,Darik Carson,NOT_SYNC_READY,Y,
+FL,d2cfba68-14f2-4030-8e29-5cef332666e1,2026-06-25,127.22,Orkin,Darik Carson,NOT_SYNC_READY,Y,
+FL,bdec258e-347d-4b34-a552-0d75d7f320b2,2026-07-12,127.22,Orkin,Darik Carson,NOT_SYNC_READY,N,Orkin — Other
+TX,353749f2-d57c-4e2b-beb4-b337a4464f81,2026-07-09,49.03,Osaka Hibachi Sushi & Bar,Tiffany Mitchell,NOT_SYNC_READY,Y,
+FL,15389c6e-c29e-48da-bf9e-7f5162e1c755,2026-06-24,1440.00,PakSouth,Darik Carson,NOT_SYNC_READY,Y,
+FL,47a9630b-a318-437e-9f02-5f0bc00319aa,2026-07-09,960.00,PakSouth,Darik Carson,NOT_SYNC_READY,Y,
+FL,96967f4a-2721-4f0e-8fcc-ad184bc4677d,2026-07-24,1440.00,PakSouth,Darik Carson,NOT_SYNC_READY,Y,
+TX,8f6f49b6-b0bb-412e-87fb-39e675aa127f,2026-05-04,38.83,Parking Management Company,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,8767b41d-c81a-4dc9-8907-fd69a728a55b,2026-06-02,98.00,Paul Xavier,Mary Claire Barnes,NOT_SYNC_READY,N,Paul Xavier — Education
+TN,5009e4b4-dca3-43f0-9ea4-431997c8f88b,2026-07-09,95.02,Pittsburgh,Isabel Babbie,NOT_SYNC_READY,N,Pittsburgh — Meals
+TN,ada423f1-ab2a-4d51-bbb8-7900665cb4fa,2026-07-10,95.02,Pittsburgh,Isabel Babbie,NOT_SYNC_READY,N,Pittsburgh — Meals
+FL,68d08261-44eb-4e4c-b304-1f2c4f134e37,2026-06-24,1.07,Pura Vida Home & Gift,Veronica Denha,NOT_SYNC_READY,Y,Pura Vida Home & Gift — Restaurants
+FL,62f06244-530f-4135-8865-bfa86ee91e95,2026-07-27,222.30,Pura Vida Miami,Veronica Denha,NOT_SYNC_READY,N,
+FL,beabef0c-d8fa-4b8c-a3bd-01448392c1e5,2026-07-27,80.89,Pura Vida Miami,Veronica Denha,NOT_SYNC_READY,N,
+FL,79f1988c-e63a-4a58-be67-d8e0451f3d61,2026-07-28,97.33,Pura Vida Miami,Veronica Denha,NOT_SYNC_READY,N,
+FL,3f91639a-d807-4f86-8fb1-b41d7be3e8da,2026-07-28,159.70,Pura Vida Miami,Veronica Denha,NOT_SYNC_READY,N,
+TN,594b224c-a090-445d-a74c-6f968d31215d,2026-07-14,409.69,QDOBA Mexican Eats,Rona Ivey,NOT_SYNC_READY,N,QDOBA Mexican Eats — Restaurants
+TN,70d326ee-a5c5-404b-8ba6-365e62e538d5,2026-07-14,68.95,QDOBA Mexican Eats,Rona Ivey,NOT_SYNC_READY,N,QDOBA Mexican Eats — Restaurants
+TN,9fd29f1c-6d3b-4a18-a50e-c0e15d727966,2026-07-15,795.39,QDOBA Mexican Eats,Rona Ivey,NOT_SYNC_READY,N,QDOBA Mexican Eats — Restaurants
+TX,8d1c7edb-b62b-412c-8ea7-d6ad23d0a44c,2026-06-23,22.92,Salata,Oanh Nguyen,NOT_SYNC_READY,Y,
+FL,80826318-2b71-4782-bc73-cb1a614b4103,2026-01-27,311.99,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,8ad4a4dd-8c27-45f6-891c-079786949f7a,2026-01-30,113.27,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,7160f33e-9cd3-4299-9e29-7dca964227a9,2026-02-04,295.53,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+TN,e10636e3-d376-459b-b36a-e5d7cafeb9dc,2026-02-05,148.23,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,47fdb5a9-c142-4abc-b345-47fcb97ae022,2026-02-05,232.15,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+FL,207ce766-ab39-47e9-9d36-b5e5ce8b534c,2026-02-10,104.88,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,faae09c0-e30d-4727-8da7-9cd7748a8747,2026-02-12,128.30,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,9cab9e9f-53ca-4c1e-af08-a0695c08beee,2026-02-17,244.94,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,b176f789-e05e-4a3f-964e-856d402d53cc,2026-02-19,193.73,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,16cec056-1a7b-49b9-8188-fc321ecb43e6,2026-02-23,119.97,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,5c5c28a7-22ce-48c2-b971-2b0ccc86fbde,2026-02-23,85.54,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,aacbc6ce-56c4-45fe-90d2-561173b6cd6c,2026-02-25,131.86,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,d930f318-5dcc-46a5-8e60-fca418f4f748,2026-02-26,81.65,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,95b1d7d1-6735-4231-b545-0026c827f01c,2026-03-02,283.19,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,7358f28e-4045-46cc-bacb-2dcb027071dd,2026-03-04,133.50,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,c1b2b762-e374-4c88-8849-7fe40ea61778,2026-03-10,110.52,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,289d2165-4a40-4abf-87b5-42ab0f8f9bb4,2026-03-14,134.30,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,97ab3928-099a-41af-9099-4e91b65cd9d3,2026-03-17,128.30,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,b1466bfa-c47e-4a02-bce2-b045b130ad0d,2026-03-18,28.88,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,a5d763c2-e708-414c-b7fc-8d874944ae00,2026-03-18,166.70,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,ab82d72f-cfc9-4259-913e-786c0a636200,2026-03-26,106.76,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,f8b14c8f-9e02-4ff9-b387-4e62ef2431b7,2026-03-30,85.54,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,8ea5a196-026a-4c98-9873-628a04b9602b,2026-04-01,104.73,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,9dbc4457-f676-4b92-b04c-78f88f2953fc,2026-04-01,464.17,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+FL,81f46edf-88f5-4316-b706-101633a917cd,2026-04-13,92.09,Sam's Club,Darik Carson,NOT_SYNC_READY,N,"whatsapp req. Ash sams code/pw reset link 05/01, 06/26. requested receipt from card holder 07/20/26"
+TN,d7f1d479-0433-48d3-be4c-c733b918f6f9,2026-04-15,145.19,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,7e3f0bf0-37ee-4b26-8eb8-8de5123c6d65,2026-04-15,376.08,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,e013b3c0-b426-4939-8b1e-94f320ddf81a,2026-04-17,47.98,Sam's Club,Darik Carson,NOT_SYNC_READY,N,"whatsapp req. Ash sams code/pw reset link 05/01, 06/26.  requested receipt from card holder 07/20/26"
+FL,2295c2d5-9aee-470f-9e58-bf01ba55fb60,2026-04-29,141.22,Sam's Club,Darik Carson,NOT_SYNC_READY,N,"whatsapp req. Ash sams code/pw reset link 05/01, 06/26.  requested receipt from card holder 07/20/26"
+TN,90a3f43a-7584-4308-96d0-a3934df2e8b6,2026-05-01,170.70,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,638d0377-87d9-494d-8754-31878cfd8877,2026-05-02,156.09,Sam's Club,Tiffany Mitchell,NOT_SYNC_READY,Y,"Walmart purchase. Tiffany Mitchell May 2, 11:07 AM
+Queued full repayment
+Repayment will initiate when the transaction clears
+My work card is attached to my Sam’s account for gas and I didn’t change the payment method when I swiped."
+FL,e3ef23b6-5160-44db-93f1-39dc45443531,2026-05-02,16.48,Sam's Club,Tiffany Mitchell,NOT_SYNC_READY,Y,"Walmart purchase. Tiffany Mitchell
+·
+May 2, 11:06 AM
+Queued full repayment
+Repayment will initiate when the transaction clears
+My work card is attached to my Sam’s account for gas and I didn’t change the payment method when I swiped."
+TN,8c765137-b0f5-49b0-a3cd-93cbdd007207,2026-05-20,72.12,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,287826cc-f43a-4295-bc2b-fd2644234949,2026-05-22,174.71,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,18c62911-3d25-41df-b2a7-848064e4efac,2026-05-25,120.00,Sam's Club,Tiffany Mitchell,NOT_SYNC_READY,Y,"Walmart purchase. Ramp Jun 12, 10:09 AM
+Repayment to account ending in 4994 succeeded
+Tiffany Mitchell Jun 5, 5:06 PM
+Initiated full repayment
+My Sam's membership drafted the card on file.  It's on file to pay for gas."
+FL,ca91bb50-1bb6-4592-860f-bb57ac8c06e7,2026-06-01,63.34,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,e2f8f04e-fd2a-463f-976e-d05b392a2654,2026-06-01,365.89,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+TN,ac4fdf41-86e2-4f94-95d6-9ad9b67510cf,2026-06-01,259.76,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TX,18c5dd42-8678-4288-8dd5-cddfe948a8c2,2026-06-01,27.98,Sam's Club,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TN,fac0156b-90f2-47c9-9f22-737d3f8849d7,2026-06-02,49.34,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TX,28d7bc3d-bc54-43a9-a02d-0c4776b0c180,2026-06-04,39.83,Sam's Club,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TN,83bcffc3-9622-48bc-8930-ac1accdb2ec4,2026-06-09,75.68,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,64b29545-3f5e-4169-926d-3f8a993890e3,2026-06-11,63.82,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+TX,26fb0e2f-04bf-4583-90f2-eb9f04ebf474,2026-06-23,125.58,Sam's Club,Darik Carson,NOT_SYNC_READY,N,Walmart purchase
+FL,063eb5e4-aef7-4658-96ef-faf8dc40d160,2026-06-24,39.96,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,19db8430-9797-4019-94dd-770e8b2c77de,2026-06-24,38.88,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,f7369f53-c516-42d3-9657-ab4a2e676046,2026-06-24,114.82,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,c38eb116-011f-43f5-8237-8d6684d4e529,2026-06-24,146.13,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,a21a3ebb-60ac-493a-9d3a-7a0ee220800c,2026-06-25,75.91,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,edd6682e-ded0-41c1-8fd7-bd0e7eac1646,2026-06-25,71.46,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+TX,1a16ac2c-9d48-414d-b766-556ff8faff2e,2026-06-25,213.84,Sam's Club,Darik Carson,NOT_SYNC_READY,N,Walmart purchase
+TX,c192325d-fb1d-4ea4-939a-009aad9c233c,2026-06-29,328.72,Sam's Club,Darik Carson,NOT_SYNC_READY,N,Walmart purchase
+FL,007f07b7-f22b-4d90-83f9-86b353a2a764,2026-07-02,45.96,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+FL,6997a694-895c-4438-903a-0ba77b3c1dce,2026-07-02,281.60,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+TX,01ec7d6c-6f98-4fc0-b969-ade20fd25ece,2026-07-02,57.52,Sam's Club,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TN,d14f2d14-1b0c-462c-9482-618206533a82,2026-07-10,379.45,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,50255c9e-6cb9-4b9b-9b4e-66136033667d,2026-07-13,359.62,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,Walmart purchase
+TN,2f0fb1b8-2c61-458d-8469-c197411e18de,2026-07-20,629.49,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,998c3a1b-afcc-4506-a6b2-8d57ed658ced,2026-07-21,256.22,Sam's Club,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+TN,2535bb8b-5ff6-4a0b-8721-712787c6847f,2026-07-21,163.72,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,c83f9fe1-afaf-40b8-bd01-d0989770d3ac,2026-07-22,139.29,Sam's Club,Mary Claire Barnes,NOT_SYNC_READY,N,
+FL,a8deeb5e-ccfa-4b16-a3cb-2efd1963bc59,2026-03-18,190.00,Sara Glove Company,Alexander Graulau-lugo,NOT_SYNC_READY,Y,requested invoice
+FL,ecd95787-4472-47c0-8d05-bef13181fa47,2026-06-26,-81.90,Sara Glove Company,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Refund for Isolation gowns for lab/pharmacy use
+TX,05b2c279-f2b3-4ec0-9171-a89bf076fcb9,2026-05-14,234.41,Scales Plus,Darik Carson,NOT_SYNC_READY,N,Scales Plus — General Merchandise
+TX,7b229a3f-aab7-47d3-ae29-dd9ec63a1f1c,2026-06-19,56.05,Scales Plus,Darik Carson,NOT_SYNC_READY,Y,
+FL,b74ffa40-dfe8-40e1-8a12-bdf2f294fce1,2026-06-25,12.00,Shell,Antoneta Snyder,NOT_SYNC_READY,N,Fuel expense
+TN,5e591b0b-3358-471c-b4b1-9f8ca6b96841,2026-07-07,309.16,Sheraton,Tiffany Mitchell,NOT_SYNC_READY,N,Sheraton — Lodging
+TN,2fd1e513-edaf-4fde-8f19-d17047193d17,2026-07-25,136.50,Shred-it,Darik Carson,NOT_SYNC_READY,N,
+FL,bbaaa99b-3531-4177-9d5a-d72fb449f7b7,2026-02-11,104.92,Skin Type Solutions,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,7acb21dc-bbed-4e33-acc0-333e5c262a9b,2026-06-08,29.53,South Coast Deli,Isabel Babbie,NOT_SYNC_READY,N,South Coast Deli — Restaurants
+TN,7f8b880d-16b3-463a-ab79-1e6471d5082c,2026-06-15,27.03,South Coast Deli,Isabel Babbie,NOT_SYNC_READY,N,South Coast Deli — Restaurants
+TN,66e103b5-0b3e-46b2-a6c9-a6b0cd2d14fb,2026-06-16,28.27,South Coast Deli,Isabel Babbie,NOT_SYNC_READY,N,South Coast Deli — Restaurants
+FL,a6164378-aad1-45ac-ae02-1b73e6a5a41e,2026-05-28,467.04,South Pointe Wholesale,Darik Carson,NOT_SYNC_READY,N,Commercial inventory
+TN,740f1d78-5acc-40bb-ad22-b408e76536c9,2026-07-10,280.06,South Pointe Wholesale,Mary Claire Barnes,NOT_SYNC_READY,N,South Pointe Wholesale — Supermarkets and Grocery Stores
+TX,7ea49de4-91fb-44f3-b60f-3e4353140e0a,2026-07-15,244.80,South Pointe Wholesale,Darik Carson,NOT_SYNC_READY,N,South Pointe Wholesale — Supermarkets and Grocery Stores
+TN,ded03c18-27c0-438b-8c4a-abf651a25a40,2026-07-19,311.06,South Pointe Wholesale,Darik Carson,NOT_SYNC_READY,N,South Pointe Wholesale — Supermarkets and Grocery Stores
+TX,9c24a998-9b41-4872-bf66-077c83c11c32,2026-07-25,214.71,South Pointe Wholesale,Darik Carson,NOT_SYNC_READY,N,
+TN,087e0e5d-b5e7-4de1-8c57-b40796e31239,2026-06-16,514.80,Southwest Airlines,Ash Ahmed,NOT_SYNC_READY,N,Southwest Airlines — Airfare/Transportation
+TX,616107ab-d0cd-4a2c-90a6-c880a99f6cfc,2026-05-15,1392.00,SpecializedRx,Darik Carson,NOT_SYNC_READY,N,SpecializedRx — General Merchandise
+TN,0cbd8b5c-80f3-44ba-935a-a95d93d4876e,2026-02-18,51.22,Spectrum Chemical Mfg. Corp- Pay Online,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,b7f40772-33db-491f-b723-761e4f40043d,2026-06-09,0.01,Spectrum Laboratory,Alexander Graulau-lugo,NOT_SYNC_READY,N,Spectrum Laboratory — General Merchandise
+FL,e4ff0f63-36e6-4e71-85bb-16a1d74d0708,2026-06-10,51.90,Spectrum Laboratory,Alexander Graulau-lugo,NOT_SYNC_READY,N,Spectrum Laboratory — General Merchandise
+FL,86dc22f4-ef58-4e6d-935c-06922b48ebe6,2026-06-11,-0.01,Spectrum Laboratory Prod,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+TX,4610a492-584c-425e-ae3d-15a860415b28,2026-07-23,23.34,SPREAD & CO.,Oanh Nguyen,NOT_SYNC_READY,Y,
+FL,6cf2f97c-11a3-4fb5-a8a6-c8be30a6d802,2026-05-29,10.19,Stamps.com,Darik Carson,NOT_SYNC_READY,N,Stamps.com — Shipping
+FL,b2c71cbf-be12-4448-92e5-7e2749f2ad4b,2026-06-20,50.95,Stamps.com,Darik Carson,NOT_SYNC_READY,N,Stamps.com — Shipping
+FL,5b374a84-aae0-4419-960d-f1420bf69491,2026-06-30,101.90,Stamps.com,Darik Carson,NOT_SYNC_READY,N,Stamps.com — Shipping
+FL,600d97aa-4729-435a-882f-8781eee29cca,2026-07-15,20.99,Stamps.com,Darik Carson,NOT_SYNC_READY,N,Stamps.com — Shipping
+FL,c921179b-9b89-4a7c-aeae-1f1370315596,2026-07-20,101.90,Stamps.com,Darik Carson,NOT_SYNC_READY,N,Stamps.com — Shipping
+FL,a77b9060-59b3-4bfd-bb0a-083cc7cfed84,2026-07-24,101.90,Stamps.com,Darik Carson,NOT_SYNC_READY,N,
+TN,8ff9069e-7985-402c-8969-94b8846f545d,2026-05-07,12.02,Starbucks,Deonte Sales,NOT_SYNC_READY,N,Starbucks — Meals
+TN,efa00ff2-fb51-4c00-9fb4-e8cde2db8ed5,2026-06-02,8.33,Starbucks,Nicole  Fitzgerald,NOT_SYNC_READY,N,Starbucks — Meals
+TN,cbdcc300-9d56-4a88-9d0f-7ecf96291326,2026-06-22,6.55,Starbucks,Nicole  Fitzgerald,NOT_SYNC_READY,N,Starbucks — Meals
+FL,be446d1e-8a53-4181-974a-99b83e0ed597,2026-07-21,20.25,Starbucks,Tiffany Mitchell,NOT_SYNC_READY,N,Starbucks — Meals
+TN,1a53b92f-f304-42ed-8592-6982960c12c2,2026-07-22,12.00,Starbucks,Tiffany Mitchell,NOT_SYNC_READY,N,Starbucks — Meals
+FL,ab17e30d-19ff-47eb-a028-6b6cb9a23731,2026-04-01,102.98,"Stericycle, Inc. - AutoPay",Amy Murphy,NOT_SYNC_READY,Y,
+TN,1ebb4621-c9ef-4c6e-bffc-86091083be8c,2026-05-10,124.21,"Stericycle, Inc. - AutoPay",Amy Murphy,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+TN,2a08b3f0-a16c-4131-aaf8-ac92b2a5c172,2026-05-25,136.50,"Stericycle, Inc. - AutoPay",Amy Murphy,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+FL,01f462e3-0d43-4c24-889f-a21cd867884a,2026-06-09,105.08,"Stericycle, Inc. - AutoPay",Amy Murphy,NOT_SYNC_READY,Y,
+TN,ee731eee-b008-4c93-8250-a5012ea4b1ae,2026-06-09,265.75,"Stericycle, Inc. - AutoPay",Amy Murphy,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+TN,6f3583a4-0bf7-4762-a624-65fe53449211,2026-06-24,136.50,"Stericycle, Inc. - AutoPay",Darik Carson,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+FL,c6ce87ed-f213-4d5c-ad80-1645f40437b6,2026-07-09,107.67,"Stericycle, Inc. - AutoPay",Darik Carson,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+TN,5b793b07-39cc-434d-8aba-ae30023215b5,2026-07-10,135.73,"Stericycle, Inc. - AutoPay",Darik Carson,NOT_SYNC_READY,N,"Stericycle, Inc. - AutoPay — Professional Services"
+TN,9313a80b-e2b3-48c5-bdbb-fe3d76dbc54d,2026-06-05,598.94,Supply Partners,Mary Claire Barnes,NOT_SYNC_READY,N,Supply Partners — General Merchandise
+TX,de3e0486-f05c-487c-a6eb-5a2032a01771,2026-06-23,34.99,Sushishima Japanese Restaurant,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,f18bf045-d69f-4b4b-84d7-7d12691f2a20,2026-05-22,84.41,Texaco,Tiffany Mitchell,NOT_SYNC_READY,Y,Gas
+FL,0bd6d581-bc3c-445d-a4e0-3dd6084b5d1a,2026-05-29,280.00,Text Request,Darik Carson,NOT_SYNC_READY,N,Text Request — SaaS / Software
+FL,8cf5f6c4-9e6c-4869-96ae-f5cf5f5513f5,2026-06-09,596.28,Text Request,Darik Carson,NOT_SYNC_READY,N,Text Request — SaaS / Software
+FL,9cc577c1-4267-419d-9dc1-fd1aad05b975,2026-07-09,1122.34,Text Request,Darik Carson,NOT_SYNC_READY,N,Text Request — SaaS / Software
+TN,785fb7ee-6262-4ce8-8f38-ac3f4dafe6aa,2026-07-02,30.86,The Great Cookie,Rona Ivey,NOT_SYNC_READY,N,The Great Cookie — Supermarkets and Grocery Stores
+TX,019bc5f9-b06b-4664-a12b-1f67b3f75c84,2026-06-30,64.91,The Honey Baked Ham Company,Tiffany Mitchell,NOT_SYNC_READY,Y,Key dermatology 4 people
+FL,69151e99-2ddf-4d5c-a81f-4778258fb360,2026-06-18,49.95,The Inn on Fifth,Ash Ahmed,NOT_SYNC_READY,N,The Inn on Fifth — Lodging
+FL,0e81aa53-a30c-453f-aa40-4fb41d15864f,2026-06-19,5.00,The Perry Hotel & Marina Key West,Ash Ahmed,NOT_SYNC_READY,N,The Perry Hotel & Marina Key West — Parking
+FL,efeb3646-7cd2-4f0c-a408-fa29a7f021ad,2026-03-09,205.96,The Vial Store,Alexander Graulau-lugo,NOT_SYNC_READY,Y,requested invoice
+TX,7fee4bc5-3ed7-4f63-956f-5911cda96617,2026-05-11,271.95,The Vial Store,Darik Carson,NOT_SYNC_READY,N,The Vial Store — General Merchandise
+TN,e9c5623b-045e-46c5-b53e-0b912803140b,2026-06-10,277.95,The Vial Store,Mary Claire Barnes,NOT_SYNC_READY,N,The Vial Store — General Merchandise
+FL,8f8af6a9-2bd7-4d62-8134-06c0bd39511a,2026-07-20,-2.77,Thrifty,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Refund for Trip to TN rental. This receipt includes the rental insurance
+TN,a24e6d5d-2cb7-46c7-8b25-a5a5ae0ce537,2026-04-16,50.00,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Tim Hortons — Meals
+TN,8da71d68-67be-4266-ac65-514dbe40317a,2026-05-12,74.00,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Tim Hortons — Meals
+TN,d0b40a28-5909-45c7-babc-2b101fa21097,2026-06-01,21.98,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Base MOHS dermatology HC 3
+TN,ef30c503-3c1d-4e5c-b769-ff291cc3d806,2026-06-01,10.99,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Carter snell dermatology HC 6
+TN,6e95013b-6538-4777-b5a2-99af191abfd4,2026-06-02,143.41,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Tim Hortons — Meals
+TN,82a97e9b-67e8-4d8a-9637-551fb70d917c,2026-06-03,72.95,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Tim Hortons — Meals
+TN,21bb3423-ecdd-4a50-8e90-22f814a8f52d,2026-06-18,32.97,Tim Hortons,Isabel Babbie,NOT_SYNC_READY,N,Tim Hortons — Meals
+TX,ee7c6238-b7fe-4dda-a060-e88e67017e87,2026-07-23,24.09,Toastique,Oanh Nguyen,NOT_SYNC_READY,Y,
+FL,863c651e-a243-41a1-bb6b-e96d4ade8111,2026-04-24,153.98,TopRx,Darik Carson,NOT_SYNC_READY,N,asked Carson
+FL,1f9ae1da-fc84-4ac0-a3fd-12a8d76bf4df,2026-05-02,307.24,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,217c14e7-f664-471f-b7c8-15d7be8a152d,2026-05-08,156.59,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,462af2d6-f6a8-40ff-b4b6-3167459d0e0f,2026-05-10,171.77,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,fd823388-eb34-4fb6-adf5-01d63d79d919,2026-05-11,250.30,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,701f207d-2a20-4912-9013-db5d16f49625,2026-05-15,181.37,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,efcd1bd6-5228-41c7-a7b1-6e5afda6b6f2,2026-06-11,340.80,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,81d83e2e-e9a6-48be-9804-8a833c72d332,2026-06-24,431.16,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,f71ad011-e57a-468f-817d-9f9211e8f357,2026-06-24,513.12,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,54037929-e676-4b8f-af2d-acb62c40c32d,2026-06-24,1078.67,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+TN,e5931eb3-f880-4775-be88-4efdda73587e,2026-06-24,1276.48,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+TX,54d4c7a6-ff53-469e-be14-20f78787e625,2026-06-24,302.04,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,5f7cbde2-0f5c-4dab-b130-cc12f2b1741a,2026-06-24,65.40,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+TX,aadc7961-36f1-4d60-af8c-870025059edf,2026-06-24,212.48,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,3fe2c4e2-d12f-40e2-b14d-bd24a6c349b9,2026-06-24,65.40,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+TX,805a0452-2403-4e40-aa06-e5f303cac9ab,2026-06-24,97.27,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,3cecedce-cb19-4eef-b555-ea6d7cd06133,2026-06-24,197.74,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,da3f2cba-feed-4f11-877b-2c561d6483b0,2026-06-24,236.93,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,f675a819-9e29-4a7e-845e-776d9badbd25,2026-06-24,173.22,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,9e73254f-257b-4aee-ad29-9354d34fcd08,2026-06-24,167.55,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,03485b27-6a31-4741-b3ee-658ff88eb33f,2026-06-24,171.36,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,2bce5700-9b36-4e72-97c1-e63fea448d49,2026-06-24,192.00,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,27d4f268-f891-4f39-b638-0088f35390e8,2026-06-24,282.84,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,7fa08744-857d-4f6c-bda5-4b392e59685a,2026-06-26,1190.06,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+FL,56c97a7e-2f04-4124-8750-b620d11d76a8,2026-06-26,545.52,TopRx,Darik Carson,NOT_SYNC_READY,Y,
+TN,e27fac27-53f4-40ac-a65f-eabe224fc147,2026-06-28,1097.40,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,1a65fb7b-aa41-427e-890e-860b05232ec2,2026-07-02,309.60,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,ea0bdb81-3e80-4d38-a1fa-431014d1ac91,2026-07-03,234.85,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,c6e43586-58d4-43c0-8cab-c313d93e5337,2026-07-04,192.10,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,8d6d6da6-8863-4f46-a57d-8bff1bcff496,2026-07-06,1462.64,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,a02092ff-f654-42f4-a74a-d14398dcaf31,2026-07-06,313.98,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,b8de082d-718e-4029-a2cd-56f824e0be5a,2026-07-06,583.17,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,a56151dc-80b4-46bf-b414-205542d4ebf0,2026-07-09,152.53,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TN,5873cb8a-20da-497c-8c89-5b91693cc66d,2026-07-19,313.16,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+TX,8e53f131-0327-4196-bafd-c8660aeaa37c,2026-07-19,143.62,TopRx,Darik Carson,NOT_SYNC_READY,N,TopRx — Commercial Rx Inventory
+FL,b80d7d8b-9ada-478f-b861-b36d395290ee,2026-07-22,1288.72,TopRx,Darik Carson,NOT_SYNC_READY,N,Memo added via Ramp API (automated backlog fill) — verify business purpose
+TX,9f975f09-8dfd-4649-beb6-57c727c7d6eb,2026-07-23,158.44,TopRx,Darik Carson,NOT_SYNC_READY,N,
+TX,16677095-d7fb-4e9b-9165-e05274ed38ea,2026-07-25,174.96,TopRx,Darik Carson,NOT_SYNC_READY,N,
+FL,f05747ca-5e97-4026-bec5-addd1dd54e2a,2026-06-03,28.15,Towne Park,Tiffany Mitchell,NOT_SYNC_READY,Y,Parking
+TX,173d4336-deef-4c8c-9993-122ed84f6abc,2026-06-04,25.11,Towne Park,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,c2403fca-a53a-46b2-9d43-364e1bbdfc19,2026-07-15,54.64,Tropical Smoothie Cafe,Isabel Babbie,NOT_SYNC_READY,N,Tropical Smoothie Cafe — Meals
+TN,23bcd860-03ba-47d6-bbc6-0cbdd8c15d13,2026-05-07,26.79,Twin Peaks Restaurant,Lucas Lockwood,NOT_SYNC_READY,N,Twin Peaks Restaurant — Restaurants
+FL,5dc6c855-4442-4904-812d-a2cfc19c976a,2026-03-26,1331.34,TXU Energy,Darik Carson,NOT_SYNC_READY,Y,
+FL,7122b4e9-0dae-4a9a-a330-53b6c8e8bfb9,2026-04-23,1456.29,TXU Energy,Darik Carson,NOT_SYNC_READY,Y,"submitted for approval, allocated to Tx, req Carson update future transactions on a Tx ramp card 06/26/2026"
+FL,a4ccddf7-1007-4e7b-a1ca-cf2b2466fb8c,2026-05-25,1767.54,TXU Energy,Darik Carson,NOT_SYNC_READY,Y,bill submitted for approval
+FL,3ff9b42c-ad11-4a06-88bc-b489375abbf9,2026-06-25,1965.02,TXU Energy,Darik Carson,NOT_SYNC_READY,Y,
+TX,5861380e-aeea-45d2-aa1f-2675acb3ac09,2026-07-23,2153.80,TXU Energy,Darik Carson,NOT_SYNC_READY,Y,
+FL,286fe87b-2949-4076-bee4-0ee8da89901f,2026-06-06,41.94,Uber,Alexander Graulau-lugo,NOT_SYNC_READY,N,Uber — Car Rental/Hired Car
+TX,49fc7782-732e-4e4f-b270-6435e992f957,2026-06-22,25.96,Uber,Oanh Nguyen,NOT_SYNC_READY,Y,
+TX,e0ec6d37-4096-4423-a891-e1529975cf73,2026-06-23,93.98,Uber,Nicole  Fitzgerald,NOT_SYNC_READY,N,Uber — Car Rental/Hired Car
+TX,d46290cf-cae0-4db2-a81b-bbbcc073117b,2026-07-12,30.44,Uber,Chris Utesch,NOT_SYNC_READY,Y,
+FL,cf3aa85c-b3a8-4076-b046-e1bdce121562,2026-07-22,9.99,Uber,Kelli Hippenmeyer,NOT_SYNC_READY,N,Going to be refunded- was unaware there was a membership
+TN,491cf93d-f849-4f1f-9ee3-995655b1cfac,2026-07-23,50.96,Uber,Megan Vathanvarin,NOT_SYNC_READY,N,
+FL,27e0efbb-005d-41c0-b375-4f18c98060f1,2026-07-27,-9.99,Uber,Kelli Hippenmeyer,NOT_SYNC_READY,Y,Refund for Going to be refunded- was unaware there was a membership
+FL,23460962-8ee4-4f0e-86dd-87a67085c1e9,2026-06-04,23.66,Uber Eats,Alexander Graulau-lugo,NOT_SYNC_READY,N,Uber Eats — Client Presentation
+TN,1ac638d9-9226-4921-bdd3-5135d3c4bdd6,2025-12-03,727.05,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TN,48000859-1aac-4081-b361-c4e133443e54,2025-12-04,377.95,ULINE,Amy Murphy,NOT_SYNC_READY,Y,Match to bill
+TN,567b7b1d-b87e-4dab-b9ab-789cd4b81f9c,2026-01-26,939.60,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d9699968-7fab-4907-a8e4-6985aa2d570e,2026-01-28,822.13,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,6fc8c7e8-606f-4224-8925-107db4ade15f,2026-02-04,249.34,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,983af93e-bea2-42e6-8cb0-737d263f6313,2026-02-05,182.72,ULINE,Alexander Graulau-lugo,NOT_SYNC_READY,Y,
+TN,42a16bcc-68d3-4cd6-814a-0f9f7f7f0644,2026-02-05,93.45,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,2abdb9b2-391e-43ec-bdf6-1178f501d1cf,2026-02-09,668.35,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ddee9b5d-d47f-4449-a230-9079ef231e28,2026-02-11,195.72,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TN,b5226733-e1f9-4a6e-8638-0f046dced257,2026-02-17,1513.11,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,7f8be519-c202-483d-8508-0a9490076cfb,2026-03-11,102.48,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,a220bc98-6ecb-429b-9bfd-a4dea2a848fe,2026-03-16,427.72,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,02689210-7878-48a1-aee4-194f6a323059,2026-03-30,844.35,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,25284c4d-fa92-4759-a93f-9eaf012a10b4,2026-04-02,48.34,ULINE,Amy Murphy,NOT_SYNC_READY,Y,invoice in bill pay
+FL,b1b4eae0-147d-475e-99be-a93512afa49e,2026-04-02,476.99,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TN,e92e5bd3-c288-4788-b283-5a21bda64cf4,2026-04-21,-48.20,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,28c8123a-193e-4365-8efa-64b27413866c,2026-04-22,849.84,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,5f7771a6-bd4d-4da8-9a12-998c478519c5,2026-04-27,651.04,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TN,ccae1df4-d416-4d0c-88aa-825e6483da77,2026-04-28,1582.69,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,ca0f59d3-e435-4ae6-b398-9fe4e5f5871d,2026-05-05,422.98,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,8982cd96-4941-4204-8c34-1eca94179ea1,2026-05-05,443.29,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,731f4e2d-e389-467c-baf7-cd20d7babb0e,2026-05-05,646.88,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,d96ca2d0-5e6a-4877-a4c5-9c6c39603d06,2026-05-06,201.64,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,8919e221-004a-4260-ae0c-2d9861d7a87c,2026-05-06,169.92,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,56344513-e101-4fe5-8aa2-6e2b0b492a3b,2026-05-06,433.87,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,e645220a-5b26-46a5-b5ff-6ac249e40a76,2026-05-06,213.09,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,246cea78-1892-4fa2-b3d3-4bacc36ace8f,2026-05-06,968.86,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3e3a82f3-d546-48d9-ac06-e612a2702b6e,2026-05-06,532.94,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,3675ac71-0449-4d9f-8d85-bc6ef7e83e61,2026-05-06,465.12,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,943c1709-5a24-40da-87cf-da0eeed1660c,2026-05-07,192.81,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,0c4ee1cb-1790-49b9-b2a7-d2fae0d0aa16,2026-05-13,592.02,ULINE,Amy Murphy,NOT_SYNC_READY,N,Find the invoice for this amount
+FL,db9a6c0a-2627-450f-be6c-1910580ff400,2026-05-19,558.27,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,9dd3f7a9-91f5-49de-9e15-04959ea70941,2026-05-21,498.39,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TN,e77f9564-6605-4f3c-858f-cdad7f18bc15,2026-05-21,746.18,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,e3254962-4aa4-410c-b66f-b265e52fc21e,2026-05-28,164.81,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,03acafbd-c80e-4977-8f16-c8aa6019baff,2026-05-29,495.63,ULINE,Ash Ahmed,NOT_SYNC_READY,Y,
+TX,04cf8c29-47c2-40a1-810d-d3686b7f38c0,2026-05-29,1492.76,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,dfc882e1-5391-45c5-b51b-972006ae7e66,2026-05-29,671.14,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,e64e7913-e905-407a-9a1e-06c0da02e0b8,2026-05-29,147.47,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,c8591520-5cfc-45eb-b7a1-f4cbf7d55988,2026-05-29,471.96,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,02e7214c-141c-4af2-82bc-895802105d6b,2026-05-29,1242.18,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,4440600d-3845-4b65-bb8f-c34561403d24,2026-05-29,318.27,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,ecc1d638-a400-4b1e-b75c-2d2a0bed4ddc,2026-05-29,1249.15,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,30895cf7-3539-4d6a-b57f-02dbc4a9dfcc,2026-05-29,359.01,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+TX,daa38d89-fae3-498a-b7a9-5524fb9ecd55,2026-05-29,1541.47,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TX,399c79b7-75e0-47c1-b67f-86d0a81e856e,2026-05-29,937.87,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,904a7b96-59cf-4a81-b42e-e225f0c5aa9a,2026-06-01,391.40,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,6e10c1ae-b48a-4e15-9e96-751811369026,2026-06-01,384.27,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+FL,14daa6a1-8bc8-40d4-90fc-59b63a2afc76,2026-06-03,22.13,ULINE,Amy Murphy,NOT_SYNC_READY,Y,
+TX,14f7e894-a47d-4a5a-ad36-e82fd651afaa,2026-06-04,53.84,ULINE,Darik Carson,NOT_SYNC_READY,Y,"Invoice #208974948 is a Fl bill, entered in Florida. Paid out of Texas. $53.84"
+TN,f505c7f3-a295-433c-b330-c233b0618b65,2026-06-05,45.78,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,82659a3d-87ee-46d5-93ca-22789205224e,2026-06-09,49.50,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,8c254a25-4d23-4be9-9555-b961f1b722c4,2026-06-09,166.74,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,07e18cd7-2877-4075-8f22-6467710455f6,2026-06-09,129.11,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,4e50bd4d-60f5-4cb8-be8f-d4b9d95cea65,2026-06-10,72.74,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,cdb41b2b-cecd-44b8-be9c-e5298a70cd40,2026-06-15,458.40,ULINE,Amy Murphy,NOT_SYNC_READY,N,
+FL,ec95580f-2e82-46ce-ac4d-f3353aa756cd,2026-06-16,187.32,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,45a67cc3-5bbd-4d6e-b3d5-154fff80489a,2026-06-16,659.03,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,e15355bf-9ad0-40e8-b783-f977cdaf778f,2026-06-17,176.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,d0e73b0a-4417-434a-85c0-4ba4439bda20,2026-06-17,176.50,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TN,783543ed-a484-4f1e-8ab9-29907293c9a4,2026-06-17,84.87,ULINE,Mary Claire Barnes,NOT_SYNC_READY,N,
+FL,7d12006c-dff7-42ff-9f93-f15696d2ea4c,2026-06-18,176.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,ea1e4b05-e4d6-4cdc-8ae0-6493f887dfa8,2026-06-18,304.27,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,81719147-9990-415e-97c6-a05b64feb392,2026-06-18,478.75,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,a4dc98dc-d8ae-4fec-b6b4-5e965aa707b6,2026-06-19,454.08,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,7952bb26-eef0-47cc-8dd6-162a36a21711,2026-06-23,303.94,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,4a6dc081-b590-4682-ac4a-6dafbd012e86,2026-06-23,427.85,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,b0a6deb0-ca69-4a38-a92c-7cc9e44a7ac6,2026-06-26,880.20,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,8d4f2171-4555-4b67-864e-7e712254e3d8,2026-06-29,452.96,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,da4d830b-92de-4f7b-aafa-1405408d6b7b,2026-06-30,169.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,75261deb-5963-4df0-a78d-1639a5c2cf6e,2026-06-30,37.88,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,feaaad47-f8be-44d7-8c3f-a576bb57e9d5,2026-07-01,1151.37,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+FL,f65abd5b-239a-45c3-83fd-39600144b9ce,2026-07-02,127.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,2f00efea-bc58-42ac-ab5a-4a9ad966ca09,2026-07-04,-296.00,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+FL,e1e12162-f5d8-41b1-a08c-7c4051b7a6fe,2026-07-06,229.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,b4092cdf-683e-45b4-b2b3-fc8077361113,2026-07-08,811.12,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,ab770b64-205a-47d5-a9d4-8e29fcbde426,2026-07-10,295.32,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,bbac3a93-ba91-455d-a3cb-5990b409d05a,2026-07-11,-6.45,ULINE,Mary Claire Barnes,NOT_SYNC_READY,N,
+TN,6e3e0c94-99e5-4d99-90e9-c22402c12e63,2026-07-14,439.10,ULINE,Mary Claire Barnes,NOT_SYNC_READY,Y,
+TX,66b993e8-1125-4d72-b9e3-ad1c29c81ed3,2026-07-15,-2.92,ULINE,Darik Carson,NOT_SYNC_READY,Y,"Refund for Invoice #208974948 is a Fl bill, entered in Florida. Paid out of Texas. $53.84"
+FL,7c56bb02-0389-4dac-a77c-46c116915f56,2026-07-16,106.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,44d48503-719c-4405-b092-9fa6a95c2582,2026-07-17,55.50,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TN,35ef4349-1524-42c6-bf8a-9c009b88a335,2026-07-17,288.61,ULINE,Mary Claire Barnes,NOT_SYNC_READY,N,
+FL,b4381058-f3c9-44d9-afef-08fdcb18655d,2026-07-20,219.00,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TX,72da5698-2304-4c2a-89a6-3d6ae6716552,2026-07-20,659.97,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,63356770-0bea-48e9-9631-91f233bcad26,2026-07-22,1135.06,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,016855db-4262-4172-a0ee-0a6c50e05b87,2026-07-23,907.86,ULINE,Darik Carson,NOT_SYNC_READY,N,
+FL,856084a3-17aa-4f21-b188-ff940c391447,2026-07-23,-17.10,ULINE,Darik Carson,NOT_SYNC_READY,Y,
+FL,f3b25e7a-0d26-4ddd-901b-b7171f0dbba4,2026-07-27,528.46,ULINE,Darik Carson,NOT_SYNC_READY,N,
+TX,cfdc18d0-ad08-469c-81ce-06bf09eae944,2026-04-27,268.40,United,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+FL,f2f8b9e9-5099-4578-8585-f34f10c8b4d0,2026-03-23,2535.61,Univar- ACH,Darik Carson,NOT_SYNC_READY,Y,
+FL,21201089-60af-4506-9173-4ab558395d51,2026-04-30,46.19,Univar- ACH,Darik Carson,NOT_SYNC_READY,N,"1. Paid by Credit Card: ************5772 $46.19
+2. Paid by Credit Card: ************5772$2535.61"
+FL,c55bf122-5f45-4edc-8d1b-f648f469ced4,2026-07-07,11.30,UPS,Marissa Dickie,NOT_SYNC_READY,N,UPS — Sales & Marketing - Other
+FL,8f52095a-6afa-4439-91d5-ff8f7a7b209a,2026-07-07,11.58,UPS,Marissa Dickie,NOT_SYNC_READY,N,UPS — Sales & Marketing - Other
+TX,90ce40e9-c533-4465-918d-cdc27adcf40d,2026-07-23,25.29,UPS,Tiffany Mitchell,NOT_SYNC_READY,Y,
+TN,5374c6ba-fc44-4a00-9592-44fcfdd03c42,2026-05-18,1180.92,US Plastic Corporation - AutoPay,Amy Murphy,NOT_SYNC_READY,Y,
+TN,07d9fffd-26c2-4403-98e4-4e65d1aa96fb,2026-06-08,1125.00,US Plastic Corporation - AutoPay,Amy Murphy,NOT_SYNC_READY,Y,
+TN,bebabc8b-b2ce-406b-9490-7694c5a58aae,2026-06-16,907.31,US Plastic Corporation - AutoPay,Amy Murphy,NOT_SYNC_READY,Y,
+TN,e2934463-8aa9-41a2-88b7-539f7a638067,2026-06-18,907.31,US Plastic Corporation - AutoPay,Darik Carson,NOT_SYNC_READY,Y,
+TN,5771ef79-3cca-4264-8e39-b696832c7921,2026-07-08,1726.04,US Plastic Corporation - AutoPay,Darik Carson,NOT_SYNC_READY,Y,
+FL,d0ca9fd2-e23c-47ad-bf00-c2a8a4afc63f,2026-07-10,228.99,US Plastics,Darik Carson,NOT_SYNC_READY,Y,
+FL,02dde74d-e356-4686-a4dc-6e1bf2053e8b,2026-07-10,141.09,US Plastics,Darik Carson,NOT_SYNC_READY,Y,
+FL,8bbf67aa-3a4a-4e07-b381-673636d76a26,2026-07-10,306.24,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+FL,70f1f7c9-4689-4f1f-a98a-1e630d5a72c3,2026-07-10,117.97,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+FL,95053bc4-d04d-47cd-8993-22cbdc1ff907,2026-07-10,331.07,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+FL,97464880-761a-4603-a10f-bc577b5e3bc2,2026-07-10,141.09,US Plastics,Darik Carson,NOT_SYNC_READY,Y,
+FL,e741e41f-dd86-4c80-92c5-4e924cee76ac,2026-07-10,218.99,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+FL,4d12b03e-3de6-4999-b03c-7089071585df,2026-07-10,31.54,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+FL,0a6d633e-cce7-43c3-b05b-3c5a0e96c860,2026-07-10,283.75,US Plastics,Darik Carson,NOT_SYNC_READY,N,US Plastics — General Merchandise
+TX,476398a7-3f08-4753-9da3-87244cfb5aab,2026-05-07,23.09,Velvet Taco,Ash Ahmed,NOT_SYNC_READY,Y,
+TX,1a45fad9-389a-44d2-a746-e4a04f10b1cb,2026-05-07,15.15,Velvet Taco,Ash Ahmed,NOT_SYNC_READY,Y,
+TN,db73a5be-e68f-422b-b1eb-f0b20e937f1d,2026-04-02,205.00,Vermont Secretary of State,Ash Ahmed,NOT_SYNC_READY,N,requested receipt
+TN,f0914304-fb02-49b2-9365-be2a1b4678c5,2026-05-26,20.19,Walgreens,Kaitlyn Quinn-Crowe,NOT_SYNC_READY,N,Walgreens — Sales & Marketing - Other
+TN,021ed27a-412f-4e28-b170-6acca3cb84f7,2026-06-01,64.87,Walgreens,Mary Claire Barnes,NOT_SYNC_READY,N,Walgreens — Sales & Marketing - Other
+FL,0768efa9-586b-40a9-b2cd-6c842418dd29,2026-01-23,30.73,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,Y,Walmart purchase
+TN,c70d008f-ea86-4eb6-8644-b0f53e0ac7df,2026-02-03,251.71,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,ad9bfe39-63b8-4e77-9369-8900bf5bff94,2026-02-06,48.07,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,6a97ddbf-9603-4d6e-bd3e-58142dab8ac6,2026-02-06,35.64,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,0fe2b223-debb-452b-bc60-d739c564c869,2026-02-10,32.16,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,430b8b47-b167-4723-a92b-6832a682659c,2026-02-12,62.40,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,4ff52075-9a9f-4b52-b221-6322d265f88c,2026-02-17,351.91,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,04683cd6-68dc-4229-a6cc-6d147bc1d547,2026-02-18,116.39,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,329870d3-a5bf-4d30-8a94-5b0573a83ebe,2026-02-19,54.60,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,6f1a8ddb-3c88-43c5-bae4-6184c5c37599,2026-02-19,29.43,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,1a0f9565-6583-4c89-ae79-7e2ee0b0695e,2026-02-19,42.02,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,8f47292d-6c52-4b16-9f9d-921310aee133,2026-02-20,251.66,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+TN,82b8d08e-eb1e-4dba-9460-a5422de1391d,2026-03-23,339.83,Walmart,Mary Claire Barnes,NOT_SYNC_READY,Y,Walmart purchase
+FL,586b5a58-34b2-4ac7-bdce-6169a777ec34,2026-03-25,55.73,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,Y,entered bill
+FL,658a8aba-c1e0-4278-9c8f-d9da3142a8b0,2026-04-13,0.38,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,N,requested alex upload receipt
+FL,a1faaf9b-6b36-4a65-b4bf-8d4cb8288d0f,2026-04-17,12.95,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,N,requested alex upload receipt
+TX,2e8c8509-f94c-48ef-a63a-5d5866308a48,2026-04-29,22.16,Walmart,Darik Carson,NOT_SYNC_READY,Y,requested receipt
+TX,7120473c-dbf4-449c-a081-b1436a2f7c15,2026-05-05,34.71,Walmart,Ash Ahmed,NOT_SYNC_READY,Y,Walmart purchase
+TN,42d14654-6666-44bb-aa70-13c2017c0860,2026-05-14,48.87,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,8f5ea489-90dd-4057-89b2-a388a41bf7d8,2026-05-21,21.52,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,6a09260f-6d8f-4837-9b7f-2602d3d5d802,2026-05-21,44.89,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,72fdc288-6abe-42cf-bc21-ea802dfefbf1,2026-05-21,53.74,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,48a748b9-2e93-4168-8444-9dc76a7b6492,2026-05-22,37.15,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,8765553b-65ed-4f3b-a574-7f549f8d6a7f,2026-05-22,12.99,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,33a66610-a1a6-4dba-a10c-1eeba6a617d4,2026-05-26,314.64,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,2a66d26e-05aa-41d0-8965-535086227519,2026-06-12,32.40,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,88cdb747-a6e2-4ce3-9db0-c61a2d8bc72d,2026-06-15,54.09,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,47dfdb2d-8f7e-4d4d-b4cc-c0c2a18aa686,2026-06-16,258.18,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,5f818426-36a0-4f91-8176-2ac4e5da9018,2026-06-16,148.60,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,e687fcf8-a29e-4894-9eb2-8a9be040aca9,2026-06-17,14.18,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,b4a219ee-a777-4053-8dad-fdeb911aa4c9,2026-06-29,182.98,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TX,81cc0a2e-a12a-402b-85f2-b591fb115516,2026-06-29,74.82,Walmart,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TX,674fb912-3447-4864-8590-16f05676317f,2026-07-01,14.45,Walmart,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TX,3a33a998-9579-486e-83e9-23e4f3fbf6b0,2026-07-01,88.27,Walmart,Darik Carson,NOT_SYNC_READY,N,Walmart purchase
+TX,5f3b0a9c-aec0-4a47-b47c-f0ba4516a67d,2026-07-01,74.84,Walmart,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TN,f61c343d-98e3-42b0-9f7c-0a864d1b850b,2026-07-02,57.45,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,0483e037-9996-4ed8-bbd6-40e4983ba67b,2026-07-07,60.29,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,9df12e80-e489-42e0-ba40-d85feccf38b6,2026-07-08,125.85,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,266525be-fc57-472c-9923-428d878f4d42,2026-07-09,32.74,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,2c0f1075-4419-4b31-964a-defba98b93e0,2026-07-10,29.97,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TX,ba4bfaa3-3b2d-4af8-817e-d9dbd3a37b81,2026-07-11,10.54,Walmart,Darik Carson,NOT_SYNC_READY,Y,Walmart purchase
+TN,211d7963-39f0-4006-8494-cb72eff71c33,2026-07-14,116.04,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TX,2bb3d39c-59ba-43ea-965e-695fb5f12804,2026-07-14,148.61,Walmart,Darik Carson,NOT_SYNC_READY,N,Walmart purchase
+TN,8b15210c-0494-4e2f-bfce-cd53bd7114fb,2026-07-15,10.85,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,8f0e96fa-87fe-404f-8e4d-d93f7b52e7d1,2026-07-15,84.69,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,
+TN,2b6690a3-b016-4736-8099-2d29c2cafc13,2026-07-15,98.41,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,b2dc7fbb-6774-4fe4-ab56-d86ec2f5cfc7,2026-07-16,28.53,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,75ced963-5d11-4227-9784-42922b28e968,2026-07-17,14.18,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,f943f428-a096-4391-a1a8-41274f4391ae,2026-07-21,136.35,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,b64f6d0e-355f-4b76-ba6e-4cd0851c5ad0,2026-07-21,67.74,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,6cda95ee-f581-4615-9807-c73747549e99,2026-07-22,11.93,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+TN,e6e620e8-80b6-46cf-81be-9c17d95350df,2026-07-22,132.63,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Walmart purchase
+FL,bab872f6-9990-4c57-b353-d30cfd9726ea,2026-07-23,88.87,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+FL,c2a7fc8c-2234-4787-a87f-2af4b75f439f,2026-07-23,88.15,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+FL,27c7b13d-c1c9-4572-8a40-968ceaa67892,2026-07-24,67.12,Walmart,Alexander Graulau-lugo,NOT_SYNC_READY,N,
+TN,5eff3a13-d8ba-405d-9517-418e6683e177,2026-07-25,-16.28,Walmart,Mary Claire Barnes,NOT_SYNC_READY,N,Refund for Walmart purchase
+FL,6ca40765-4e08-4e7e-95c6-4106208bb395,2026-01-06,7787.01,WebstaurantStore,Ash Ahmed,NOT_SYNC_READY,Y,
+FL,c3d3d8bb-f29f-406f-96dc-6f1bb69b2730,2026-03-03,308.88,"Wellgistics, LLC",Alexander Graulau-lugo,NOT_SYNC_READY,Y,"bill added, updated to pay by ramp cc eff. 03/02"
+TN,529aaabc-3039-4728-9473-0f71c82ad28f,2026-07-17,17.06,Whole Foods Market,Grant Powell,NOT_SYNC_READY,N,Whole Foods Market — Meals
+TN,aa72cf0f-23d3-44e3-8423-ef0965a9e0f8,2026-05-14,40.00,Wyoming State Board Of Pharmacy,Ash Ahmed,NOT_SYNC_READY,N,Wyoming State Board Of Pharmacy — Government Services
+TN,e09bd78f-14e7-40d0-9c9a-ed21082786a3,2026-05-14,300.00,Wyoming State Board Of Pharmacy,Ash Ahmed,NOT_SYNC_READY,N,Wyoming State Board Of Pharmacy — Government Services
+TN,3b01567e-482e-43ff-9e37-b99f74416084,2026-04-22,271.19,Zaya,Ash Ahmed,NOT_SYNC_READY,N,Zaya — Restaurants

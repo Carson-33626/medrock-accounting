@@ -1,0 +1,836 @@
+entity,group,txn_id,date,cardholder,amount,receipt,items,source,memo,mode,http
+TN,Other,1535eb2f-8ad7-4609-a66e-dce9cbbceea4,2026-07-06,Isabel Babbie,314.08,y,3,ocr,"ezCater — Client Presentation: Breadsticks, 10-12 Person Bundle, Greek Salad",live,200
+TN,Other,8d6d6da6-8863-4f46-a57d-8bff1bcff496,2026-07-06,Darik Carson,1462.64,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TN,Other,a02092ff-f654-42f4-a74a-d14398dcaf31,2026-07-06,Darik Carson,313.98,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TN,Other,b8de082d-718e-4029-a2cd-56f824e0be5a,2026-07-06,Darik Carson,583.17,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TN,Other,b6480eaa-12c0-4f8f-9601-2e7f9378d92a,2026-07-06,Grant Powell,61.00,n,0,no_receipt,Groome Transportation — Car Rental/Hired Car,live,200
+TN,Other,1156e1ba-e9bb-461b-b4d4-4f4d19559b95,2026-07-05,Deonte Sales,245.60,y,2,ocr,"ezCater — Client Presentation: Croissant Tray, Beverage Tote w/ Cups",live,200
+TN,Other,37531170-c2b7-450d-ac31-4bb1014a5a88,2026-07-05,Darik Carson,732.22,y,0,receipt_no_ocr,South Pointe Wholesale — Supermarkets and Grocery Stores,live,200
+TN,Other,78f818ec-7e96-4294-906d-31e7d3e0c66c,2026-07-04,Nicole  Fitzgerald,374.76,y,2,ocr,"ezCater — Client Presentation: Create-Your-Own Pasta Station, Tableware",live,200
+TN,Other,ab6ac8cc-0b69-413f-9c29-40e48420f3c0,2026-07-04,Grant Powell,65.55,y,2,ocr,"Vercel — Research & Development Costs: Pro, Additional Team Seats",live,200
+TN,Other,a21f1f51-a5f3-4d2e-8186-6eb65fee716d,2026-07-04,Grant Powell,21.32,y,1,ocr,Anthropic — Software Support Fees: Claude Pro,live,200
+TN,Other,b325f586-139b-4ee1-ab02-f62a69393d0a,2026-07-04,Darik Carson,300.80,n,0,no_receipt,Comcast — Utilities,live,200
+TN,Other,e24693e7-57f0-47b9-a78c-b3bdcb2ada01,2026-07-03,Ash Ahmed,14.63,y,3,ocr,"Publix — Meals: Olde Thmp Pepp Blk Grindr Ft, Rummo Gf Fusilli Ft",live,200
+TN,Other,e2e94291-c2bd-4f1a-8981-d10d5e0a613e,2026-07-03,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,24bad3fc-80d9-4f00-ba2e-46fdeb86203e,2026-07-03,Grant Powell,19.95,y,1,ocr,SendGrid — SaaS / Software: ESSENTIALS 50K,live,200
+TN,Other,5140ac8e-0518-48e6-ba25-a8a1274d1a8e,2026-07-03,Sydney Klinowski,35.07,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,7a2b093f-6400-4f25-9721-7f10ee8e7ca9,2026-07-02,Deonte Sales,25.99,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,54ad6c84-cc83-4cc9-9dca-d670b1183e3b,2026-07-02,Deonte Sales,34.20,y,0,receipt_no_ocr,One Stop Nutrition — Restaurants,live,200
+TN,Other,785fb7ee-6262-4ce8-8f38-ac3f4dafe6aa,2026-07-02,Rona Ivey,30.86,n,0,no_receipt,The Great Cookie — Supermarkets and Grocery Stores,live,200
+TN,Other,e0f3d384-1a4f-4f72-ac35-e4fd6ff1de39,2026-07-02,Nicole  Fitzgerald,120.08,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,1ecd44a8-2876-4f96-bacf-71fbf131fa0d,2026-07-02,Nicole  Fitzgerald,30.98,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,12fdc188-03f4-4cf9-a86d-091fdab78e84,2026-07-02,Robert Wilhoit,51.32,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,ece43fe5-5f63-49eb-b73d-a017dcd5a7d4,2026-07-02,Rona Ivey,64.71,n,0,no_receipt,Chick-Fil-A — Meals,live,200
+TN,Other,4eeec755-d571-43d0-9163-4851c6d237dd,2026-07-02,Ash Ahmed,89.00,n,0,no_receipt,HC Clerk & Master — Government Services,live,200
+TN,Other,2be52a28-bc0e-4d65-9534-5add6148459b,2026-07-02,Grant Powell,92.86,n,0,no_receipt,Autodesk — Research & Development Costs,live,200
+TN,Other,15e9f17b-8686-4e4e-ba05-883edac93131,2026-07-01,Isabel Babbie,83.61,y,1,ocr,BP — Gas: UNLEADED REGULAR,live,200
+TN,Other,cdd4a483-b9a2-4ff1-83ab-b11c743610ca,2026-07-01,Deonte Sales,252.33,y,3,ocr,"ezCater — Client Presentation: Croissant Tray, Cobb Salad, Beverage Tote w/ Cups",live,200
+TN,Other,43158830-ecdc-4569-acc0-5ad9b301eea4,2026-07-01,Deonte Sales,24.73,y,2,ocr,"Flower Child — Restaurants: Steak Plate, 24oz Iced Tea",live,200
+TN,Other,a9627c86-4363-4c0e-98c2-e918024f94a2,2026-07-01,Mary Claire Barnes,633.64,n,0,no_receipt,Best Buy — Sales & Marketing - Other,live,200
+TN,Other,7b087f75-27aa-4f62-a396-93f56733c3c0,2026-07-01,Grant Powell,0.02,n,0,no_receipt,Google Cloud — Software Support Fees,live,200
+TN,Other,86235934-d97e-4e6b-93ee-bd8fdb3437a4,2026-07-01,Robert Wilhoit,49.35,y,1,ocr,Murphy USA — Gas: FUEL,live,200
+TN,Other,1c869bff-aff4-4941-a37e-bb8484832b2f,2026-07-01,Robert Wilhoit,0.37,y,1,ocr,Murphy USA — Gas: FUEL,live,200
+TN,Other,7a0a9038-e156-4ae3-b0e7-de1f9207583c,2026-07-01,Robert Wilhoit,9.80,y,0,receipt_no_ocr,Kanda Kitchen — Restaurants,live,200
+TN,Other,b437358c-0c48-4e25-97db-9b82003ab713,2026-07-01,Deonte Sales,23.68,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,127a2b50-5d1f-4df0-a26f-782978ff7a54,2026-07-01,Deonte Sales,108.48,y,22,ocr,"Starbucks — Meals: Vt Cold Brew, 2 pumps Sf Vanilla Syrp, Jalpno Chckn Pock, Spinach Feta Wrap, Vt Ic Matcha Lat, 5 Matcha Powder, Vt Icd Bld Van Lat, Van Sc Cld Fm, Gr Matcha Crm Frp, Bacon Sausage Wrap, Gr Sunsera Blend, Egg Wht Egg Bite +4 more",live,200
+TN,Other,a0c5ed4c-1b49-49f4-b0c1-f696dd3c7677,2026-07-01,Deonte Sales,12.34,y,5,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Light Ice, Turky Bcon Sandwc, Vt Cup Of Water, Add Ice",live,200
+TN,Other,9d190a67-0bd2-4585-8bf1-718e9fb130d3,2026-07-01,Nicole  Fitzgerald,735.80,y,1,ocr,American Airlines — Airfare/Transportation: New ticket,live,200
+TN,Other,d61d6401-1d27-4a30-8c1c-d1178c4cf929,2026-07-01,Nicole  Fitzgerald,210.03,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,9c9c07fb-6ec7-427f-9602-92950884ed7e,2026-07-01,Sydney Klinowski,37.48,y,1,ocr,MAPCO — Gas: FUEL,live,200
+TN,Other,9cd99d6d-19db-41e5-bd36-5ff92caff2a9,2026-07-01,Alan Mayrer,50.22,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,0272e569-0d4c-4547-aee7-044ab8457d72,2026-07-01,Rona Ivey,48.12,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,779e6857-3300-44d4-9998-4a00acc65f3a,2026-07-01,Ash Ahmed,21.85,y,1,ocr,Anthropic — Software Support Fees: Claude Pro,live,200
+TN,Other,e35d9d4d-a5f6-4671-9589-0f36f6bf5a5d,2026-07-01,Deonte Sales,252.66,y,1,ocr,ezCater — Client Presentation: 48-Piece Chicken Meal Package w/ Leg & Thigh,live,200
+TN,Other,08ddddad-2c15-4417-a731-e0cf8b6aeaf6,2026-06-30,Deonte Sales,23.87,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,e3e5cef4-eb42-4b9a-862f-c46ab6bf39b8,2026-06-30,Deonte Sales,39.18,y,1,ocr,Dunkin' Donuts — Meals: 2 12 Donuts,live,200
+TN,Other,eea2a5e3-0930-48bc-96a0-1e2473dedff8,2026-06-30,Robert Wilhoit,20.00,y,1,ocr,Citgo — Gas: PREPAY CR #08,live,200
+TN,Other,c3963d1b-beb0-4460-aa4d-62522f2a077e,2026-06-30,Frank Browne,233.00,y,4,ocr,"ezCater — Client Presentation: Bakery Tray, Fruit Salad, Box of Iced Coffee, Tableware",live,200
+TN,Other,7b8f8694-52a5-4bec-b9bf-274617d800b5,2026-06-30,Lindsey Hardesty,2800.84,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with Frosted Bottle,live,200
+TN,Other,9510e57b-3627-451b-b2b1-ef8ed0d63916,2026-06-29,Deonte Sales,194.00,y,1,ocr,ezCater — Client Presentation: Chicken Sandwiches Box,live,200
+TN,Other,2fb71836-4218-4455-85fd-84a64d7e394f,2026-06-29,Robert Wilhoit,208.93,y,2,ocr,ezCater — Client Presentation: Assorted Box Lunches,live,200
+TN,Other,83bf919f-a5b3-4401-9140-753c87336035,2026-06-29,Deonte Sales,25.74,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,209be000-a174-4791-89fb-846fe469c07e,2026-06-29,Alan Mayrer,49.61,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,5c2bc161-77ba-464e-abdf-0a3202b9da10,2026-06-29,Frank Browne,56.68,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,ed5eb3e9-0f55-4e1c-b873-a82df71a5f93,2026-06-29,Deonte Sales,12.13,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Vt Cup Of Water",live,200
+TN,Other,93db1f60-87d4-41a4-bc3d-68b4b0c95032,2026-06-29,Robert Wilhoit,56.51,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,eb8762f8-ec81-425e-a7c1-05cb4df4d0fa,2026-06-29,Deonte Sales,48.44,y,2,ocr,"Einstein Bros. Bagels — Restaurants: Baker's Dozen Box, Baker's Doz Bucket w/2 CC",live,200
+TN,Other,0e5ec91e-97ea-46a4-8838-5c531d8d75ed,2026-06-29,Frank Browne,709.02,y,2,ocr,"ezCater — Client Presentation: Build-Your-Own 3 Protein Taco or Bowl Bar, Tableware",live,200
+TN,Other,f4dc4789-6658-4cba-9b57-d430f0529c67,2026-06-29,Ash Ahmed,350.00,n,0,no_receipt,DHP Online Licensing — Government Services,live,200
+TN,Other,25059221-721f-4495-926c-7cd4b1e934b6,2026-06-28,Darik Carson,493.50,y,2,ocr,TopRx — Commercial Rx Inventory: 06-43071 AMMONIUM LACTATE 12% LOTN 225GM,live,200
+TN,Other,e27fac27-53f4-40ac-a65f-eabe224fc147,2026-06-28,Darik Carson,1097.40,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TN,Other,132dd29b-c411-4ad9-9373-b74ff7b56d13,2026-06-26,Grant Powell,299.96,y,1,ocr,Frontier — Airfare/Transportation: Airfare,live,200
+TN,Other,76733c78-4b51-4dc8-bdb2-586b9510a886,2026-06-26,Deonte Sales,21.87,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,4ddeebc5-ed49-4108-97af-72b1f8635aee,2026-06-26,Deonte Sales,12.23,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Cup Of Water, Vt Strbry Acai Rfr",live,200
+TN,Other,59fb8a0e-99c9-47cc-bab8-704a34c003c7,2026-06-26,Alan Mayrer,64.79,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,8c846918-0f2f-4fb6-980d-459afdc4b64f,2026-06-26,Rona Ivey,45.00,y,1,ocr,Shell — Gas: REGULAR CA,live,200
+TN,Other,36b8e5c7-0461-4007-8965-cdaa98ce73a8,2026-06-25,Deonte Sales,31.03,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,1e3f0f9f-8666-496d-84df-b2d6a47cb74e,2026-06-25,Grant Powell,59.00,n,0,no_receipt,Trello — SaaS / Software,live,200
+TN,Other,c1769a23-bf43-46e3-b88e-e1aaea416e66,2026-06-25,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Vt Cup Of Water, Turky Bcon Sandwc",live,200
+TN,Other,39bb5ec5-bb63-4212-b952-aca9252b2140,2026-06-25,Mary Claire Barnes,598.10,y,2,ocr,"Supply Partners — General Merchandise: PRESCRIPTION BAGS | M&P THANK YOU | 5 x 2 x 10 | 16# SKU : SAM-23010, SHIPPING CHARGE SKU : +S",live,200
+TN,Other,d02f20c2-d0d6-4ab8-9351-b3c8126f3c3f,2026-06-25,Frank Browne,62.56,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,71206ca8-cfa6-4313-96dc-dfef871c1506,2026-06-25,Robert Wilhoit,41.21,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,f490eb58-e6ab-4e7f-9d5c-a7eaf0815c62,2026-06-24,Ash Ahmed,43.84,y,5,ocr,"Greenhouse Bar — Alcohol and Bars: 1 Joyce's Tuna Salad Sandwich, Cup Tomato Basil, No Carrots, 1 Ham #2",live,200
+TN,Other,a5c47178-f4e4-4abf-9ac6-a5491a73ff8a,2026-06-24,Deonte Sales,25.37,y,2,ocr,"OLO 130 hg Exton — Restaurants: Spicy Korean Steak Bowl [GF], Muscle Malt [VEG]",live,200
+TN,Other,c76e0e6a-cc3c-4665-bab8-ce92a0f081fd,2026-06-24,Deonte Sales,173.50,y,3,ocr,"ezCater — Client Presentation: Chicken Combo Platter, Wood-Fired Veggie Lavash Wrap, Gallon Lemonade Iced Tea",live,200
+TN,Other,aaf1b9eb-3ec0-48de-b8e2-ecaa6b882573,2026-06-24,Mary Claire Barnes,489.67,y,1,ocr,DropperBottles.com — Compound Packaging Inventory: 1oz/30ml BostonRound Amber Glass,live,200
+TN,Other,9e97f8d5-714e-4fd7-a4ab-1553c05cf0aa,2026-06-24,Frank Browne,226.77,y,0,receipt_no_ocr,Hampton Inn — Hotels,live,200
+TN,Other,9d503283-b9e6-4700-9597-56a20b23fe10,2026-06-24,Deonte Sales,12.24,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Gt Lem, Vt Cup Of Water",live,200
+TN,Other,7d891510-a1d8-4a11-9a68-83fc5fc3dbfa,2026-06-24,Mary Claire Barnes,20.00,y,1,ocr,Paul Xavier — Education: ONLINE VIDEO PRODUCTION CO,live,200
+TN,Other,838e9a60-fcd1-4e0a-bbda-838c3a2ebad0,2026-06-24,Deonte Sales,45.44,y,7,ocr,"Chick-Fil-A — Meals: Meal-Nugg 8ct, PDF Lmnd, GRL Wrap, Fries MD, Hot GRL Nugs CobSld, Ketchup, Bell Pepr",live,200
+TN,Other,aab135f6-fd2b-4344-b97c-a5bb7379c783,2026-06-24,Deonte Sales,51.85,y,1,ocr,Circle K — Gas: UNL-REG,live,200
+TN,Other,8ccba1d8-a1e1-4bcd-b481-94bd5999abe9,2026-06-24,Lindsey Hardesty,493.80,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Echo 30 ML Airless Jar with Matte Silver Collar,live,200
+TN,Other,b83707e8-8f7e-46d2-86a2-220f1b7fa15b,2026-06-24,Darik Carson,451.32,y,0,receipt_no_ocr,TopRx — Commercial Rx Inventory,live,200
+TN,Other,ef310666-3a54-4378-96fa-f8e702d314d3,2026-06-24,Frank Browne,120.00,y,0,receipt_no_ocr,Applebee's Grill + Bar — Restaurants,live,200
+TN,Other,63541d82-838d-48f3-ae4c-d92c672bc17d,2026-06-24,Alan Mayrer,62.28,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,25e20e7c-9a6b-4f7f-bb84-69c09aff222e,2026-06-24,Mary Claire Barnes,485.05,y,1,ocr,DropperBottles.com — Compound Packaging Inventory: 20-400 Standard Dropper Assembly- Graduated 76mm Length,live,200
+TN,Other,994db986-8464-48a1-9c52-bf2267a2960b,2026-06-24,Robert Wilhoit,47.72,y,1,ocr,PC Optimum — Fuel and Gas: UNLD,live,200
+TN,Other,6f3583a4-0bf7-4762-a624-65fe53449211,2026-06-24,Darik Carson,136.50,n,0,no_receipt,"Stericycle, Inc. - AutoPay — Professional Services",live,200
+TN,Other,e6ec3351-d651-4397-b044-8b8956fd44fb,2026-06-23,Deonte Sales,24.27,y,3,ocr,"Venezia's New York Style Pizzeria — Restaurants: Large Halfs Pepperoni 2nd Half Crumbled Sausage, RANCH!!!!, 32oz Pepsi",live,200
+TN,Other,b23c6a90-9ae1-43a5-ab7e-359975e2cf3a,2026-06-23,Grant Powell,218.50,y,1,ocr,Anthropic — Software Support Fees: Max plan - 20x,live,200
+TN,Other,8c18211d-a43d-4c56-98ff-bc62ff194387,2026-06-23,Deonte Sales,16.90,y,5,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Light Ice, Vt Cup Of Water, Turky Bcon Sandwc, Ham Swiss Croisnt",live,200
+TN,Other,a7d3346c-8f4d-4e59-b56c-439de47a2ad8,2026-06-23,Isabel Babbie,32.96,y,4,ocr,"Tim Hortons — Meals: 1 Dnt - Asrt 1/2 Dozen, 1 20 Timbits",live,200
+TN,Other,e6788931-bb20-4f29-9096-960330d92690,2026-06-23,Frank Browne,56.80,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,71307ed2-c5ab-4ff8-88eb-8ae9ffe586d2,2026-06-23,Ash Ahmed,52.99,y,1,ocr,Southwest Airlines — Airfare/Transportation: Base Fare,live,200
+TN,Other,8d466f7d-6178-47be-8dbb-ef9471165a60,2026-06-23,Deonte Sales,317.24,y,1,ocr,ezCater — Client Presentation: Deluxe Platter Pack,live,200
+TN,Other,0ea05a7b-6cca-42b8-a67c-e883aef1e06b,2026-06-22,Nicole  Fitzgerald,34.79,y,1,ocr,Murphy USA — Gas: FUEL PREPAY #08,live,200
+TN,Other,cbdcc300-9d56-4a88-9d0f-7ecf96291326,2026-06-22,Nicole  Fitzgerald,6.55,n,0,no_receipt,Starbucks — Meals,live,200
+TN,Other,04c0ac9c-e1a0-4c8f-99a2-b8eaa8edcd99,2026-06-22,Nicole  Fitzgerald,25.59,y,3,ocr,"Don Carlos — Restaurants: Chicken #29Enchiladas, Cheese Sauce, Iced Tea",live,200
+TN,Other,bc08e684-b130-4a8b-b8ff-f49de9c6d441,2026-06-22,Deonte Sales,24.19,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,f991eac1-9082-420d-9f8c-95d3808d7a4d,2026-06-22,Robert Wilhoit,59.42,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,ba27b7a3-f04d-407a-b110-c5a422e61c53,2026-06-22,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Gt Lem, Vt Cup Of Water",live,200
+TN,Other,7c08690b-68bb-4728-97b0-ca9c474f24c9,2026-06-22,Alan Mayrer,61.13,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,f441000f-7468-471b-8b05-0c71a827ae73,2026-06-22,Robert Wilhoit,182.33,y,6,ocr,"ezCater — Client Presentation: Cheese Pizza, Deluxe Uno Pizza, BBQ Chicken Pizza, Pepperoni Magnifico Pizza, Garden Pizza, The Works Pizza",live,200
+TN,Other,df1754db-de42-490a-92e9-2f81e208cbd0,2026-06-22,Nicole  Fitzgerald,3.25,y,4,ocr,"Starbucks — Meals: Gr Sunsera Blend, Splenda, Short [Drink], Cream 1/2""",live,200
+TN,Other,1b402472-a330-42f4-ac14-20bb96e1015c,2026-06-22,Isabel Babbie,78.02,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,86ced4a6-68c2-4418-92e8-0ebeb0d1a4fb,2026-06-22,Rona Ivey,45.00,y,1,ocr,Shell — Gas: REGULAR CA,live,200
+TN,Other,f21ed316-e158-407d-be14-7406c2f38476,2026-06-22,Nicole  Fitzgerald,5.58,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE TIP,live,200
+TN,Other,126b77af-1c74-48c8-a795-b8baee4c7f96,2026-06-22,Isabel Babbie,157.20,y,1,ocr,ezCater — Client Presentation: Bagged Lunch 1,live,200
+TN,Other,b9526351-4bea-4d8c-bd2f-893a32e4ff2e,2026-06-21,Nicole  Fitzgerald,70.83,y,3,ocr,"Original Oyster House — Restaurants: 1 Bowl Gumbo & Salad, 1 Claw App, 1 HushPuppies",live,200
+TN,Other,3049e5f7-bc4c-47b4-b744-37ed39e0c29f,2026-06-21,Nicole  Fitzgerald,7.93,y,3,ocr,"Front Yard Tacos — Restaurants: 1 Steak N' Eggs, Flour Tortilla, Add Avocado",live,200
+TN,Other,dbb1c1af-c9e2-4374-95d5-909d71db5fea,2026-06-21,Nicole  Fitzgerald,3.67,y,1,ocr,Nova Espresso — Restaurants: 16oz Drip,live,200
+TN,Other,53f6af35-de6b-4c95-93bf-01eb6dd41495,2026-06-20,Nicole  Fitzgerald,192.70,y,1,ocr,Courtyard by Marriott — Hotels: ROOM CHARGE-PLEAS TRANS,live,200
+TN,Other,ecd6ca60-e637-4d1a-9649-c0e1425f4e0a,2026-06-20,Nicole  Fitzgerald,4.88,y,0,receipt_no_ocr,Cammie's Old Dutch Ice Cream — Supermarkets and Grocery Stores,live,200
+TN,Other,d1f05bef-6b24-42c4-a891-e105c430785a,2026-06-20,Nicole  Fitzgerald,48.78,y,4,ocr,"Wintzell's Oyster House — Restaurants: WATER, CHARGRILLED, 1/2 Dozen, FRIED JUMBO SHRIMP",live,200
+TN,Other,fa32dffb-c71e-4795-ab19-57eee980bbbf,2026-06-20,Grant Powell,10.00,n,0,no_receipt,ngrok — Software Support Fees,live,200
+TN,Other,d1760997-409f-44c9-9187-332b01b91427,2026-06-20,Nicole  Fitzgerald,63.41,y,1,ocr,Little Bird Kitchen — Restaurants: 1 Grouper,live,200
+TN,Other,008ec464-d75c-4ebb-880b-64ca34654dbe,2026-06-19,Deonte Sales,33.28,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,b056373a-ee71-46b3-9e15-42edfff99816,2026-06-19,Deonte Sales,17.90,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Ham Swiss Croisnt, Turky Bcon Sandwc",live,200
+TN,Other,edaa0c51-67ab-4405-b22a-c70132998b73,2026-06-19,Natalie Tutton,235.81,y,5,ocr,"Domino's Pizza — Restaurants: Large (14"") Hand Tossed Pacific Veggie, Large (14"") Hand Tossed Memphis BBQ Chicken, Large (14"") Hand Tossed Honolulu Hawaiian, Large (14"") Hand Tossed Ultimate Pepperoni, Large (14"") Hand Tossed Wisconsin 6-Cheese Pizza",live,200
+TN,Other,22001d09-d88d-4c8d-8e93-5289296b70d2,2026-06-18,Deonte Sales,37.73,y,1,ocr,Whole Foods Market — Meals: WFM BEEF FAMILY MEAL,live,200
+TN,Other,385f5750-c1e9-4972-8cc0-e38fe22d3e5d,2026-06-18,Nicole  Fitzgerald,29.45,y,2,ocr,"Big Daddy's Grill & Bar — Restaurants: UnSweet Tea, Finger Basket",live,200
+TN,Other,d56101f2-57ef-461c-9c95-f4e5e0ce9e9a,2026-06-18,Lindsey Hardesty,2772.71,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Pure 50 ML White PP Airless Bottle with Frosted Cap,live,200
+TN,Other,56cf0936-1a98-4586-abb1-df576149192a,2026-06-18,Nicole  Fitzgerald,11.40,y,3,ocr,"Walgreens — Sales & Marketing - Other: W/L EMERGENCY PONCHO, NICE! P ELECTROLYTE WATER 1L, SKINNY POP POPCORN",live,200
+TN,Other,a7721567-a21a-49f0-9add-868ef659a348,2026-06-18,Deonte Sales,12.02,y,4,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Light Ice, Vt Cup Of Water, Turky Bcon Sandwc",live,200
+TN,Other,21bb3423-ecdd-4a50-8e90-22f814a8f52d,2026-06-18,Isabel Babbie,32.97,n,0,no_receipt,Tim Hortons — Meals,live,200
+TN,Other,0711dd3f-cba0-4b81-81a7-20b3e83e5b72,2026-06-18,Nicole  Fitzgerald,334.21,y,0,receipt_no_ocr,Dollar Rent A Car — Car Rental,live,200
+TN,Other,1d608448-bbb2-4ff1-a71a-abdcb38b7a4a,2026-06-18,Lindsey Hardesty,1805.43,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with Frosted Bottle,live,200
+TN,Other,a74d98ae-f7a0-4fc9-919c-ff0298c83125,2026-06-18,Rona Ivey,45.00,y,1,ocr,Shell — Gas: REGULAR CA PUMP# 7,live,200
+TN,Other,78db862f-693d-4e1b-bcb4-489684af7306,2026-06-18,Natalie Tutton,78.00,y,1,ocr,USPS — Sales & Marketing - Other: US Flag Coil/100,live,200
+TN,Other,843bcf51-b4d6-423b-a0d5-1a506b861135,2026-06-18,Mary Claire Barnes,10.00,y,1,ocr,Paul Xavier — Education: ONLINE VIDEO PRODUCTION CO,live,200
+TN,Other,34fe4320-c03a-4641-a357-191ebfd7e675,2026-06-18,Nicole  Fitzgerald,3.79,y,1,ocr,Starbucks — Meals: 1 GR BLONDE ROAST,live,200
+TN,Other,9e5b3e99-ace1-4e1c-bceb-5275a885896e,2026-06-17,Nicole  Fitzgerald,55.78,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,b67e5e4e-0768-4b14-9ab5-c90a1bad5bba,2026-06-17,Robert Wilhoit,64.16,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,eddb0876-b629-4ef7-8a04-fa17ff505e7e,2026-06-17,Deonte Sales,29.54,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,a493fd85-0eed-4494-bb15-56fadee77639,2026-06-17,Deonte Sales,170.33,y,1,ocr,ezCater — Client Presentation: Chicken Combo Platter,live,200
+TN,Other,e5228fd6-2b36-49f8-b95a-68928ceaae0b,2026-06-17,Alan Mayrer,56.50,y,1,ocr,Casey's — Fuel and Gas: FUEL,live,200
+TN,Other,3d9c20b7-b47b-4207-a3b1-2233fcb5fd47,2026-06-17,Frank Browne,59.91,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,d2698658-2242-493d-8afc-31a50ba7beba,2026-06-17,Mary Claire Barnes,165.99,y,1,ocr,eBay — Suspense: ZEBRA GX430T THERMAL TRANS,live,200
+TN,Other,bfa01bd3-01b8-4939-ab6a-9411fff20d77,2026-06-17,Grant Powell,92.86,y,1,ocr,Scribe — SaaS / Software: Scribe Pro Team,live,200
+TN,Other,e8a5cadb-1c2d-468f-83a9-d03b06cbd6b0,2026-06-17,Deonte Sales,6.89,y,1,ocr,Starbucks — Meals: Ham Swiss Croisnt,live,200
+TN,Other,78e7315c-f0e6-41af-b2e5-72fdda1e64e5,2026-06-17,Deonte Sales,50.30,y,8,ocr,"Starbucks — Meals: T1 Ic Brsg Oat E, Jalpno Chckn Pock, Vt M Stw L Eng R, Impossible Sausge, Vt Ic Hrcht Oat E, Spinach Feta Wrap, Vt Ic Pch Gt Lem, Turky Bcon Sandwc",live,200
+TN,Other,5288533b-4fbd-4a17-958f-93823b04f1cb,2026-06-17,Isabel Babbie,72.99,y,0,receipt_no_ocr,Mochinut — Restaurants,live,200
+TN,Other,b0973829-835d-4113-9fce-48e40e4a5d83,2026-06-17,Frank Browne,418.84,y,2,ocr,"ezCater — Client Presentation: Sandwich Box, Mean Green Salad",live,200
+TN,Other,97b797e7-cd1f-4c4a-8026-5d13e41df10c,2026-06-17,Deonte Sales,56.25,y,1,ocr,Circle K — Gas: UNL-REG,live,200
+TN,Other,9be76a45-8793-43b2-a2d0-24d681983b3a,2026-06-16,Isabel Babbie,231.40,y,1,ocr,ezCater — Client Presentation: Chicken Gyro Kit - Full Tray,live,200
+TN,Other,8d3b1293-75aa-4447-b94c-7fb902ae5f7c,2026-06-16,Deonte Sales,27.02,y,3,ocr,"Original ChopShop — Restaurants: 1 Spicy Korean Steak Bowl, ADD Steak, 1 Seasonal Lemonade 32 VOZ",live,200
+TN,Other,f28d9ab4-9efe-4f01-b3e4-ec92c9afb580,2026-06-16,Deonte Sales,43.16,y,2,ocr,"DS Sports Nutrition — Restaurants: Peanut Butter Bombs, Muffin Co Brownies",live,200
+TN,Other,6a916483-d19a-47b1-af0c-033c2fb74a2f,2026-06-16,Deonte Sales,12.02,y,4,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Light Ice, Vt Cup Of Water, Turky Bcon Sandwc",live,200
+TN,Other,0caf73aa-6f5e-4f92-9530-46df1f86b4a1,2026-06-16,Lindsey Hardesty,1131.91,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 15 ML Airless Bottle Glossy Black with White Bottle,live,200
+TN,Other,e8029a15-fb65-4e40-8781-f8457c8be76c,2026-06-16,Lindsey Hardesty,2717.52,y,2,ocr,"Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with White Bottle, Pure 30 ML White PP Airless Bottle with Frosted Cap",live,200
+TN,Other,66e103b5-0b3e-46b2-a6c9-a6b0cd2d14fb,2026-06-16,Isabel Babbie,28.27,n,0,no_receipt,South Coast Deli — Restaurants,live,200
+TN,Other,38e51346-4944-461b-88a4-ff6a23743e19,2026-06-16,Frank Browne,240.63,y,0,receipt_no_ocr,Lion House Cafe — Restaurants,live,200
+TN,Other,0b85479a-a5cd-4d17-8f79-2db425783513,2026-06-16,Robert Wilhoit,44.67,y,1,ocr,Ingles Markets — Fuel and Gas: FUEL,live,200
+TN,Other,087e0e5d-b5e7-4de1-8c57-b40796e31239,2026-06-16,Ash Ahmed,514.80,n,0,no_receipt,Southwest Airlines — Airfare/Transportation,live,200
+TN,Other,96de108b-f676-4b86-8aad-284c28a49d3a,2026-06-15,Deonte Sales,48.75,y,3,ocr,"Fabletics — Books and Newspapers: Intake Scrub Pant, All-Day Scrub Zip Polo",live,200
+TN,Other,1e8cbd42-476e-4732-87a8-b2beb4617949,2026-06-15,Robert Wilhoit,24.40,y,3,ocr,"Meatballs Pizzeria — Restaurants: Hawaiian Cowboy Slice, Supreme Slice, Special Dessert",live,200
+TN,Other,0086775f-4a1f-4422-804f-c27bb57f7e2b,2026-06-15,Sydney Klinowski,149.69,y,1,ocr,Fairfield Inn & Suites — Hotels: Room Charge,live,200
+TN,Other,1b706e7b-8b77-40bd-ae6c-171e37cf69a7,2026-06-15,Deonte Sales,24.96,y,2,ocr,"Flower Child — Restaurants: Steak Plate, P-GF Mac & Cheese",live,200
+TN,Other,36250278-56cf-4c7c-bf11-22a7bd6206eb,2026-06-15,Alan Mayrer,64.62,y,1,ocr,Amoco — Fuel and Gas: FUEL,live,200
+TN,Other,0e4c9260-e039-4662-91b2-adfcded9c005,2026-06-15,Grant Powell,32.00,y,1,ocr,Github — Research & Development Costs: GitHub Team Plan - Month,live,200
+TN,Other,27d1d5e2-06ae-479c-9839-135ef47ecb05,2026-06-15,Deonte Sales,12.48,y,5,ocr,"Starbucks — Meals: Gr Ic Pch Gt Lem, Light Ice, Vt Cup Of Water, Add Ice, Turky Bcon Sandwc",live,200
+TN,Other,7fbe3146-1604-4170-8684-4f92ccfcc4b8,2026-06-15,Sydney Klinowski,16.46,y,1,ocr,The City Club — Restaurants: Lemonade Half Gallon,live,200
+TN,Other,0e3bda7a-f148-446d-8f39-c60af210e486,2026-06-15,Robert Wilhoit,314.09,y,5,ocr,"ezCater — Client Presentation: Panini Box Lunch (Club Panini), Panini Box Lunch (Classic Panini), Panini Box Lunch (Greek Chicken Panini), Panini Box Lunch (Roast Beef Panini), Panini Box Lunch (Quattro Formaggi Panini)",live,200
+TN,Other,631bfd38-bdde-463b-92ce-5d5923dcf3c7,2026-06-15,Mary Claire Barnes,151.97,y,1,ocr,The Vial Store — General Merchandise: 30 Dram Reversible Cap Vials Blue (190 Units/Box) RCB30,live,200
+TN,Other,88fa3dca-ffe9-4496-9cef-9dd089f92796,2026-06-15,Sydney Klinowski,20.77,y,1,ocr,Marathon — Gas: FUEL,live,200
+TN,Other,7e7941d7-d912-4ee6-af28-57751e964b47,2026-06-15,Frank Browne,63.67,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,7f8b880d-16b3-463a-ab79-1e6471d5082c,2026-06-15,Isabel Babbie,27.03,n,0,no_receipt,South Coast Deli — Restaurants,live,200
+TN,Other,d35dd2f6-d2a2-4615-9811-40c669cdabfa,2026-06-15,Isabel Babbie,78.32,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,387fff4c-75f5-4b21-b367-c2e1899b94a2,2026-06-15,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion | Monthly Subscription,live,200
+TN,Other,dde45307-9f1a-4ec0-9338-bab52ebdb97c,2026-06-14,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: TOLL ACCOUNT FUNDING,live,200
+TN,Other,0b830c03-e4ac-4b16-a3eb-0e125ddfa36c,2026-06-14,Frank Browne,275.08,y,3,ocr,"ezCater — Client Presentation: Signature Wrap Platter, Garden Salad, Gourmet Cookie Platter",live,200
+TN,Other,19d007bf-d0e0-4b9c-9cf6-2fd5aee3d64d,2026-06-14,Rona Ivey,50.40,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,c3d1f23f-4adf-41cf-a222-0e6c5d0190c3,2026-06-13,Deonte Sales,324.35,y,1,ocr,ezCater — Client Presentation: Chicken Combo Platter,live,200
+TN,Other,dce6de94-1bbf-43f9-852d-3d3b480f7449,2026-06-13,Lindsey Hardesty,2476.35,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with Frosted Bottle,live,200
+TN,Other,4ac26cbf-4af6-40da-9dd0-08bf6b42b870,2026-06-13,Grace Kim,37.78,y,0,receipt_no_ocr,Kura Revolving Sushi Bar — Restaurants,live,200
+TN,Other,a3b91b53-c533-4ddf-8ff6-a647a5f1f72a,2026-06-12,Deonte Sales,24.75,y,3,ocr,"Flower Child — Restaurants: Steak Plate, P-GF Mac & Cheese, P- Heirloom Carrots",live,200
+TN,Other,a662cd8f-ed01-420d-8e6a-9955dcf2150d,2026-06-12,Deonte Sales,22.44,y,3,ocr,"Daily Drip Coffee & Desserts — Restaurants: Bacon Egg and Cheese Croissant, Apricot Peach Tea, Drip Coffee",live,200
+TN,Other,6d7c242e-0162-4de9-8763-ca750832c666,2026-06-12,Sydney Klinowski,33.58,y,1,ocr,MAPCO — Gas: Regular,live,200
+TN,Other,d5f1b4aa-81f9-441f-a438-ff8fe598add8,2026-06-12,Darik Carson,117.46,n,0,no_receipt,Hhcrx — Supermarkets and Grocery Stores,live,200
+TN,Other,1713a985-39cf-410c-9459-bec7bfb38956,2026-06-12,Grace Kim,22.72,y,7,ocr,"Target — Sales & Marketing - Other: DR PEPPER, PRINGLES, YOPLAIT, DRIZZILICOUS, GG DRIED FRT, KELOG RICEK, LUNCHABLES",live,200
+TN,Other,da0da1a0-2d56-429a-aa1c-e9595bdc62f3,2026-06-11,Deonte Sales,26.85,y,4,ocr,"OLO 130 hg Exton — Restaurants: Spicy Korean Steak Bowl [GF], Add Extra Steak, Strawberry Ginger Seasonal Lemonade, 32oz",live,200
+TN,Other,9f3a3955-4a79-45be-8f77-6dbe7fa809dc,2026-06-11,Robert Wilhoit,60.36,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,bf950072-7807-4dda-a5a8-aa681d23838e,2026-06-11,Alan Mayrer,62.58,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,571660f6-c6b2-4aa4-a63a-5caef788fcd2,2026-06-11,Grace Kim,18.91,y,3,ocr,"MOOYAH — Restaurants: MOOYAH Cheeseburger (4oz), Combo Meal - Personal Fries, Little Moo Shake",live,200
+TN,Other,1b192c1c-e80e-4da3-9bbd-1f92b5ff0750,2026-06-11,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Tr Cup Of Water, Vt Ic Pch Gt Lem",live,200
+TN,Other,bea22c73-d6b0-43cd-b221-3a310b0621bb,2026-06-11,Grant Powell,1.00,n,0,no_receipt,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores",live,200
+TN,Other,19b85263-7e47-492d-86bc-4d65f92b15bd,2026-06-11,Grace Kim,46.07,y,5,ocr,"Sushi Soho — Restaurants: Soda, Adult AYCE, AYCE Refill",live,200
+TN,Other,57fe43d2-3397-4a0f-905d-91da7e93f3ff,2026-06-10,Deonte Sales,14.18,y,2,ocr,"Chipotle — Meals: Chicken Bowl, Large Soda",live,200
+TN,Other,e9c5623b-045e-46c5-b53e-0b912803140b,2026-06-10,Mary Claire Barnes,277.95,n,0,no_receipt,The Vial Store — General Merchandise,live,200
+TN,Other,e1564e94-eafa-4d0e-b9d8-7770d7bfd46e,2026-06-10,Deonte Sales,61.48,y,1,ocr,Circle K — Gas: Pump # 9 UNL-REG,live,200
+TN,Other,134ecf8d-c41d-4a95-b5de-bb28ef823d15,2026-06-10,Mary Claire Barnes,75.00,y,1,ocr,Tennessee Board of Pharmacy — Government Services: Pharmacy Technician: Initial Application,live,200
+TN,Other,90acea34-c35e-47aa-bfe0-70277b01256f,2026-06-10,Deonte Sales,310.30,y,2,ocr,"ezCater — Client Presentation: VIP Buffet, Lemonade (Gallon)",live,200
+TN,Other,5a479e7f-7e5a-4a6c-aae7-896b6f066aab,2026-06-10,Grant Powell,15.15,y,1,ocr,Parking Management Company — Parking: Parking Charges,live,200
+TN,Other,ab098fe9-3be0-41ad-91e8-30fcbe122fd0,2026-06-10,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Cup Of Water, Turky Bcon Sandwc, Vt Ic Pch Gt Lem",live,200
+TN,Other,7e0cfc47-d1a5-452c-9aa3-ed12df77b6d4,2026-06-10,Sydney Klinowski,29.53,y,1,ocr,Gas Plus Auto — Fuel and Gas: REGULAR,live,200
+TN,Other,ed92fac1-08f7-4cb5-a632-7d133726b4c2,2026-06-10,Robert Wilhoit,171.20,n,0,no_receipt,Jersey Mike's Subs — Meals,live,200
+TN,Other,dfbf0ccb-db8a-45b7-8b38-3f66babc3810,2026-06-10,Natalie Tutton,112.68,y,2,ocr,"Olive Garden — Meals: Pan - Grilled Chicken Alfredo, a selection:Jumbo Salad and 12 Breadsticks",live,200
+TN,Other,1bad4d9b-bb61-479f-87b9-d125586fc82d,2026-06-10,Mary Claire Barnes,31.61,n,0,no_receipt,Doordash — Client Presentation,live,200
+TN,Other,3567a367-018f-4677-be17-081e261dffdd,2026-06-10,Frank Browne,64.28,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,fe9ea509-f67f-411e-9219-62d89f8c489f,2026-06-10,Frank Browne,282.33,y,2,ocr,"ezCater — Client Presentation: SMALLSANDWICHPLATTER, CRANBERRYWALNUTSALAD",live,200
+TN,Other,11024f97-2c0d-4e3b-b4ea-6b3e4e3367fa,2026-06-10,Alan Mayrer,62.11,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,f7f15a9c-3e59-4b20-b5bb-a2daed36c980,2026-06-10,Frank Browne,21.97,y,3,ocr,"Dunkin' Donuts — Meals: 4 Muffins, Lg Ice Orig Cof, Charged Tips",live,200
+TN,Other,c1fd35f5-7667-4b31-bd6d-5036644c5ee7,2026-06-10,Isabel Babbie,18.55,y,1,ocr,ezCater — Client Presentation: Build-Your-Own Party Box,live,200
+TN,Other,b79cbcac-81d6-4e30-b3bd-f447c62b086d,2026-06-09,Grace Kim,20.65,y,2,ocr,"Raising Cane's Chicken Fingers — Restaurants: CANIAC COMBO, LG COKE",live,200
+TN,Other,604bacd4-8901-4d57-86df-23fa40daf157,2026-06-09,Grant Powell,17.68,n,0,no_receipt,Hopdoddy Burger Bar — Meals,live,200
+TN,Other,ed70935d-6b3e-4e06-ae98-6627a461db8d,2026-06-09,Grant Powell,218.50,n,0,no_receipt,Anthropic — Software Support Fees,live,200
+TN,Other,ea5e815b-5c2f-47f8-9a48-4318ad97571f,2026-06-09,Grant Powell,15.15,y,1,ocr,Parking Management Company — Parking: Parking Charges,live,200
+TN,Other,b200e81d-ceb1-4915-845a-f429dc3b01dd,2026-06-09,Grant Powell,218.50,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 20x Jun 9-Jul 9, 2026",live,200
+TN,Other,4bc6d05d-d61b-4ad1-a687-20f21c542993,2026-06-09,Deonte Sales,18.23,y,2,ocr,"Tacos Tijuana — Restaurants: Taco Tuesday Asada, S/M Horchata",live,200
+TN,Other,b9093806-0e2e-46f8-bb98-dbc543f1cf28,2026-06-09,Robert Wilhoit,61.71,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,6d9468a2-939d-480f-a742-3bc281b580ea,2026-06-09,Isabel Babbie,82.42,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,53249de9-9f9c-4806-b459-a8e376d3b1bd,2026-06-09,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Vt Cup Of Water, Turky Bcon Sandwc",live,200
+TN,Other,5d916fff-548a-484b-b45b-19466319ebf7,2026-06-09,Sydney Klinowski,3.00,y,0,receipt_no_ocr,Erlanger Health System — Parking,live,200
+TN,Other,593bda53-8520-4112-9bda-d1d8d0124ac1,2026-06-09,Isabel Babbie,17.00,y,2,ocr,Tim Hortons — Meals: Dnt - Asrt 1/2 Dozen,live,200
+TN,Other,201b6fd3-1f8e-45f4-8f55-ba32b2e62f2a,2026-06-09,Grace Kim,23.93,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,61f74ee4-f3a2-45e2-9c96-40651fdc0e62,2026-06-09,Alan Mayrer,207.43,y,14,ocr,"Applebee's Grill + Bar — Restaurants: Bourbon Street Chicken & Shrimp, Brew Pub Pretzels & Beer Cheese Dip, Extra Beer Cheese, NEW Sesame Salmon Bowl, Southwest Chicken Bowl, Quesadilla Burger, Classic Cheeseburger, Fiesta Lime Chicken +5 more",live,200
+TN,Other,480e441e-ac36-4cb3-9bde-a1f9ddc4a192,2026-06-09,Grace Kim,24.96,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,ee731eee-b008-4c93-8250-a5012ea4b1ae,2026-06-09,Amy Murphy,265.75,n,0,no_receipt,"Stericycle, Inc. - AutoPay — Professional Services",live,200
+TN,Other,8ab858af-72c3-48b1-9dd8-27411d113387,2026-06-08,Grant Powell,36.18,y,3,ocr,"Walgreens — Sales & Marketing - Other: TOOTSIE ROLL MIDGEES 12OZ, SMARTIES LDB 14OZ",live,200
+TN,Other,13d39acb-97e4-4563-abd2-01c6b69a0db4,2026-06-08,Grant Powell,48.23,y,1,ocr,H-E-B Gas — Fuel and Gas: FUEL,live,200
+TN,Other,1716207b-a473-4520-ad0b-ccae0c1b55fe,2026-06-08,Grant Powell,30.51,y,2,ocr,"Firehouse Subs — Restaurants: Large Italian, Large Club on a Sub",live,200
+TN,Other,9fafa608-c696-439f-acf3-673c30eb3029,2026-06-08,Grant Powell,14.06,y,3,ocr,"Walgreens — Sales & Marketing - Other: TOOTSIE ROLL MIDGEES 120Z, SMARTIES LDB 140Z",live,200
+TN,Other,8806e6a7-1809-4cc7-96bb-6205c303c234,2026-06-08,Rona Ivey,6.78,y,2,ocr,maryland — Parking/Tolls: TOLLING SERVICES/INVOICED,live,200
+TN,Other,66da0385-f6e0-43bd-a9c9-2f5f95cf73b7,2026-06-08,Rona Ivey,3.39,y,1,ocr,maryland — Parking/Tolls: TOLLING SERVICES/INVOICED,live,200
+TN,Other,b68fed10-071c-408a-92dd-bd6b02539ad8,2026-06-08,Darik Carson,103.15,n,0,no_receipt,"Kalchem International, Inc. — Compound Ingredient Inventory",live,200
+TN,Other,d961b7e0-d94b-47e7-9514-bae3c99ea6b5,2026-06-08,Alan Mayrer,62.76,y,1,ocr,Marathon — Gas: FUEL,live,200
+TN,Other,34283ebf-8c63-46a8-9797-918ec31b0a84,2026-06-08,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,a04d5205-3264-49b9-b5a9-6c68304b9a06,2026-06-08,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Vt Cup Of Water",live,200
+TN,Other,e7e0355c-0ebf-4dd9-9ceb-daf7976acdad,2026-06-08,Rona Ivey,45.48,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,7acb21dc-bbed-4e33-acc0-333e5c262a9b,2026-06-08,Isabel Babbie,29.53,n,0,no_receipt,South Coast Deli — Restaurants,live,200
+TN,Other,4b527a45-c4a4-4fda-ad23-8e8a8e687d44,2026-06-08,Frank Browne,55.29,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,fe1fe865-7076-41eb-bb45-da425e9c35e3,2026-06-08,Sydney Klinowski,32.60,y,1,ocr,Walden's — Fuel and Gas: FUEL,live,200
+TN,Other,5c2bdf8f-2306-4a99-b454-f3c478b9dd14,2026-06-08,Isabel Babbie,198.15,y,2,ocr,"ezCater — Client Presentation: Small Assorted Half Wrap Tray, Customizable Smoothie Package",live,200
+TN,Other,da798f45-8de6-479f-b1d2-21e930d90b71,2026-06-07,Robert Wilhoit,322.84,y,9,ocr,"ezCater — Client Presentation: Cheese Pizza, Pepperoni Pizza, Veg Out Pizza, Kosmic Karma Pizza, Funky Q Chicken Pizza, Gluten-Free Veg Out Pizza, Keep It Greek Salad, Caesar Supreme Salad",live,200
+TN,Other,9681d55b-5404-4f47-a591-2873f2c61129,2026-06-06,Deonte Sales,328.22,y,2,ocr,ezCater — Client Presentation: Deluxe Platter Pack,live,200
+TN,Other,9184dd85-b8a0-405a-b2c8-08179a819615,2026-06-06,Grant Powell,19.95,n,0,no_receipt,Choice Hotels — Lodging,live,200
+TN,Other,185dd4aa-0cd1-4f15-ba74-81e04d2dff0a,2026-06-05,Deonte Sales,20.49,y,2,ocr,"Original ChopShop — Restaurants: Teriyaki Chicken Bowl, Seasonal Lemonade 32 VOZ",live,200
+TN,Other,2f7c2713-c9d1-48ac-ad3b-49f2b0932228,2026-06-05,Nicole  Fitzgerald,4.00,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE TIP,live,200
+TN,Other,06a2dae6-a14e-4702-9bc8-ac983a2d3cb1,2026-06-05,Deonte Sales,5.37,y,2,ocr,"Starbucks — Meals: Gr Sunsera Blend, Vanilla Syrp",live,200
+TN,Other,9313a80b-e2b3-48c5-bdbb-fe3d76dbc54d,2026-06-05,Mary Claire Barnes,598.94,n,0,no_receipt,Supply Partners — General Merchandise,live,200
+TN,Other,27808a21-94aa-47cd-adc7-e714ee8d8d56,2026-06-05,Mary Claire Barnes,110.38,n,0,no_receipt,Berlin Packaging — General Merchandise,live,200
+TN,Other,fd44b227-bdcd-4f22-a06b-77c138d9896f,2026-06-05,Kaitlyn Quinn-Crowe,264.87,y,3,ocr,"UPS — Sales & Marketing - Other: Ground Commercial Return Tablet-TX, Return materials, Bubble Wrap",live,200
+TN,Other,d2992008-6698-4c2c-a1f1-1d81c717e7f3,2026-06-05,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Vt Cup Of Water",live,200
+TN,Other,dc23a78d-87fc-4ecc-a70d-5d47e57aa404,2026-06-05,Kaitlyn Quinn-Crowe,23.91,y,3,ocr,"UPS — Sales & Marketing - Other: 15×12×10 Box, 20x20x20 Box, The UPS Store branded crystal tape",live,200
+TN,Other,5a0eaee0-428f-4965-956c-6c8ac7c7c70c,2026-06-05,Sydney Klinowski,27.93,y,1,ocr,Casey's — Fuel and Gas: 87E10,live,200
+TN,Other,e2c51664-0476-498b-bebe-72839fe74f9c,2026-06-05,Kaitlyn Quinn-Crowe,39.18,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,a588fd6b-fb7c-421f-aacf-fd40f629d3ef,2026-06-05,Lindsey Hardesty,2501.06,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Pure 50 ML White PP Airless Bottle with Frosted Cap,live,200
+TN,Other,20b36356-71f3-4698-b252-f15e89b6fc26,2026-06-05,Grant Powell,23.96,n,0,no_receipt,Lyft — Car Rental/Hired Car,live,200
+TN,Other,6a39c66b-536c-4382-9d20-0be108e69b92,2026-06-05,Nicole  Fitzgerald,51.94,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,0122109c-3d1f-4942-8dcf-7ccd74a684e8,2026-06-04,Nicole  Fitzgerald,11.90,y,1,ocr,Shake Shack — Restaurants: DOUBLE SHACKBURGER,live,200
+TN,Other,88dcdc27-5848-4d57-8a00-a85ae2754bfa,2026-06-04,Nicole  Fitzgerald,8.00,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,1d068ebb-f39c-49ef-9d35-9b2099280701,2026-06-04,Grant Powell,65.55,y,2,ocr,"Vercel — Research & Development Costs: Pro, Additional Team Seats",live,200
+TN,Other,c1e3bf36-0fc9-4c22-9256-aaa953f58147,2026-06-04,Nicole  Fitzgerald,6.01,y,1,ocr,Myrtle Beach — Restaurants: Life Water 1 LT,live,200
+TN,Other,a43be7c5-9ffb-4c8a-828c-f8c593dc194b,2026-06-04,Grant Powell,21.32,y,1,ocr,"Anthropic — Software Support Fees: Claude Pro Jun 4-Jul 4, 2026",live,200
+TN,Other,f2b76b40-99d9-4d6c-a830-5d3f5b272c77,2026-06-04,Natalie Tutton,37.15,y,1,ocr,IdentoGO — Government Services: TN - Bureau of Health Licensure,live,200
+TN,Other,175fe461-01d2-4456-a2e3-45daace7e50a,2026-06-04,Deonte Sales,24.79,y,5,ocr,"Flower Child — Restaurants: Steak Plate, P-GF Mac & Cheese, P- Roasted Veg, 24oz Iced Tea, To Go Utensils",live,200
+TN,Other,00b4141e-e30b-4632-8648-b197ce28446b,2026-06-04,Nicole  Fitzgerald,18.45,y,1,ocr,7-Eleven — Gas: FUEL,live,200
+TN,Other,3922db5f-c5cd-429e-a261-016cb69afdee,2026-06-04,Natalie Tutton,37.15,y,1,ocr,IdentoGO — Government Services: TN - Bureau of Health Licensure,live,200
+TN,Other,085d1de7-091e-4cc2-ac11-53b319ed590e,2026-06-04,Nicole  Fitzgerald,39.65,y,2,ocr,"Groupers At The Pier — Restaurants: Unsweet Tea, Grouper Entree",live,200
+TN,Other,13570cb8-e2f4-4bad-89fa-cda7043b0e02,2026-06-04,Isabel Babbie,43.88,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,075fea89-d1e9-4568-acca-677d3582bca9,2026-06-04,Deonte Sales,38.43,y,3,ocr,"Krispy Kreme — Restaurants: Original Glazed Dozen, Assorted Dozen, Original Glazed -(12)",live,200
+TN,Other,ff73e77a-e17e-474f-9e07-ce1f0145c5c8,2026-06-04,Deonte Sales,61.63,y,1,ocr,Circle K — Gas: UNL - REG Fuel,live,200
+TN,Other,15499493-bb6d-4fcb-8abc-b9f41c606418,2026-06-04,Deonte Sales,22.49,y,7,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Light Ice, Vt Cup Of Water, Add Ice, Turky Bcon Sandwc, Ham Swiss Croisnt, Vt Ic Green Tea",live,200
+TN,Other,7f0d94b0-2e7d-4cb7-9e93-c600082e93e6,2026-06-04,Grant Powell,24.75,y,1,ocr,"Mapbox — SaaS / Software: Temporary Geocoding API: 132,794 requests Nov 1-Nov 30, 2025",live,200
+TN,Other,fe9b3eff-9ab1-4181-a684-b180144d33b0,2026-06-04,Grant Powell,36.00,y,2,ocr,"Mapbox — SaaS / Software: Temporary Geocoding API: 147,309 requests Oct 1-Oct 31, 2025, Pay-as-you-go Nov 1-Dec 1, 2025",live,200
+TN,Other,faca7243-20f7-4127-9a32-0a5144c65bec,2026-06-04,Frank Browne,114.94,y,18,ocr,"Pressed Cafe — Restaurants: Original Chicken Sandwich, Grilled, American Cheese, Truffle Parmesan Fries, Eggplant Bwl, Yes Bread, Pita House Made, Veggie Pizza, Citrus Cleanse, SMASH BURGER, SINGLE SMASH, Fresh Avocado, Lg Plain Fries +1 more",live,200
+TN,Other,490f7354-50a2-417d-b15d-fc7261992912,2026-06-04,Rona Ivey,50.64,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,d59fa11e-28bf-4299-af97-3f502fb78203,2026-06-04,Kaitlyn Quinn-Crowe,256.93,y,6,ocr,"Doordash — Client Presentation: Chicken Avocado Club French Fries . Soup of the Day(After 10 a.m.), Double Cheeseburger Medium . French Fries . Soup of the Day(After 10 a.m.), Chipotle Chicken Salad Soup of the Day(After 10 a.m.) +3 more",live,200
+TN,Other,72f9d928-bd19-4b94-8afd-3ef90804c546,2026-06-04,Mary Claire Barnes,19.08,y,0,receipt_no_ocr,Digi-Key — General Merchandise,live,200
+TN,Other,6ce039f8-3049-4dee-a7fa-be92497e7da1,2026-06-04,Darik Carson,300.80,n,0,no_receipt,Comcast — Utilities,live,200
+TN,Other,d514e9e8-8e91-4f8f-b654-6f4358fb3cdb,2026-06-04,Robert Wilhoit,47.46,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,356f2d17-5c5c-4b3f-ab54-62217b37349b,2026-06-04,Nicole  Fitzgerald,4.07,y,1,ocr,Starbucks — Meals: GR BLONDE ROAST,live,200
+TN,Other,df8306eb-62c8-4416-8f5d-eb3a15404306,2026-06-03,Frank Browne,61.62,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,98456879-191d-43fc-93d6-199d4ab469e0,2026-06-03,Isabel Babbie,87.33,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,5ba79c02-0de7-4010-937b-dfcb14b98be0,2026-06-03,Sydney Klinowski,43.87,y,1,ocr,Busy Bee — Gas: REGULAR,live,200
+TN,Other,2a887b8f-7463-4c58-99f3-da9cdf7b5dbd,2026-06-03,Nicole  Fitzgerald,41.97,y,2,ocr,"Salt & Vine — Restaurants: Fresh Guacamole, Suizas Enchilada",live,200
+TN,Other,ac30f698-caee-4c6a-9795-c25dd9d827eb,2026-06-03,Grant Powell,19.95,y,1,ocr,SendGrid — SaaS / Software: ESSENTIALS 50K INCLUDES 5,live,200
+TN,Other,c96f1fb0-25ff-401c-a12e-581b89798dd8,2026-06-03,Grant Powell,304.13,y,0,receipt_no_ocr,House Kabob & Gyro — Restaurants,live,200
+TN,Other,d9660a5c-a171-4e14-8831-30e8713d9c0d,2026-06-03,Alan Mayrer,65.86,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,3164e697-db6a-44f3-bc43-fa0fffd3ceb6,2026-06-03,Deonte Sales,14.57,y,2,ocr,"Chipotle — Meals: Chicken Bowl, Large Soda",live,200
+TN,Other,40f8fb70-8d0b-43a7-a368-c866c9a7c6dc,2026-06-03,Nicole  Fitzgerald,9.59,y,2,ocr,"Tropical Smoothie Cafe — Meals: Mango Monsoon, Whey Protein",live,200
+TN,Other,b39d6dc6-a164-4dd0-9375-e1afbb37a730,2026-06-03,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,2c34cca2-e857-49d7-b858-aad6a41dc9d6,2026-06-03,Kaitlyn Quinn-Crowe,218.75,y,2,ocr,"ezCater — Client Presentation: Classic Breakfast w/ Breakfast Basket, Box of Hot Coffee",live,200
+TN,Other,f5db6800-acd2-46d7-ba0b-0a9ce25fa7a4,2026-06-03,Isabel Babbie,637.75,y,3,ocr,"ezCater — Client Presentation: Bagel Pack, Morning Pastries, Mediterranean Greens With Grains Salad",live,200
+TN,Other,fe4dad3e-2a67-4b70-98e5-24b64182c10d,2026-06-03,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Vt Cup Of Water, Turky Bcon Sandwc",live,200
+TN,Other,7832f9b4-d8d0-45df-ab23-fc5caf7808e3,2026-06-03,Sydney Klinowski,126.45,y,5,ocr,"Chopt Creative Salad Co. — Restaurants: Kale Caesar Wrap, Southwest Steak Wrap, Unsweetened Iced Tea, Miss Vickie's Chips - Salt & Vinegar",live,200
+TN,Other,87bebe33-346f-4fb6-a046-0261cf2f3928,2026-06-03,Nicole  Fitzgerald,39.24,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,fbe46c2c-4de1-4d7c-8349-d5d496907467,2026-06-03,Nicole  Fitzgerald,3.19,y,1,ocr,CVS Pharmacy — Sales & Marketing - Other: SW WATER 33.8,live,200
+TN,Other,bcadb055-85fa-4262-8420-42ce8b9e2920,2026-06-03,Nicole  Fitzgerald,4.90,y,1,ocr,McDonald's — Restaurants: Egg Ch Biscuit,live,200
+TN,Other,82a97e9b-67e8-4d8a-9637-551fb70d917c,2026-06-03,Isabel Babbie,72.95,n,0,no_receipt,Tim Hortons — Meals,live,200
+TN,Other,c946b2ac-c48b-473c-a9d9-dcff2830b9b7,2026-06-03,Robert Wilhoit,6.91,y,1,ocr,Dunkin' Donuts — Meals: Lg Ice BrSgr Shkn Esp,live,200
+TN,Other,68e57c12-501e-4cbe-97ac-f3878f09d91d,2026-06-03,Nicole  Fitzgerald,4.07,y,1,ocr,Starbucks — Meals: GR BLONDE ROAST,live,200
+TN,Other,43d0a5f9-e73c-4dde-af95-47589d2ff8db,2026-06-03,Nicole  Fitzgerald,399.93,y,1,ocr,ezCater — Client Presentation: Fajita Bar,live,200
+TN,Other,ecdd8bc0-2862-4eaa-b0e1-fd7f3319b30d,2026-06-03,Nicole  Fitzgerald,55.14,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,86900074-1278-4abc-be3a-f1fbba088439,2026-06-03,Nicole  Fitzgerald,370.73,y,2,ocr,"ezCater — Client Presentation: Quarter Chicken + 2 Sides Pan, Gallon Sweet Tea",live,200
+TN,Other,e4c6f8a7-1422-4a43-bfbe-7889275eb595,2026-06-02,Robert Wilhoit,31.61,y,3,ocr,"Tailgate Tavern — Alcohol and Bars: Turkey Reuben, Side Choice (1): Mack & Cheese, Banana Pudding",live,200
+TN,Other,96b9faf5-b29b-42d3-931c-b929cabd952b,2026-06-02,Nicole  Fitzgerald,34.82,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,98af8bfd-6429-48de-9ec4-aebcf67103cb,2026-06-02,Nicole  Fitzgerald,596.64,y,2,ocr,"Sheraton — Lodging: Room Charge, Self Parking",live,200
+TN,Other,38f2b7ff-8155-4d4c-bf76-3fc85050d1e0,2026-06-02,Kaitlyn Quinn-Crowe,256.36,y,3,ocr,"ezCater — Client Presentation: Large Fruit Bowl, Bagel Pack, Cafe Blend Light Roast Coffee Tote",live,200
+TN,Other,8875de9b-7919-4b00-844b-5f64e9e8700c,2026-06-02,Sydney Klinowski,17.64,y,1,ocr,Shell — Gas: UNLEAD CR #09,live,200
+TN,Other,523de573-29d2-4f33-ad3a-a5ef82096df0,2026-06-02,Robert Wilhoit,229.57,y,1,ocr,Carriage House Inn — Lodging: Room Charge - Room #: 121,live,200
+TN,Other,8767b41d-c81a-4dc9-8907-fd69a728a55b,2026-06-02,Mary Claire Barnes,98.00,n,0,no_receipt,Paul Xavier — Education,live,200
+TN,Other,242de4eb-24bc-436d-ab1d-43f3b1a3cfc8,2026-06-02,Deonte Sales,24.96,y,2,ocr,"Flower Child — Restaurants: Steak Plate, 24oz Iced Tea",live,200
+TN,Other,156b9169-1fe4-40ed-9d1f-72acf74b8686,2026-06-02,Nicole  Fitzgerald,14.19,y,3,ocr,"Tropical Smoothie Cafe — Meals: Sunrise Sunset, Whey Protein, Turkey Bacon Dijon Roll",live,200
+TN,Other,4e5cec53-1d3d-428d-9625-ed8335736199,2026-06-02,Kaitlyn Quinn-Crowe,676.00,y,6,ocr,"ezCater — Client Presentation: Avocado Club Egg Rolls, White Corn Guacamole & Chips, Pizza Package, Sandwich Package w/ Salad, Kung Pao Spaghetti, Tableware",live,200
+TN,Other,39c4ea66-7138-4e6d-90d7-88070614f59e,2026-06-02,Alan Mayrer,51.39,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,26c3aa5a-4260-4d90-9286-99481c3c7448,2026-06-02,Deonte Sales,21.58,y,1,ocr,DS Sports Nutrition — Restaurants: Donuts,live,200
+TN,Other,cf8326c4-3b4f-46e8-a55a-e4cdbb96d4f2,2026-06-02,Lindsey Hardesty,2153.80,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with Frosted Bottle,live,200
+TN,Other,d4230d8e-5cc6-44a1-a0b6-7a66a25d3c05,2026-06-02,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Gt Lem, Vt Cup Of Water",live,200
+TN,Other,c37f70cb-6ed0-4fc8-bc6e-bfffcd6413d2,2026-06-02,Mary Claire Barnes,1061.20,y,2,ocr,"DropperBottles.com — Compound Packaging Inventory: 20-400 Standard Dropper Assembly- Graduated 76mm Length, 1oz/30ml BostonRound Amber Glass",live,200
+TN,Other,7b91ce49-e172-4f81-bce1-a99533a41198,2026-06-02,Robert Wilhoit,35.31,y,1,ocr,RaceWay — Fuel and Gas: FUEL,live,200
+TN,Other,2141f5de-f666-4969-a3d0-f5507a3e68de,2026-06-02,Frank Browne,64.91,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,6e95013b-6538-4777-b5a2-99af191abfd4,2026-06-02,Isabel Babbie,143.41,n,0,no_receipt,Tim Hortons — Meals,live,200
+TN,Other,02a953ec-d75a-451e-9869-28233c2d5523,2026-06-02,Frank Browne,650.65,y,2,ocr,"ezCater — Client Presentation: Large Sandwich Platter, Cranberry Walnut Salad",live,200
+TN,Other,efa00ff2-fb51-4c00-9fb4-e8cde2db8ed5,2026-06-02,Nicole  Fitzgerald,8.33,n,0,no_receipt,Starbucks — Meals,live,200
+TN,Other,d4a6265c-60b3-4783-b808-4cd11a0e6632,2026-06-02,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion Contract Period: 01 Jun 2026 - 30 Jun 2026,live,200
+TN,Other,f3bd2ecd-a22a-43e4-88b8-58e5de98174a,2026-06-01,Nicole  Fitzgerald,36.59,y,2,ocr,"Oscar's Place — Restaurants: Grouper Bites, Wedge",live,200
+TN,Other,6c1b2d0d-2b13-4736-9cb2-8c61a1552673,2026-06-01,Nicole  Fitzgerald,191.65,y,1,ocr,ezCater — Client Presentation: Full Breakfast,live,200
+TN,Other,4e4f9d55-9764-4a17-81fc-645871b3e150,2026-06-01,Isabel Babbie,83.53,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,1bbe3eef-0f1b-45b5-972b-834f10d08ae9,2026-06-01,Deonte Sales,24.96,y,2,ocr,"Flower Child — Restaurants: Steak Plate, 24oz Lemonade",live,200
+TN,Other,7c734cc3-c728-431c-a098-eef422c76d9b,2026-06-01,Nicole  Fitzgerald,273.28,y,5,ocr,"Courtyard by Marriott — Hotels: OCCUPANCY SALES TAX 10% EX, CONVENTION AND TOURISM TAX 1.5, COUNTY TAX 2% EX, ROOM CHARGE-PLEAS TRANS, STATE OCCUPANCY TAX 4% EX",live,200
+TN,Other,632acfe3-c9e0-430b-9114-f70dca3b7480,2026-06-01,Nicole  Fitzgerald,15.01,y,3,ocr,"Tropical Smoothie Cafe — Meals: Mango Monsoon, Whey Protein, Turkey Bacon Dijon Roll",live,200
+TN,Other,2e7f1093-c80d-4f2d-aaaf-1ccdd6c01a51,2026-06-01,Isabel Babbie,475.60,y,2,ocr,"ezCater — Client Presentation: Chicken Gyro Kit - Half Tray, Greek Salad",live,200
+TN,Other,021ed27a-412f-4e28-b170-6acca3cb84f7,2026-06-01,Mary Claire Barnes,64.87,n,0,no_receipt,Walgreens — Sales & Marketing - Other,live,200
+TN,Other,c925d488-3302-418b-8020-e93d5e355cf0,2026-06-01,Kaitlyn Quinn-Crowe,40.88,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,a71d891a-8aeb-4ae5-80c7-43f5832e7b49,2026-06-01,Grant Powell,0.02,y,0,receipt_no_ocr,Google Cloud — Software Support Fees,live,200
+TN,Other,dd872153-2e48-406d-aedd-738df18fc0b7,2026-06-01,Deonte Sales,12.02,y,5,ocr,"Starbucks — Meals: Cafe For Here, Turky Bcon Sandwc, Vt Ic Pch Gt Lem, Light Ice, Vt Cup Of Water",live,200
+TN,Other,a0e837b0-9919-48d1-b017-eac0ad75d072,2026-06-01,Frank Browne,439.53,y,1,ocr,ezCater — Client Presentation: The Belle Peppers Classic Lunch,live,200
+TN,Other,1ca26da5-011a-43b1-94e8-439465e63d21,2026-06-01,Alan Mayrer,56.63,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,2b80204f-80e1-43d9-9677-02de092e1700,2026-06-01,Nicole  Fitzgerald,229.73,y,2,ocr,"ezCater — Client Presentation: Fajita Bar, Gallon Sweet Tea",live,200
+TN,Other,32e3f8b1-5b6d-485a-b50d-8f22557dd3be,2026-06-01,Nicole  Fitzgerald,346.77,y,4,ocr,"ezCater — Client Presentation: Wake & Bake Bundle, Basic Breakfast Bar, Belly Blend Coffee, Orange Juice Gallon",live,200
+TN,Other,771832ad-6a69-4c70-8e75-8c4e7c7b68d3,2026-06-01,Nicole  Fitzgerald,100.09,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,fc662088-de55-47da-9f5d-a95d618de716,2026-06-01,Nicole  Fitzgerald,8.55,y,2,ocr,"Starbucks — Meals: Gr Blonde Roast, Turky Bcon Sandwc",live,200
+TN,Other,2114e31b-de95-4dd2-b086-1138faf67b69,2026-06-01,Sydney Klinowski,27.87,y,1,ocr,RaceWay — Fuel and Gas: FUEL,live,200
+TN,Other,2cc142fe-ed66-492b-9ede-076a391ff478,2026-06-01,Ash Ahmed,21.85,y,1,ocr,Anthropic — Software Support Fees: Claude Pro,live,200
+TN,Other,16a0673a-863c-40ed-84bf-1cbfd925bea2,2026-06-01,Nicole  Fitzgerald,180.02,y,0,receipt_no_ocr,Marriott — Hotels,live,200
+TN,Other,1d463cf2-c072-4097-99e7-7786ffaf5178,2026-06-01,Nicole  Fitzgerald,496.64,y,1,ocr,National Car Rental — Car Rental: Rental Rate Time & Distance 4 Day,live,200
+TN,Other,3eb9b159-9dfa-42a9-aaad-9f72f796f50b,2026-05-31,Nicole  Fitzgerald,22.92,y,2,ocr,"Uber Eats — Client Presentation: LEG OF LAMB GYRO, LUNCH, Add small Ziziki's salad LUNCH",live,200
+TN,Other,66cf7ad4-2faa-41d2-8135-cd769650cc78,2026-05-31,Nicole  Fitzgerald,58.20,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,b89a7cc1-3a24-4153-8fe3-968e9ef4b6f6,2026-05-31,Robert Wilhoit,60.00,y,1,ocr,Shell — Gas: PREPAY CR #07,live,200
+TN,Other,614651a1-c19c-4dd9-a6d5-2c56d4217e1b,2026-05-30,Rona Ivey,52.11,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,7b37dce9-13a7-42ed-943c-8d0f23743b8d,2026-05-30,Natalie Tutton,19.87,y,1,ocr,Drake's Chattanooga — Restaurants: Regular Baked Lava Roll,live,200
+TN,Other,fc3bba6f-a7cd-41cc-8408-1ac7a054f7c5,2026-05-30,Rona Ivey,12.19,y,1,ocr,Always Ice Cream Company — Supermarkets and Grocery Stores: Cup single scoop,live,200
+TN,Other,3f17847b-49b7-4e20-9f8c-914998e046f9,2026-05-29,Grant Powell,560.98,y,1,ocr,"Expedia — Hotels: Standard Room, 1 King Bed, Non Smoking (5 nights x 1 room)",live,200
+TN,Other,611157b6-7bde-4f81-9ed6-8c452c903efc,2026-05-29,Grant Powell,552.81,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012347107825),live,200
+TN,Other,9e91c9e3-6736-4d2a-992c-a7f7284dc431,2026-05-29,Frank Browne,49.02,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,781b49af-9b2f-49cb-9494-9a4ebc3275e4,2026-05-29,Sydney Klinowski,32.00,y,1,ocr,Phillips 66 — Fuel and Gas: Prepay CA PUMP# 9,live,200
+TN,Other,275c7364-681b-48bc-b403-9a944213403c,2026-05-29,Natalie Tutton,39.66,y,0,receipt_no_ocr,KD's Kitchen — Restaurants,live,200
+TN,Other,1222a5e0-f9f1-490c-8ae1-9cea9a1a0272,2026-05-29,Natalie Tutton,400.64,y,0,receipt_no_ocr,KD's Kitchen — Restaurants,live,200
+TN,Other,809ea216-06a2-45d7-8f1a-762a63318c4d,2026-05-29,Alan Mayrer,62.18,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,87d21caa-a83c-4b0d-a1c3-ccbc1ef3d8b3,2026-05-29,Darik Carson,-66.00,n,0,no_receipt,Expedia — Hotels,live,200
+TN,Other,e4fa61bc-9844-4965-8850-e1b7e64d7a85,2026-05-29,Darik Carson,-336.62,n,0,no_receipt,Expedia — Hotels,live,200
+TN,Other,1d8aaf65-ebb0-4686-bade-3060af5998c2,2026-05-29,Deonte Sales,66.75,y,1,ocr,Circle K — Gas: UNL-REG,live,200
+TN,Other,f02d164c-f54d-4af6-a6de-710829e8f8a9,2026-05-28,Deonte Sales,27.00,y,4,ocr,"Chick-Fil-A — Meals: GRL Nug 12Ct, Mac&Chz SM, BBQ, SH Sprite",live,200
+TN,Other,3823ecbd-9d71-4518-bc79-e17aa4f64c46,2026-05-28,Darik Carson,55.00,y,1,ocr,Expedia — Hotels: Collision Protection,live,200
+TN,Other,7296b18e-b6c1-4e37-ba2d-0dbaf85aa3ba,2026-05-28,Darik Carson,450.19,y,1,ocr,Expedia — Hotels: 4 nights x 1 room - Comfort Inn & Suites Euless DFW West,live,200
+TN,Other,911e5986-9808-4e06-b80b-9e928be54e3d,2026-05-28,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Tl Cup Of Ice",live,200
+TN,Other,37e1e40b-ed25-4227-bb95-beb13368b7b9,2026-05-28,Robert Wilhoit,177.92,y,18,ocr,"Pokebowl Ramen — Restaurants: Mango Green Ten, Hibachi Chicken, 8 YUM YUM SAU, Fried Chicken Ramen, 2 Yum Yum Roll, Passion Fruit Tea, Hibachi Chicken w. Fried Rice, Strawberry G Tea, Boba, Mango Green Tea, Shrimp Tempura Roll, 2 Gyoza (6), STRBY +3 more",live,200
+TN,Other,d211b173-8c21-49d7-8cd4-6fd97304008a,2026-05-28,Darik Carson,402.62,y,2,ocr,"Expedia — Hotels: Car rental fee x 5 days, Collision Protection",live,200
+TN,Other,0541cf87-4956-4c6f-8c5b-6854a6015a5c,2026-05-28,Natalie Tutton,536.80,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012346714377),live,200
+TN,Other,a033fcbd-4978-4c1c-91e8-b58f3c0c72dd,2026-05-27,Deonte Sales,24.75,y,2,ocr,"Flower Child — Restaurants: Steak Plate, 24oz Iced Tea",live,200
+TN,Other,d5cbdd6f-6a80-4a7d-9231-dc74b5791d28,2026-05-27,Lindsey Hardesty,277.50,y,1,ocr,"Alibaba — General Merchandise: Silicone Heel Cushion Protector Plantar Fasciitis Insert Breathable Gel Heel Cups for Dry Cracked Heel, Color: White",live,200
+TN,Other,af475baa-1ad0-48cc-b31e-8968f988f395,2026-05-27,Deonte Sales,11.69,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Grn Tea, Vt Cup Of Water",live,200
+TN,Other,de311980-d307-4e9f-9a54-ce1534f84265,2026-05-27,Sydney Klinowski,30.79,y,1,ocr,Weigel's — Fuel and Gas: UNLEAD,live,200
+TN,Other,77413e9a-de7e-4067-b607-7b9c8ad6a5c4,2026-05-27,Lindsey Hardesty,3701.62,y,3,ocr,"Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with White Bottle, Pure 75 ML White PP Airless Bottle with Frosted Cap, Pure 50 ML White PP Airless Bottle with Frosted Cap",live,200
+TN,Other,04bdb695-c88f-4e09-9e07-1120165ec392,2026-05-27,Robert Wilhoit,48.36,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,72f29526-98fb-4001-9cf7-74dbeb0260e3,2026-05-27,Sydney Klinowski,93.96,y,2,ocr,"Chick-Fil-A — Meals: 2 Mini Tray LG, 1 RED FLAG",live,200
+TN,Other,847d66a5-caea-4d17-ba65-29f40f04a8ed,2026-05-26,Alan Mayrer,63.25,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,f0914304-fb02-49b2-9365-be2a1b4678c5,2026-05-26,Kaitlyn Quinn-Crowe,20.19,n,0,no_receipt,Walgreens — Sales & Marketing - Other,live,200
+TN,Other,f809ca11-8861-46fc-9fda-fe7645d4c53b,2026-05-26,Nicole  Fitzgerald,200.77,y,2,ocr,"ezCater — Client Presentation: Deconstructed Steak Kabobs, Deconstructed Chicken Kabobs",live,200
+TN,Other,6b988624-dac3-4a95-b623-b489025faf49,2026-05-26,Deonte Sales,29.64,y,2,ocr,"Uber Eats — Client Presentation: Spicy Chicken Sandwich Meal, Grilled Chicken Sandwich",live,200
+TN,Other,83885069-1e14-43d4-a1c9-6726940d06ac,2026-05-26,Kaitlyn Quinn-Crowe,29.83,y,1,ocr,Costco — Gas: FUEL,live,200
+TN,Other,ace91e3b-93f8-48ef-a5ba-aca4f7a374fc,2026-05-26,Sydney Klinowski,65.66,y,2,ocr,"Nothing Bundt Cakes — Meals: Signature Assortment, Seasonal Assortment (4/13 - 5/31)",live,200
+TN,Other,da4bd080-85e9-4781-9337-def25c30eeee,2026-05-26,Deonte Sales,17.36,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Gt Lem",live,200
+TN,Other,f964b770-d1b9-464c-a8d0-5c88ee668ae8,2026-05-26,Sydney Klinowski,19.51,y,1,ocr,MAPCO — Gas: REGULAR,live,200
+TN,Other,b37d7198-39d9-4fee-aa60-b0362b472a4d,2026-05-26,Frank Browne,61.47,y,1,ocr,Citgo — Gas: FUEL,live,200
+TN,Other,42e5677c-5658-4cd1-92c2-9d21edc4de20,2026-05-26,Rona Ivey,59.97,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,6d0efaf8-b7c0-461f-8a87-65e283c86913,2026-05-26,Isabel Babbie,284.40,y,2,ocr,"ezCater — Client Presentation: Chicken Gyro Kit - Half Tray, Greek Salad",live,200
+TN,Other,eaefd16c-f277-4eb6-b98b-702085ab3680,2026-05-25,Robert Wilhoit,409.41,y,9,ocr,"ezCater — Client Presentation: Pepperoni Pizza, Extra Cheese Pizza, Italian Sausage Pizza, Deluxe Pizza, Garden Pizza, Hawaiian Chicken Pizza, Catering Italian Chef's Salad, Utensils, Serving Utensils",live,200
+TN,Other,3ed876c3-06cc-44ca-a795-021fd3665d27,2026-05-25,Deonte Sales,58.32,y,1,ocr,FIGS — Clothing: FORMx Crewneck - Scrub Top™ XL Black,live,200
+TN,Other,26b19b3c-0561-47f4-b639-27996d9bc121,2026-05-25,Grant Powell,43.08,y,3,ocr,"The Home Depot — Non-Capital Lab Equipment: GE SUPREME SIL K&B WHITE 10.1 OZ, RYB STEP DRILL BIT 3 PC, ANVIL SMOOTH ROD 10 OZ CAULK GUN",live,200
+TN,Other,2a08b3f0-a16c-4131-aaf8-ac92b2a5c172,2026-05-25,Amy Murphy,136.50,n,0,no_receipt,"Stericycle, Inc. - AutoPay — Professional Services",live,200
+TN,Other,6108d192-3a68-41ca-9900-61615d21ea0a,2026-05-24,Frank Browne,430.48,y,3,ocr,"ezCater — Client Presentation: Tenders, Sliders & Fries Hot Box Bundle, Hot Box Dave's Bites, Mac & Cheese Bundle",live,200
+TN,Other,e8634a00-92a9-46e7-ac71-07b892ca0756,2026-05-23,Mary Claire Barnes,27.48,n,0,no_receipt,Doordash — Client Presentation,live,200
+TN,Other,d0e6c957-8861-4a5d-879e-7b5ad3481d19,2026-05-23,Grant Powell,218.50,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 20x May 23-Jun 23, 2026",live,200
+TN,Other,493ab8a5-31fd-4683-891d-c4075ceb7031,2026-05-22,Mary Claire Barnes,31.94,n,0,no_receipt,Doordash — Client Presentation,live,200
+TN,Other,8bdcdb35-f388-40c9-8a79-900a86f94a30,2026-05-22,Deonte Sales,20.37,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,d547599a-efd0-4392-9420-f5c87c348b2d,2026-05-22,Deonte Sales,17.90,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Ham Swiss Croisnt",live,200
+TN,Other,e8165a4b-929b-4e44-8c86-fc7b6a0e8b4b,2026-05-22,Isabel Babbie,85.38,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,f90f6078-1971-40bf-8ee7-43542db5458c,2026-05-22,Natalie Tutton,541.17,y,3,ocr,Olive Garden — Meals: Pasta Station,live,200
+TN,Other,9b503cb4-10af-439e-9f1e-e5aa1119eb23,2026-05-22,Kaitlyn Quinn-Crowe,45.86,y,1,ocr,Costco — Gas: FUEL,live,200
+TN,Other,beeba0bb-df02-4990-bbf2-4aee4835b356,2026-05-22,Natalie Tutton,129.00,y,1,ocr,Pharmacy Technician Certification Board — Employee Certification/Accreditation: Certification Application & Exam,live,200
+TN,Other,51ed8026-f9cd-4cc1-b688-e4dd32aa69c2,2026-05-21,Deonte Sales,24.79,y,3,ocr,"Flower Child — Restaurants: Steak Plate, 24oz Lemonade, To Go Utensils",live,200
+TN,Other,813293f4-90d6-4aef-a3f4-b03e472a907f,2026-05-21,Deonte Sales,20.10,y,1,ocr,UPS — Sales & Marketing - Other: Ground Commercial,live,200
+TN,Other,53c35d8f-d9ef-4c29-8699-cf2867fd65ad,2026-05-21,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Vt Cup Of Water",live,200
+TN,Other,773a5166-8876-4d90-9954-9f3fe9bf4523,2026-05-21,Alan Mayrer,65.44,y,1,ocr,Love's Travel Stop — Gas: FUEL,live,200
+TN,Other,572b029b-286c-4345-88f7-78dd67be0431,2026-05-21,Rona Ivey,99.16,y,4,ocr,"Lenny's Sub Shop — Restaurants: POT PIES, REUBEN, CHEESESTEAK SUB, TURKEY CLUB SAND",live,200
+TN,Other,a6e25521-8e43-413c-a2d9-a36aef7423f5,2026-05-21,Frank Browne,66.93,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,3394018c-4f2f-4ec9-9709-430a0609b9b7,2026-05-21,Grant Powell,30.90,y,3,ocr,"The Home Depot — Non-Capital Lab Equipment: Everbilt 1/2 - 1-1/4 in. Stainless Steel Hose Clamp, Bucket Companion 5 gal. Black Paint Bucket Lid, Leaktite 5 gal. 70mil Food Safe Bucket White",live,200
+TN,Other,1d8058b8-d0eb-48d1-94f7-3047d9937e83,2026-05-20,Kaitlyn Quinn-Crowe,225.17,y,2,ocr,"ezCater — Client Presentation: Build-Your-Own Gluten-Free Pizza, Baked Penne Pasta",live,200
+TN,Other,16e5333d-c384-423b-8d1a-16be9c768a94,2026-05-20,Grant Powell,1.00,n,0,no_receipt,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores",live,200
+TN,Other,c65a8a33-efc3-4042-881e-01fd4e259720,2026-05-20,Deonte Sales,66.48,y,1,ocr,Circle K — Gas: UNL -REG,live,200
+TN,Other,19c4c39b-978c-4061-8b55-8700dfddc8f0,2026-05-20,Grant Powell,1.00,n,0,no_receipt,"Medrock Pharmacy, LLC — Supermarkets and Grocery Stores",live,200
+TN,Other,8d7cc6a5-6ab1-45fa-82d6-471f5cd1773e,2026-05-20,Deonte Sales,18.85,y,2,ocr,"Cafe Zupas — Restaurants: Try 2 Combo Salad & Sandwich, REG Fountain Bev",live,200
+TN,Other,b103e861-1b86-4e83-b279-d75e1118a675,2026-05-20,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: IPASS AUTOREPLENISHMENT,live,200
+TN,Other,df15c10a-0d9e-4da6-a2c0-12a7aebd2166,2026-05-20,Mary Claire Barnes,2887.50,y,1,ocr,"Medds, Inc — Medical: Gako 2100 with 1-year warranty",live,200
+TN,Other,8a1d80d9-6972-4dfa-b634-c647820ce0ae,2026-05-20,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Turky Bcon Sandwc, Vt Cup Of Water",live,200
+TN,Other,96d7c105-0d20-4d4b-bb8f-7d3ed158c1d2,2026-05-20,Kaitlyn Quinn-Crowe,5.00,y,1,ocr,Advocate Sherman Hospital — Parking/Tolls: Parking for offices,live,200
+TN,Other,03a70ec0-a641-4d77-a00e-c87e7b9f787f,2026-05-20,Frank Browne,117.46,y,14,ocr,"Chick-Fil-A — Meals: Meal-Grill Nug 8ct, Kale Crnch Sd LG, Meal-CFADlx+Am, GRL Wrap, Nugget 5 Ct, Nugget 8ct, CobSld Nug, Mac&Chz MD, MktSld GRL, SH UnswTea, Coke LG, Coke MD",live,200
+TN,Other,3f341e8a-8ffc-4818-b7fa-0cce369c2f23,2026-05-20,Sydney Klinowski,121.27,y,5,ocr,"Chick-Fil-A — Meals: Nugget Tray MD, 8oz Bottle CFA, Salad Tray Lg, Brownie Tray SM, Condiment Bag Attached",live,200
+TN,Other,d6c4952e-3e3c-48d5-b7f1-d49c0cc39f20,2026-05-20,Rona Ivey,55.63,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,79195fbd-5db2-4095-804f-492aad31624b,2026-05-20,Robert Wilhoit,46.81,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,c29eefd6-66e5-4ced-9bff-79159cf96873,2026-05-20,Sydney Klinowski,42.91,y,1,ocr,MAPCO — Gas: REGULAR,live,200
+TN,Other,66d695d2-e0db-4ff5-8a72-b3eb8382f1eb,2026-05-20,Frank Browne,379.41,y,2,ocr,"ezCater — Client Presentation: MIXMATCHWRAPBOX, GARDENSALAD",live,200
+TN,Other,54106d0f-059f-4161-9406-8529ac0fc98b,2026-05-20,Grant Powell,10.00,y,1,ocr,"ngrok — Software Support Fees: Hobbyist Monthly License May 20 - Jun 19, 2026",live,200
+TN,Other,cb95e7c9-350d-4bdd-971c-4bcc1e80bed1,2026-05-20,Isabel Babbie,316.18,y,2,ocr,"ezCater — Client Presentation: Mixed Tray for 10, Hummus",live,200
+TN,Other,f40b7058-6741-4382-9656-07991d66fba7,2026-05-19,Isabel Babbie,85.24,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,70fad944-a29f-4e3a-8895-3afc14347abe,2026-05-19,Kaitlyn Quinn-Crowe,497.24,y,5,ocr,"ezCater — Client Presentation: 10-Pizza Deal, Bosco Breadsticks, 16"" Cheese Pizza (Add: Italian Sausage), 16"" Cheese Pizza (Add: Pepperoni), Classic Caesar Salad",live,200
+TN,Other,68760a03-1207-4166-a19a-a54093f4bf9d,2026-05-19,Nicole  Fitzgerald,225.69,y,1,ocr,ezCater — Client Presentation: Lasagne Perfect Bundle,live,200
+TN,Other,3f7443f2-83ee-4842-b086-38925a1459af,2026-05-19,Deonte Sales,25.37,y,2,ocr,"Salsitas Tacos Al Carb — Restaurants: Taco Sonora, Agua Fresaca Sm",live,200
+TN,Other,07cab6ff-1acf-4b44-92b0-96daf5a780bc,2026-05-19,Kaitlyn Quinn-Crowe,230.75,y,8,ocr,"ezCater — Client Presentation: Crazy Bread, Garlic Knots, Cheese Curds, Thin Crust Cheese Pizza, Donati Thin Crust Pizza, Gluten-Free Thin Crust Cheese Pizza, Garden Salad Tray, Tableware",live,200
+TN,Other,680f9e17-d7c2-46fc-95d1-c47f6ea714ac,2026-05-19,Robert Wilhoit,163.90,y,4,ocr,"ezCater — Client Presentation: Serious CheeseTM️ Pizza (14"" Famous Thin), Pepperoni Pizza (14"" Famous Thin), Very VegyTM️ Pizza (14"" Famous Thin), The WorksTM️ Pizza (14"" Famous Thin)",live,200
+TN,Other,b09e5bcf-daab-414c-9e7e-fb8e25f9330c,2026-05-19,Deonte Sales,41.14,y,3,ocr,"New York Bagels `N Bialys — Restaurants: 1 Dozen Assorted, Cream Cheese 1/2 Lb - Plain, Cream Cheese 1/4 Lb - Strawberry",live,200
+TN,Other,c0f28a31-f14d-4c06-a40a-4253e5365009,2026-05-19,Sydney Klinowski,3.00,y,0,receipt_no_ocr,Erlanger Health System — Parking,live,200
+TN,Other,586923b5-54bf-45c7-bafc-0d18a14713e3,2026-05-19,Alan Mayrer,71.29,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,991fb409-f053-4bc6-81a0-de5c8d9c4321,2026-05-19,Deonte Sales,13.10,y,3,ocr,"Starbucks — Meals: Vt Ic Pch Gt Lem, Ds Bacon Sandwich, Vt Cup Of Water",live,200
+TN,Other,7fc24190-fdb2-4a95-9e06-3ec14349dce4,2026-05-19,Frank Browne,63.54,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,cc0bc552-bb78-4b55-8e02-4c37ccfb953f,2026-05-19,Sydney Klinowski,148.12,y,6,ocr,"Chattanooga — Restaurants: Chicken Caesar, Fusilli, Carbonara $Add Chicken, Chicken Parm, Sicilian Salad, Baked Chic Rav",live,200
+TN,Other,2722f52e-c11f-4767-8a35-65cd1a124c5e,2026-05-19,Isabel Babbie,120.41,y,1,ocr,ezCater — Client Presentation: Small Catering Bundle - Originals,live,200
+TN,Other,77bb4932-7b4d-401a-8e80-2e09a1f847cf,2026-05-18,Robert Wilhoit,59.30,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,a8242a08-f722-4260-bd5b-f0f6bed8aaac,2026-05-18,Deonte Sales,17.98,y,2,ocr,"Cafe Zupas — Restaurants: Try 2 Combo Salad & Sandwich, Fountain Bev",live,200
+TN,Other,c2101871-7fcb-49e7-87c9-40fe4750ea31,2026-05-18,Deonte Sales,12.02,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Gt Lem, Vt Cup Of Water",live,200
+TN,Other,e623cd5f-bfe2-450a-ae19-3170083ed96d,2026-05-18,Kaitlyn Quinn-Crowe,43.98,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,d29f6378-5f08-487d-b930-30a4c5c46bf4,2026-05-18,Alan Mayrer,70.81,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,396891f4-f9f6-40f5-972b-a2cca1188293,2026-05-18,Isabel Babbie,41.95,y,5,ocr,"Tim Hortons — Meals: 1 10 Timbits, 1 Dnt - Asrt 1/2 Dozen",live,200
+TN,Other,4356f7b7-5e59-4995-b3af-7bbf1b6c194e,2026-05-18,Isabel Babbie,89.27,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,5ab2d0c9-110b-44fa-8d58-e96ceffb46ed,2026-05-18,Frank Browne,442.17,y,1,ocr,ezCater — Client Presentation: Chicken Sandwich Packaged Meal,live,200
+TN,Other,14df34ee-0a48-4b75-80d6-76cf336f1158,2026-05-18,Isabel Babbie,246.97,y,2,ocr,"ezCater — Client Presentation: Build-Your-Own Party Box, Italian Salad",live,200
+TN,Other,7d1ffa3c-12c3-43f7-b783-b099c75d9c49,2026-05-17,Nicole  Fitzgerald,333.56,y,1,ocr,ezCater — Client Presentation: Fajita Bar,live,200
+TN,Other,a0b58b64-311f-4fd6-bade-0a45ab4c35fd,2026-05-17,Grant Powell,92.86,y,1,ocr,Scribe — SaaS / Software: Scribe Pro Team,live,200
+TN,Other,c4ca582c-d77b-47c4-b4ad-ed0ad2fb4040,2026-05-16,Rona Ivey,62.14,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,2fdb5883-760d-441d-901d-2f8a93a9c3fc,2026-05-16,Kaitlyn Quinn-Crowe,46.17,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,b4a436fc-77fc-48c9-88d1-a2e45317c8ff,2026-05-15,Grant Powell,32.00,y,1,ocr,Github — Research & Development Costs: GitHub Team Plan - Month,live,200
+TN,Other,af84607e-ded9-4de3-8af2-dfeea40e1401,2026-05-15,Natalie Tutton,107.89,y,1,ocr,Florida Department of Health — Government Services: MQA Services,live,200
+TN,Other,8c94fb81-efde-4b6b-b827-3b484e0c20a4,2026-05-15,Grant Powell,54.57,y,1,ocr,Movavi — SaaS / Software: Movavi Effects 1-month subscription,live,200
+TN,Other,8f35ac16-d1a8-48e9-a9eb-446cb8f54d5a,2026-05-15,Deonte Sales,24.49,y,3,ocr,"Starbucks — Meals: TURKEY BACON SDW, VT IC PCH GT LEM",live,200
+TN,Other,929c9626-9243-4eb1-a137-d8ee1fecca93,2026-05-15,Sydney Klinowski,152.04,y,1,ocr,ezCater — Client Presentation: Breakfast Buffet,live,200
+TN,Other,c385d1bf-5679-497f-a336-435fa547e2e5,2026-05-15,Frank Browne,58.94,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,f7bf73cf-bfd9-4a90-801e-07cc8678dd0f,2026-05-15,Deonte Sales,18.67,y,2,ocr,"Fridays UK — Restaurants: BacEgg Snd, SMART WATER",live,200
+TN,Other,ea06fd51-81d1-44f8-aad9-b01eaead21ea,2026-05-15,Deonte Sales,34.95,y,2,ocr,"Uber — Car Rental/Hired Car: 2 QUESA-BIRRIA TACOS PLATE, 1 Aguas Horchata",live,200
+TN,Other,bd0ee877-5b3b-4181-99e2-9315d9d22680,2026-05-15,Mary Claire Barnes,1061.20,y,3,ocr,"DropperBottles.com — Compound Packaging Inventory: 1/2 oz. Amber Glass Boston Round Bottle with 18/400 Neck (Cap Sold Separately), 18/400 Phenolic Brush Cap with PE Liner- 2-1/4"" Long, 11mL Lip Gloss Tube with Black Applicator",live,200
+TN,Other,c192bfe7-5f14-4a74-b46d-0c578dfe1573,2026-05-15,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion | Monthly Subscription,live,200
+TN,Other,8a9fcc12-bfc4-4235-bb67-54bc42ea1cb3,2026-05-15,Deonte Sales,24.88,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,2f62fa3c-19bb-4762-9fb9-1ca210da854a,2026-05-14,Deonte Sales,46.51,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,52982be0-682f-4102-8ab0-5cd8578200db,2026-05-14,Alan Mayrer,65.45,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,aa72cf0f-23d3-44e3-8423-ef0965a9e0f8,2026-05-14,Ash Ahmed,40.00,n,0,no_receipt,Wyoming State Board Of Pharmacy — Government Services,live,200
+TN,Other,486bc330-ae83-488f-8bba-493c70d6b121,2026-05-14,Deonte Sales,19.07,y,2,ocr,"Uber Eats — Client Presentation: POMEGRANATE PLUNGE™, ALL AMERICAN WRAP",live,200
+TN,Other,e09bd78f-14e7-40d0-9c9a-ed21082786a3,2026-05-14,Ash Ahmed,300.00,n,0,no_receipt,Wyoming State Board Of Pharmacy — Government Services,live,200
+TN,Other,e181cdfa-8498-4634-8982-f199bb41e911,2026-05-14,Robert Wilhoit,67.18,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,9d446970-f83a-4582-8a73-cfa0dc74b6dc,2026-05-14,Sydney Klinowski,28.00,y,1,ocr,Food City — Supermarkets and Grocery Stores: REG Fuel,live,200
+TN,Other,b4a63535-468b-4d4c-8057-16bfcad50ed9,2026-05-14,Frank Browne,452.68,y,8,ocr,"ezCater — Client Presentation: Fresh Fruit Platter, Mini Sandwich Platter, Garden Salad, Greek Salad, Gourmet Brownie Platter, 6-Pack Sprite Minis, 6-Pack Coke Minis",live,200
+TN,Other,ddf43426-7f80-4cd9-bf57-d899faf315f6,2026-05-14,Deonte Sales,60.51,y,1,ocr,Uber — Car Rental/Hired Car: Comfort ride with SAMSON,live,200
+TN,Other,ca48a6a0-d493-4f5c-8236-e3fa489fc01f,2026-05-14,Frank Browne,510.62,y,1,ocr,ezCater — Client Presentation: Fajita Bar x 25,live,200
+TN,Other,5f503688-36c2-4e2d-9087-9ae34ce2faff,2026-05-14,Mary Claire Barnes,1555.10,y,2,ocr,"eBay — Suspense: Thermo Scientific Cimarec+ Digital 10 X 10 Hotplate Stirrer 400C / 1200 RPM, Zebra GX430T Thermal Transfer Barcode Label Printer 300 dpi network",live,200
+TN,Other,940a2427-f0eb-4836-b394-6c06592a4a29,2026-05-14,Deonte Sales,7.93,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,24660999-ae9e-4b91-8ee0-3e978c4462b7,2026-05-14,Deonte Sales,39.22,y,2,ocr,"Uber Eats — Client Presentation: 2 Grilled Nuggets, 1 Chick-fil-a® Sandwich Meal",live,200
+TN,Other,8809ee13-c8e4-4fc3-89e2-f397fdfa89d5,2026-05-13,Deonte Sales,5.95,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,7061c8d5-0511-4dba-9ea8-20da5246f874,2026-05-13,Darik Carson,175.00,n,0,no_receipt,Nj Prof License Fee — Government Services,live,200
+TN,Other,44bb9051-3f21-41d6-8430-0aa75e74c29f,2026-05-13,Deonte Sales,16.48,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,be57fb24-bb82-4ce2-9f8f-bfe246e95489,2026-05-13,Rona Ivey,50.72,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,b0d09a13-342f-44e4-acce-a0683d2541fe,2026-05-13,Mary Claire Barnes,22.91,y,1,ocr,Berlin Packaging — General Merchandise: 1 oz White PP Plastic Straight Sided Jars (Tall) - 2811B01WHT,live,200
+TN,Other,942d8324-679e-475a-bd07-e9361dabda30,2026-05-13,Sydney Klinowski,52.24,y,1,ocr,Shell — Gas: PLUS FUEL,live,200
+TN,Other,a575f0a0-ef70-4b40-bf5a-922c641b72dd,2026-05-13,Deonte Sales,7.54,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,125322aa-3e07-4dc2-8015-7853306612b8,2026-05-13,Deonte Sales,17.40,y,2,ocr,"Harold's House of Omelettes — Restaurants: Gyro Sandwich, Gyro Wrap, Add Fries & Drink",live,200
+TN,Other,d4d4692d-4f07-428c-9203-1611fe17831b,2026-05-13,Deonte Sales,7.11,y,1,ocr,Uber — Car Rental/Hired Car: UberX ride with BRIAN,live,200
+TN,Other,156e9900-2119-4f55-957a-0230a213527c,2026-05-13,Sydney Klinowski,32.37,y,1,ocr,Nothing Bundt Cakes — Meals: Signature Assortment,live,200
+TN,Other,75862fbc-1bdb-4612-a119-8c2bfcfc516b,2026-05-13,Isabel Babbie,5.00,n,0,no_receipt,Blue Water Bridge — Government Services,live,200
+TN,Other,343b502b-fd8c-4434-bfb5-0cf116c5ae11,2026-05-13,Audrey Freebeck,281.96,y,1,ocr,ezCater — Client Presentation: Gourmet Burger Bar with Yukon Chips,live,200
+TN,Other,15dc070b-9223-457e-8133-6f406bc78f1a,2026-05-13,Deonte Sales,13.93,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,a5631202-753f-4515-8ff7-511f3e59effc,2026-05-13,Isabel Babbie,49.47,n,0,no_receipt,Crumbl Cookies — Meals,live,200
+TN,Other,30e95f91-9e90-420b-97f4-02dc922d93c4,2026-05-13,Frank Browne,68.03,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,dc9b64d3-da37-4ea1-9ca8-c10e9407c887,2026-05-13,Alan Mayrer,53.51,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,3fbee349-f48f-41c9-90b1-1e93803bc9e9,2026-05-13,Deonte Sales,24.45,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,53231796-ce27-486e-8a6b-cc77a301dd13,2026-05-13,Kaitlyn Quinn-Crowe,247.01,y,6,ocr,"ezCater — Client Presentation: Garlic Bread Sticks, Thin Crust Pizza, Thin Crust Pizza (Pepperoni), Thin Crust Pizza (Italian Sausage), Caesar Salad Tray",live,200
+TN,Other,b5c7edeb-aaad-43d5-943a-8d6509f06173,2026-05-12,Nicole  Fitzgerald,301.67,y,2,ocr,"ezCater — Client Presentation: Boxed Lunch, Gallon Unsweet Tea",live,200
+TN,Other,05441401-4077-4f79-8294-ca42e1dd32ca,2026-05-12,Isabel Babbie,89.42,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,9067e16b-6a21-4a94-933e-0bba4c999de6,2026-05-12,Robert Wilhoit,332.58,y,7,ocr,"ezCater — Client Presentation: Cheese Pizza, Pepperoni Pizza, Veg Out Pizza, Kosmic Karma Pizza, Funky Q Chicken Pizza, House Special Pizza, Gluten-Free Veg Out Pizza",live,200
+TN,Other,c8499161-4305-4fa9-930f-48ef5450a3ea,2026-05-12,Nicole  Fitzgerald,14.59,y,2,ocr,"Chicken Salad Chick — Restaurants: Sandwich Meal, Side",live,200
+TN,Other,10c27c9d-27ce-4f0b-8a3a-8c775574da16,2026-05-12,Audrey Freebeck,284.70,y,4,ocr,"ezCater — Client Presentation: Harvest Bowl, Crispy Rice Bowl, Buffalo Chicken Salad, Kale Caesar Salad",live,200
+TN,Other,90d627f2-76fb-47ba-97af-cf395a40a9a5,2026-05-12,Sydney Klinowski,47.71,y,1,ocr,Dunkin' Donuts — Meals: 50 Munchkins,live,200
+TN,Other,8f6ab273-ccca-4870-9b29-c97db6ad26bd,2026-05-12,Deonte Sales,11.94,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,9277d5df-9495-487a-9f0a-118a28cf4cc6,2026-05-12,Sydney Klinowski,44.45,y,1,ocr,Love's Travel Stop — Gas: Plus,live,200
+TN,Other,dd453fcd-1a53-40c3-989f-819e33c85ea7,2026-05-12,Alan Mayrer,64.75,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,8da71d68-67be-4266-ac65-514dbe40317a,2026-05-12,Isabel Babbie,74.00,n,0,no_receipt,Tim Hortons — Meals,live,200
+TN,Other,8712aff3-6930-442e-812e-1c1bfaf27006,2026-05-12,Frank Browne,769.62,y,1,ocr,ezCater — Client Presentation: Build-Your-Own 3 Protein Taco or Bowl Bar,live,200
+TN,Other,efae1b32-999d-4220-811f-431cd82b7343,2026-05-12,Deonte Sales,5.79,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,86a7eae1-9832-4280-a922-e41c62265cfe,2026-05-12,Deonte Sales,20.24,y,0,receipt_no_ocr,Uber Eats — Client Presentation,live,200
+TN,Other,a0990d38-6747-442a-bc89-24180fb6d352,2026-05-12,Deonte Sales,72.14,y,21,ocr,"Target — Sales & Marketing - Other: ALTOIDS, WHEAT THINS, ESSENTIA, QUAKER, CHIP A COOKI, Good&Gather, up&up, Crest, SHAMPO COND, up & up, AnieIntrntnl, Dove 1 Bar W, Colgate, Vaseline, Tresemme, Dove Men+Car, Dove 3oz Bod, TheraBreath T, Dove Beauty",live,200
+TN,Other,cf43e51b-e4b2-4952-b896-bcc7345977d9,2026-05-12,Deonte Sales,7.95,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,f38afff0-40cb-4812-98cf-8ccbbf0aab99,2026-05-12,Lucas Lockwood,14.99,n,0,no_receipt,Delta Air Lines — Airlines,live,200
+TN,Other,0c28457d-4387-4952-b146-f7f276fda431,2026-05-12,Lucas Lockwood,19.99,n,0,no_receipt,Delta Air Lines — Airlines,live,200
+TN,Other,dff52670-cb02-4456-bd40-8a544c50886c,2026-05-12,Lucas Lockwood,747.40,y,1,ocr,Delta Air Lines — Airlines: Air Transportation Charges,live,200
+TN,Other,19d065a3-d675-4ad2-993d-19f292d69c06,2026-05-12,Deonte Sales,23.95,y,1,ocr,Uber — Car Rental/Hired Car: UberX ride,live,200
+TN,Other,09130b5a-96b9-44b7-bc1b-1deeb7a32aab,2026-05-11,Deonte Sales,25.84,y,3,ocr,"Fazoli's — Restaurants: Chicken Fettuccine Alfredo, 1 Liter Life Water, 20oz Bottle Beverage Bottled Dr. Pepper",live,200
+TN,Other,da9ae58e-f379-42f2-ba31-0ee473725234,2026-05-11,Nicole  Fitzgerald,317.15,y,1,ocr,ezCater — Client Presentation: 2-Protein Package (Build Your Own Tacos & Bowls),live,200
+TN,Other,c34dc994-217a-4015-9ace-b146e96eb6cb,2026-05-11,Audrey Freebeck,60.00,y,0,receipt_no_ocr,Tolls — Parking/Tolls,live,200
+TN,Other,6112eddb-411a-455b-89a7-f8a48183dbf0,2026-05-11,Deonte Sales,67.15,y,1,ocr,Circle K — Gas: UNL-REG,live,200
+TN,Other,c431383b-9b2f-47cd-92c6-6fc7554bb3ff,2026-05-11,Lindsey Hardesty,494.20,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: ECHO 30 ML AIRLESS JAR WIT,live,200
+TN,Other,b52b994b-5891-4bdf-b9dc-d5b00ffee162,2026-05-11,Kaitlyn Quinn-Crowe,48.76,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,284e07d3-69d8-4299-8147-9f2804dff72a,2026-05-11,Sydney Klinowski,47.49,y,1,ocr,Dunkin' Donuts — Meals: 50 Munchkins,live,200
+TN,Other,6edf3df7-a849-45b5-85e4-be357f49a2cc,2026-05-11,Sydney Klinowski,42.37,y,1,ocr,MAPCO — Gas: REGULAR 1,live,200
+TN,Other,99af13d6-bfde-4842-bc3b-5114ea038856,2026-05-11,Rona Ivey,97.21,y,5,ocr,"Doordash — Client Presentation: Bare Bones' Special Salad All Romaine, Extra, Honey Mustard, Extra, Chicken Wings (GF) Buffalo, Tossed, Ranch, Lunch Rack Ribs Seasoned Fries, Lunch Rack Ribs Onion Rings, BBQ Sauce, 2X, Shrimp Salad Sandwich Seasoned Fries",live,200
+TN,Other,2c6bc4f2-5fe1-48a7-a050-a53d8e2581dc,2026-05-11,Frank Browne,73.95,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,430bc968-843a-468f-a49b-3bccfe32298f,2026-05-10,Nicole  Fitzgerald,3.99,y,1,ocr,Parking — Parking/Tolls: VALET AND COMMERCIAL PARKI,live,200
+TN,Other,1ebb4621-c9ef-4c6e-bffc-86091083be8c,2026-05-10,Amy Murphy,124.21,n,0,no_receipt,"Stericycle, Inc. - AutoPay — Professional Services",live,200
+TN,Other,48e57f53-16ef-40bd-9536-6945c4802932,2026-05-10,Ash Ahmed,67.99,y,1,ocr,Weigel's — Fuel and Gas: PREM PUMP NO. 07,live,200
+TN,Other,ac6cd495-919f-4951-b415-f77bde38ea9e,2026-05-09,Grant Powell,218.50,y,1,ocr,Anthropic — Software Support Fees: Max plan - 20x,live,200
+TN,Other,b742514b-da47-45df-a679-a9087fa29bdf,2026-05-09,Kaitlyn Quinn-Crowe,265.39,y,1,ocr,ezCater — Client Presentation: Cold Assorted Sandwiches,live,200
+TN,Other,1b7ca6e3-fb4d-4b0f-8691-604af3bde01b,2026-05-09,Grant Powell,218.50,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 20x May 9-Jun 9, 2026",live,200
+TN,Other,82d0ad27-8ff3-476e-b7df-31bee1a3f557,2026-05-09,Kaitlyn Quinn-Crowe,199.11,y,5,ocr,"ezCater — Client Presentation: Greek Yogurt With Mixed Berries Parfait - 5 Pack, Bagel Pack, Cafe Blend Light Roast Coffee Tote, Premium Orange Juice - Two Half Gallons, Large Fruit Bowl",live,200
+TN,Other,db468a5c-a04f-4b7a-b680-f85e59e9106e,2026-05-09,Grant Powell,19.95,y,2,ocr,"Choice Hotels — Lodging: Hotel Services Fee, Marketplace Taxable (Monster)",live,200
+TN,Other,82123e29-2721-477a-807a-9197a3e22689,2026-05-09,Grant Powell,26.20,y,3,ocr,"Hopdoddy Burger Bar — Meals: Wagyu Smash, Vital Farms Egg, Handcut Chipperbec Fries- Regular",live,200
+TN,Other,c469e0c2-37d2-4e06-a061-3a3cd66de062,2026-05-09,Rona Ivey,51.41,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,fc8cd14c-cddd-4e75-9934-79a1cb4c9d38,2026-05-08,Isabel Babbie,81.93,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,15262406-55ae-43d8-b4ea-46f1693ccfee,2026-05-08,Grant Powell,32.67,y,1,ocr,Movavi — SaaS / Software: Movavi Video Editor 1-month subscription; Download Insurance Service,live,200
+TN,Other,a5cf431c-dfc1-4720-9b9f-f8c1f72d617d,2026-05-08,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,d7ba42a0-7965-43f7-9cac-ffb34809ea7d,2026-05-08,Mary Claire Barnes,62.90,y,5,ocr,"Outback Steakhouse — Restaurants: Kingsland Pasta with Steak & Shrimp, Caesar Salad, Add Sauteed Mushrooms, New York-Style Cheesecake, Sprite",live,200
+TN,Other,2d7cc044-36b4-42dd-be45-af6a1d29e32b,2026-05-08,Nicole  Fitzgerald,449.40,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012341187816),live,200
+TN,Other,2c7efc95-06ec-40ac-b7b6-10438945ef90,2026-05-08,Alan Mayrer,64.34,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,a8d5794f-ec93-42d7-8b46-d8e1947a7250,2026-05-08,Nicole  Fitzgerald,407.40,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012341185658),live,200
+TN,Other,97851119-c389-44eb-97c1-d2e61244a616,2026-05-08,Lindsey Hardesty,1455.10,y,1,ocr,Cosmetic Packaging - AutoPay — Compound Packaging Inventory: LUXE 30 ML AIRLESS BOTTLE,live,200
+TN,Other,8fd0b529-69c3-49e5-bded-ebbd91ba7c25,2026-05-08,Lindsey Hardesty,6663.98,y,3,ocr,"Cosmetic Packaging - AutoPay — Compound Packaging Inventory: Luxe 30 ML Airless Bottle Matte Silver with Frosted Bottle, Pure 30 ML White PP Airless Bottle with Frosted Cap, Pure 50 ML White PP Airless Bottle with Frosted Cap",live,200
+TN,Other,130914e1-7494-4177-920e-03dcacf2fc7a,2026-05-08,Sydney Klinowski,35.00,y,1,ocr,MAPCO — Gas: REGULAR CA PUMP# 3,live,200
+TN,Other,25eb5d24-5f0b-4af7-9e4b-2ae41f6f734c,2026-05-08,Mary Claire Barnes,101.06,y,1,ocr,Berlin Packaging — General Merchandise: 1 oz Amber Glass Boston Round Bottles (Black PP Fine Mist Sprayer) - AB1AB-48,live,200
+TN,Other,9fdf2978-40bc-4a07-b4fc-8f29d6f27d01,2026-05-08,Lucas Lockwood,16.00,y,1,ocr,Jaxville Aviation Auth Pa — Parking: Parking,live,200
+TN,Other,2ee300c0-1b45-4bf7-8f10-1f890199a3a3,2026-05-08,Lucas Lockwood,3.00,n,0,no_receipt,Hendrickson Associate Restaurant — Restaurants,live,200
+TN,Other,3d0d6cb9-0b8c-4f59-8a80-6de1e9ff6f21,2026-05-07,Lucas Lockwood,19.25,n,0,no_receipt,Asian Chao — Restaurants,live,200
+TN,Other,f04aa9b9-6b0c-46e7-a456-2fede6d0a579,2026-05-07,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: IPASS AUTOREPLENISHMENT,live,200
+TN,Other,f48b8721-6bc6-4687-9a01-0e48abd804a4,2026-05-07,Frank Browne,53.83,y,1,ocr,Citgo — Gas: FUEL,live,200
+TN,Other,8ff9069e-7985-402c-8969-94b8846f545d,2026-05-07,Deonte Sales,12.02,n,0,no_receipt,Starbucks — Meals,live,200
+TN,Other,117b1a48-6108-4553-b6e9-94533e13237e,2026-05-07,Lucas Lockwood,16.74,y,0,receipt_no_ocr,Mellow Mushroom — Restaurants,live,200
+TN,Other,8fa264a7-b502-4448-aca2-4dbff5da0ccd,2026-05-07,Rona Ivey,74.62,y,11,ocr,"Panera Bread — Meals: Smokehouse BBQ Chicken, Bacon Turkey Bravo, Spicy Steak Asiago Bagel Stack, Turkey & Cheddar Sandwich, Broccoli Cheddar Soup, Kitchen Sink Cookie, Petite Chocolate Chipper Cookies 12-Pack, Cinnamon Roll",live,200
+TN,Other,839a935a-7c3c-4d7e-ac78-84a3432188ab,2026-05-07,Isabel Babbie,58.75,y,2,ocr,"Nothing Bundt Cakes — Meals: Signature Assortment, Seasonal Assortment (4/13 - 5/31)",live,200
+TN,Other,bacf173f-5b19-45dc-8621-03f0632adbf0,2026-05-07,Frank Browne,180.71,y,12,ocr,"Beach Pea Baking Co — Supermarkets and Grocery Stores: B-Y-O SAND (WITH ADDITIONS), Cowgirl Cookie, choc chip cookie, B-Y-O SANO (WITH ADDITIONS), Hr. Garden Salad (WITH ADDITIONS), Brownie Choc, Nicoise Salad, Tuna Salad, CLASSIC Chic Salad",live,200
+TN,Other,3923c57f-0ae6-47ca-86cf-50c8bd3808e0,2026-05-07,Frank Browne,51.47,y,1,ocr,Crumbl Cookies — Meals: 12-Pack,live,200
+TN,Other,23bcd860-03ba-47d6-bbc6-0cbdd8c15d13,2026-05-07,Lucas Lockwood,26.79,n,0,no_receipt,Twin Peaks Restaurant — Restaurants,live,200
+TN,Other,e2f2273b-d540-4d64-956b-b6ee498fbb87,2026-05-06,Sydney Klinowski,43.11,y,1,ocr,Weigel's — Fuel and Gas: UNLEAD,live,200
+TN,Other,4c5ed5fc-0335-4c1a-80c8-4b226cc1f813,2026-05-06,Lucas Lockwood,5.92,y,1,ocr,Courtyard by Marriott — Hotels: Restaurant,live,200
+TN,Other,96562ae7-2886-44ba-a538-6b5fdc319229,2026-05-06,Robert Wilhoit,56.97,y,1,ocr,"Asheville, NC — Fuel and Gas: UNLD CR #06",live,200
+TN,Other,86b0ea9c-2b3a-491a-907f-568eafb3d43c,2026-05-06,Alan Mayrer,68.52,y,1,ocr,Kroger — Gas: FUEL,live,200
+TN,Other,9163a34d-9d29-4e1c-a49e-171016aed81e,2026-05-06,Lucas Lockwood,4.80,y,1,ocr,Mms Univ Of Tennessee Restaurant — Restaurants: Body Armor Sport Water 33.8oz,live,200
+TN,Other,ad00824d-ad7b-4fbb-8e30-a5d010efcc0c,2026-05-06,Grant Powell,2.00,y,1,ocr,Dfw Airport Parking — Parking: SHORT-TERM PARKING TKT,live,200
+TN,Other,156f048a-adbe-4f87-b9b8-d3c2839e7123,2026-05-06,Deonte Sales,11.69,y,3,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Vt Ic Pch Grn Tea, Vt Cup Of Ice",live,200
+TN,Other,a221f056-b852-4b2d-b349-d3c6372e454f,2026-05-06,Natalie Tutton,12.99,y,0,receipt_no_ocr,Chick-Fil-A — Meals,live,200
+TN,Other,219ae66c-1e76-4258-8b6c-0d20c52688da,2026-05-06,Lucas Lockwood,25.43,y,2,ocr,"Panera Bread — Meals: You Pick 2 (1/2 Caesar Salad, Cup St Corn Chowder, French Bag Side), You Pick 2 (Cup Creamy Tomato Soup, 1/2 Asian Sesame Chx Sal, French Bag Side)",live,200
+TN,Other,f6edaf24-9b40-4689-84d6-b3a34d14da54,2026-05-06,Lucas Lockwood,211.67,y,0,receipt_no_ocr,Booking.com — Hotels,live,200
+TN,Other,0399ad72-f1e9-4891-afd7-87702b2bc2d7,2026-05-06,Lucas Lockwood,12.58,y,5,ocr,"Starbucks — Meals: Gr Ic Matcha Lat, Coconut Milk, T Cnut Pro Cf, T1 Pike Place, W/Room",live,200
+TN,Other,2473c9ca-ee22-4c0b-8bd4-a4aca910c618,2026-05-06,Natalie Tutton,96.06,y,14,ocr,"Chick-Fil-A — Meals: Chick-fil-A Sandwich Meal, Large Coca-Cola Cherry, Large Coke Zero Sugar, Large Freshly-Brewed Iced Tea Sweetened, 12 ct Chick-fil-A Nuggets, Medium Chick-fil-A Waffle Potato Fries, Chick-fil-A Deluxe Sandwich w/ Pepper Jack +5 more",live,200
+TN,Other,f3b59188-d348-43f1-a8e8-6f7225686b68,2026-05-06,Lucas Lockwood,19.19,y,2,ocr,"Braves All Star Grill — Restaurants: CHOPPERS BREAKFAST SANDWICH, COFFEE",live,200
+TN,Other,e4814ff2-5ae8-432c-8b3c-72e60d7295a6,2026-05-06,Darik Carson,15.96,n,0,no_receipt,Choice Hotels — Lodging,live,200
+TN,Other,0fc9b172-9bcc-4391-9d98-4efd8ce66a9c,2026-05-05,Nicole  Fitzgerald,393.96,y,2,ocr,"ezCater — Client Presentation: Breadsticks, Create-Your-Own Pasta Station",live,200
+TN,Other,9a5054ca-f196-4017-85de-a6f433d0c956,2026-05-05,Frank Browne,79.31,y,18,ocr,"Starbucks — Meals: Vt Ic Brsg Oat E, Choc Chip Pb Bar, Vt Ic Matcha Lat, Van Sc Cld Fm, Pumpkin Loaf, Cinn Coffee Cake, Vt Strbry Acai Rfr, Cheese & Fruit Box, Tetra Koia Cacao, Vt Ic Green Tea, Lt Lemonade, Gr Icd Latte, Vanilla Syrp, Breve +1 more",live,200
+TN,Other,b4b87264-221f-4971-839f-dfc1f0d18b21,2026-05-05,Robert Wilhoit,62.18,y,1,ocr,South Boston Gas House — Fuel and Gas: UNLEAD,live,200
+TN,Other,193e42ec-eb8e-43ae-b74a-1ee8ea911e23,2026-05-05,Kaitlyn Quinn-Crowe,48.33,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,dc114c35-c33c-4dcb-8d20-42c706deb732,2026-05-05,Nicole  Fitzgerald,31.44,y,1,ocr,"Doordash — Client Presentation: Rivet Bucket (Cinnamon, Brownie Batter, Spicy Nacho Cheese, Cheddar Cheese)",live,200
+TN,Other,313006e4-ab5f-48a5-b976-663cd9ef9933,2026-05-05,Frank Browne,62.83,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,4a4a031d-fde5-483f-8ff2-cca4711e805b,2026-05-05,Isabel Babbie,84.57,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,ca2edf6d-4d33-43c4-9fa2-b96c136ec915,2026-05-05,Grant Powell,19.95,y,0,receipt_no_ocr,SendGrid — SaaS / Software,live,200
+TN,Other,ccd34605-b8ab-4374-968e-d3a323eef64c,2026-05-05,Grant Powell,56.23,y,9,ocr,"Hopdoddy Burger Bar — Meals: Wagyu Smash, Caramelized Onions, Vital Farms Egg, Pepperjack Cheese, Parmesan Truffle Brussels, Cheddar Cheese, Goat Cheese, Dirty Dreamsicle",live,200
+TN,Other,5d2266c6-76a0-413e-90a6-15b7b01957ac,2026-05-04,Kaitlyn Quinn-Crowe,180.61,y,3,ocr,"ezCater — Client Presentation: Chips & Guacamole, Taco Box, Utensils",live,200
+TN,Other,3d7a5a8e-2e77-46fc-9b4b-8bc1a409b959,2026-05-04,Grant Powell,65.55,y,2,ocr,"Vercel — Research & Development Costs: Pro, Additional Team Seats",live,200
+TN,Other,5b97b947-6b34-4363-949c-e61a8db5f9c4,2026-05-04,Grant Powell,21.32,y,1,ocr,Anthropic — Software Support Fees: Claude Pro,live,200
+TN,Other,42e68c00-bf33-4b13-893a-78403187e1a1,2026-05-04,Isabel Babbie,218.68,y,3,ocr,"ezCater — Client Presentation: Hummus, Beef & Lamb Gyro Kit - Half Tray, Greek Salad",live,200
+TN,Other,81b06006-599b-4292-9cb7-a810a21483ec,2026-05-04,Grant Powell,5.00,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE TIP,live,200
+TN,Other,86078282-a493-4316-a8f8-880f4ba8576f,2026-05-04,Grant Powell,20.95,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,7170b14b-6183-43f4-bf09-4894ec0efee7,2026-05-04,Nicole  Fitzgerald,195.64,y,2,ocr,"ezCater — Client Presentation: VIP Buffet, Sweet Tea (Gallon)",live,200
+TN,Other,7adfe9f9-e612-4fb1-ae40-4facd7916f7d,2026-05-04,Grant Powell,30.94,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,78351b7b-4574-41db-a00b-2ad34b40dbae,2026-05-04,Alan Mayrer,66.55,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,759b0230-a007-489e-a7db-7700fff2b6af,2026-05-04,Grant Powell,453.40,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012339792656),live,200
+TN,Other,f6cede33-d405-42d7-98c1-077b5f1a191a,2026-05-03,Grant Powell,18.97,y,4,ocr,"Wayback Burgers — Restaurants: Wayback Classic, Bacon, #2 Reg Fry Combo, Chipotle Mayo",live,200
+TN,Other,f32a6699-477e-4bb5-af90-10fccaed2b9c,2026-05-03,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,692af7a3-98ff-47ff-8651-fde0e381c459,2026-05-03,Robert Wilhoit,148.52,y,6,ocr,"ezCater — Client Presentation: The Regular Joe Sandwich, Egg & Cheese Sandwich, Big Beginning Wrap",live,200
+TN,Other,af983309-34a8-4d3f-b420-123218f85735,2026-05-03,Robert Wilhoit,67.23,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,1dd4fe8e-b646-47e3-b6cb-37253ed84d63,2026-05-03,Mary Claire Barnes,14.95,n,0,no_receipt,Grubhub — Restaurants,live,200
+TN,Other,83b7b399-23f9-4a03-b118-fb84d9128f7a,2026-05-02,Deonte Sales,225.17,y,1,ocr,ezCater — Client Presentation: 1 Lemonade (Gallon),live,200
+TN,Other,c34beb63-bdc0-41e5-aafc-78edb8b073ea,2026-05-02,Kaitlyn Quinn-Crowe,45.22,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,42f82e83-1707-4d04-ba37-cf4209d4bea1,2026-05-02,Rona Ivey,56.73,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,f1097598-4b4d-4962-b5c1-05de3d41608f,2026-05-02,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion Contract Period: 01 May 2026 - 31 May 2026,live,200
+TN,Other,df4dc6fb-52d2-42fe-a45a-8173a638e10f,2026-05-01,Isabel Babbie,79.71,y,1,ocr,Speedway — Fuel and Gas: UNLEADED REGULAR,live,200
+TN,Other,7a2cfd2c-70db-4d5a-9c08-b59fbf85721d,2026-05-01,Grant Powell,0.02,y,1,ocr,Google Cloud — Software Support Fees: GOOGLE CLOUD COMPUTING SERVICE FEE,live,200
+TN,Other,eb35666f-e05e-43ce-b3a6-d0efe14ce939,2026-05-01,Robert Wilhoit,313.46,y,1,ocr,ezCater — Client Presentation: Assorted Box Lunches,live,200
+TN,Other,6ad85d30-8396-4d85-9acf-a04c3791a0a6,2026-05-01,Frank Browne,60.57,y,1,ocr,Cumberland Farms — Fuel and Gas: FUEL,live,200
+TN,Other,49501aad-6332-4a62-b5d4-f3779da5c52c,2026-05-01,Ash Ahmed,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,8476d092-4e7f-47c3-8899-bceb28b3bd20,2026-05-01,Kaitlyn Quinn-Crowe,167.46,y,5,ocr,"ezCater — Client Presentation: Garlic Bread Sticks, Thin Crust Pizza, Gluten Free Pizza, Italian Salad",live,200
+TN,Other,3d8efaea-5ce9-4135-85a1-da01eb1254b8,2026-04-30,Robert Wilhoit,28.00,y,1,ocr,Quality Mart — Fuel and Gas: PREPAY CR #12,live,200
+TN,Other,b14f2a63-1a14-4748-8f0f-3fe542e748bb,2026-04-30,Nicole  Fitzgerald,53.97,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,2601a3c5-d6a7-424a-a188-2b522b454653,2026-04-29,Grant Powell,376.05,y,1,ocr,Expedia — Hotels: 4 nights x 1 room,live,200
+TN,Other,26e0c3bd-f8c9-4d5e-bf24-8f36d4b90568,2026-04-29,Grant Powell,449.34,y,1,ocr,"Expedia — Hotels: Comfort Inn & Suites Euless DFW West - Room, 1 King Bed, Non Smoking (5 nights, 1 room)",live,200
+TN,Other,55f5b497-f623-4454-adbe-6bf5f88c5c4e,2026-04-29,Grant Powell,589.80,y,1,ocr,American Airlines — Airfare/Transportation: New ticket,live,200
+TN,Other,1bfb9ab6-b1bb-4fc2-8072-bf836b82ecf1,2026-04-29,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: IPASS AUTOREPLENISHMENT,live,200
+TN,Other,04b34425-8b65-4b5d-b5a3-ed12053158fe,2026-04-29,Alan Mayrer,23.25,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,f5879e86-49dc-4f36-b942-4d62dcb56951,2026-04-29,Frank Browne,63.44,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,89ec0f3a-1d01-48c6-9788-a4dce7b74a5d,2026-04-29,Robert Wilhoit,10.00,y,1,ocr,7-Eleven — Gas: Pump 15 Prepay,live,200
+TN,Other,c43701e8-919f-47fa-89fe-cf4342ea7157,2026-04-29,Nicole  Fitzgerald,3.23,y,1,ocr,Starbucks — Meals: Gr Sunsera Blend,live,200
+TN,Other,188ab807-08c5-42cc-beaa-e3bc1060ce12,2026-04-29,Lucas Lockwood,654.40,y,1,ocr,Delta Air Lines — Airlines: Air Transportation Charges,live,200
+TN,Other,e91f78f0-7def-45f6-95da-40aecc43a262,2026-04-28,Nicole  Fitzgerald,38.80,y,1,ocr,Culinary Dropout — Restaurants: Mongolian Short Rib,live,200
+TN,Other,7c067b7e-7baa-438e-960b-f6670183c3e3,2026-04-28,Nicole  Fitzgerald,168.44,y,1,ocr,Courtyard by Marriott — Hotels: ROOM CHARGE,live,200
+TN,Other,75cf3453-e25a-42b7-925b-5ae09e04ee9a,2026-04-28,Nicole  Fitzgerald,33.84,y,1,ocr,Texaco — Fuel and Gas: FUEL,live,200
+TN,Other,c9bcd79e-f8e6-4cb0-a790-679914135e3e,2026-04-28,Kaitlyn Quinn-Crowe,46.35,y,1,ocr,Casey's — Fuel and Gas: FUEL,live,200
+TN,Other,f2a2d1cd-90b4-4b31-81fe-ab2e9819b80f,2026-04-28,Rona Ivey,54.07,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,8f41a239-d57d-44d0-ad11-433db7f2c0c1,2026-04-28,Nicole  Fitzgerald,5.00,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,3c02b62a-876f-4364-92c3-4eafe1646512,2026-04-27,Nicole  Fitzgerald,47.33,y,3,ocr,"Connors Steak & Seafood — Restaurants: Water, Cajun Red Grouper, Sub SM House for 1",live,200
+TN,Other,ad8c4401-9464-4ec7-9c38-7771f989cd19,2026-04-27,Nicole  Fitzgerald,259.60,y,1,ocr,Marriott — Hotels: ROOM,live,200
+TN,Other,b0456816-85c8-4685-a8c0-d66b85b900a2,2026-04-27,Isabel Babbie,65.16,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,7579987e-a398-4f6c-bae5-303f9c75afd0,2026-04-27,Grant Powell,268.40,y,1,ocr,United — Airlines: Flight to Houston,live,200
+TN,Other,c31ea4db-3ff4-48cf-b8ac-35a7238d18d1,2026-04-27,Grant Powell,322.84,y,1,ocr,"Hotwire — Hotels: Room (2 nights, 2 rooms)",live,200
+TN,Other,2165cf82-7dfc-4d90-bec7-eb9700d84b12,2026-04-27,Frank Browne,59.66,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,bccdbf6d-2d90-4cde-ba43-f9b1753f37d3,2026-04-27,Nicole  Fitzgerald,3.25,y,1,ocr,Starbucks — Meals: Gr Sunsera Blend,live,200
+TN,Other,332ce5bc-99c9-49b8-9034-0046973672f2,2026-04-27,Nicole  Fitzgerald,148.21,y,1,ocr,Dollar Rent A Car — Car Rental: Rental Rate (3 days),live,200
+TN,Other,8fa5dc96-7937-4f94-a2e7-ef4fb2e16911,2026-04-26,Rona Ivey,35.00,y,1,ocr,Shell — Gas: REGULAR CA,live,200
+TN,Other,ae60972e-ecce-4ee7-a35f-aec372d0ee40,2026-04-26,Alan Mayrer,57.58,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,6a1afa22-ddec-4d9f-9da8-a315cd7f2419,2026-04-26,Nicole  Fitzgerald,45.53,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,2497960b-16ea-4db7-88b2-d20187c4cc60,2026-04-25,Nicole  Fitzgerald,211.66,y,2,ocr,"ezCater — Client Presentation: Chick-fil-A Chick-n-Minis Tray, Coffee Box-to-Go",live,200
+TN,Other,43cdd9b3-2940-4677-8b0c-45f1f2049965,2026-04-24,Isabel Babbie,72.28,y,1,ocr,Kroger — Gas: FUEL,live,200
+TN,Other,09d2de7d-f719-4b6a-98ba-3bff58d4594a,2026-04-24,Grant Powell,30.83,y,1,ocr,"McMaster-Carr — Research & Development Costs: Hex-Drive Long-Nose 18-8 Stainless Steel Spring Plunger without Lock Element, 5/8""-11, 3.5-10.5 lb. Nose Force",live,200
+TN,Other,ebdf3a39-27eb-475c-91d9-7b4f83f90212,2026-04-23,Rona Ivey,54.72,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,8e131853-3c57-4e6d-a489-b2863834c502,2026-04-23,Grant Powell,19.79,y,1,ocr,totalElement — SaaS / Software: 3/16 x 1/4 Inch Neodymium Rare Earth Disc Magnets N52 (50 Pack),live,200
+TN,Other,15b6d0fa-67b4-4492-8f9a-6cf6797cbca3,2026-04-23,Grant Powell,169.15,y,2,ocr,"Anthropic — Software Support Fees: Max plan - 20x, Unused time on Max plan - 5x after 23 Apr 2026",live,200
+TN,Other,b363daff-b70d-4400-adf8-ddb50e4d9e26,2026-04-23,Isabel Babbie,35.81,y,3,ocr,"Seven Sundays Coffee — Meals: Bananas Foster Latte (16oz Iced, House Blend, Whole Milk), Turkey Sausage, Egg, & Cheese Croissant, English Muffin Bacon, Egg, & Cheese",live,200
+TN,Other,9b940d04-a409-453a-bd05-aa968d108dfb,2026-04-23,Robert Wilhoit,62.65,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,3b01567e-482e-43ff-9e37-b99f74416084,2026-04-22,Ash Ahmed,271.19,n,0,no_receipt,Zaya — Restaurants,live,200
+TN,Other,d934f594-c3f1-4556-8af9-5d96fea10e23,2026-04-22,Frank Browne,52.85,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,d74a9e5b-038e-45f6-8a60-cf4ab182946f,2026-04-22,Robert Wilhoit,183.87,n,0,no_receipt,Papa John's Pizza — Restaurants,live,200
+TN,Other,b67b6565-e022-4367-989a-4f120b5a0296,2026-04-22,Alan Mayrer,53.86,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,a1a73eab-f976-4758-b11b-57cfef317315,2026-04-22,Robert Wilhoit,31.86,y,1,ocr,7-Eleven — Gas: FUEL,live,200
+TN,Other,c4e0df5d-ab63-4de3-b79b-a97d46a55fac,2026-04-21,Isabel Babbie,77.13,y,1,ocr,BP — Gas: UNLEADED REGULAR,live,200
+TN,Other,23b8287c-badb-4ce4-8fa4-f454d5c97b7c,2026-04-21,Rona Ivey,15.25,y,0,receipt_no_ocr,Metropolis — Parking/Tolls,live,200
+TN,Other,aa30bd41-85c1-4233-8421-175c021d0230,2026-04-21,Frank Browne,52.25,y,1,ocr,7-Eleven — Gas: FUEL,live,200
+TN,Other,6f50f297-7153-4156-8536-5cc14df2f83f,2026-04-21,Rona Ivey,46.30,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,e0249f24-1c1a-416f-ab90-af4dee7fc53e,2026-04-20,Alan Mayrer,52.17,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,8879d039-ee62-424b-9671-04ecc78c4f43,2026-04-20,Grant Powell,10.00,y,1,ocr,ngrok — Software Support Fees: Hobbyist Monthly License,live,200
+TN,Other,96f729dc-12f0-4ef0-b0e3-54124248a28a,2026-04-17,Rona Ivey,50.46,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,2ecb1c60-bc7f-4171-81c2-f4ef16053631,2026-04-17,Grant Powell,140.90,y,7,ocr,"Scribe — SaaS / Software: Remaining time on 2 x Scribe Pro Personal after 18 Mar 2026, Unused time on Scribe Pro Personal after 18 Mar 2026, Remaining time on 3 x Scribe Pro Team after 27 Mar 2026 +4 more",live,200
+TN,Other,a218a5ad-e37e-4c27-babf-c90a14fb585d,2026-04-17,Alan Mayrer,56.14,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,5e6194f9-8078-40fa-a82f-00c2ccf8ccea,2026-04-16,Natalie Tutton,129.00,y,1,ocr,Pharmacy Technician Certification Board — Employee Certification/Accreditation: Certification Application & Exam,live,200
+TN,Other,9f6fa37e-4765-4a0c-9532-0da215568ae7,2026-04-16,Natalie Tutton,129.00,y,1,ocr,Pharmacy Technician Certification Board — Employee Certification/Accreditation: Certification Application & Exam,live,200
+TN,Other,65f894c2-a708-4f27-9895-957fa4d9f089,2026-04-16,Natalie Tutton,129.00,y,1,ocr,Pharmacy Technician Certification Board — Employee Certification/Accreditation: Certification Application & Exam,live,200
+TN,Other,4240e35e-f2e0-4df9-a2b2-f37b8e01aef6,2026-04-16,Isabel Babbie,65.75,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,dfe8efb1-4a71-4eab-ba61-ada7047499e4,2026-04-16,Robert Wilhoit,27.70,n,0,no_receipt,Mellow Mushroom — Restaurants,live,200
+TN,Other,afd2c7d8-8fe1-46fe-93eb-f2df174c830a,2026-04-16,Grant Powell,299.78,y,7,ocr,"Discount Tire — General Merchandise: FREE ALIGNMENT, 185 /65 R15 88H SL BSW MHV MOHAVE TOURING A/S, VDO 7020KA T70 BLUE REDI STYLE TPMS RBK BASIC KIT 7020K-A, CERTIFICATES FOR REFUND, REPLACEMENT, WASTE TIRE DISPOSAL FEE, STATE REQUIRED TIRE FEE +1 more",live,200
+TN,Other,c3bf1554-0c60-432a-935e-136ee250316b,2026-04-16,Frank Browne,54.38,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,d4add9ab-5f24-4b3b-a2fe-da9c0c90119b,2026-04-16,Robert Wilhoit,59.53,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,a24e6d5d-2cb7-46c7-8b25-a5a5ae0ce537,2026-04-16,Isabel Babbie,50.00,n,0,no_receipt,Tim Hortons — Meals,live,200
+TN,Other,333c8db7-b2ee-41ae-9026-e3012cf9d297,2026-04-15,Grant Powell,32.00,y,1,ocr,Github — Research & Development Costs: GitHub Team Plan - Month,live,200
+TN,Other,21f08f40-8d5d-4ea3-acbe-e6398a3129e2,2026-04-15,Rona Ivey,54.55,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,1fe2831b-1e7f-408e-9e55-9e98c976ada3,2026-04-15,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion,live,200
+TN,Other,5ef9fb99-32e3-4c6d-9d94-ffc31bd96b56,2026-04-14,Isabel Babbie,65.51,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,97e9bc55-19b4-4e2c-a12e-0f99ee58658e,2026-04-14,Isabel Babbie,18.02,y,1,ocr,Hudson's Place — Restaurants: Latte,live,200
+TN,Other,31d69ae2-89a4-4029-81c1-46067e5a3fcb,2026-04-14,Frank Browne,54.75,y,1,ocr,Gulf Oil — Fuel and Gas: FUEL,live,200
+TN,Other,ebcd0b24-bbfe-4657-996c-a3bd1dfbfb95,2026-04-14,Robert Wilhoit,44.82,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,735d37d7-318a-4e70-8abb-242aa4e05f1f,2026-04-14,Kaitlyn Quinn-Crowe,41.04,y,1,ocr,QuikTrip — Gas: FUEL,live,200
+TN,Other,ba904285-c691-46c2-b852-691216dbdfa1,2026-04-14,Alan Mayrer,52.26,y,1,ocr,Busy Bee — Gas: UNLEADED CR #10,live,200
+TN,Other,8c54f307-81d3-4bbe-ac6b-0976c5127571,2026-04-13,Kaitlyn Quinn-Crowe,9.89,y,1,ocr,Fedex — Sales & Marketing - Other: PNG B&W S/S 8.5x11 & 8.5x14,live,200
+TN,Other,32d7dcb4-b5d8-4e73-acbf-92f860d90a6a,2026-04-13,Isabel Babbie,80.00,y,0,receipt_no_ocr,Farhat Sweets — Supermarkets and Grocery Stores,live,200
+TN,Other,76f61dfc-e460-4939-9646-a26e0510738d,2026-04-13,Frank Browne,57.52,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,703ced98-fc3e-4a5b-a0af-030c7d66276d,2026-04-13,Isabel Babbie,62.55,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,cc1f1ed8-2863-4c1a-a1a3-bcf078aebca9,2026-04-13,Robert Wilhoit,39.60,y,1,ocr,7-Eleven — Gas: FUEL,live,200
+TN,Other,1eb0fe7e-037f-431e-bdde-cdf9058f9d75,2026-04-12,Rona Ivey,43.72,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,91b6e2e2-cff2-4e95-9f15-97b461c066a3,2026-04-10,Grant Powell,59.00,y,1,ocr,Groome Transportation — Car Rental/Hired Car: Shared Shuttle Service,live,200
+TN,Other,dbf90e48-c5f7-4dc5-9a8d-b5371db7a5eb,2026-04-10,Alan Mayrer,56.37,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,4b9f95ad-f775-406b-8c12-1ee32e4c4f42,2026-04-09,Grant Powell,158.72,y,2,ocr,"Anthropic — Software Support Fees: Max plan - 20x Apr 9-May 9, 2026, Unused time on Max plan - 5x after 09 Apr 2026 Apr 9-Apr 26, 2026",live,200
+TN,Other,f034ce68-4cd3-4010-b10b-03f37a0b987d,2026-04-09,Grant Powell,127.57,y,2,ocr,"Anthropic — Software Support Fees: Max plan - 20x Apr 9-May 9, 2026, Unused time on Max plan - 5x after 09 Apr 2026 Apr 9-May 4, 2026",live,200
+TN,Other,9247d41e-b79b-483c-8a54-63eb8f99f747,2026-04-09,Grant Powell,56.05,y,1,ocr,QuikTrip — Gas: FUEL,live,200
+TN,Other,9634f024-e178-4be2-a234-7cfbdb659eff,2026-04-09,Frank Browne,60.69,y,1,ocr,Cumberland Farms — Fuel and Gas: FUEL,live,200
+TN,Other,4ab85e12-8e89-4187-956b-06896046b8eb,2026-04-09,Alan Mayrer,55.09,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,21dd90f9-5d0e-4203-aefd-874fd1fa48d9,2026-04-08,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,61e2b1bc-0c7a-4c13-ba86-0822e6cb32e0,2026-04-08,Robert Wilhoit,35.94,y,1,ocr,Spinx — Fuel and Gas: Reg Unle,live,200
+TN,Other,0007c649-8921-459b-b7d5-40d0e51eefc9,2026-04-08,Rona Ivey,46.68,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,9b1bccb2-48f7-4020-a914-7cc075a35aca,2026-04-07,Robert Wilhoit,91.00,y,1,ocr,Quality Inn — Lodging: Room Charge,live,200
+TN,Other,020757a2-f859-4d0b-a471-81c51ee4fa1f,2026-04-07,Kaitlyn Quinn-Crowe,45.40,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,a7d4e2b1-dd95-46cf-b60b-1271d4afa422,2026-04-07,Alan Mayrer,59.02,y,1,ocr,Casey's — Fuel and Gas: FUEL,live,200
+TN,Other,b7a8378f-f862-4652-ae86-88c36465645e,2026-04-07,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: IPASS AUTOREPLENISHMENT,live,200
+TN,Other,97c6e4f8-f626-494a-8a08-ca849ea713fc,2026-04-07,Mary Claire Barnes,18.87,y,2,ocr,"Doordash — Client Presentation: Classic Donuts (Donuts & Bakery) Chocolate Frosted with Sprinkles, Iced Latte (Iced Drinks) Caramel Brown Sugar Whole Milk Splenda Medium Regular",live,200
+TN,Other,f998c21e-9a85-485b-8dc9-d60f18e3051c,2026-04-07,Isabel Babbie,60.15,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,95d15da8-bfd7-4497-b1a2-11b15531c6be,2026-04-07,Robert Wilhoit,62.71,y,1,ocr,QuikTrip — Gas: FUEL,live,200
+TN,Other,0af6c6fa-2c79-4ffb-abf0-6f0d469e29a1,2026-04-07,Grant Powell,21.97,y,1,ocr,"McMaster-Carr — Research & Development Costs: Neodymium Magnet, Magnetized Through Thickness, 1/4"" Thick, 3/16"" OD",live,200
+TN,Other,80f0a743-5fbb-4ba1-89e3-5bd59c697746,2026-04-07,Grant Powell,14.57,y,1,ocr,"McMaster-Carr — Research & Development Costs: Compression Spring, 0.625"" Long, 0.420"" OD, 0.326"" ID, Packs of 12",live,200
+TN,Other,dc262358-5d4e-4462-b174-fcc8a3ae7b7c,2026-04-07,Grant Powell,109.25,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 5x Apr 6-May 6, 2026",live,200
+TN,Other,58a751a2-c1ac-4171-8742-1a8ee805fbcb,2026-04-07,Grant Powell,758.76,y,3,ocr,"Hampton Inn — Hotels: 1 KING MICROWAVE/FRIDGE NS - 06-Apr-2026 - 07-Apr-2026, 1 KING MICROWAVE/FRIDGE NS - 07-Apr-2026 - 09-Apr-2026, 1 KING MICROWAVE/FRIDGE NS - 09-Apr-2026 - 10-Apr-2026",live,200
+TN,Other,62c5d73c-ad39-4928-b858-1cab1082f3dc,2026-04-06,Grant Powell,49.82,y,3,ocr,"Mangos — Restaurants: Mango's Signature Blend Coffee, Cowboy's Skillet, Dixie Skillet",live,200
+TN,Other,bb254e00-5cfa-4fe3-8b3e-889219d68cae,2026-04-06,Grant Powell,19.95,y,1,ocr,SendGrid — SaaS / Software: ESSENTIALS 50K,live,200
+TN,Other,cfd263f9-5fab-4af7-9b71-b5bbd0dd9b8d,2026-04-06,Grant Powell,19.95,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,0d15899c-43be-41a3-b139-1ff7b534946c,2026-04-05,Mary Claire Barnes,17.97,y,3,ocr,"Doordash — Client Presentation: Hash Browns, Hotcakes, Iced Caramel Coffee",live,200
+TN,Other,92911942-f922-4994-b7fd-7adb460214a3,2026-04-04,Grant Powell,67.24,y,6,ocr,"Vercel — Research & Development Costs: Build Minutes (Qty. 356), Fluid Active CPU (Qty. 2.46), Fluid Provisioned Memory (Qty. 81.55), Fast Origin Transfer (Qty. 0.90), Additional Team Seats, Pro",live,200
+TN,Other,9c977600-e63f-4f1a-b1a3-433684e524d9,2026-04-04,Alan Mayrer,54.54,y,1,ocr,Kroger — Gas: FUEL,live,200
+TN,Other,ec659fd7-7382-4c45-aab0-bc99140d761a,2026-04-04,Grant Powell,21.32,y,1,ocr,"Anthropic — Software Support Fees: Claude Pro Apr 4-May 4, 2026",live,200
+TN,Other,bf66f544-3b1f-4ad2-9477-32ee59a12f71,2026-04-04,Grant Powell,109.25,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 5x Apr 4-May 4, 2026",live,200
+TN,Other,55ac677c-fff6-47af-a68b-bbd91f3e8d95,2026-04-03,Grant Powell,21.85,y,1,ocr,Anthropic — Software Support Fees: CLAUDE PRO,live,200
+TN,Other,b58a0d35-3e9b-4e4e-bb91-2a40c314bf28,2026-04-03,Grant Powell,59.00,y,1,ocr,Groome Transportation — Car Rental/Hired Car: Shared Shuttle Service,live,200
+TN,Other,2ffa02f8-9b8e-4b42-9b45-60af8e21ec90,2026-04-03,Lindsey Hardesty,24.66,y,1,ocr,"Cpr Savers & First Aid — General Merchandise: Lip Balm Tube, White Cap, White Body, 0.15 mL",live,200
+TN,Other,5d459b98-5d00-4fb1-a0e3-6f79d881c3b2,2026-04-03,Mary Claire Barnes,21.48,y,3,ocr,"Doordash — Client Presentation: Bacon Egg and Cheese, Classic Donuts, Iced Latte",live,200
+TN,Other,e45d55e0-a6a5-4010-aea1-916883baa1d5,2026-04-03,Frank Browne,56.06,y,1,ocr,Valero — Fuel and Gas: FUEL,live,200
+TN,Other,62445dc9-340d-4c58-841b-28954a1c9d09,2026-04-02,Isabel Babbie,45.90,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,e3d5b30c-e39a-4889-b132-9ddf3742658d,2026-04-02,Rona Ivey,54.50,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,3a655c03-6187-4ccb-8d5e-9b14e3076bba,2026-04-02,Nicole  Fitzgerald,196.02,y,1,ocr,American Airlines — Airfare/Transportation: New ticket (0012331119644),live,200
+TN,Other,1b73f3c1-52a4-4bd3-801e-0b34b29d8ab7,2026-04-02,Robert Wilhoit,63.48,y,1,ocr,QuikTrip — Gas: FUEL,live,200
+TN,Other,2f1bebdb-f78d-4472-9107-0c24e7c97b2f,2026-04-02,Nicole  Fitzgerald,247.40,y,1,ocr,Southwest Airlines — Airfare/Transportation: Air - BR3BB6,live,200
+TN,Other,5872b3b9-76bc-449f-a33b-d78abdd98d07,2026-04-02,Grant Powell,92.86,y,1,ocr,Autodesk — Research & Development Costs: Fusion Contract Period: 01 Apr 2026 - 30 Apr 2026,live,200
+TN,Other,61e860c4-2aa1-4998-91f5-4ba7905533ad,2026-04-02,Kaitlyn Quinn-Crowe,40.11,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,2c2e8469-5b43-4727-8da3-c569be9669e2,2026-04-01,Lucas Lockwood,16.00,y,1,ocr,Jaxville Aviation Auth Pa — Parking: Parking,live,200
+TN,Other,97bd2155-7445-40d6-8056-107800aac273,2026-04-01,Alan Mayrer,58.00,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,4dd86f31-980b-433a-a5d6-387f4ee2c578,2026-04-01,Grant Powell,0.01,y,1,ocr,Google Cloud — Software Support Fees: GOOGLE CLOUD COMPUTING SERVICES FEE,live,200
+TN,Other,27ab7c07-84e6-478f-ad6b-4edd138b956f,2026-04-01,Lucas Lockwood,26.76,y,3,ocr,"Doubletree By Hilton — Lodging: MADE MARKET KIOSK BEVERAGE, FAILTE DINNER, FAILTE BFAST",live,200
+TN,Other,81d2bb3b-8e25-42bc-90c3-b6e7853daadc,2026-04-01,Isabel Babbie,53.48,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,91cf7f04-1645-4698-8114-8aa250565241,2026-04-01,Robert Wilhoit,66.62,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,5a3ca102-7b08-4888-bbf8-e8bc0df417d7,2026-04-01,Ash Ahmed,21.85,y,1,ocr,"Anthropic — Software Support Fees: Claude Pro Mar 31-Apr 30, 2026",live,200
+TN,Other,d6fc0095-bed6-415d-ae61-d5d35c29d8b8,2026-03-31,Lucas Lockwood,38.43,n,0,no_receipt,Doubletree By Hilton — Lodging,live,200
+TN,Other,b457be31-c49a-4c1f-985a-b762a1589359,2026-03-31,Kaitlyn Quinn-Crowe,62.60,y,3,ocr,USPS — Sales & Marketing - Other: USPS GRND ADVTG,live,200
+TN,Other,fabae957-d513-4351-a54d-a98715888871,2026-03-31,Frank Browne,56.52,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,44aa759c-0d12-43c5-a267-1a0b3eedb76e,2026-03-31,Mary Claire Barnes,28.00,y,2,ocr,"Doordash — Client Presentation: B9. California Roll, E2. Hibachi Chicken Lunch Special",live,200
+TN,Other,17a0ef9f-944d-46bc-ad3b-a4df59918e91,2026-03-31,Lucas Lockwood,139.83,y,0,receipt_no_ocr,Booking.com — Hotels,live,200
+TN,Other,6a9a0542-0d55-4ba5-8c20-349f5c79c679,2026-03-31,Lindsey Hardesty,83.20,y,1,ocr,Vevor — Shipping Packaging Material Inventory: VEVOR Automatic Tape Dispenser Adhesive Electric Tape Cutter Packaging Machine Tape Cutting Machine 6-60mm Tape Width,live,200
+TN,Other,d687cff0-276f-4c36-974a-f7ef34d90ebf,2026-03-31,Alan Mayrer,48.00,y,1,ocr,Sheetz — Fuel and Gas: FUEL,live,200
+TN,Other,5c6e8860-c378-44e9-a9e3-ccba3c213276,2026-03-30,Grant Powell,272.96,y,2,ocr,"Frontier — Airfare/Transportation: Airfare, Economy Bundle",live,200
+TN,Other,73f28628-dd06-4f83-9ae7-b2b749881e2d,2026-03-30,Rona Ivey,61.69,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,2d011b1e-182c-452b-8b23-d504e558da6e,2026-03-30,Mary Claire Barnes,72.08,y,1,ocr,Walgreens — Sales & Marketing - Other: DerMend Moisturizing Bruise Cream - 4.5 oz,live,200
+TN,Other,089cda64-a5d8-4e00-a01f-478f78973e0b,2026-03-30,Kaitlyn Quinn-Crowe,37.00,y,1,ocr,Costco — Gas: FUEL,live,200
+TN,Other,f6b7edce-75d2-462f-ae1e-3a88010718d1,2026-03-30,Robert Wilhoit,50.00,y,1,ocr,Shell — Gas: PREPAY CR #04,live,200
+TN,Other,30b01fbc-c150-4b90-8ee2-4a06a27c11a4,2026-03-30,Frank Browne,58.29,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,4429d39a-f199-4f7c-b753-795be40221ec,2026-03-29,Mary Claire Barnes,18.42,y,3,ocr,"Doordash — Client Presentation: Hash Browns, Hotcakes, Iced Caramel Coffee",live,200
+TN,Other,c8b7e5f1-71fa-4ee9-871e-e9a6b2e8741d,2026-03-27,Sydney Prestia,362.11,y,5,ocr,UPS — Sales & Marketing - Other: Ground Commercial,live,200
+TN,Other,0da224e7-a33f-4928-a1b7-8f7cbf6af710,2026-03-27,Sydney Prestia,15.10,y,1,ocr,UPS — Sales & Marketing - Other: Retail Shipping Supplies,live,200
+TN,Other,27ce96e1-9ce4-451c-b0e7-c3c11cc8525e,2026-03-27,Robert Wilhoit,61.63,y,1,ocr,Wawa — Gas: FUEL,live,200
+TN,Other,bd0b3e11-7ae3-46ca-94fe-96ba3441388e,2026-03-27,Mary Claire Barnes,21.15,y,3,ocr,"Doordash — Client Presentation: EXTRA SAUCE(2oz) - YUMYUM(WHITE SAUCE), FRIED RICE, K-STYLE POTATO CORN DOG(LIMITED DAILY AMOUNT) - MOZZARELLA",live,200
+TN,Other,0598c970-6cd4-4e2c-b2e8-8b461da86de7,2026-03-27,Rona Ivey,52.27,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,d7e6b472-4e87-45a9-8725-082ebda6250b,2026-03-27,Nicole  Fitzgerald,128.47,y,3,ocr,"Vistaprint — Office: Custom Thank You Cards, White Blank Envelopes, Envelope Seals",live,200
+TN,Other,f6005957-ef66-47c7-9e25-f0a8074659df,2026-03-27,Nicole  Fitzgerald,5.00,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE TIP,live,200
+TN,Other,9b758e65-17c5-43db-9d66-4765f07f8827,2026-03-27,Ash Ahmed,20.09,y,0,receipt_no_ocr,DHL Express — Shipping,live,200
+TN,Other,b927d8d6-8519-4e23-bd23-5536a62cbb6f,2026-03-26,Robert Wilhoit,37.94,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,510c9331-d97b-4578-9270-1d436818eb81,2026-03-26,Grant Powell,109.25,y,1,ocr,"Anthropic — Software Support Fees: Max plan - 5x Mar 26-Apr 26, 2026",live,200
+TN,Other,bcd8e2ef-7c45-4d84-9d4c-4d0b7f2a6e7b,2026-03-26,Nicole  Fitzgerald,42.94,y,1,ocr,Uber — Car Rental/Hired Car: Trip fare,live,200
+TN,Other,300cae20-1212-4088-b73e-fc0424f8d097,2026-03-26,Grant Powell,21.85,y,1,ocr,"Anthropic — Software Support Fees: Prepaid extra usage, Individual plan",live,200
+TN,Other,fdeaa4b1-4dee-4d72-88d7-41ff8786c020,2026-03-26,Robert Wilhoit,51.77,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,0df0e43a-5f88-4a00-b87f-5cd76005b66e,2026-03-26,Nicole  Fitzgerald,8.66,y,2,ocr,"Starbucks — Meals: GR BLONDE ROAST, CHEESE DANISH",live,200
+TN,Other,9ea2a12c-3ae0-4309-bb84-e133eb5a4b6d,2026-03-26,Frank Browne,53.64,y,1,ocr,Exxon — Gas: FUEL,live,200
+TN,Other,e357fd5b-b304-4d10-a335-90645b72609c,2026-03-25,Nicole  Fitzgerald,230.32,y,1,ocr,Marriott — Hotels: ROOM,live,200
+TN,Other,5a1e54ea-5ce6-489e-969b-ad11393fae0c,2026-03-25,Robert Wilhoit,173.14,y,1,ocr,Hilton Garden Inn — Lodging: GUEST ROOM,live,200
+TN,Other,4fc24afa-d276-411d-ab24-3e43c93e3002,2026-03-25,Nicole  Fitzgerald,14.70,y,4,ocr,"Tropical Smoothie Cafe — Meals: Smoothie Combo, Mango Monsoon, Thai Chicken Salad, Side Sun Chips",live,200
+TN,Other,14f3784c-93e5-439f-8196-fc7d4cd19d0e,2026-03-25,Kaitlyn Quinn-Crowe,20.00,y,1,ocr,Illinois Tollway — Parking/Tolls: IPASS AUTOREPLENISHMENT,live,200
+TN,Other,4c61cc40-ba37-4314-8749-02c35baa207b,2026-03-25,Kaitlyn Quinn-Crowe,24.53,y,1,ocr,Costco — Gas: FUEL,live,200
+TN,Other,68935e1d-1d2e-4a89-ab4b-02d4801fb198,2026-03-25,Nicole  Fitzgerald,8.35,y,2,ocr,"Starbucks — Meals: Turky Bcon Sandwc, Gr Sunsera Blend",live,200
+TN,Other,c14e307c-7ba5-4a5d-bab3-ee663c433ca2,2026-03-25,Isabel Babbie,67.36,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,faa37a5a-029b-4277-a919-eda40efa9be9,2026-03-25,Sydney Prestia,58.51,y,1,ocr,Chevron — Gas: FUEL,live,200
+TN,Other,28ac0903-a140-4977-a96a-28b8694e72fb,2026-03-25,Robert Wilhoit,23.84,y,4,ocr,Four Corners — Restaurants: FOOD,live,200
+TN,Other,801cfdfc-5fe9-4b22-b695-cbefb2af7b84,2026-03-25,Nicole  Fitzgerald,9.36,y,2,ocr,"Caliche's Frozen Custard — Restaurants: Coco Caramel Crunch, Calic",live,200
+TN,Other,1b2fa11a-c27a-4d99-8a22-2b223d16962a,2026-03-25,Nicole  Fitzgerald,8.79,y,2,ocr,"Albertsons — Supermarkets and Grocery Stores: SMART WATER ALKLNE, SKINNYPOP POPCORN",live,200
+TN,Other,c2641cde-af8b-48a1-8424-baa0476eaae2,2026-03-24,Nicole  Fitzgerald,174.85,y,1,ocr,SpringHill Suites — Hotels: ROOM CHARGE,live,200
+TN,Other,b243436a-591b-4929-b0e0-f3673e376448,2026-03-24,Nicole  Fitzgerald,25.00,y,3,ocr,"Cervantes Restaurant — Restaurants: Diet Coke, 2-MT ENCHILADAS, W/ CHKN",live,200
+TN,Other,4fc7508b-7133-472a-978f-71a1852b6d87,2026-03-24,Frank Browne,5.00,y,0,receipt_no_ocr,Lifespan — Parking,live,200
+TN,Other,99942666-7df2-47b1-8597-419f28d36a28,2026-03-24,Robert Wilhoit,51.64,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,e99d64ac-cb1f-4d90-a5ab-5b962bda9491,2026-03-24,Lucas Lockwood,9.99,y,1,ocr,Delta Air Lines — Airlines: MAIN CABIN PREFERRED SEAT,live,200
+TN,Other,427a364f-f517-44af-bc6a-03e501c64607,2026-03-24,Lucas Lockwood,716.41,y,1,ocr,Delta Air Lines — Airlines: Air Transportation Charges,live,200
+TN,Other,e9c0f455-6921-484f-b538-27e720ef4588,2026-03-24,Mary Claire Barnes,22.77,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,3a14a5d9-5fe7-4f7e-84fb-fa282fc6bd27,2026-03-24,Rona Ivey,38.68,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,1d7ce3ad-72a0-477c-a85f-29cd63e2c8f3,2026-03-24,Frank Browne,52.64,y,1,ocr,Quaker Xtrafuels — Fuel and Gas: REGULAR,live,200
+TN,Other,169900ae-400b-49f7-a3ae-5fca76a373a6,2026-03-24,Nicole  Fitzgerald,45.79,y,3,ocr,"Jambo Cafe — Restaurants: Mango Ginger Lemonade, CHICKEN CURRY, PLANTAINS",live,200
+TN,Other,e335083a-9c4a-4efb-9b2a-8a3623d859f9,2026-03-23,Nicole  Fitzgerald,145.45,y,1,ocr,Courtyard by Marriott — Hotels: ROOM CHARGE,live,200
+TN,Other,eb721357-cc89-43f4-894b-ea8e9e2b0e40,2026-03-23,Nicole  Fitzgerald,7.26,y,3,ocr,"Starbucks — Meals: Vt Mngo Drgnfruit, 2 Mango Drgnfrt Inc, Add Passion Tango",live,200
+TN,Other,db26cd82-e126-4c28-af4c-669502920d75,2026-03-23,Alan Mayrer,58.50,y,1,ocr,Circle K — Gas: FUEL,live,200
+TN,Other,813db0f0-a3d7-46cb-a0b4-d92191c59513,2026-03-23,Robert Wilhoit,27.76,y,1,ocr,Speedway — Fuel and Gas: FUEL,live,200
+TN,Other,80c93546-3274-4aa5-86b9-5bd883e2e4d4,2026-03-23,Nicole  Fitzgerald,3.17,y,1,ocr,Starbucks — Meals: Gr Sunsera Blend,live,200
+TN,Other,36b65ad5-df9e-48b0-90b9-c05d0d90c232,2026-03-23,Kaitlyn Quinn-Crowe,32.40,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,f515cde8-33b1-46a4-9ea8-6185127a9d6c,2026-03-23,Nicole  Fitzgerald,173.64,y,2,ocr,"Marriott — Hotels: SMERF RM, PARKING",live,200
+TN,Other,8a4a05d3-743c-48c6-a22e-276ce10fa1c5,2026-03-23,Nicole  Fitzgerald,504.02,y,1,ocr,Thrifty — Car Rental: Rental Rate (4 days),live,200
+TN,Other,37f23aa6-70be-4b78-a009-ead62c3f2b12,2026-03-22,Nicole  Fitzgerald,10.00,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,a0c7b8e7-d503-456b-a831-3065ebff4164,2026-03-22,Nicole  Fitzgerald,49.10,y,1,ocr,Uber — Car Rental/Hired Car: UBER RIDE,live,200
+TN,Other,57dc6202-6137-414a-ba73-b6b8512b5d7b,2026-03-21,Rona Ivey,52.74,y,1,ocr,Shell — Gas: FUEL,live,200
+TN,Other,97018479-335b-4e8d-b320-710ce1c0f4db,2026-03-20,Rona Ivey,3.39,y,1,ocr,maryland — Parking/Tolls: TOLLING SERVICES/INVOICED,live,200
+TN,Other,20bb189e-c2cb-4c1a-8a70-50e6a124820d,2026-03-20,Rona Ivey,3.39,y,1,ocr,maryland — Parking/Tolls: TOLLING SERVICES/INVOICED,live,200
+TN,Other,beaa2055-2818-467a-a6ec-b358d07c9ab3,2026-03-20,Rona Ivey,2.83,y,1,ocr,maryland — Parking/Tolls: TOLLING SERVICES/INVOICED,live,200
+TN,Other,860d3e4d-a5d1-49f3-818f-ebfe8ed2753e,2026-03-20,Kaitlyn Quinn-Crowe,42.85,y,1,ocr,BP — Gas: FUEL,live,200
+TN,Other,129846a5-9dfe-4ed0-b886-4ef5d983911a,2026-03-20,Grant Powell,19.13,y,2,ocr,Dollar General — General Merchandise: COKE 12/12C,live,200
+TN,Other,4cc5a871-b309-49ff-8420-e7c68bd3a4da,2026-03-20,Grant Powell,10.00,y,3,ocr,"ngrok — Software Support Fees: Backend HTTP Requests, Outgoing Traffic, Hobbyist Monthly License",live,200
+TN,Other,a0b6e8e8-316b-4543-96fb-fa5068248550,2026-03-19,Alan Mayrer,4.57,y,1,ocr,Tailwind — Meals: Dasani 20oz,live,200
+TN,Other,f08dc9a8-f92b-4eb9-afec-2d7031afa4d3,2026-03-18,Alan Mayrer,183.14,y,1,ocr,Home 2 Suites by Hilton — Lodging: GUEST ROOM,live,200
+TN,Other,e576b68b-7607-439e-9613-78c814e5f9e2,2026-03-17,Mary Claire Barnes,21.23,y,2,ocr,"Doordash — Client Presentation: Cobb Salad, DASANI Bottled Water",live,200
+TN,Other,6f0dcd2c-24b9-4346-aa3f-702d06f89ec4,2026-03-13,Mary Claire Barnes,21.08,y,0,receipt_no_ocr,Doordash — Client Presentation,live,200
+TN,Other,047a1e8c-3d8c-400e-891e-101df01b58ee,2026-03-10,Mary Claire Barnes,18.87,y,2,ocr,"Doordash — Client Presentation: Classic Donuts (Donuts & Bakery) · Chocolate Frosted with Sprinkles, Iced Latte (Iced Drinks) . Caramel · Brown Sugar · Whole Milk · Splenda® · Medium Regular",live,200
+TN,Other,3a9ba8fa-2ba5-4615-890a-7ef69a3f710b,2026-03-09,Grant Powell,25.00,n,0,no_receipt,Straight Talk Wireless — Internet and Phone,live,200
+TN,Other,c1d607b0-3eec-44e3-998f-06b550348d44,2026-01-28,Lindsey Hardesty,51.68,n,0,no_receipt,Doordash — Client Presentation,live,200
+TN,Other,fcd53efa-d8b5-44ad-b05c-c75bf53d6067,2026-01-26,Ash Ahmed,500.00,n,0,no_receipt,Maryland Board of Pharmacy — Government Services,live,200
+TN,Other,a18ffebf-79c7-446f-907f-9d2862c4a9bf,2026-01-12,Nicole  Fitzgerald,539.01,n,0,no_receipt,Aloft — Hotels,live,200
+TN,Other,5b3b6779-4b77-43db-9cb1-480004d40cf1,2026-01-06,Ash Ahmed,261.00,n,0,no_receipt,Maryland Board of Pharmacy — Government Services,live,200
+TN,Other,4a5f2b82-f50c-45f9-be24-026028e54e87,2025-12-03,Richard Poland,8.75,n,0,no_receipt,Fedex — Sales & Marketing - Other,live,200
+TX,Other,05757e11-845a-4187-bdd7-02f90682f1cc,2026-07-22,Oanh Nguyen,82.32,n,0,no_receipt,Chipotle — Meals,live,200
+TX,Other,ac159169-b345-4ac3-984a-6b718e88f35b,2026-07-21,Darik Carson,650.99,n,0,no_receipt,DropperBottles.com — Compound Packaging Inventory,live,200
+TX,Other,8e53f131-0327-4196-bafd-c8660aeaa37c,2026-07-19,Darik Carson,143.62,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,5345c80c-7966-4cc8-be71-8c01c6bb6de9,2026-07-18,Ash Ahmed,552.81,y,1,ocr,American Airlines — Airfare/Transportation: BASE FARE,live,200
+TX,Other,66672db2-c79d-42e8-b135-c1c5047ee23d,2026-07-18,Tiffany Mitchell,392.50,n,0,no_receipt,Hilton Hotels — Hotels,live,200
+TX,Other,4c699ef5-71e8-41d6-a6f1-f583b30ebb6d,2026-07-16,Darik Carson,1020.68,n,0,no_receipt,Cosmetic Packaging — Compound Packaging Inventory,live,200
+TX,Other,7ea49de4-91fb-44f3-b60f-3e4353140e0a,2026-07-15,Darik Carson,244.80,n,0,no_receipt,South Pointe Wholesale — Supermarkets and Grocery Stores,live,200
+TX,Other,11e6c6f2-1c70-476c-b295-a881545fcb8f,2026-07-10,Darik Carson,329.29,y,4,ocr,"Brunswick, GA — Supermarkets and Grocery Stores: HYDROCORTISONE (TOPICAL) 2.5% CREAM (HYTONE), DOXYCYCLINE HYCLATE 150MG TABLET (ACTICLATE), PIMECROLIMUS 1% CREAM (ELIDEL), TAVABOROLE 5% TOPICAL SOLUTION (KERYDIN)",live,200
+TX,Other,4be953bf-b7a2-4ab5-ac61-51192f649b5d,2026-07-10,Darik Carson,165.19,y,0,receipt_no_ocr,South Pointe Wholesale — Supermarkets and Grocery Stores,live,200
+TX,Other,52794609-e765-4e1e-8cc8-e17a1415c37a,2026-07-08,Darik Carson,1885.70,n,0,no_receipt,Cosmetic Packaging — Compound Packaging Inventory,live,200
+TX,Other,b975c375-e492-48c1-9541-66c81713af0d,2026-07-06,Darik Carson,1109.65,n,0,no_receipt,Cosmetic Packaging — Compound Packaging Inventory,live,200
+TX,Other,c6e43586-58d4-43c0-8cab-c313d93e5337,2026-07-04,Darik Carson,192.10,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,ea0bdb81-3e80-4d38-a1fa-431014d1ac91,2026-07-03,Darik Carson,234.85,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,1a65fb7b-aa41-427e-890e-860b05232ec2,2026-07-02,Darik Carson,309.60,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,54d4c7a6-ff53-469e-be14-20f78787e625,2026-06-24,Darik Carson,302.04,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,aadc7961-36f1-4d60-af8c-870025059edf,2026-06-24,Darik Carson,212.48,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,805a0452-2403-4e40-aa06-e5f303cac9ab,2026-06-24,Darik Carson,97.27,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,3cecedce-cb19-4eef-b555-ea6d7cd06133,2026-06-24,Darik Carson,197.74,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,da3f2cba-feed-4f11-877b-2c561d6483b0,2026-06-24,Darik Carson,236.93,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,f675a819-9e29-4a7e-845e-776d9badbd25,2026-06-24,Darik Carson,173.22,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,9e73254f-257b-4aee-ad29-9354d34fcd08,2026-06-24,Darik Carson,167.55,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,03485b27-6a31-4741-b3ee-658ff88eb33f,2026-06-24,Darik Carson,171.36,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,2bce5700-9b36-4e72-97c1-e63fea448d49,2026-06-24,Darik Carson,192.00,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,27d4f268-f891-4f39-b638-0088f35390e8,2026-06-24,Darik Carson,282.84,n,0,no_receipt,TopRx — Commercial Rx Inventory,live,200
+TX,Other,e0ec6d37-4096-4423-a891-e1529975cf73,2026-06-23,Nicole  Fitzgerald,93.98,n,0,no_receipt,Uber — Car Rental/Hired Car,live,200
+TX,Other,6db662ce-5e53-4307-9fe7-dffd9e9f7a57,2026-06-22,Darik Carson,327.22,n,0,no_receipt,DropperBottles.com — Compound Packaging Inventory,live,200
+TX,Other,aa49f817-1daf-474c-86a7-bdb3e0c3fb75,2026-06-21,Nicole  Fitzgerald,183.30,n,0,no_receipt,Marriott — Hotels,live,200
+TX,Other,f534bc2e-05bd-410f-bea4-20587f287666,2026-06-20,Nicole  Fitzgerald,95.40,y,5,ocr,"UPS — Sales & Marketing - Other: Ground Residential, Ground Commercial, Office Supplies, 06x06x48 Box",live,200
+TX,Other,dea4ee8c-097b-43a0-a8f3-9a9521c0566c,2026-06-16,Darik Carson,926.35,n,0,no_receipt,Hospital Pharmaceutical — General Merchandise,live,200
+TX,Other,d37f9e5c-ae9d-418f-9937-f12a615d2e91,2026-06-15,Darik Carson,975.00,y,0,receipt_no_ocr,Kalchem — Compound Ingredient Inventory,live,200
+TX,Other,1407724f-acc1-4276-a76f-592b89b1c958,2026-06-09,Darik Carson,558.44,n,0,no_receipt,ACE Rent A Car — Car Rental,live,200
+TX,Other,8fd03e06-1d91-4a24-a816-965679537214,2026-06-03,Darik Carson,327.69,n,0,no_receipt,DropperBottles.com — Compound Packaging Inventory,live,200
+TX,Other,0b327c44-3f58-4fd3-a5cf-5260a206173d,2026-05-22,Darik Carson,190.75,n,0,no_receipt,Drugzone — Supermarkets and Grocery Stores,live,200
+TX,Other,51e1727b-3c60-4408-8dfe-e5170aa5d232,2026-05-20,Darik Carson,674.93,y,0,receipt_no_ocr,Axia Medical Solutions — General Merchandise,live,200
+TX,Other,070b59fa-00eb-4d2b-aa80-96141683b35a,2026-05-18,Darik Carson,288.63,n,0,no_receipt,Cosmetic Packaging — Compound Packaging Inventory,live,200
+TX,Other,616107ab-d0cd-4a2c-90a6-c880a99f6cfc,2026-05-15,Darik Carson,1392.00,n,0,no_receipt,SpecializedRx — General Merchandise,live,200
+TX,Other,05b2c279-f2b3-4ec0-9171-a89bf076fcb9,2026-05-14,Darik Carson,234.41,n,0,no_receipt,Scales Plus — General Merchandise,live,200
+TX,Other,7fee4bc5-3ed7-4f63-956f-5911cda96617,2026-05-11,Darik Carson,271.95,n,0,no_receipt,The Vial Store — General Merchandise,live,200
+TX,Other,2a72b26d-baec-4833-a521-bc81d34b961a,2026-05-07,Darik Carson,158.02,n,0,no_receipt,Grainger Industrial Supply — General Merchandise,live,200
+TX,Other,491b206f-192a-4fe3-b8dc-9d201fa59f4e,2026-05-07,Ash Ahmed,470.87,n,0,no_receipt,Best Buy — Sales & Marketing - Other,live,200
+TX,Other,b0de6176-acae-47dd-a1e5-c99d559491d0,2026-05-05,Ash Ahmed,590.00,n,0,no_receipt,SpecializedRx — General Merchandise,live,200
+TX,Other,ba3e6aba-5402-4938-8f9a-be4bee19b4b8,2026-05-05,Ash Ahmed,450.93,n,0,no_receipt,Choice Hotels — Lodging,live,200
+TX,Other,1b48c980-4717-4240-991a-c65d781216ef,2026-05-03,Ash Ahmed,100.30,n,0,no_receipt,Hotwire — Hotels,live,200
