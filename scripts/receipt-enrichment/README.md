@@ -98,7 +98,17 @@ gone wrong.
 
 ## Verifying a change
 
+Run from `scripts/receipt-enrichment/` itself — the program has its own toolchain, no parent
+config:
+
 ```
-npx tsc -p tsconfig.scripts.json --noEmit     # typechecks the whole program
-npx vitest run scripts/receipt-enrichment     # 61 files, 555 tests
+npx tsc --noEmit      # typechecks the whole program, no parent config
+npx vitest run        # 63 files, 568 tests
 ```
+
+As of this writing, `npx vitest run` reports 63 files / 566 passed / 2 failed, not a clean 568.
+The 2 failures — `engines/receipt-capture/sweep-exec.test.ts` and `ui/server.test.ts` — are
+expected: `paths.ts` still resolves cache and fixture paths relative to `web/` as the invoking
+cwd, so both break when run from the program folder instead. They pass when the same commands are
+run with `web/` as cwd. This is a known gap, not a flake — it closes when `paths.ts` becomes
+cwd-independent.
