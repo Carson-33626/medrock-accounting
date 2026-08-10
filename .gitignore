@@ -77,3 +77,6 @@ scripts/out/*.csv
 
 # Receipt-enrichment program env — Ramp secrets, Supabase service role key, RDS URL.
 scripts/receipt-enrichment/.env
+
+# Receipt-enrichment program's own node_modules (Task 5: standalone toolchain).
+scripts/receipt-enrichment/node_modules/

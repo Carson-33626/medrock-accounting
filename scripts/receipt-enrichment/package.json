@@ -1,0 +1,28 @@
+{
+  "name": "receipt-enrichment",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vendor invoice capture, GL coding and Ramp/QuickBooks enrichment. Standalone.",
+  "scripts": {
+    "panel": "tsx ui/serve.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "dotenv": "^16.6.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.4",
+    "pg": "^8.21.0",
+    "playwright": "^1.61.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^20",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5",
+    "vitest": "^2.1.9"
+  }
+}
