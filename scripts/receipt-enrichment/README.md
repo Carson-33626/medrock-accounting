@@ -103,5 +103,5 @@ config:
 
 ```
 npx tsc --noEmit      # typechecks the whole program, no parent config
-npx vitest run        # 63 files, 569 tests
+npx vitest run        # 63 files, 572 tests, 0 skipped
 ```

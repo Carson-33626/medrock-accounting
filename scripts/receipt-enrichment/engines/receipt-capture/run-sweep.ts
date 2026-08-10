@@ -110,7 +110,7 @@ async function main(): Promise<void> {
   // Name the CURRENT extractor (run-extract-txns.ts) and the invoice fetch. This string is the one piece of
   // operator guidance read every week; when it named the retired run-extract.ts, the caches it produced were
   // not the ones the attach pairs from, and confident pairs went unattached for two sweeps.
-  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run /engines/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then /engines/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
+  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run engines/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then engines/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
   console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] letco[${letco.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
 
   // ---- S1 scan ----

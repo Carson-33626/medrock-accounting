@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { parseInvoiceLines, parseInvoiceTotals } from './medisca-invoice';
 
-const FIXTURES = 'engines/receipt-capture/fixtures';
+// FIXTURES feeds existsSync() in THIS test process, which inherits whatever cwd vitest was
+// invoked from -- unlike runChild's argv, which always forces cwd: PROGRAM_ROOT. A bare
+// program-relative string here is only correct from one of the two cwds the program must run
+// from; derived from this file's own location it is correct from both.
+const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const GLOVES_PDF = `${FIXTURES}/medisca-invoice-04245590.pdf`;  // 3x $120 less a $10 shipping credit
 const BIMA_PDF = `${FIXTURES}/medisca-invoice-04245588.pdf`;    // single $3,450 line, no credit
 

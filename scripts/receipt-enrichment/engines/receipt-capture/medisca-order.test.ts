@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseOrderLines, skuByAmount } from './medisca-order';
 
-const FIXTURES = 'engines/receipt-capture/fixtures';
+// FIXTURES feeds existsSync() in THIS test process, which inherits whatever cwd vitest was
+// invoked from -- unlike runChild's argv, which always forces cwd: PROGRAM_ROOT. A bare
+// program-relative string here is only correct from one of the two cwds the program must run
+// from; derived from this file's own location it is correct from both.
+const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const GLOVES = `${FIXTURES}/medisca-order-04557192.html`;   // 3 glove lines, invoice 04245590
 const BIMA = `${FIXTURES}/medisca-order-04461596.html`;     // 2 tables, back order, invoice 04245588
 const BIG = `${FIXTURES}/medisca-order-04518277.html`;      // 7 lines, invoice 04245589
