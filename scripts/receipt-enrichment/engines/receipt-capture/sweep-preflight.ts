@@ -34,12 +34,12 @@ export function checkUline(stateDir: string): VendorAvailability {
   const needsYou: string[] = [];
   if (!hasFL) {
     needsYou.push(
-      'ULINE FL: run  npx tsx scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts --entity=FL  (headed human login) ' +
+      'ULINE FL: run  npx tsx engines/receipt-capture/uline-bootstrap.ts --entity=FL  (headed human login) ' +
       '— TN rides FL\'s session (joint account, shared roster), no separate TN bootstrap needed',
     );
   }
   if (!hasTX) {
-    needsYou.push('ULINE TX: run  npx tsx scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts --entity=TX  (headed human login)');
+    needsYou.push('ULINE TX: run  npx tsx engines/receipt-capture/uline-bootstrap.ts --entity=TX  (headed human login)');
   }
   return {
     vendor: 'uline',

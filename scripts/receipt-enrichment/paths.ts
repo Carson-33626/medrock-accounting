@@ -1,23 +1,21 @@
-// scripts/receipt-enrichment/paths.ts
+// receipt-enrichment/paths.ts
 //
-// Single source of truth for every cache location in the receipt-enrichment program.
+// Single source of truth for every cache location in the program.
 //
-// Before the 2026-08-07 consolidation these were ~40 string literals spread across five modules
-// (`const OUT = 'scripts/receipt-capture/out'`, `SHARED_PDF_DIR`, `SESSION_DIR`, `STATE_DIR`, …),
-// which is precisely why relocating the cache was expensive. Everything now derives from
-// CACHE_ROOT, so moving the cache again is a one-line change.
-//
-// Paths are strings RELATIVE TO `web/`, matching the existing convention — every runner is
-// invoked from `web/` (`npx tsx scripts/receipt-enrichment/…`) and already assumes that cwd.
-// Changing to absolute paths would be a second, unrelated migration.
+// Paths are ABSOLUTE, derived from this module's own location. They were relative to `web/` until
+// 2026-08-10, which is what tied the program to that cwd — a runner invoked from anywhere else
+// silently created a second, empty cache instead of failing. Deriving from __dirname makes the
+// program's location the only thing that matters, which is what lets the folder move.
 //
 // This module performs NO filesystem access, so importing a path never triggers a side effect and
 // it is trivially testable.
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Entity } from './engines/ramp-split-push/types';
 
-export const PROGRAM_ROOT = 'scripts/receipt-enrichment';
-export const ENGINES_ROOT = `${PROGRAM_ROOT}/engines`;
-export const CACHE_ROOT = `${PROGRAM_ROOT}/cache`;
+export const PROGRAM_ROOT = dirname(fileURLToPath(import.meta.url));
+export const ENGINES_ROOT = resolve(PROGRAM_ROOT, 'engines');
+export const CACHE_ROOT = resolve(PROGRAM_ROOT, 'cache');
 
 /**
  * receipt-capture: TopRx / ULINE / Letco / Medisca extraction caches, fetched invoice PDFs, the
@@ -27,18 +25,18 @@ export const CACHE_ROOT = `${PROGRAM_ROOT}/cache`;
  * copy out of the repo. See the program README.
  */
 export const RC = {
-  out: `${CACHE_ROOT}/receipt-capture/out`,
-  state: `${CACHE_ROOT}/receipt-capture/.state`,
-  probeShots: `${CACHE_ROOT}/receipt-capture/.probe-shots`,
-  pdf: `${CACHE_ROOT}/receipt-capture/out/pdf`,
-  sweep: `${CACHE_ROOT}/receipt-capture/out/sweep`,
-  audit: `${CACHE_ROOT}/receipt-capture/out/receipt-capture-audit.csv`,
+  out: resolve(CACHE_ROOT, 'receipt-capture/out'),
+  state: resolve(CACHE_ROOT, 'receipt-capture/.state'),
+  probeShots: resolve(CACHE_ROOT, 'receipt-capture/.probe-shots'),
+  pdf: resolve(CACHE_ROOT, 'receipt-capture/out/pdf'),
+  sweep: resolve(CACHE_ROOT, 'receipt-capture/out/sweep'),
+  audit: resolve(CACHE_ROOT, 'receipt-capture/out/receipt-capture-audit.csv'),
 } as const;
 
 /** amazon-enrich (Engine A). Its `.receipts_cache` is shared — run-amazon.ts reads it too. */
 export const AMZ = {
-  out: `${CACHE_ROOT}/amazon-enrich/out`,
-  receipts: `${CACHE_ROOT}/amazon-enrich/.receipts_cache`,
+  out: resolve(CACHE_ROOT, 'amazon-enrich/out'),
+  receipts: resolve(CACHE_ROOT, 'amazon-enrich/.receipts_cache'),
 } as const;
 
 /**
@@ -48,39 +46,39 @@ export const AMZ = {
  * all three Business accounts.
  */
 export const ACSV = {
-  out: `${CACHE_ROOT}/amazon-csv/out`,
-  receipts: `${CACHE_ROOT}/amazon-csv/.receipts_cache`,
-  sharedPdf: `${CACHE_ROOT}/amazon-csv/.receipts_cache/_shared`,
+  out: resolve(CACHE_ROOT, 'amazon-csv/out'),
+  receipts: resolve(CACHE_ROOT, 'amazon-csv/.receipts_cache'),
+  sharedPdf: resolve(CACHE_ROOT, 'amazon-csv/.receipts_cache/_shared'),
 } as const;
 
 /** walmart-enrich, covering both Walmart and Sam's Club (one sign-in serves both sites). */
 export const WM = {
-  out: `${CACHE_ROOT}/walmart/out`,
-  receipts: `${CACHE_ROOT}/walmart/.receipts_cache`,
-  session: `${CACHE_ROOT}/walmart/.wm-session`,
+  out: resolve(CACHE_ROOT, 'walmart/out'),
+  receipts: resolve(CACHE_ROOT, 'walmart/.receipts_cache'),
+  session: resolve(CACHE_ROOT, 'walmart/.wm-session'),
 } as const;
 
 /** ramp-split-push preview output — contains cardholder PII. */
 export const RSP = {
-  out: `${CACHE_ROOT}/ramp-split-push/out`,
+  out: resolve(CACHE_ROOT, 'ramp-split-push/out'),
 } as const;
 
 /** Playwright storageState for a receipt-capture vendor session. */
 export function sessionPath(vendor: 'toprx' | 'uline', entity: Entity): string {
-  return `${RC.state}/${vendor}-${entity}.json`;
+  return resolve(RC.state, `${vendor}-${entity}.json`);
 }
 
 /** Fetched vendor invoice PDF, named `<vendor>-<entity>-<key>.pdf`. */
 export function invoicePdfPath(vendor: string, entity: Entity, key: string): string {
-  return `${RC.pdf}/${vendor}-${entity}-${key}.pdf`;
+  return resolve(RC.pdf, `${vendor}-${entity}-${key}.pdf`);
 }
 
 /** Per-account Amazon Business Transactions report. */
 export function txnReportPath(account: string): string {
-  return `${ACSV.out}/${account}/transactions.csv`;
+  return resolve(ACSV.out, account, 'transactions.csv');
 }
 
 /** Cached Amazon invoice PDF, keyed by order id (shared across accounts). */
 export function sharedPdfPath(orderId: string): string {
-  return `${ACSV.sharedPdf}/amazon-${orderId}.pdf`;
+  return resolve(ACSV.sharedPdf, `amazon-${orderId}.pdf`);
 }

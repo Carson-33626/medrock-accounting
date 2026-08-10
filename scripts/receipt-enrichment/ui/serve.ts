@@ -1,13 +1,12 @@
-// scripts/receipt-enrichment/ui/serve.ts
+// receipt-enrichment/ui/serve.ts
 //
 // Entrypoint for the Sweep Control Panel. Normally launched by double-clicking
-// `Receipt Capture.cmd` in the program root; equivalently, from web/:
-//   npx tsx scripts/receipt-enrichment/ui/serve.ts
+// `Receipt Capture.cmd` in the program root; equivalently, from the program folder:
+//   npm run panel
+//   (or: npx tsx ui/serve.ts)
 //
 // Starts the loopback server (127.0.0.1:4599), opens a standalone Chrome app window, and stays
-// alive until Ctrl+C (or until the launcher's console window is closed). Loads web/.env.local
-// first, same as every other runner in this program, so the status panel's credential checks
-// (checkTopRx et al) see real env vars.
+// alive until Ctrl+C (or until the launcher's console window is closed).
 import '../engines/ramp-split-push/load-env';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';

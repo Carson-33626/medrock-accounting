@@ -4,7 +4,7 @@ import {
   parseInvoiceList, parseMoneyCents, parseCellDate, isLastPage, invoiceListPath,
 } from './medisca-invoices';
 
-const FIXTURES = 'scripts/receipt-enrichment/engines/receipt-capture/fixtures';
+const FIXTURES = 'engines/receipt-capture/fixtures';
 const FULL = `${FIXTURES}/medisca-unpaid-list-FL.html`;
 const DEFAULT_PAGE = `${FIXTURES}/medisca-unpaid-list-FL-default.html`;
 

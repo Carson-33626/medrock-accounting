@@ -3,6 +3,7 @@
 // crash never stops the sweep. Captures the tail + the runners' summary-line convention.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { PROGRAM_ROOT } from '../../paths';
 
 export interface ChildResult {
   label: string;
@@ -50,7 +51,7 @@ export function runChild(
     }
 
     const spawnArgs = opts.nodeDirect ? args : [tsxPath as string, ...args];
-    const child = spawn(process.execPath, spawnArgs, { cwd: opts.cwd });
+    const child = spawn(process.execPath, spawnArgs, { cwd: opts.cwd ?? PROGRAM_ROOT });
     let buf = '';
     const handleChunk = (d: Buffer): void => {
       const chunk = d.toString();

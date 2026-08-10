@@ -25,8 +25,8 @@ async function verify(page: Page): Promise<void> {
 
   if (roster.length > 0) {
     const pdf = await fetchUlineInvoicePdf(page, roster[0]);
-    mkdirSync('scripts/receipt-enrichment/engines/receipt-capture/fixtures', { recursive: true });
-    writeFileSync('scripts/receipt-enrichment/engines/receipt-capture/fixtures/uline-invoice-sample.pdf', pdf);
+    mkdirSync('engines/receipt-capture/fixtures', { recursive: true });
+    writeFileSync('engines/receipt-capture/fixtures/uline-invoice-sample.pdf', pdf);
     console.log(`sample PDF: ${pdf.length} bytes -> fixtures/uline-invoice-sample.pdf`);
     console.log(`%PDF magic bytes: ${pdf.subarray(0, 4).toString('latin1') === '%PDF'}`);
   }

@@ -76,7 +76,7 @@ const REGISTRY: Record<string, ActionDef> = {
     safe(`Bootstrap session — ${e}`, {
       kind: 'child',
       label: `ULINE bootstrap ${e}`,
-      argv: ['scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts', `--entity=${e}`],
+      argv: ['engines/receipt-capture/uline-bootstrap.ts', `--entity=${e}`],
     })),
 
   'chrome-walmart': safe("Launch Chrome (Walmart / Sam's)", { kind: 'chrome', exe: CHROME_EXE, args: cdpArgs('C:\\wm-chrome-profile') }),
@@ -89,20 +89,20 @@ const REGISTRY: Record<string, ActionDef> = {
     safe(`Extract transactions — ${e}`, {
       kind: 'child',
       label: `Amazon-CSV extract ${e}`,
-      argv: ['scripts/receipt-enrichment/engines/amazon-csv-enrich/run-extract-txns.ts', '--account', e],
+      argv: ['engines/amazon-csv-enrich/run-extract-txns.ts', '--account', e],
     })),
 
   'fetch-invoices': safe('Fetch invoice PDFs', {
     kind: 'child',
     label: 'Amazon-CSV fetch invoices',
-    argv: ['scripts/receipt-enrichment/engines/amazon-csv-enrich/fetch-invoices.ts'],
+    argv: ['engines/amazon-csv-enrich/fetch-invoices.ts'],
   }),
 
   // run-attach.ts is dry unless --live is passed (README) — omitting it entirely is the dry mode.
   'attach-amazon-csv-dry': safe('Attach receipts (dry run)', {
     kind: 'child',
     label: 'Amazon-CSV attach (dry)',
-    argv: ['scripts/receipt-enrichment/engines/amazon-csv-enrich/run-attach.ts'],
+    argv: ['engines/amazon-csv-enrich/run-attach.ts'],
   }),
 
   // Letco = the "invoice -> draft bill" job category: no Ramp card txns, no browser, no bootstrap.
@@ -111,14 +111,14 @@ const REGISTRY: Record<string, ActionDef> = {
   'letco-enrich-dry': safe('Enrich bills (dry run)', {
     kind: 'child',
     label: 'Letco enrich (dry-run, all entities)',
-    argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-letco.ts', '--entity=FL', '--mode=enrich'],
+    argv: ['engines/receipt-capture/run-letco.ts', '--entity=FL', '--mode=enrich'],
   }),
   // Writes GL coding onto bills a human owns — same arming rule as the sweep.
   ...perEntity('letco-enrich', (e) =>
     live(`letco-enrich-${e}`, `Enrich bills — ${e}`, {
       kind: 'child',
       label: `Letco enrich ${e} (LIVE)`,
-      argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--live', '--limit', '50'],
+      argv: ['engines/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--live', '--limit', '50'],
     })),
 
   // Medisca refresh is READ-ONLY (portal -> local cache, no Ramp/QB writes), so unlike every other
@@ -128,35 +128,35 @@ const REGISTRY: Record<string, ActionDef> = {
     safe(`Refresh cache — ${e}`, {
       kind: 'child',
       label: `Medisca refresh ${e} (read-only)`,
-      argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=refresh'],
+      argv: ['engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=refresh'],
     })),
   'medisca-enrich-dry': safe('Enrich bills (dry run)', {
     kind: 'child',
     label: 'Medisca enrich (dry-run)',
-    argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts', '--entity=FL', '--mode=enrich'],
+    argv: ['engines/receipt-capture/run-medisca.ts', '--entity=FL', '--mode=enrich'],
   }),
   'medisca-create-dry': safe('Create bills (dry run)', {
     kind: 'child',
     label: 'Medisca create (dry-run)',
-    argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts', '--entity=FL', '--mode=create'],
+    argv: ['engines/receipt-capture/run-medisca.ts', '--entity=FL', '--mode=create'],
   }),
   ...perEntity('medisca-enrich', (e) =>
     live(`medisca-enrich-${e}`, `Enrich bills — ${e}`, {
       kind: 'child',
       label: `Medisca enrich ${e} (LIVE)`,
-      argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=enrich', '--live', '--limit', '50'],
+      argv: ['engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=enrich', '--live', '--limit', '50'],
     })),
   ...perEntity('medisca-create', (e) =>
     live(`medisca-create-${e}`, `Create bills — ${e}`, {
       kind: 'child',
       label: `Medisca create ${e} (LIVE)`,
-      argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=create', '--live', '--limit', '10'],
+      argv: ['engines/receipt-capture/run-medisca.ts', `--entity=${e}`, '--mode=create', '--live', '--limit', '10'],
     })),
 
   'sweep-dry': safe('Dry run', {
     kind: 'child',
     label: 'Sweep (dry-run)',
-    argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-sweep.ts', '--dry-run'],
+    argv: ['engines/receipt-capture/run-sweep.ts', '--dry-run'],
   }),
   // run-sweep.ts is LIVE BY DEFAULT (README) — the panel's own arming gate is the only thing
   // standing between a stray click and an uncapped live run, so it's enforced here, not just in
@@ -165,7 +165,7 @@ const REGISTRY: Record<string, ActionDef> = {
   'sweep-live': live('sweep-live', 'Run LIVE sweep', {
     kind: 'child',
     label: 'Sweep (LIVE)',
-    argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-sweep.ts'],
+    argv: ['engines/receipt-capture/run-sweep.ts'],
   }),
 
   // Read-only refresh of open-receiptless counts, per DS §3 — no child process, no files written.

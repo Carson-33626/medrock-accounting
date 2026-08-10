@@ -25,7 +25,7 @@ interface DraftDetail { line_items?: DraftLine[]; invoice_urls?: string[] }
 async function main(): Promise<void> {
   const [entityArg] = process.argv.slice(2);
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) {
-    throw new Error('Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/_probe-ramp-drafts.ts <FL|TN|TX>');
+    throw new Error('Usage: npx tsx engines/receipt-capture/_probe-ramp-drafts.ts <FL|TN|TX>');
   }
   const entity = entityArg as Entity;
   const token = await rampToken(entity, 'bills:read');

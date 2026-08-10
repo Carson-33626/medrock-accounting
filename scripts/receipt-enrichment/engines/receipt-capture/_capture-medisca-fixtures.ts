@@ -5,7 +5,7 @@ import '../ramp-split-push/load-env';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { MediscaSession } from './medisca-session';
 
-const DIR = 'scripts/receipt-enrichment/engines/receipt-capture/fixtures';
+const DIR = 'engines/receipt-capture/fixtures';
 
 async function main(): Promise<void> {
   mkdirSync(DIR, { recursive: true });

@@ -7,10 +7,15 @@
 // path to an exact filename, the same closed-registry discipline actions.ts uses for argv. An
 // unknown name is a miss, not a filesystem lookup.
 //
-// __dirname is the right tool HERE (unlike the session paths in engines/receipt-capture, which had
-// to move to paths.ts): these files genuinely live next to this module and travel with it.
+// This module's own directory is the right base HERE (unlike the session paths in
+// engines/receipt-capture, which had to move to paths.ts): these files genuinely live next to this
+// module and travel with it. The package is ESM (`"type": "module"`), where the bare `__dirname`
+// global does not exist, so it's derived from `import.meta.url` instead — same fix as paths.ts.
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 export interface Asset {
   body: string;
@@ -34,7 +39,7 @@ export type AssetReader = (requestPath: string) => Asset | null;
  * than caching: this is a loopback panel for one operator, and picking up an edit to app.js on
  * refresh — with no server restart — is worth more here than avoiding a small file read.
  */
-export function makeAssetReader(dir: string = __dirname): AssetReader {
+export function makeAssetReader(dir: string = HERE): AssetReader {
   return (requestPath) => {
     const entry = ASSETS[requestPath];
     if (!entry) return null;
@@ -46,7 +51,7 @@ export function makeAssetReader(dir: string = __dirname): AssetReader {
 }
 
 /** The panel page itself, served at GET /. Throws if missing — the panel is unusable without it. */
-export function readIndexHtml(dir: string = __dirname): string {
+export function readIndexHtml(dir: string = HERE): string {
   const full = join(dir, INDEX_FILE);
   if (!existsSync(full)) {
     throw new Error(`Sweep Control Panel page not found at ${full} — the ui/ folder is incomplete.`);

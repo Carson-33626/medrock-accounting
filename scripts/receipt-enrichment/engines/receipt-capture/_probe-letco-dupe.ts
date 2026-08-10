@@ -54,7 +54,7 @@ async function fetchAllRampBills(entity: Entity, token: string): Promise<{ bills
 async function main(): Promise<void> {
   const [entityArg, invoiceArg] = process.argv.slice(2);
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) {
-    throw new Error('Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/_probe-letco-dupe.ts <FL|TN|TX> [invoiceNumber]');
+    throw new Error('Usage: npx tsx engines/receipt-capture/_probe-letco-dupe.ts <FL|TN|TX> [invoiceNumber]');
   }
   const entity = entityArg as Entity;
   const invoice = invoiceArg ?? 'C335-176896';

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { assembleStatus } from './status';
 import type { StatusDeps, FileInfo, PanelStatus, SweepStateFile } from './status';
-import { ACSV, RC, WM } from '../paths';
+import { ACSV, RC, WM, txnReportPath } from '../paths';
 import { ACTION_NAMES } from './actions';
 
 const NOW = Date.parse('2026-07-29T12:00:00Z');
@@ -180,24 +180,24 @@ describe('assembleStatus — never touches real fs/network (fully-faked deps)', 
       expect(cardByKey(status, 'amazon-csv').light).toBe('red');
     });
     it('amber when only some accounts are cached', async () => {
-      const statePath = fileMap({ [`${ACSV.out}/FL/transactions.csv`]: { exists: true, mtimeMs: daysAgo(1) } });
+      const statePath = fileMap({ [txnReportPath('FL')]: { exists: true, mtimeMs: daysAgo(1) } });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('amber');
     });
     it('green when all three accounts are cached and fresh', async () => {
       const statePath = fileMap({
-        [`${ACSV.out}/FL/transactions.csv`]: { exists: true, mtimeMs: daysAgo(1) },
-        [`${ACSV.out}/TN/transactions.csv`]: { exists: true, mtimeMs: daysAgo(2) },
-        [`${ACSV.out}/TX/transactions.csv`]: { exists: true, mtimeMs: daysAgo(3) },
+        [txnReportPath('FL')]: { exists: true, mtimeMs: daysAgo(1) },
+        [txnReportPath('TN')]: { exists: true, mtimeMs: daysAgo(2) },
+        [txnReportPath('TX')]: { exists: true, mtimeMs: daysAgo(3) },
       });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('green');
     });
     it('amber when all three accounts are cached but the oldest is stale (>= 14 days)', async () => {
       const statePath = fileMap({
-        [`${ACSV.out}/FL/transactions.csv`]: { exists: true, mtimeMs: daysAgo(1) },
-        [`${ACSV.out}/TN/transactions.csv`]: { exists: true, mtimeMs: daysAgo(20) },
-        [`${ACSV.out}/TX/transactions.csv`]: { exists: true, mtimeMs: daysAgo(3) },
+        [txnReportPath('FL')]: { exists: true, mtimeMs: daysAgo(1) },
+        [txnReportPath('TN')]: { exists: true, mtimeMs: daysAgo(20) },
+        [txnReportPath('TX')]: { exists: true, mtimeMs: daysAgo(3) },
       });
       const status = await assembleStatus(baseDeps({ statePath }));
       expect(cardByKey(status, 'amazon-csv').light).toBe('amber');

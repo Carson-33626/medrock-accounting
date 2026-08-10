@@ -41,7 +41,7 @@ function money(a: number | undefined): string {
 async function main(): Promise<void> {
   const [entityArg, billId] = process.argv.slice(2);
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity) || !billId) {
-    throw new Error('Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/_probe-bill-fetch.ts <FL|TN|TX> <billId>');
+    throw new Error('Usage: npx tsx engines/receipt-capture/_probe-bill-fetch.ts <FL|TN|TX> <billId>');
   }
   const entity = entityArg as Entity;
   const token = await rampToken(entity, 'bills:read');

@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { parseInvoiceLines, parseInvoiceTotals } from './medisca-invoice';
 
-const FIXTURES = 'scripts/receipt-enrichment/engines/receipt-capture/fixtures';
+const FIXTURES = 'engines/receipt-capture/fixtures';
 const GLOVES_PDF = `${FIXTURES}/medisca-invoice-04245590.pdf`;  // 3x $120 less a $10 shipping credit
 const BIMA_PDF = `${FIXTURES}/medisca-invoice-04245588.pdf`;    // single $3,450 line, no credit
 

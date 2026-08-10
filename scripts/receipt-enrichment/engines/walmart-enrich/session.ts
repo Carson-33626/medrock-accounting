@@ -14,7 +14,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 export function sessionExists(): boolean { return existsSync(STATE_PATH); }
 
 export async function withWalmartContext<T>(fn: (page: Page) => Promise<T>): Promise<T> {
-  if (!sessionExists()) throw new Error(`No Walmart session at ${STATE_PATH}. Run: npx tsx scripts/receipt-enrichment/engines/walmart-enrich/bootstrap-login.ts`);
+  if (!sessionExists()) throw new Error(`No Walmart session at ${STATE_PATH}. Run: npx tsx engines/walmart-enrich/bootstrap-login.ts`);
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ storageState: STATE_PATH, userAgent: UA, viewport: { width: 1366, height: 900 } });

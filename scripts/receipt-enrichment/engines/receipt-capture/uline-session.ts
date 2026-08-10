@@ -39,7 +39,7 @@ export async function withUlineContext<T>(
   const statePath = ulineStatePath(entity);
   if (!ulineSessionExists(entity)) {
     throw new Error(
-      `No ULINE session for ${entity} at ${statePath}. Run: npx tsx scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts --entity=${entity}`,
+      `No ULINE session for ${entity} at ${statePath}. Run: npx tsx engines/receipt-capture/uline-bootstrap.ts --entity=${entity}`,
     );
   }
   const headless = opts.headless ?? true;
@@ -51,7 +51,7 @@ export async function withUlineContext<T>(
       await page.goto(ORDER_HISTORY_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       if (/signin/i.test(page.url())) {
         throw new Error(
-          `ULINE_SIGNIN_REQUIRED: session expired — re-run npx tsx scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts --entity=${entity}`,
+          `ULINE_SIGNIN_REQUIRED: session expired — re-run npx tsx engines/receipt-capture/uline-bootstrap.ts --entity=${entity}`,
         );
       }
       return await fn(page);

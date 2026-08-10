@@ -16,7 +16,7 @@ const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes to complete the login by hand
 function entityArg(): Entity {
   const raw = process.argv.find((a) => a.startsWith('--entity='))?.split('=')[1];
   if (raw === 'FL' || raw === 'TN' || raw === 'TX') return raw;
-  throw new Error('Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts --entity=FL|TN|TX');
+  throw new Error('Usage: npx tsx engines/receipt-capture/uline-bootstrap.ts --entity=FL|TN|TX');
 }
 
 async function main(): Promise<void> {

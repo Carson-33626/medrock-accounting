@@ -118,7 +118,7 @@ function parseArgs(): Args {
   const entityArg = get('--entity');
   if (!entityArg) {
     throw new Error(
-      'Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/run-uline.ts --entity=FL|TN|TX|FL,TN [--since 2025-09-01] [--live] [--limit 5] [--csv path] [--window 3]',
+      'Usage: npx tsx engines/receipt-capture/run-uline.ts --entity=FL|TN|TX|FL,TN [--since 2025-09-01] [--live] [--limit 5] [--csv path] [--window 3]',
     );
   }
   const entities = parseEntities(entityArg);

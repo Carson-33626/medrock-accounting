@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseTxnReport, loadTxnReportCharges, type TxnReportDeps } from './txn-report';
-import { ACSV } from '../../paths';
+import { txnReportPath } from '../../paths';
 
 const HEADER = 'Transaction Date,Payment Reference ID,Transaction Type,Currency,Payment Amount,Account Group,Payment Instrument Type,Payment Identifier,Account User,Order Date,Order ID,PO Number,Order Status,Approver,GL Code,Department,Cost Center,Project Code,Location,Custom Field 1';
 function row(over: Partial<Record<string, string>> = {}): string {
@@ -73,8 +73,8 @@ describe('parseTxnReport', () => {
 describe('loadTxnReportCharges', () => {
   it('pools accounts and records which account each order id is visible under', () => {
     const r = loadTxnReportCharges(['FL', 'TN'], deps({
-      [`${ACSV.out}/FL/transactions.csv`]: report(row({ ref: 'F1', orderId: 'O-FL' })),
-      [`${ACSV.out}/TN/transactions.csv`]: report(row({ ref: 'T1', orderId: 'O-TN' })),
+      [txnReportPath('FL')]: report(row({ ref: 'F1', orderId: 'O-FL' })),
+      [txnReportPath('TN')]: report(row({ ref: 'T1', orderId: 'O-TN' })),
     }));
     expect(r.charges.map((c) => c.paymentRef)).toEqual(['F1', 'T1']);
     expect(r.accountOfOrder.get('O-FL')).toBe('FL');
@@ -84,8 +84,8 @@ describe('loadTxnReportCharges', () => {
 
   it('de-dupes a payment ref appearing in two exports, first account wins', () => {
     const r = loadTxnReportCharges(['FL', 'TN'], deps({
-      [`${ACSV.out}/FL/transactions.csv`]: report(row({ ref: 'DUP', amount: '"1.00"' })),
-      [`${ACSV.out}/TN/transactions.csv`]: report(row({ ref: 'DUP', amount: '"2.00"' })),
+      [txnReportPath('FL')]: report(row({ ref: 'DUP', amount: '"1.00"' })),
+      [txnReportPath('TN')]: report(row({ ref: 'DUP', amount: '"2.00"' })),
     }));
     expect(r.charges).toHaveLength(1);
     expect(r.charges[0].chargeCents).toBe(100);
@@ -93,9 +93,9 @@ describe('loadTxnReportCharges', () => {
 
   it('reports a missing report as missing instead of throwing, and still pools the rest', () => {
     const r = loadTxnReportCharges(['FL', 'TX'], deps({
-      [`${ACSV.out}/FL/transactions.csv`]: report(row({ ref: 'F1' })),
+      [txnReportPath('FL')]: report(row({ ref: 'F1' })),
     }));
     expect(r.charges).toHaveLength(1);
-    expect(r.missing).toEqual([{ account: 'TX', path: `${ACSV.out}/TX/transactions.csv` }]);
+    expect(r.missing).toEqual([{ account: 'TX', path: txnReportPath('TX') }]);
   });
 });

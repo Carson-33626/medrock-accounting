@@ -28,12 +28,12 @@ describe('resolveAction — closed registry', () => {
 
   it('sweep-live with armed:true resolves to the plain default-invocation argv (armed never leaks into argv)', () => {
     const r = resolveAction('sweep-live', { armed: true });
-    expect(r).toEqual({ kind: 'child', label: 'Sweep (LIVE)', argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-sweep.ts'] });
+    expect(r).toEqual({ kind: 'child', label: 'Sweep (LIVE)', argv: ['engines/receipt-capture/run-sweep.ts'] });
   });
 
   it('sweep-dry resolves to the --dry-run argv', () => {
     const r = resolveAction('sweep-dry');
-    expect(r).toEqual({ kind: 'child', label: 'Sweep (dry-run)', argv: ['scripts/receipt-enrichment/engines/receipt-capture/run-sweep.ts', '--dry-run'] });
+    expect(r).toEqual({ kind: 'child', label: 'Sweep (dry-run)', argv: ['engines/receipt-capture/run-sweep.ts', '--dry-run'] });
   });
 
   it.each([
@@ -43,7 +43,7 @@ describe('resolveAction — closed registry', () => {
   ])('%s resolves to uline-bootstrap.ts %s exactly', (name, flag) => {
     const r = resolveAction(name) as { kind: string; argv: string[] };
     expect(r.kind).toBe('child');
-    expect(r.argv).toEqual(['scripts/receipt-enrichment/engines/receipt-capture/uline-bootstrap.ts', flag]);
+    expect(r.argv).toEqual(['engines/receipt-capture/uline-bootstrap.ts', flag]);
   });
 
   it('chrome-walmart resolves to the documented chrome.exe + CDP port + walmart profile dir', () => {
@@ -65,17 +65,17 @@ describe('resolveAction — closed registry', () => {
     ['extract-amazon-TX', 'TX'],
   ])('%s resolves to run-extract-txns.ts --account %s exactly', (name, acct) => {
     const r = resolveAction(name) as { kind: string; argv: string[] };
-    expect(r.argv).toEqual(['scripts/receipt-enrichment/engines/amazon-csv-enrich/run-extract-txns.ts', '--account', acct]);
+    expect(r.argv).toEqual(['engines/amazon-csv-enrich/run-extract-txns.ts', '--account', acct]);
   });
 
   it('fetch-invoices resolves to fetch-invoices.ts with no extra flags', () => {
     const r = resolveAction('fetch-invoices') as { kind: string; argv: string[] };
-    expect(r.argv).toEqual(['scripts/receipt-enrichment/engines/amazon-csv-enrich/fetch-invoices.ts']);
+    expect(r.argv).toEqual(['engines/amazon-csv-enrich/fetch-invoices.ts']);
   });
 
   it('attach-amazon-csv-dry resolves to run-attach.ts with no --live flag', () => {
     const r = resolveAction('attach-amazon-csv-dry') as { kind: string; argv: string[] };
-    expect(r.argv).toEqual(['scripts/receipt-enrichment/engines/amazon-csv-enrich/run-attach.ts']);
+    expect(r.argv).toEqual(['engines/amazon-csv-enrich/run-attach.ts']);
     expect(r.argv).not.toContain('--live');
   });
 
@@ -143,13 +143,13 @@ describe('ACTION_META', () => {
     }
   });
 
-  it('routes every child action at the consolidated program folder', () => {
-    // Catches an action left pointing at a pre-consolidation script path, which would fail only
-    // at click time with a confusing "Cannot find module" in the console pane.
+  it('routes every child action at the program-relative engines/ path', () => {
+    // Catches an action left pointing at a pre-flip (web/-relative) script path, which would fail
+    // only at click time with a confusing "Cannot find module" in the console pane.
     for (const name of ACTION_NAMES) {
       const r = resolveAction(name, { armed: true });
       if (isError(r) || r.kind !== 'child') continue;
-      expect(r.argv[0]).toMatch(/^scripts\/receipt-enrichment\/engines\//);
+      expect(r.argv[0]).toMatch(/^engines\//);
     }
   });
 });

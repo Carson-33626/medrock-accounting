@@ -110,7 +110,7 @@ async function main(): Promise<void> {
   // Name the CURRENT extractor (run-extract-txns.ts) and the invoice fetch. This string is the one piece of
   // operator guidance read every week; when it named the retired run-extract.ts, the caches it produced were
   // not the ones the attach pairs from, and confident pairs went unattached for two sweeps.
-  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run scripts/receipt-enrichment/engines/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then scripts/receipt-enrichment/engines/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
+  if (args.vendors.includes('amazon-csv')) needsYou.push('Amazon-CSV extract is always manual: sign ONE Business login into a CDP Chrome (--user-data-dir=C:\\amz-chrome-profile), then run /engines/amazon-csv-enrich/run-extract-txns.ts --account FL (then TN, TX), then /engines/amazon-csv-enrich/fetch-invoices.ts to cache the invoice PDFs this sweep attaches');
   console.log(`preflight: toprx[${toprx.detail}] uline[${uline.detail}] letco[${letco.detail}] walmart-cdp[${wmCdp.reachable ? 'up' : 'down'}]`);
 
   // ---- S1 scan ----
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
 
   if (want('toprx') && toprx.available) {
     for (const e of toprx.entities) {
-      jobs.push(await runChild(`toprx-${e}`, live(['scripts/receipt-enrichment/engines/receipt-capture/run-toprx.ts', '--entity', e, '--limit', lim])));
+      jobs.push(await runChild(`toprx-${e}`, live(['engines/receipt-capture/run-toprx.ts', '--entity', e, '--limit', lim])));
     }
   }
   if (want('uline') && uline.available) {
@@ -158,24 +158,24 @@ async function main(): Promise<void> {
     if (uline.entities.includes('FL')) {
       const csvPath = process.env.ULINE_CSV_FL;
       const extra = csvPath && existsSync(csvPath) ? ['--csv', csvPath] : [];
-      jobs.push(await runChild('uline-FLTN', live(['scripts/receipt-enrichment/engines/receipt-capture/run-uline.ts', '--entity=FL,TN', '--limit', lim, ...extra])));
+      jobs.push(await runChild('uline-FLTN', live(['engines/receipt-capture/run-uline.ts', '--entity=FL,TN', '--limit', lim, ...extra])));
     }
     if (uline.entities.includes('TX')) {
       const csvPath = process.env.ULINE_CSV_TX;
       const extra = csvPath && existsSync(csvPath) ? ['--csv', csvPath] : [];
-      jobs.push(await runChild('uline-TX', live(['scripts/receipt-enrichment/engines/receipt-capture/run-uline.ts', '--entity=TX', '--limit', lim, ...extra])));
+      jobs.push(await runChild('uline-TX', live(['engines/receipt-capture/run-uline.ts', '--entity=TX', '--limit', lim, ...extra])));
     }
   }
   if (want('amazon')) {
     for (const e of ALL_ENTITIES) {
-      jobs.push(await runChild(`amazon-${e}`, live(['scripts/receipt-enrichment/engines/receipt-capture/run-amazon.ts', '--entity', e, '--limit', lim])));
+      jobs.push(await runChild(`amazon-${e}`, live(['engines/receipt-capture/run-amazon.ts', '--entity', e, '--limit', lim])));
     }
   }
   if (want('walmart')) {
-    if (wmCdp.reachable) jobs.push(await runChild('walmart-extract', ['scripts/receipt-enrichment/engines/walmart-enrich/run-cdp.ts']));
+    if (wmCdp.reachable) jobs.push(await runChild('walmart-extract', ['engines/walmart-enrich/run-cdp.ts']));
     if (existsSync(`${WM.out}/extraction-cache.json`)) {
       if (cap0Uncapped) console.log('  walmart-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
-      jobs.push(await runChild(cap0Uncapped ? 'walmart-attach (limit_0)' : 'walmart-attach', attachLive(['scripts/receipt-enrichment/engines/walmart-enrich/run-cdp-split.ts', '--cap', args.dryRun ? '0' : lim])));
+      jobs.push(await runChild(cap0Uncapped ? 'walmart-attach (limit_0)' : 'walmart-attach', attachLive(['engines/walmart-enrich/run-cdp-split.ts', '--cap', args.dryRun ? '0' : lim])));
     } else {
       needsYou.push('Walmart attach skipped: no extraction cache yet (needs one CDP extract run)');
     }
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
   if (want('sams')) {
     // Same runner as Walmart, switched by --retailer; only the extractor is Sam's-specific.
     if (wmCdp.reachable) {
-      const extract = await runChild('sams-extract', ['scripts/receipt-enrichment/engines/walmart-enrich/run-cdp-sams.ts']);
+      const extract = await runChild('sams-extract', ['engines/walmart-enrich/run-cdp-sams.ts']);
       jobs.push(extract);
       // Exit 5 is the extractor's "I stopped early rather than leave silent gaps" signal — a bot
       // challenge or a run of detail failures. That is an operator action (clear it by hand in the
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
     }
     if (existsSync(SAMS.cacheFile)) {
       if (cap0Uncapped) console.log('  sams-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
-      jobs.push(await runChild(cap0Uncapped ? 'sams-attach (limit_0)' : 'sams-attach', attachLive(['scripts/receipt-enrichment/engines/walmart-enrich/run-cdp-split.ts', '--retailer', 'sams', '--cap', args.dryRun ? '0' : lim])));
+      jobs.push(await runChild(cap0Uncapped ? 'sams-attach (limit_0)' : 'sams-attach', attachLive(['engines/walmart-enrich/run-cdp-split.ts', '--retailer', 'sams', '--cap', args.dryRun ? '0' : lim])));
     } else {
       needsYou.push("Sam's attach skipped: no extraction cache yet (needs one CDP extract run)");
     }
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
     const hasCache = existsSync(root) && readdirSync(root, { withFileTypes: true }).some((d) => d.isDirectory() && !d.name.startsWith('_') && existsSync(join(root, d.name, 'transactions.csv')));
     if (hasCache) {
       if (cap0Uncapped) console.log('  amazon-csv-attach: --limit 0 requested, but --cap 0 means UNCAPPED for this runner — forcing dry-run instead (limit_0)');
-      jobs.push(await runChild(cap0Uncapped ? 'amazon-csv-attach (limit_0)' : 'amazon-csv-attach', attachLive(['scripts/receipt-enrichment/engines/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));
+      jobs.push(await runChild(cap0Uncapped ? 'amazon-csv-attach (limit_0)' : 'amazon-csv-attach', attachLive(['engines/amazon-csv-enrich/run-attach.ts', '--cap', args.dryRun ? '0' : lim])));
     }
     else needsYou.push('Amazon-CSV attach skipped: no transactions.csv cached yet (run run-extract-txns.ts --account <ENT> per Business account first)');
   }
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
   if (want('letco') && letco.available) {
     for (const e of letco.entities) {
       billJobs.push(await runChild(`letco-enrich-${e}`, live([
-        'scripts/receipt-enrichment/engines/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--limit', lim,
+        'engines/receipt-capture/run-letco.ts', `--entity=${e}`, '--mode=enrich', '--limit', lim,
       ])));
     }
   }

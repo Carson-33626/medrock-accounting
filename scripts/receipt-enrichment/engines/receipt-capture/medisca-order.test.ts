@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { parseOrderLines, skuByAmount } from './medisca-order';
 
-const FIXTURES = 'scripts/receipt-enrichment/engines/receipt-capture/fixtures';
+const FIXTURES = 'engines/receipt-capture/fixtures';
 const GLOVES = `${FIXTURES}/medisca-order-04557192.html`;   // 3 glove lines, invoice 04245590
 const BIMA = `${FIXTURES}/medisca-order-04461596.html`;     // 2 tables, back order, invoice 04245588
 const BIG = `${FIXTURES}/medisca-order-04518277.html`;      // 7 lines, invoice 04245589

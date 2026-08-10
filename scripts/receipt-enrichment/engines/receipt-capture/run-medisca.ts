@@ -76,7 +76,7 @@ function parseArgs(): Args {
     return i !== -1 && argv[i + 1] ? argv[i + 1] : null;
   };
   const usage =
-    'Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/run-medisca.ts --entity=FL|TN|TX ' +
+    'Usage: npx tsx engines/receipt-capture/run-medisca.ts --entity=FL|TN|TX ' +
     '[--mode=refresh|enrich|create] [--since 2023-01-01 (refresh capture window)] ' +
     '[--history-since 2023-01-01] [--force] [--live] [--limit 5]';
 

@@ -103,12 +103,5 @@ config:
 
 ```
 npx tsc --noEmit      # typechecks the whole program, no parent config
-npx vitest run        # 63 files, 568 tests
+npx vitest run        # 63 files, 569 tests
 ```
-
-As of this writing, `npx vitest run` reports 63 files / 566 passed / 2 failed, not a clean 568.
-The 2 failures — `engines/receipt-capture/sweep-exec.test.ts` and `ui/server.test.ts` — are
-expected: `paths.ts` still resolves cache and fixture paths relative to `web/` as the invoking
-cwd, so both break when run from the program folder instead. They pass when the same commands are
-run with `web/` as cwd. This is a known gap, not a flake — it closes when `paths.ts` becomes
-cwd-independent.

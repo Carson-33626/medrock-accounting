@@ -81,7 +81,7 @@ function parseArgs(): Args {
   };
   const entityArg = get('--entity');
   if (!entityArg || !ALL_ENTITIES.includes(entityArg as Entity)) {
-    throw new Error('Usage: npx tsx scripts/receipt-enrichment/engines/receipt-capture/run-letco.ts --entity=FL|TN|TX [--mode=enrich|create] [--since 2026-05-01] [--live] [--limit 5]');
+    throw new Error('Usage: npx tsx engines/receipt-capture/run-letco.ts --entity=FL|TN|TX [--mode=enrich|create] [--since 2026-05-01] [--live] [--limit 5]');
   }
   const modeArg = get('--mode') ?? 'enrich';
   if (modeArg !== 'create' && modeArg !== 'enrich') {

@@ -15,7 +15,7 @@ describe('runChild', () => {
     expect(r.code).toBe(3);
   }, 40000);
   it('spawns production path (tsx) and captures output', async () => {
-    const r = await runChild('fixture', ['scripts/receipt-enrichment/engines/receipt-capture/fixtures/sweep-exec-fixture.ts'], { timeoutMs: 60000 });
+    const r = await runChild('fixture', ['engines/receipt-capture/fixtures/sweep-exec-fixture.ts'], { timeoutMs: 60000 });
     expect(r.ok).toBe(true);
     expect(r.code).toBe(0);
     expect(r.summaryLines).toContain('[FX] fixture ran');

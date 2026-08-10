@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   // `/amazon/i` merchant test and gets split as before.
   // Receipt-parsing (receipt-parser.ts) is NOT retired: run-amazon.ts uses it as the order-ID source.
   if (args.live && !args.basket) {
-    console.error('Amazon splitting is RETIRED — use scripts/receipt-enrichment/engines/receipt-capture/run-amazon.ts (un-split + order-ID memo).');
+    console.error('Amazon splitting is RETIRED — use engines/receipt-capture/run-amazon.ts (un-split + order-ID memo).');
     console.error('Dry-run preview (no --live) still works for inspection. --basket live runs exclude Amazon RETAIL (AWS remains basket-eligible).');
     process.exit(1);
   }
