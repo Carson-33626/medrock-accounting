@@ -1,7 +1,7 @@
 // scripts/payroll/eom-dryrun.ts
 // Month-end allocation DRY-RUN: pulls the real pool + revenue test for a month and
 // prints the drafts that WOULD be generated. Read-only — no DB writes, no QB writes.
-import '../ramp-split-push/load-env';
+import '../receipt-enrichment/engines/ramp-split-push/load-env';
 import { fetchAllocationPool } from '../../src/lib/payroll/qb-pool';
 import { fetchRevenuePresence, sharesFromPresence, EOM_ENTITIES, type EomEntity } from '../../src/lib/payroll/revenue-rule';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';

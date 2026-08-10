@@ -105,7 +105,13 @@ export function splitStraddle(draft: JournalDraft): JournalDraft[] {
         repairIdx = i;
       }
     }
-    if (repairIdx < 0) throw new Error('splitStraddle: no credit line available for balance repair');
+    // No credit line to shift cents against — the repair is impossible, so leave the run whole
+    // rather than throwing. This function's contract is that "non-straddlers, unbalanced drafts
+    // and impossible repairs all return [draft] UNCHANGED"; throwing here contradicted that and
+    // meant ONE unsplittable draft aborted an entire regeneration batch mid-write, leaving the
+    // rest of the year unbuilt. An unsplit straddler is a visible, recoverable state (the landing
+    // page now warns about it); a half-regenerated year is not.
+    if (repairIdx < 0) return [draft];
     for (let s = 0; s < segments.length; s++) {
       // imbalance[s] > 0 → piece has excess debit → it needs MORE of the credit line.
       alloc[repairIdx][s] += imbalance[s];

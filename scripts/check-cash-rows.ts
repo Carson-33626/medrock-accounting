@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../src/lib/rds-ssl';
 
 const envText = readFileSync(resolve(__dirname, '..', '.env.local'), 'utf-8');
 for (const line of envText.split(/\r?\n/)) {
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
   const pool = new Pool({
     connectionString: process.env.RDS_DATABASE_URL,
     max: 1,
-    ssl: { rejectUnauthorized: false },
+    ssl: RDS_SSL,
   });
   const r = await pool.query(
     `SELECT basis, count(*)::int AS rows,

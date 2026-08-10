@@ -40,25 +40,47 @@ describe('COMPANY LOAN - EE - PRINCIPAL POST-TAX', () => {
 describe('CHILD PAYMENTS - ER', () => {
   const COLUMN = 'CHILD PAYMENTS - ER';
 
-  it('debits Payroll Processing Fees with the Child Support Fee memo, for every postable entity', () => {
+  it('emits NO debit — the fee is withheld from the employee, not paid by the employer', () => {
+    // This is the whole point of the 2026-08-07 correction. ADP's "- ER" suffix is misleading:
+    // the fee sits inside TOTAL WITHHOLDING ORDERS and comes out of the employee's gross, so an
+    // employer expense line is phantom. Booking it as Debit + Credit was also self-balancing and
+    // therefore could not close the $2 residual it was added to close — it left every MedRock FL
+    // run $2.00 heavy, which in turn blocked the month-boundary split on every straddling run.
     for (const entity of SEEDED_ENTITIES) {
       const debits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Debit');
-      expect(debits, `${entity} debit`).toHaveLength(1);
-      expect(debits[0]?.accountName).toBe('Payroll Expense -:Payroll Processing Fees');
-      expect(debits[0]?.memo).toBe('Child Support Fee');
-      expect(debits[0]?.costCenter).toBe('*');
-      expect(debits[0]?.isCogs).toBe(false);
-      expect(debits[0]?.active).toBe(true);
+      expect(debits, `${entity} must not debit an expense for a fee the employee paid`).toHaveLength(0);
     }
   });
 
-  it('credits the withholdings pool so the employer double-entry stays balanced', () => {
+  it("credits the ENTITY'S OWN garnishment account, keeping the fee with the location it came from", () => {
+    // Barbara, 2026-08-06: "child support pieces/processing fee needs to stay with the location
+    // it's from." GARNISHMENT_ACCOUNT is entity-specific, so crediting it (rather than the shared
+    // 'Payroll Withholdings' pool) keeps the whole withholding order — the deduction AND the ADP
+    // admin fee — in the originating location's liability.
+    const expected: Record<string, string> = {
+      'MedRock FL': 'Employee Garnishment Liability',
+      'MedRock TN': 'Payroll Withholdings',
+      'MedRock TX': 'Payroll Withholdings',
+      FOCAS: 'Payroll Withholdings',
+    };
     for (const entity of SEEDED_ENTITIES) {
       const credits = buildSeedAccountMap(entity).filter((r) => r.adpColumn === COLUMN && r.postingType === 'Credit');
       expect(credits, `${entity} credit`).toHaveLength(1);
-      expect(credits[0]?.accountName).toBe('Payroll Withholdings');
+      expect(credits[0]?.accountName).toBe(expected[entity]);
       expect(credits[0]?.costCenter).toBe('*');
-      expect(credits[0]?.creditBucket).toBe('Other');
+      expect(credits[0]?.creditBucket).toBe('Garnishments');
+      expect(credits[0]?.memo).toBe('Child Support Fee');
+    }
+  });
+
+  it('lands in the same account as the child-support deduction it belongs to', () => {
+    // The fee and the deduction are two parts of ONE withholding order (289.21 + 2.00 = 291.21),
+    // so they must not be split across two different liability accounts.
+    for (const entity of SEEDED_ENTITIES) {
+      const rules = buildSeedAccountMap(entity);
+      const fee = rules.find((r) => r.adpColumn === COLUMN);
+      const deduction = rules.find((r) => r.adpColumn === 'CHILD PAYMENTS' && r.postingType === 'Credit');
+      expect(fee?.accountName, `${entity}`).toBe(deduction?.accountName);
     }
   });
 });
@@ -148,8 +170,136 @@ describe('pooled debit specials split by department memo', () => {
   });
 });
 
+/**
+ * The seed must never emit two identical same-direction rules for one (entity, column, cost
+ * centre). resolveLine returns EVERY in-direction match, so a duplicate posts the amount twice.
+ * This became a live risk once all three home-state unemployment columns were added to the shared
+ * all-states list, since an entity's own state then appears in the composed list twice.
+ */
+describe('no duplicate rules', () => {
+  it('never emits the same (column, cost centre, direction, account) twice', () => {
+    for (const entity of SEEDED_ENTITIES) {
+      const seen = new Map<string, number>();
+      for (const r of buildSeedAccountMap(entity)) {
+        const k = [r.adpColumn, r.costCenter, r.postingType, r.accountName].join('¦');
+        seen.set(k, (seen.get(k) ?? 0) + 1);
+      }
+      const dupes = [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k);
+      expect(dupes, `${entity} has duplicate rules: ${dupes.join(' / ')}`).toEqual([]);
+    }
+  });
+
+  it('maps every entity for a home-state unemployment column, not just its own state', () => {
+    // MedRock FL really does carry TX unemployment ($72.01) for an employee living in Texas.
+    for (const entity of SEEDED_ENTITIES) {
+      const rules = buildSeedAccountMap(entity);
+      for (const state of ['FL', 'TN', 'TX']) {
+        const col = `${state} STATE - UNEMPLOYMENT INSURANCE ER`;
+        expect(rules.some((r) => r.adpColumn === col), `${entity} should map ${col}`).toBe(true);
+      }
+    }
+  });
+});
+
+/**
+ * FOCAS became a seeded entity on 2026-08-07, once its QuickBooks company was connected and its
+ * chart of accounts was populated from the MedRock FL template. These cover the three ways FOCAS
+ * genuinely differs from the other entities — each was derived from its live 2026 ADP rows, and
+ * each would silently mis-post if it regressed.
+ */
 describe('FOCAS seed', () => {
-  it('is empty until the probe-derived rules land (spec §4)', () => {
-    expect(buildSeedAccountMap('FOCAS')).toEqual([]);
+  const focas = buildSeedAccountMap('FOCAS');
+
+  it('is populated', () => {
+    expect(focas.length).toBeGreaterThan(0);
+    expect(focas.every((r) => r.entity === 'FOCAS')).toBe(true);
+  });
+
+  it('maps all THREE state unemployment columns — FOCAS staff sit in FL, TN and TX', () => {
+    // A single-state assumption would leave two of the three permanently unmapped.
+    for (const column of [
+      'FL STATE - UNEMPLOYMENT INSURANCE ER',
+      'TN STATE - UNEMPLOYMENT INSURANCE ER',
+      'TX STATE - UNEMPLOYMENT INSURANCE ER',
+    ]) {
+      expect(focas.some((r) => r.adpColumn === column), `FOCAS should map ${column}`).toBe(true);
+    }
+  });
+
+  it('emits no workers-comp rule — FOCAS carries no WC column in ADP', () => {
+    // Borrowing another entity's LLC-named WC column would invent a cost FOCAS does not bear.
+    expect(focas.filter((r) => /WORKERS COMPENSATION/i.test(r.adpColumn))).toHaveLength(0);
+  });
+
+  it('pools garnishments into Payroll Withholdings rather than a FOCAS-specific liability', () => {
+    const garnish = focas.filter((r) => r.creditBucket === 'Garnishments');
+    expect(garnish.length).toBeGreaterThan(0);
+    for (const r of garnish) expect(r.accountName).toBe('Payroll Withholdings');
+  });
+});
+
+/**
+ * Regression cover for the 2026-08-06 overtime complaint. OT_WAGE_ACCOUNT used to omit
+ * PHARM/ADMIN/ACCOUN/MARKET, so those cost centers emitted no OT rule and the column resurfaced
+ * as "new columns detected" on nearly every run — FL's ACCOUN staff work overtime on 12 of 17
+ * pay dates. Every account asserted here was verified to exist in all four QBO companies.
+ */
+describe('overtime is mapped for every cost center', () => {
+  const OT_COLUMNS = ['OVERTIME PREMIUM - EARNING', 'OVERTIME STRAIGHT - EARNING'];
+  const COST_CENTERS = ['LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET'];
+
+  it('leaves no cost center without an OT account', () => {
+    for (const entity of SEEDED_ENTITIES) {
+      const rules = buildSeedAccountMap(entity);
+      for (const column of OT_COLUMNS) {
+        for (const cc of COST_CENTERS) {
+          const hit = rules.find((r) => r.adpColumn === column && r.costCenter === cc);
+          expect(hit, `${entity} ${column} ${cc} should have an OT rule`).toBeDefined();
+          expect(hit?.postingType).toBe('Debit');
+        }
+      }
+    }
+  });
+
+  it('sends ADMIN and ACCOUN overtime to the dedicated administrative OT account', () => {
+    // Both share 'Administrative Wages' for regular pay, so they share its OT counterpart
+    // (Carson, 2026-08-07) — and this is what the dead '*admin' rules were reaching for.
+    for (const entity of SEEDED_ENTITIES) {
+      const rules = buildSeedAccountMap(entity);
+      for (const cc of ['ADMIN', 'ACCOUN']) {
+        const hit = rules.find((r) => r.adpColumn === 'OVERTIME STRAIGHT - EARNING' && r.costCenter === cc);
+        expect(hit?.accountName).toBe('Payroll Expense -:Administrative - OT Wages');
+        expect(hit?.isCogs).toBe(false);
+      }
+    }
+  });
+});
+
+/**
+ * FMLA - EARNING is a wage earning and must be mapped PER cost center like its siblings. It had
+ * been resolved by a hand-made cost_center '*' rule pointing at COGS - Pharmacists Wages, which
+ * mis-coded every non-pharmacist's FMLA — FL's MARKET ($8,938), LAB ($3,656) and CS ($2,775),
+ * plus TN's LAB, were all landing in Pharmacists COGS.
+ */
+describe('FMLA - EARNING', () => {
+  it('maps per cost center to the same account as regular pay', () => {
+    for (const entity of SEEDED_ENTITIES) {
+      const rules = buildSeedAccountMap(entity);
+      for (const cc of ['LAB', 'PHARM', 'CS', 'MARKET', 'ADMIN']) {
+        const fmla = rules.find((r) => r.adpColumn === 'FMLA - EARNING' && r.costCenter === cc);
+        const regular = rules.find((r) => r.adpColumn === 'REGULAR PAY - EARNING' && r.costCenter === cc);
+        expect(fmla, `${entity} FMLA ${cc}`).toBeDefined();
+        expect(fmla?.accountName).toBe(regular?.accountName);
+        expect(fmla?.isCogs).toBe(regular?.isCogs);
+        expect(fmla?.postingType).toBe('Debit');
+      }
+    }
+  });
+
+  it('never pools every cost center into one account', () => {
+    // The exact shape of the bug: a single '*' rule swallowing all cost centers.
+    const fl = buildSeedAccountMap('MedRock FL').filter((r) => r.adpColumn === 'FMLA - EARNING');
+    const accounts = new Set(fl.map((r) => r.accountName));
+    expect(accounts.size).toBeGreaterThan(1);
   });
 });

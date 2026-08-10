@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyAmountEdit,
+  personContext,
   sourceNamesPreview,
+  sourcePeopleTitle,
   classifyDetailColumn,
   formatDetailAmount,
   prettifyColumnLabel,
@@ -77,6 +79,57 @@ describe('sourceNamesPreview', () => {
 
   it('keys that resolve to no name fall back to a people count', () => {
     expect(sourceNamesPreview(['x', 'y', 'z'], roster)).toBe('(3 people)');
+  });
+});
+
+describe('personContext', () => {
+  it('joins department and location', () => {
+    expect(personContext({ department: 'Marketing', location: 'Dallas' })).toBe('Marketing · Dallas');
+  });
+  it('drops whichever part is missing rather than leaving a dangling separator', () => {
+    expect(personContext({ department: 'Marketing', location: '' })).toBe('Marketing');
+    expect(personContext({ department: null, location: 'Dallas' })).toBe('Dallas');
+    expect(personContext({ department: null, location: '' })).toBe('');
+    expect(personContext({})).toBe('');
+  });
+  it('treats whitespace-only values as absent', () => {
+    expect(personContext({ department: '  ', location: 'Dallas' })).toBe('Dallas');
+  });
+});
+
+/**
+ * The Name cell can show two names; the tooltip is where "which Marketing people, in which
+ * locations, add up to this line?" gets answered. Carson, 2026-08-06.
+ */
+describe('sourcePeopleTitle', () => {
+  const roster: RosterName[] = [
+    { rowKey: 'a', name: 'Bob', department: 'Marketing', location: 'Dallas' },
+    { rowKey: 'b', name: 'Amir', department: 'Marketing', location: 'Houston' },
+    { rowKey: 'c', name: 'Lee' }, // no department/location on file
+  ];
+
+  it('empty source list → empty string', () => {
+    expect(sourcePeopleTitle([], roster)).toBe('');
+  });
+
+  it('one line per person, "Name — Dept · Location", alphabetical', () => {
+    expect(sourcePeopleTitle(['a', 'b'], roster)).toBe('Amir — Marketing · Houston\nBob — Marketing · Dallas');
+  });
+
+  it('a person with no department or location is listed by name alone', () => {
+    expect(sourcePeopleTitle(['c'], roster)).toBe('Lee');
+  });
+
+  it('lists every person, unlike the two-name preview', () => {
+    expect(sourcePeopleTitle(['a', 'b', 'c'], roster).split('\n')).toHaveLength(3);
+  });
+
+  it('wholly unresolved keys degrade to a count instead of a misleading partial list', () => {
+    expect(sourcePeopleTitle(['x', 'y'], roster)).toBe('2 people (names not loaded)');
+  });
+
+  it('a PARTIALLY resolved roster says how many people it could not name', () => {
+    expect(sourcePeopleTitle(['a', 'x', 'y'], roster)).toBe('Bob — Marketing · Dallas\n+2 more (names not loaded)');
   });
 });
 

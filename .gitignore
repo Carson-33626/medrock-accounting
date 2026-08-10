@@ -41,6 +41,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# receipt-enrichment consolidated cache — vendor invoice PDFs, extraction caches, and LIVE
+# Playwright sessions (TopRx, ULINE, Walmart auth cookies). ~360MB. NEVER commit.
+# One rule replaces what used to be five scattered ones; the per-module rules below are kept so a
+# missed call site regenerating a cache at an old path is still ignored.
+scripts/receipt-enrichment/cache/
+
 # ramp-split-push preview output (contains cardholder PII)
 scripts/ramp-split-push/out/
 
@@ -61,3 +67,10 @@ scripts/receipt-capture/out/
 
 # SDD scratch (ledgers, briefs, review packages) — never committed
 .superpowers/
+
+# Probe/dry-run CSV dumps. These are exports of real Ramp + QuickBooks transactions and routinely
+# carry a `cardholder` column — employee names tied to individual spending. Same reason
+# scripts/ramp-split-push/out/ is ignored above; scripts/out/ was simply never covered.
+# NOTE: CSVs already tracked here predate this rule and are unaffected (git only ignores
+# untracked files) — see TODO.md for the follow-up to review and purge them.
+scripts/out/*.csv

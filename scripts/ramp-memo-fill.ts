@@ -8,14 +8,14 @@
 //   cd web && npx tsx scripts/ramp-memo-fill.ts --merchant amazon        # dry-run, Amazon only
 //   cd web && npx tsx scripts/ramp-memo-fill.ts --live --cap 5           # live, first 5 writes
 //   cd web && npx tsx scripts/ramp-memo-fill.ts --live --entity FL       # live, FL only
-import './ramp-split-push/load-env';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
-import { getReceipt } from './amazon-enrich/client';
-import { parseOcr } from './amazon-enrich/ocr-parser';
-import { classify } from './amazon-enrich/classifier';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import { getReceipt } from './receipt-enrichment/engines/amazon-enrich/client';
+import { parseOcr } from './receipt-enrichment/engines/amazon-enrich/ocr-parser';
+import { classify } from './receipt-enrichment/engines/amazon-enrich/classifier';
 import { overrideLabel, isOcrClassify, loadHistoryLabels } from './ramp-memo-fill/merchant-rules';
-import type { Entity } from './ramp-split-push/types';
+import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
 
 const BASE = 'https://api.ramp.com/developer/v1';
 const OUT = 'scripts/ramp-memo-fill/out';

@@ -53,17 +53,26 @@ interface QuickBooksTokens {
 }
 
 /**
- * Get OAuth authorization URL to initiate QB connection
+ * Get the OAuth authorization URL to initiate a QB connection.
  *
- * @param location - Location identifier (e.g., 'MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS')
+ * @param state - A signed, single-use CSRF state from `createOAuthState`. It also CARRIES the
+ *   location, which is why this no longer takes one: the callback must read the location out of
+ *   a value it has verified, never out of an unauthenticated query param.
  */
-export function getAuthorizationUrl(location: Location): string {
+export function getAuthorizationUrl(state: string): string {
+  if (!state) {
+    // `state` used to default to the location key, which made it guessable and therefore useless
+    // as CSRF protection. It is now a required, signed, single-use value minted by
+    // createOAuthState — see src/lib/quickbooks-oauth-state.ts. Refusing to build a URL without
+    // one keeps a future caller from silently reintroducing the hole.
+    throw new Error('getAuthorizationUrl requires a signed CSRF state — see quickbooks-oauth-state.ts');
+  }
   const params = new URLSearchParams({
     client_id: QB_CLIENT_ID,
     scope: 'com.intuit.quickbooks.accounting',
     redirect_uri: QB_REDIRECT_URI,
     response_type: 'code',
-    state: location, // Pass location as state to track which company is being connected
+    state,
   });
 
   return `${QB_AUTH_URL}?${params.toString()}`;
@@ -124,22 +133,45 @@ export async function fetchCompanyName(accessToken: string, realmId: string): Pr
 }
 
 /**
+ * Thrown when a token refresh could not REACH Intuit (DNS, TLS, connect timeout). Distinct from
+ * Intuit rejecting the refresh token, because the two need opposite responses: this one is
+ * transient and the caller should retry, whereas a rejection genuinely requires re-authorization.
+ * Conflating them told accounting "connection needs re-authorization" every time the network
+ * hiccuped, which is alarming and wrong — nobody needs to reconnect anything.
+ */
+export class QuickBooksUnreachableError extends Error {
+  constructor(location: Location, cause: unknown) {
+    super(`Could not reach QuickBooks to refresh the ${location} token — network problem, not an authorization problem. Retry shortly.`);
+    this.name = 'QuickBooksUnreachableError';
+    this.cause = cause;
+  }
+}
+
+/**
  * Refresh access token using refresh token
  */
 async function refreshAccessToken(refreshToken: string, location: Location): Promise<QuickBooksTokens> {
   const authHeader = Buffer.from(`${QB_CLIENT_ID}:${QB_CLIENT_SECRET}`).toString('base64');
 
-  const response = await fetch(QB_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${authHeader}`,
-    },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(QB_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${authHeader}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+  } catch (networkError) {
+    // fetch() only throws for transport failures; an Intuit rejection arrives as !response.ok
+    // below. So reaching here means we never got an answer, and the stored refresh token is
+    // still perfectly good.
+    throw new QuickBooksUnreachableError(location, networkError);
+  }
 
   if (!response.ok) {
     const error = await response.text();
@@ -225,6 +257,10 @@ export async function getValidTokens(location: Location): Promise<QuickBooksToke
       await storeTokens(refreshed);
       return refreshed;
     } catch (error) {
+      // A network failure is NOT a dead connection. Propagate it so the caller can retry and so
+      // the accountant is never told to re-authorize a connection that is actually fine — the
+      // "connection needs re-authorization" message used to fire on any transient blip.
+      if (error instanceof QuickBooksUnreachableError) throw error;
       // Dead refresh token (e.g. invalid_grant after Intuit's 100-day expiry).
       // Treat as disconnected so status pages render a re-auth prompt instead of 500ing.
       console.error(`Token refresh failed for ${location} — connection needs re-authorization:`, error);

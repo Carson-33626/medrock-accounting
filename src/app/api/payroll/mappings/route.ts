@@ -11,6 +11,7 @@ import {
   deleteEmployeeRule,
 } from '@/lib/payroll/store';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
+import { isValidCostCenter, SELECTABLE_COST_CENTERS } from '@/lib/payroll/cost-center';
 import type { AccountMapRule, EmployeeMapRule, Entity } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,33 @@ type MappingsDeleteBody = { kind: 'account' | 'employee'; id: number };
 
 function isEntity(value: string): value is Entity {
   return (POSTABLE_ENTITIES as string[]).includes(value);
+}
+
+/**
+ * Rejects an account rule the resolver could never apply. A rule is keyed by
+ * (entity, adp_column, cost_center) and `resolveLine` matches cost_center exactly or on the
+ * pooled '*' — so a malformed cost_center writes a rule that never fires, leaving the column
+ * permanently stuck in "new columns detected" while the accountant believes it was mapped.
+ * Validated here (not just in the picker) because two separate clients write this table and
+ * only one of them was ever constrained. Returns an error string, or null when the rule is fine.
+ */
+function accountRuleError(rule: AccountMapRule): string | null {
+  if (typeof rule.entity !== 'string' || !isEntity(rule.entity)) {
+    return `entity must be one of: ${POSTABLE_ENTITIES.join(', ')}`;
+  }
+  if (typeof rule.adpColumn !== 'string' || rule.adpColumn.trim() === '') {
+    return 'adpColumn is required';
+  }
+  if (typeof rule.accountName !== 'string' || rule.accountName.trim() === '') {
+    return 'accountName is required';
+  }
+  if (rule.postingType !== 'Debit' && rule.postingType !== 'Credit') {
+    return "postingType must be 'Debit' or 'Credit'";
+  }
+  if (typeof rule.costCenter !== 'string' || !isValidCostCenter(rule.costCenter)) {
+    return `costCenter ${JSON.stringify(rule.costCenter)} is not a valid cost center — a rule with this value would never match any payroll row. Use one of: ${SELECTABLE_COST_CENTERS.join(', ')}`;
+  }
+  return null;
 }
 
 /** GET /api/payroll/mappings?entity= — list account + employee mapping rules for one entity. */
@@ -63,6 +91,10 @@ export async function POST(request: NextRequest) {
     if (body.kind === 'account') {
       if (!body.rule || typeof body.rule !== 'object') {
         return NextResponse.json({ error: 'rule is required' }, { status: 400 });
+      }
+      const invalid = accountRuleError(body.rule);
+      if (invalid) {
+        return NextResponse.json({ error: invalid }, { status: 400 });
       }
       if (typeof body.rule.id === 'number') {
         await updateAccountRule(body.rule.id, body.rule);

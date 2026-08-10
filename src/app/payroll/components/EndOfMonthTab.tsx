@@ -435,7 +435,14 @@ export function EndOfMonthTab() {
               <PoolCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} pool={data.run.pool} />
 
               {data.run.attention.length > 0 && (
-                <AttentionCard darkMode={darkMode} cardBg={cardBg} subText={subText} border={border} lines={data.run.attention} />
+                <AttentionCard
+                  darkMode={darkMode}
+                  cardBg={cardBg}
+                  subText={subText}
+                  border={border}
+                  lines={data.run.attention}
+                  month={month}
+                />
               )}
             </>
           ) : (
@@ -723,55 +730,275 @@ function PoolCard({
   );
 }
 
+/**
+ * Why a pool line was held back from the drafts. One code per branch in qb-pool.ts that can
+ * emit a non-splittable rule — `fetchAllocationPool` is the only producer of these lines, so
+ * these codes must stay in step with `classifyAllocateFlag` / `poolLinesFromExpenseTxn`.
+ * 'other' is a defensive catch-all: no current branch reaches it, but a new class shape in
+ * qb-pool must never render a blank Reason cell.
+ */
+type AttentionCode = 'passthrough' | 'self_class' | 'item_line' | 'unrecognized_class' | 'other';
+
+/** qb-pool.ts's placeholder account for an Allocate-flagged line with no AccountRef. */
+const ITEM_BASED_ACCOUNT = '(item-based line)';
+const SHORT_TO_ENTITY: Record<string, EomEntity> = { FL: 'MedRock FL', TN: 'MedRock TN', TX: 'MedRock TX' };
+// Same two literals qb-pool.classifyAllocateFlag matches on — reproduced (not loosened into one
+// combined pattern) so a near-miss class like 'Allocate - FL50' is reported as unrecognized here
+// exactly as qb-pool treats it, rather than being mislabelled a self-referential class.
+const FIFTY_CLASS_RE = /^Allocate - Split (FL|TN|TX)50$/;
+const FULL_CLASS_RE = /^Allocate - (FL|TN|TX)$/;
+
+const CODE_TITLE: Record<AttentionCode, string> = {
+  passthrough: 'Already moved by QuickBooks — no action needed',
+  self_class: 'Class names the line’s own company',
+  item_line: 'Line has no expense account',
+  unrecognized_class: 'Class is not a split rule we know',
+  other: 'Could not be matched to a split rule',
+};
+
+/** What Barbara does about each code. Shown once per code in the legend rather than repeated
+ *  on all 80 rows. Wording is grounded in the design spec (§3 "100%-reassignment classes are
+ *  already handled per-transaction by QBO's Intercompany allocation feature"). */
+const CODE_ACTION: Record<AttentionCode, string> = {
+  passthrough:
+    'Nothing to do. An "Allocate - FL / TN / TX" class means the whole cost belongs to that one company, and QuickBooks’ Intercompany allocation already books that move on the transaction itself — it credits the expense and debits Due From/To when the transaction is entered. Month-end deliberately skips these so the cost is never moved twice. Open one only to confirm QuickBooks made its matching entry.',
+  self_class:
+    'Fix the class in QuickBooks, then Regenerate. The class names the same company the transaction is already sitting in, so there is no other company to move the cost to — usually the wrong state was picked off the class list.',
+  item_line:
+    'Recode the line in QuickBooks, then Regenerate. It is coded to a product/service item instead of an expense account, so there is no account name to credit at the source company and debit at the receiving one. Point it at an expense account, or clear the Allocate flag if it should not be shared.',
+  unrecognized_class:
+    'Fix the class in QuickBooks, then Regenerate. Month-end only splits "Allocate - %" (revenue share), "Allocate - SplitX3" (1/3 each), "Allocate - Split FL50 / TN50 / TX50" (50/50), and "Allocate - FL / TN / TX" (100% to that company). Anything else is normally a typo or a newly created class — if it is a rule we should support, send it over.',
+  other:
+    'Open the transaction in QuickBooks and check the Class and Department on this line — neither one matched a split rule.',
+};
+
+/** Per-line headline: names the specific company or class involved, so a row still explains
+ *  itself when read on its own (the legend above carries the shared "what to do"). */
+function attentionReason(l: PoolLine): { code: AttentionCode; label: string } {
+  // Checked first: qb-pool stamps 'unknown' on an account-less line whatever its class said,
+  // so the missing account is the blocking problem even when the class also looks wrong.
+  if (l.accountName === ITEM_BASED_ACCOUNT) {
+    return { code: 'item_line', label: 'Coded to an item, not an expense account — nothing to split' };
+  }
+  if (l.rule === 'passthrough') {
+    const target = l.counterparty ? SHORT_ENT[l.counterparty] : 'another company';
+    return { code: 'passthrough', label: `100% assigned to ${target} — QuickBooks already moved it` };
+  }
+  const cls = l.className;
+  if (cls) {
+    const named = FIFTY_CLASS_RE.exec(cls) ?? FULL_CLASS_RE.exec(cls);
+    if (named && SHORT_TO_ENTITY[named[1]] === l.entity) {
+      return { code: 'self_class', label: `Class "${cls}" points at ${SHORT_ENT[l.entity]}, the company it is already in` };
+    }
+    if (cls.startsWith('Allocate')) {
+      return { code: 'unrecognized_class', label: `Class "${cls}" matches no split rule` };
+    }
+  }
+  return { code: 'other', label: 'Allocate-flagged, but no split rule matched' };
+}
+
+/**
+ * QBO web deep links for the four transaction types fetchAllocationPool queries. Same URL
+ * shape as src/lib/qb-links.ts qbDeepLink, copied rather than imported because that module
+ * also owns the RDS matching queries and must never reach a client bundle — the same reason
+ * QbLinksReview.tsx keeps its own copy.
+ */
+const QBO_TXN_PATH: Record<string, string> = {
+  JournalEntry: 'journal',
+  Purchase: 'expense',
+  Bill: 'bill',
+  VendorCredit: 'vendorcredit',
+};
+
+function qbTxnLink(txnType: string, txnId: string): string | null {
+  const path = QBO_TXN_PATH[txnType];
+  return path ? `https://app.qbo.intuit.com/app/${path}?txnId=${encodeURIComponent(txnId)}` : null;
+}
+
 function AttentionCard({
   darkMode,
   cardBg,
   subText,
   border,
   lines,
+  month,
 }: {
   darkMode: boolean;
   cardBg: string;
   subText: string;
   border: string;
   lines: PoolLine[];
+  month: string;
+}) {
+  const rows = useMemo(() => lines.map((l) => ({ line: l, reason: attentionReason(l) })), [lines]);
+
+  /**
+   * The card used to headline the COMBINED count — "Needs attention — 86 lines" — and Carson's
+   * reaction (2026-08-10) was "this part makes no sense". It didn't: on a real month, 89 of 89
+   * held-back lines were `passthrough`, which need no action whatsoever. The card was announcing
+   * 89 problems where there were zero.
+   *
+   * `passthrough` is not a problem at all: an "Allocate - FL/TN/TX" class means 100% of the cost
+   * belongs to that one company, and QuickBooks' own Intercompany allocation already books the
+   * move on the transaction. Month-end skips those precisely so the cost is never moved twice.
+   * So they are split out, counted separately, and collapsed — while anything that genuinely
+   * needs a person is what the heading now counts.
+   */
+  const toFix = useMemo(() => rows.filter((r) => r.reason.code !== 'passthrough'), [rows]);
+  const noAction = useMemo(() => rows.filter((r) => r.reason.code === 'passthrough'), [rows]);
+  const noActionTotal = useMemo(() => round2(noAction.reduce((s, r) => s + r.line.amount, 0)), [noAction]);
+
+  const legend = useMemo(() => {
+    const map = new Map<AttentionCode, { code: AttentionCode; count: number; total: number }>();
+    for (const { line, reason } of toFix) {
+      const g = map.get(reason.code) ?? { code: reason.code, count: 0, total: 0 };
+      g.count += 1;
+      g.total = round2(g.total + line.amount);
+      map.set(reason.code, g);
+    }
+    return [...map.values()];
+  }, [toFix]);
+
+  const [showNoAction, setShowNoAction] = useState(false);
+
+  const clean = toFix.length === 0;
+  const amber = darkMode ? 'text-amber-200' : 'text-amber-800';
+  const cardBorder = clean ? border : darkMode ? 'border-amber-800' : 'border-amber-300';
+
+  return (
+    <div className={`rounded-xl shadow-sm ${cardBg} border ${cardBorder} p-4 space-y-3`}>
+      <p className={`text-xs font-semibold uppercase tracking-wider ${clean ? subText : amber}`}>
+        {clean
+          ? 'Held back from the drafts — nothing to fix'
+          : `Needs a fix in QuickBooks — ${toFix.length} line${toFix.length === 1 ? '' : 's'}`}
+      </p>
+
+      <p className={`text-xs leading-relaxed ${subText}`}>
+        <span className="font-semibold">What this is:</span> generating drafts pulls every Journal Entry, Expense,
+        Bill and Vendor Credit dated in {month} from all three QuickBooks companies and keeps the lines carrying an{' '}
+        <code>Allocate&nbsp;-&nbsp;…</code> class or the <code>% Allocation</code> department. Lines whose class
+        matches a split rule go into the allocation pool above. Everything else is listed here rather than guessed
+        at — but <span className="font-semibold">most of it is normal</span>, so it is separated below into what
+        needs you and what does not.
+      </p>
+
+      {clean ? (
+        <p className={`text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>
+          Every line held back this month is already handled by QuickBooks. There is nothing to do here.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {legend.map((g) => (
+              <div key={g.code} className={`rounded-lg border p-2.5 ${border}`}>
+                <p className="text-sm font-semibold">
+                  {CODE_TITLE[g.code]}{' '}
+                  <span className={`font-normal text-xs ${subText}`}>
+                    · {g.count} line{g.count === 1 ? '' : 's'} · {fmtMoney(g.total)}
+                  </span>
+                </p>
+                <p className={`text-xs leading-relaxed mt-0.5 ${subText}`}>{CODE_ACTION[g.code]}</p>
+              </div>
+            ))}
+          </div>
+
+          <AttentionTable
+            darkMode={darkMode}
+            subText={subText}
+            border={border}
+            rows={toFix}
+          />
+        </>
+      )}
+
+      {noAction.length > 0 && (
+        <div className={`rounded-lg border ${border}`}>
+          <button
+            onClick={() => setShowNoAction((v) => !v)}
+            aria-expanded={showNoAction}
+            className="flex w-full items-center gap-2 p-2.5 text-left"
+          >
+            {showNoAction ? <ChevronDown className="w-4 h-4 shrink-0" aria-hidden /> : <ChevronRight className="w-4 h-4 shrink-0" aria-hidden />}
+            <span className="text-sm font-semibold">
+              {CODE_TITLE.passthrough}{' '}
+              <span className={`font-normal text-xs ${subText}`}>
+                · {noAction.length} line{noAction.length === 1 ? '' : 's'} · {fmtMoney(noActionTotal)}
+              </span>
+            </span>
+          </button>
+          {showNoAction && (
+            <div className="px-2.5 pb-2.5 space-y-2">
+              <p className={`text-xs leading-relaxed ${subText}`}>{CODE_ACTION.passthrough}</p>
+              <AttentionTable darkMode={darkMode} subText={subText} border={border} rows={noAction} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The held-back lines themselves. Shared by both sections so they read identically. */
+function AttentionTable({
+  darkMode,
+  subText,
+  border,
+  rows,
+}: {
+  darkMode: boolean;
+  subText: string;
+  border: string;
+  rows: Array<{ line: PoolLine; reason: { code: AttentionCode; label: string } }>;
 }) {
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  const amber = darkMode ? 'text-amber-200' : 'text-amber-800';
+  const linkText = darkMode ? 'text-blue-300' : 'text-blue-600';
+
   return (
-    <div className={`rounded-xl shadow-sm ${cardBg} border ${darkMode ? 'border-amber-800' : 'border-amber-300'} p-4 space-y-2`}>
-      <p className={`text-xs font-semibold uppercase tracking-wider ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
-        Needs attention — {lines.length} line{lines.length === 1 ? '' : 's'} (not in the drafts below)
-      </p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className={`border-b ${border}`}>
-              <th className={th}>Entity</th>
-              <th className={th}>Reason</th>
-              <th className={th}>Account</th>
-              <th className={th}>Date</th>
-              <th className={th}>Memo</th>
-              <th className={`${th} text-right`}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => (
-              <tr key={`${l.txnId}-${i}`} className={`border-b last:border-0 ${border}`}>
-                <td className="px-2 py-1">{l.entity}</td>
-                <td className={`px-2 py-1 text-xs ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
-                  {l.rule === 'passthrough'
-                    ? '100% reassignment — handled per-transaction by QuickBooks'
-                    : 'Unrecognized Allocate coding — review in QuickBooks'}
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className={`border-b ${border}`}>
+            <th className={th}>Entity</th>
+            <th className={th}>Reason</th>
+            <th className={th}>Record</th>
+            <th className={th}>Account</th>
+            <th className={th}>Date</th>
+            <th className={th}>Memo</th>
+            <th className={`${th} text-right`}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ line: l, reason }, i) => {
+            const href = qbTxnLink(l.txnType, l.txnId);
+            // Doc # is what Barbara searches on in QuickBooks, but JEs from some feeds carry
+            // none — fall back to the txn id, which is both the URL key and searchable.
+            const recordLabel = l.docNumber ?? `#${l.txnId}`;
+            return (
+              <tr key={`${l.txnId}-${i}`} className={`border-b last:border-0 ${border} align-top`}>
+                <td className="px-2 py-1 whitespace-nowrap">{l.entity}</td>
+                <td className={`px-2 py-1 text-xs ${reason.code === 'passthrough' ? subText : amber}`}>{reason.label}</td>
+                <td className="px-2 py-1 whitespace-nowrap">
+                  {href ? (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className={`text-xs font-medium ${linkText} hover:underline`}>
+                      {recordLabel}
+                    </a>
+                  ) : (
+                    <span className="text-xs font-medium">{recordLabel}</span>
+                  )}
+                  <span className={`block text-[11px] ${subText}`}>
+                    {l.txnType} · id {l.txnId}
+                  </span>
                 </td>
                 <td className="px-2 py-1">{l.accountName}</td>
-                <td className={`px-2 py-1 text-xs ${subText}`}>{l.txnDate}</td>
+                <td className={`px-2 py-1 text-xs whitespace-nowrap ${subText}`}>{l.txnDate}</td>
                 <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo ?? ''}</td>
-                <td className="px-2 py-1 text-right tabular-nums">{fmtMoney(l.amount)}</td>
+                <td className="px-2 py-1 text-right tabular-nums whitespace-nowrap">{fmtMoney(l.amount)}</td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -18,6 +18,14 @@ import type {
   LineOrigin,
 } from './types';
 
+/**
+ * `error` is RESERVED and deliberately never written. A post that fails leaves the header on
+ * `approved` on purpose: `decidePost` only lets an `approved` header reach QuickBooks, so
+ * stamping `error` would strand the run behind a re-approval before anyone could retry — the
+ * opposite of "clearing these ourselves" (Barbara, 2026-08-06). Failures live in
+ * `accounting.payroll_post_audit` (outcome `error` / `blocked`), which records every attempt
+ * without changing what the run is allowed to do next.
+ */
 export type HeaderStatus = 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
 
 /** Arbitrary JSON persisted to a jsonb column — explicitly typed (no any/unknown). */
@@ -43,6 +51,12 @@ export interface PayrollHeader {
   /** ISO YYYY-MM-DD the JE posts on (segment month-end for a split prior-month piece,
    *  else the pay date). Drives the accounting-period filter. */
   txn_date: string | null;
+  /**
+   * How many pieces this run (entity + pay_date + pay_group) has IN TOTAL — counted
+   * independently of the query's own date filter, so it stays truthful when a filter returns
+   * only some of the siblings. `> 1` means the run is split. 1 on the single-header paths.
+   */
+  piece_count: number;
 }
 
 export function sourceSnapshotHash(rows: PayrollRow[]): string {
@@ -94,21 +108,68 @@ export async function getEmployeeMap(entity: Entity): Promise<EmployeeMapRule[]>
   return rows;
 }
 
-export async function upsertAccountRule(rule: AccountMapRule): Promise<number> {
-  const { rows } = await getRdsPool().query<{ id: number }>(
-    `INSERT INTO accounting.payroll_account_map
-       (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, memo, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-     ON CONFLICT (entity, adp_column, cost_center, posting_type, account_name) DO UPDATE SET
-       is_cogs = EXCLUDED.is_cogs,
-       credit_bucket = EXCLUDED.credit_bucket,
-       active = EXCLUDED.active,
-       memo = EXCLUDED.memo,
-       updated_at = now()
-     RETURNING id`,
-    [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
+/**
+ * Enforce ONE active rule per (entity, adp_column, cost_center, posting_type) by deactivating
+ * every other active rule in that slot.
+ *
+ * WHY THIS EXISTS: the upsert's natural key is five columns and INCLUDES account_name, so
+ * re-pointing a mapping at a different account does not move the existing rule — it inserts a
+ * second one and leaves the first ACTIVE. `resolveLine` returns EVERY in-direction match, so both
+ * fire and the column is booked twice; meanwhile the accountant sees the old rule "come back" in
+ * the panel. That is exactly what happened to MedRock FL's ADMIN overtime rules, which is what
+ * Barbara reported as duplicates on 2026-08-06 (TODO.md).
+ *
+ * Deactivates rather than deletes: a superseded rule is history worth keeping, and getAccountMap
+ * filters on `active`, so an inactive row is invisible to both the resolver and the panel.
+ *
+ * Only called for an ACTIVE incoming rule — saving a rule as inactive must not disturb whichever
+ * rule is currently live in that slot. Returns how many were superseded.
+ */
+async function deactivateSupersededAccountRules(
+  client: { query: (sql: string, params: unknown[]) => Promise<{ rowCount: number | null }> },
+  rule: AccountMapRule,
+  keepId: number,
+): Promise<number> {
+  if (!rule.active) return 0;
+  const { rowCount } = await client.query(
+    `UPDATE accounting.payroll_account_map
+        SET active = false, updated_at = now()
+      WHERE entity = $1 AND adp_column = $2 AND cost_center = $3 AND posting_type = $4
+        AND id <> $5 AND active`,
+    [rule.entity, rule.adpColumn, rule.costCenter, rule.postingType, keepId],
   );
-  return rows[0].id;
+  return rowCount ?? 0;
+}
+
+export async function upsertAccountRule(rule: AccountMapRule): Promise<number> {
+  const client = await getRdsPool().connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query<{ id: number }>(
+      `INSERT INTO accounting.payroll_account_map
+         (entity, adp_column, cost_center, account_name, posting_type, is_cogs, credit_bucket, active, memo, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+       ON CONFLICT (entity, adp_column, cost_center, posting_type, account_name) DO UPDATE SET
+         is_cogs = EXCLUDED.is_cogs,
+         credit_bucket = EXCLUDED.credit_bucket,
+         active = EXCLUDED.active,
+         memo = EXCLUDED.memo,
+         updated_at = now()
+       RETURNING id`,
+      [rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
+    );
+    const id = rows[0].id;
+    // Same transaction as the insert: a crash between the two would leave the double-booking
+    // state this is here to prevent.
+    await deactivateSupersededAccountRules(client, rule, id);
+    await client.query('COMMIT');
+    return id;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<number> {
@@ -132,13 +193,27 @@ export async function upsertEmployeeRule(rule: EmployeeMapRule): Promise<number>
 }
 
 export async function updateAccountRule(id: number, rule: AccountMapRule): Promise<void> {
-  await getRdsPool().query(
-    `UPDATE accounting.payroll_account_map
-     SET entity=$2, adp_column=$3, cost_center=$4, account_name=$5, posting_type=$6, is_cogs=$7,
-         credit_bucket=$8, active=$9, memo=$10, updated_at=now()
-     WHERE id=$1`,
-    [id, rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
-  );
+  const client = await getRdsPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE accounting.payroll_account_map
+       SET entity=$2, adp_column=$3, cost_center=$4, account_name=$5, posting_type=$6, is_cogs=$7,
+           credit_bucket=$8, active=$9, memo=$10, updated_at=now()
+       WHERE id=$1`,
+      [id, rule.entity, rule.adpColumn, rule.costCenter, rule.accountName, rule.postingType, rule.isCogs, rule.creditBucket, rule.active, rule.memo ?? null],
+    );
+    // An edit can MOVE a rule into a slot another active rule already occupies (change the cost
+    // centre or the posting side and you land on top of an existing rule). Same invariant as the
+    // insert path — see deactivateSupersededAccountRules.
+    await deactivateSupersededAccountRules(client, rule, id);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateEmployeeRule(id: number, rule: EmployeeMapRule): Promise<void> {
@@ -269,6 +344,8 @@ export interface HeaderRow {
   kind: string;
   period_segment: string;
   txn_date: string | null;
+  /** Absent on the single-header fetch paths; only the list queries select it. */
+  piece_count?: string | null;
 }
 
 export function toHeader(r: HeaderRow): PayrollHeader {
@@ -293,6 +370,10 @@ export function toHeader(r: HeaderRow): PayrollHeader {
     kind: r.kind,
     period_segment: r.period_segment,
     txn_date: r.txn_date,
+    // Defaults to 1 on the single-header paths that don't select it. Never derive "is this run
+    // split?" from how many siblings a query happened to return — see the SQL comment in
+    // listHeaders for why that inference is unsafe under a date filter.
+    piece_count: r.piece_count == null ? 1 : Number(r.piece_count),
   };
 }
 
@@ -391,13 +472,23 @@ export async function setHeadersStatus(ids: number[], status: HeaderStatus): Pro
 
 export async function listHeaders(startISO: string, endISO: string): Promise<PayrollHeader[]> {
   const { rows } = await getRdsPool().query<HeaderRow>(
-    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
-            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
-     FROM accounting.payroll_journal_headers
-     WHERE COALESCE(txn_date, to_date(pay_date, 'MM/DD/YYYY')) BETWEEN $1::date AND $2::date
-       AND kind <> 'allocation'
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
+    // piece_count is a correlated subquery, NOT a window function, and that is deliberate: a
+    // window would be evaluated after the WHERE clause and so would only count the siblings
+    // this filter returned. A split run's pieces carry txn_dates in DIFFERENT calendar months
+    // (e.g. 2026-03-31 and 2026-04-10), so filtering to one month returns exactly one of them —
+    // and the caller must still be able to tell that the run is split and that it is looking at
+    // a partial view. Counting independently of the filter is the whole point.
+    `SELECT h.id, h.entity, h.pay_date, h.pay_group, h.period_start, h.period_end, h.status,
+            h.total_debits, h.total_credits, h.variance, h.row_count, h.source_snapshot_hash,
+            h.qb_entry_id, h.qb_doc_number, h.kind, h.period_segment,
+            to_char(h.txn_date,'YYYY-MM-DD') AS txn_date,
+            (SELECT count(*) FROM accounting.payroll_journal_headers s
+              WHERE s.entity = h.entity AND s.pay_date = h.pay_date
+                AND s.pay_group = h.pay_group AND s.kind <> 'allocation')::text AS piece_count
+     FROM accounting.payroll_journal_headers h
+     WHERE COALESCE(h.txn_date, to_date(h.pay_date, 'MM/DD/YYYY')) BETWEEN $1::date AND $2::date
+       AND h.kind <> 'allocation'
+     ORDER BY to_date(h.pay_date, 'MM/DD/YYYY') DESC, h.entity, h.pay_group, h.period_segment`,
     [startISO, endISO],
   );
   return rows.map(toHeader);
@@ -437,13 +528,17 @@ export async function listRecentHeaders(periods = 2): Promise<PayrollHeader[]> {
        ORDER BY d DESC
        LIMIT $1
      )
-     SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
-            total_debits, total_credits, variance, row_count, source_snapshot_hash, qb_entry_id, qb_doc_number,
-            kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
-     FROM accounting.payroll_journal_headers
-     WHERE to_date(pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
-       AND kind <> 'allocation'
-     ORDER BY to_date(pay_date, 'MM/DD/YYYY') DESC, entity, pay_group, period_segment`,
+     SELECT h.id, h.entity, h.pay_date, h.pay_group, h.period_start, h.period_end, h.status,
+            h.total_debits, h.total_credits, h.variance, h.row_count, h.source_snapshot_hash,
+            h.qb_entry_id, h.qb_doc_number, h.kind, h.period_segment,
+            to_char(h.txn_date,'YYYY-MM-DD') AS txn_date,
+            (SELECT count(*) FROM accounting.payroll_journal_headers s
+              WHERE s.entity = h.entity AND s.pay_date = h.pay_date
+                AND s.pay_group = h.pay_group AND s.kind <> 'allocation')::text AS piece_count
+     FROM accounting.payroll_journal_headers h
+     WHERE to_date(h.pay_date, 'MM/DD/YYYY') IN (SELECT d FROM recent)
+       AND h.kind <> 'allocation'
+     ORDER BY to_date(h.pay_date, 'MM/DD/YYYY') DESC, h.entity, h.pay_group, h.period_segment`,
     [safePeriods],
   );
   return rows.map(toHeader);

@@ -351,19 +351,22 @@ function UnmappedColumnRow({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      {/* 5 columns, not 4, with the account picker spanning two of them: QB account names are long
+          fully-qualified 'Parent:Child' strings and an equal-quarter split cut them mid-name, so
+          several distinct accounts looked identical in the closed control (Barbara, 2026-08-06). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
         <input
           type="text"
           readOnly
           value={adpColumn}
-          title="ADP column (read-only)"
+          title={`ADP column (read-only): ${adpColumn}`}
           className={`rounded-md border px-2 py-1 text-xs font-mono opacity-70 cursor-not-allowed ${inputBg}`}
         />
         <input
           type="text"
           readOnly
           value={entity ?? 'Unknown entity'}
-          title="Entity (from this run)"
+          title="Entity (from this run) — not the cost center; set the cost center below"
           className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
         />
 
@@ -374,7 +377,7 @@ function UnmappedColumnRow({
             value=""
             placeholder="Loading accounts…"
             title="Waiting on QuickBooks accounts"
-            className={`rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
+            className={`lg:col-span-2 rounded-md border px-2 py-1 text-xs opacity-70 cursor-not-allowed ${inputBg}`}
           />
         ) : accountOptions ? (
           <SearchableSelect
@@ -384,6 +387,7 @@ function UnmappedColumnRow({
             placeholder="Select account…"
             darkMode={darkMode}
             inputBg={inputBg}
+            className="lg:col-span-2"
             ariaLabel="Account"
           />
         ) : (
@@ -392,13 +396,14 @@ function UnmappedColumnRow({
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}
             placeholder="Account name (free-text — QuickBooks unavailable)"
-            className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
+            className={`lg:col-span-2 rounded-md border px-2 py-1 text-xs ${inputBg}`}
           />
         )}
 
         <select
           value={postingType}
           onChange={(e) => setPostingType(e.target.value as PostingType)}
+          aria-label="Posting type"
           className={`rounded-md border px-2 py-1 text-xs ${inputBg}`}
         >
           <option value="Debit">Debit</option>

@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../../src/lib/rds-ssl';
 import { decryptSensitive } from '../../src/lib/payroll/crypto';
 import { costCenterFor } from '../../src/lib/payroll/cost-center';
 import type { SensitiveRow } from '../../src/lib/payroll/types';
@@ -67,7 +68,7 @@ async function dump(pool: Pool, payDate: string, payGroup: string, entity: strin
 }
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: process.env.RDS_DATABASE_URL, max: 1, ssl: { rejectUnauthorized: false } });
+  const pool = new Pool({ connectionString: process.env.RDS_DATABASE_URL, max: 1, ssl: RDS_SSL });
   try {
     await dump(pool, '07/07/2026', 'MRTN', 'MedRock TN');
     await dump(pool, '07/02/2026', 'MRFL', 'MedRock FL');

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { decryptSensitive } from '@/lib/payroll/crypto';
+import { costCenterFor, deptLabelFor } from '@/lib/payroll/cost-center';
 import type { SensitiveRow } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,12 @@ interface DrilldownRow {
   name: string;
   pay_date: string;
   pay_group: string;
+  /** Plaintext columns — NOT part of the encrypted blob. Returned so the per-person card under a
+   *  JE line can say which department and location the dollars came from without a second query
+   *  (Carson, 2026-08-06: "mention the employee names, department, and location on JE lines,
+   *  especially the marketers and their region"). */
+  home_department: string | null;
+  location: string | null;
   sensitive_encrypted: string;
 }
 
@@ -39,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { rows } = await getRdsPool().query<DrilldownRow>(
-      `SELECT row_key, position_id, name, pay_date, pay_group, sensitive_encrypted
+      `SELECT row_key, position_id, name, pay_date, pay_group,
+              home_department, location, sensitive_encrypted
        FROM source.payroll_history
        WHERE row_key = $1`,
       [rowKey],
@@ -58,6 +66,9 @@ export async function GET(request: NextRequest) {
       name: row.name,
       pay_date: row.pay_date,
       pay_group: row.pay_group,
+      home_department: row.home_department ?? '',
+      location: row.location ?? '',
+      department: deptLabelFor(costCenterFor(row.home_department)),
       sensitive,
     });
   } catch (error) {

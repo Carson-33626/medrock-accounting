@@ -1,7 +1,7 @@
 // READ-ONLY probe: what sync/approval fields does the Ramp txn payload expose?
 // Run from web/ dir:  npx tsx scripts/ramp-sync-probe.ts
-import './ramp-split-push/load-env';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
 
 interface Page { data: Record<string, unknown>[] }
 

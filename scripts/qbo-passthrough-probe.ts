@@ -4,11 +4,11 @@
 // exactly where the Ramp memo shows up on the QBO side (PrivateNote / line Description /
 // nowhere) and whether the Ramp receipt arrived as a QBO attachment. Zero writes.
 // Run from web/:  npx tsx scripts/qbo-passthrough-probe.ts
-import './ramp-split-push/load-env';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
-import type { Entity } from './ramp-split-push/types';
-import { ENTITY_TO_QB_LOCATION, ALL_ENTITIES } from './ramp-split-push/types';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import { ENTITY_TO_QB_LOCATION, ALL_ENTITIES } from './receipt-enrichment/engines/ramp-split-push/types';
 import { qbQueryAll } from '../src/lib/quickbooks-multi';
 
 const OUT = 'scripts/out';

@@ -22,10 +22,10 @@
 // guards that REFUSE to run until a mechanism is chosen and wired. Run to produce the worklist:
 //   cd web && npx tsx scripts/ramp-mass-approval.ts            # writes worklist CSV, no side effects
 // ============================================================================================
-import './ramp-split-push/load-env';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
-import type { Entity } from './ramp-split-push/types';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const OUT = 'scripts/ramp-mass-approval/out';

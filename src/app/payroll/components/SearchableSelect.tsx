@@ -110,6 +110,13 @@ export function SearchableSelect({
   const muted = darkMode ? 'text-slate-400' : 'text-slate-500';
 
   return (
+    // QB account names are fully-qualified 'Parent:Child' strings whose leading segment is shared
+    // across many accounts ('COGS - Payroll Expense:COGS - Pharmacists Wages' vs
+    // '…:COGS - Pharmacy Tech Wages'). Truncating to one line rendered several DIFFERENT accounts
+    // identically, so an accountant could not tell which one they were picking — a correctness
+    // risk, not a cosmetic one (Barbara, 2026-08-06). Hence: the trigger wraps to two lines and
+    // carries a title, and the option panel below is allowed to grow wider than the trigger with
+    // each option wrapping in full rather than truncating.
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         type="button"
@@ -123,16 +130,17 @@ export function SearchableSelect({
           setHighlight(0);
         }}
         onKeyDown={onKeyDown}
-        className={`w-full flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs text-left ${inputBg} disabled:opacity-70 disabled:cursor-not-allowed`}
+        title={selected ? (selected.hint ? `${selected.hint} · ${selected.label}` : selected.label) : undefined}
+        className={`w-full flex items-start justify-between gap-2 rounded-md border px-2 py-1 text-xs text-left ${inputBg} disabled:opacity-70 disabled:cursor-not-allowed`}
       >
-        <span className={`truncate ${selected ? '' : muted}`}>
+        <span className={`line-clamp-2 break-words ${selected ? '' : muted}`}>
           {selected ? (selected.hint ? `${selected.hint} · ${selected.label}` : selected.label) : placeholder}
         </span>
         <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-60" aria-hidden />
       </button>
 
       {open && (
-        <div className={`absolute z-20 mt-1 w-full min-w-[18rem] rounded-md border shadow-lg ${panelBg}`}>
+        <div className={`absolute z-20 mt-1 w-max min-w-full max-w-[min(42rem,85vw)] rounded-md border shadow-lg ${panelBg}`}>
           <div className={`flex items-center gap-1.5 px-2 py-1.5 border-b ${borderC}`}>
             <Search className="w-3.5 h-3.5 opacity-60 shrink-0" aria-hidden />
             <input
@@ -165,11 +173,12 @@ export function SearchableSelect({
                       e.preventDefault();
                       choose(o);
                     }}
-                    className={`flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer ${isHi ? hoverC : ''}`}
+                    title={o.hint ? `${o.hint} · ${o.label}` : o.label}
+                    className={`flex items-start gap-2 px-2 py-1.5 text-xs cursor-pointer ${isHi ? hoverC : ''}`}
                   >
-                    <Check className={`w-3.5 h-3.5 shrink-0 ${isSel ? 'opacity-100' : 'opacity-0'}`} aria-hidden />
+                    <Check className={`w-3.5 h-3.5 shrink-0 mt-px ${isSel ? 'opacity-100' : 'opacity-0'}`} aria-hidden />
                     {o.hint && <span className="font-mono tabular-nums opacity-70 shrink-0">{o.hint}</span>}
-                    <span className="truncate">{o.label}</span>
+                    <span className="break-words">{o.label}</span>
                   </li>
                 );
               })

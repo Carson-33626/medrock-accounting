@@ -8,6 +8,7 @@ import { loadDraft, insertAudit, setHeaderStatus, listSiblings, getAccountMap, g
 import { decidePost } from '@/lib/payroll/post-guard';
 import { adpDateToIso } from '@/lib/payroll/dates';
 import { pieceDocNumber } from '@/lib/payroll/split';
+import { explainPostError } from '@/lib/payroll/post-error';
 import type { Entity, JournalDraft, JournalLine } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
 
@@ -241,6 +242,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Hand the UI something actionable instead of a raw QuickBooks fault blob. `error` keeps the
+    // original text so nothing is lost for engineering; `explanation` is what accounting reads.
+    const explanation = explainPostError(message, entity);
+    return NextResponse.json({ error: message, explanation }, { status: 500 });
   }
 }

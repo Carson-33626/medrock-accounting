@@ -1,8 +1,8 @@
 // Read-only probe: which Ramp OAuth scopes our per-entity API clients are granted.
 // Only mints tokens (no API calls). users:read / users:write per entity.
-import '../ramp-split-push/load-env';
-import { rampToken } from '../ramp-split-push/ramp-client';
-import type { Entity } from '../ramp-split-push/types';
+import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import { rampToken } from '../receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from '../receipt-enrichment/engines/ramp-split-push/types';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'] as Entity[];
 

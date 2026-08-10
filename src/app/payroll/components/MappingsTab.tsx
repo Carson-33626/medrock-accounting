@@ -74,6 +74,14 @@ interface ApiErrorBody {
 
 const ENTITIES: Entity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS'];
 const CREDIT_BUCKETS: CreditBucket[] = ['Net Pay', 'Taxes', 'Garnishments', 'Retirement', 'Health', 'WC', 'Other'];
+// Constrained picker, NOT free text. This field was a plain <input> until 2026-08-07 and it put
+// five unresolvable rules into production — '*admin' / '*Admin' / '*PHARM' (the default '*' with a
+// department typed after it) and two carrying the entity name 'MedRock FL'. resolveLine matches
+// cost_center exactly or on '*', so each of those saved fine and then never fired, leaving its
+// column stuck in "new columns detected" forever. UnmappedColumnsPanel was constrained back in
+// July; this second writer was missed. Kept in sync with lib/payroll/cost-center.ts (not imported
+// — client bundle convention for this folder).
+const COST_CENTER_OPTIONS = ['*', 'LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET', 'DFLT'] as const;
 
 function isEntity(value: string): value is Entity {
   return (ENTITIES as string[]).includes(value);
@@ -563,13 +571,25 @@ function AccountRuleRow({
           className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
         />
 
-        <input
-          type="text"
+        <select
           value={rule.costCenter}
           onChange={(e) => onUpdate(rule._key, { costCenter: e.target.value })}
-          placeholder="Cost center ('*' = all roles, or LAB / ADMIN / MARKET…)"
+          title="Cost center — '*' applies the rule to every role"
+          aria-label="Cost center"
           className={`rounded-md border px-2 py-1 text-sm ${inputBg}`}
-        />
+        >
+          {/* A rule loaded from the DB with a malformed cost center (pre-2026-08-07 data) would
+              otherwise render as a blank select and silently re-save the corrupt value on edit.
+              Surface it explicitly so it can be seen and corrected. */}
+          {!(COST_CENTER_OPTIONS as readonly string[]).includes(rule.costCenter) && (
+            <option value={rule.costCenter}>{rule.costCenter || '(blank)'} — invalid, never matches</option>
+          )}
+          {COST_CENTER_OPTIONS.map((cc) => (
+            <option key={cc} value={cc}>
+              {cc === '*' ? '*  (all roles)' : cc}
+            </option>
+          ))}
+        </select>
 
         {accountOptions ? (
           <SearchableSelect

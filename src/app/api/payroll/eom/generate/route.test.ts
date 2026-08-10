@@ -73,6 +73,7 @@ const postedHeader: PayrollHeader = {
   kind: 'allocation',
   period_segment: '',
   txn_date: '2026-03-31',
+  piece_count: 1,
 };
 
 const revenuePoolLine: PoolLine = {

@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../../src/lib/rds-ssl';
 const envText = readFileSync(resolve(__dirname, '..', '..', '.env.local'), 'utf-8');
 for (const line of envText.split(/\r?\n/)) {
   const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line.trim());
@@ -17,7 +18,7 @@ for (const line of envText.split(/\r?\n/)) {
 async function main(): Promise<void> {
   const key = process.env.PAYROLL_ENC_KEY;
   if (!key) { console.log('❌ PAYROLL_ENC_KEY not in .env.local'); return; }
-  const pool = new Pool({ connectionString: process.env.RDS_DATABASE_URL, max: 1, ssl: { rejectUnauthorized: false } });
+  const pool = new Pool({ connectionString: process.env.RDS_DATABASE_URL, max: 1, ssl: RDS_SSL });
   try {
     const cols = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns

@@ -19,6 +19,7 @@ import { DirectionsBanner } from './DirectionsBanner';
 // same-account department lines the same way the builder + Excel export do.
 import { compareJournalLines } from '@/lib/payroll/line-order';
 import { JournalGrid } from './JournalGrid';
+import { personContext } from './journal-grid.helpers';
 import type { PostingType, JournalLine } from './journal-grid.helpers';
 
 /**
@@ -84,6 +85,9 @@ interface DrilldownResponse {
   name: string;
   pay_date: string;
   pay_group: string;
+  home_department: string;
+  location: string;
+  department: string | null;
   sensitive: Record<string, number | string | null>;
 }
 
@@ -94,6 +98,9 @@ interface RosterItem {
   positionId: string;
   payDate: string;
   payGroup: string;
+  homeDepartment: string;
+  location: string;
+  department: string | null;
 }
 
 interface ApiErrorBody {
@@ -438,7 +445,16 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const filteredRoster = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
     if (!q) return roster;
-    return roster.filter((p) => p.name.toLowerCase().includes(q) || p.positionId.toLowerCase().includes(q));
+    // Department and location are searchable too, so "dallas" or "marketing" narrows the run to a
+    // region's people — the question accounting actually asks when a Marketing line looks wrong.
+    return roster.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.positionId.toLowerCase().includes(q) ||
+        (p.department ?? '').toLowerCase().includes(q) ||
+        p.homeDepartment.toLowerCase().includes(q) ||
+        p.location.toLowerCase().includes(q),
+    );
   }, [roster, personSearch]);
 
   return (
@@ -679,7 +695,7 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                             ? 'border-slate-600 hover:bg-slate-700'
                             : 'border-slate-300 hover:bg-slate-100'
                       }`}
-                      title={`${p.name} · ${p.payGroup}`}
+                      title={[p.name, personContext(p), p.payGroup].filter(Boolean).join(' · ')}
                     >
                       {p.name}
                     </button>
@@ -716,6 +732,11 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-sm font-semibold">{drilldown.name}</span>
+                    {personContext({ department: drilldown.department, location: drilldown.location }) && (
+                      <span className={`text-xs ${subText}`} title={drilldown.home_department || undefined}>
+                        · {personContext({ department: drilldown.department, location: drilldown.location })}
+                      </span>
+                    )}
                     <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>
                     <span
                       className={`text-[11px] font-medium rounded-full border px-2 py-0.5 ${

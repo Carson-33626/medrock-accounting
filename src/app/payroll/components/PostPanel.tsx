@@ -79,9 +79,20 @@ interface PostResult {
   qbDocNumber?: string;
 }
 
+/** Mirror of lib/payroll/post-error.ts PostErrorExplanation (server module — not imported here). */
+interface PostErrorExplanation {
+  summary: string;
+  action: string;
+  canSelfClear: boolean;
+  retryable: boolean;
+  raw: string;
+}
+
 interface ApiErrorBody {
   error?: string;
   reconcile?: ReconcileResult;
+  /** Plain-English reading of `error`, with the next action. Absent on non-post failures. */
+  explanation?: PostErrorExplanation;
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -135,6 +146,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [postErrorExplanation, setPostErrorExplanation] = useState<PostErrorExplanation | null>(null);
   const [postErrorReconcile, setPostErrorReconcile] = useState<ReconcileResult | null>(null);
   const [liveResult, setLiveResult] = useState<{ qbEntryId?: string; qbDocNumber?: string } | null>(null);
 
@@ -149,6 +161,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     setPreviewError(null);
     setApproveError(null);
     setPostError(null);
+    setPostErrorExplanation(null);
     setPostErrorReconcile(null);
     setLiveResult(null);
   }, []);
@@ -213,6 +226,27 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       setReconciling(false);
     }
   }, [headerId]);
+
+  /**
+   * "I fixed it — check again." Barbara's 2026-08-06 note asked to clear these errors without
+   * engineering; the missing half was the loop back. After creating the account in QuickBooks or
+   * remapping the line, the only way to confirm the fix was to scroll up and re-run step 1, with
+   * the stale red error still sitting there implying it had not worked. This reloads the header
+   * (its status may have moved), drops the resolved error, and re-reconciles in one click.
+   */
+  const handleRecheck = useCallback(async () => {
+    if (headerId === null) return;
+    setPostError(null);
+    setPostErrorExplanation(null);
+    setPostErrorReconcile(null);
+    const res = await fetch(`/api/payroll/run/${headerId}`);
+    const body = (await res.json()) as DraftResponse & ApiErrorBody;
+    if (res.ok) {
+      setHeader(body.header);
+      setSiblings(body.siblings ?? []);
+    }
+    await handleReconcile();
+  }, [headerId, handleReconcile]);
 
   const handlePreview = useCallback(async () => {
     if (headerId === null) return;
@@ -315,13 +349,17 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
     setPosting(true);
     setPostError(null);
+    setPostErrorExplanation(null);
     setPostErrorReconcile(null);
     setLiveResult(null);
     try {
       if (isSplit) {
         const toPost = siblings.filter((s) => s.status !== 'posted');
         const pieceLabel = (s: PayrollHeader): string => `${segmentLabel(s.period_segment)} (${s.txn_date ?? s.pay_date})`;
-        const results: Array<{ label: string; ok: boolean; qbDocNumber?: string; error?: string }> = [];
+        const results: Array<{
+          label: string; ok: boolean; qbDocNumber?: string; error?: string;
+          explanation?: PostErrorExplanation | null; reconcile?: ReconcileResult | null;
+        }> = [];
         for (const s of toPost) {
           const res = await fetch('/api/payroll/post', {
             method: 'POST',
@@ -330,7 +368,13 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           });
           const body = (await res.json()) as PostResult & ApiErrorBody;
           if (!res.ok) {
-            results.push({ label: pieceLabel(s), ok: false, error: body.error ?? `Request failed (${res.status})` });
+            results.push({
+              label: pieceLabel(s),
+              ok: false,
+              error: body.error ?? `Request failed (${res.status})`,
+              explanation: body.explanation ?? null,
+              reconcile: body.reconcile ?? null,
+            });
             break; // stop the pair — surface partial state loudly, don't keep posting
           }
           results.push({ label: pieceLabel(s), ok: true, qbDocNumber: body.qbDocNumber });
@@ -342,6 +386,15 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
             `PARTIAL SPLIT POST: ${postedOk.length}/${toPost.length} piece(s) posted (${postedOk.map((r) => `${r.label} → ${r.qbDocNumber ?? '—'}`).join(', ')}) ` +
               `then piece ${failed.label} FAILED: ${failed.error}. The months are misstated until the remaining piece posts — retry it from its card.`,
           );
+          // The split path used to drop the server's explanation on the floor, so a failed pair
+          // showed the raw fault text while a failed single showed plain English. Same failure,
+          // worse message, purely because the run straddled a month boundary.
+          setPostErrorExplanation(failed.explanation ?? null);
+          setPostErrorReconcile(failed.reconcile ?? null);
+          // Whatever DID post is real. Reflect it so the panel does not invite a re-post of a
+          // piece QuickBooks has already accepted.
+          const postedLabels = new Set(postedOk.map((r) => r.label));
+          setSiblings((prev) => prev.map((s) => (postedLabels.has(pieceLabel(s)) ? { ...s, status: 'posted' } : s)));
         } else {
           setLiveResult({ qbDocNumber: results.map((r) => r.qbDocNumber ?? '').join(' + ') });
           setHeader((prev) => (prev ? { ...prev, status: 'posted' } : prev));
@@ -359,6 +412,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       if (!res.ok) {
         // 409 (not postable / already posted) or 503 (decrypt key not configured).
         setPostError(body.error ?? `Request failed (${res.status})`);
+        setPostErrorExplanation(body.explanation ?? null);
         setPostErrorReconcile(body.reconcile ?? null);
         return;
       }
@@ -625,10 +679,80 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
             {postError && (
               <div className="space-y-1">
-                <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
-                  <Ban className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                  {postError}
-                </p>
+                {/* Lead with the plain-English reading and the next action. The raw text stays
+                    available below it — engineering still needs it, accounting should not have to
+                    read a QuickBooks fault blob to learn that nothing posted. */}
+                {postErrorExplanation ? (
+                  <div
+                    className={`rounded-lg border p-2.5 space-y-1.5 ${
+                      darkMode ? 'bg-red-950/40 border-red-800' : 'bg-red-50 border-red-300'
+                    }`}
+                  >
+                    <p className={`text-xs font-semibold flex items-start gap-1.5 ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
+                      <Ban className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden />
+                      {postErrorExplanation.summary}
+                    </p>
+                    <p className={`text-xs pl-5 ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
+                      {postErrorExplanation.action}
+                    </p>
+                    <div className="pl-5 flex flex-wrap items-center gap-2">
+                      {postErrorExplanation.canSelfClear && (
+                        <span className={`text-[11px] rounded-full border px-2 py-0.5 ${darkMode ? 'border-red-700 text-red-200' : 'border-red-300 text-red-700'}`}>
+                          You can fix this without engineering
+                        </span>
+                      )}
+                      {postErrorExplanation.retryable && (
+                        <span className={`text-[11px] rounded-full border px-2 py-0.5 ${darkMode ? 'border-amber-700 text-amber-200' : 'border-amber-300 text-amber-800'}`}>
+                          Safe to just try again
+                        </span>
+                      )}
+                    </div>
+                    {/* Clear it yourself. `retryable` is deliberately narrow — only genuinely
+                        transient faults (network, QuickBooks 5010 stale-object) offer a retry, so
+                        this button can never re-fire a post that QuickBooks already accepted. */}
+                    <div className="pl-5 flex flex-wrap items-center gap-2">
+                      {postErrorExplanation.retryable && (
+                        <button
+                          onClick={() => void handlePostLive()}
+                          disabled={posting || !canPostLive}
+                          title="This failure was transient — post again"
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {posting ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Zap className="w-3.5 h-3.5" aria-hidden />}
+                          {posting ? 'Posting…' : 'Try again'}
+                        </button>
+                      )}
+                      {postErrorExplanation.canSelfClear && (
+                        <button
+                          onClick={() => void handleRecheck()}
+                          disabled={reconciling}
+                          title="Re-read the run and reconcile it again after fixing the cause"
+                          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
+                            darkMode ? 'border-red-700 text-red-100 hover:bg-red-900/40' : 'border-red-300 text-red-800 hover:bg-red-100'
+                          } disabled:opacity-50`}
+                        >
+                          {reconciling ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
+                          {reconciling ? 'Checking…' : 'I fixed it — re-check'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setPostError(null); setPostErrorExplanation(null); setPostErrorReconcile(null); }}
+                        className={`text-xs underline ${darkMode ? 'text-red-300' : 'text-red-700'}`}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <details className="pl-5">
+                      <summary className={`text-[11px] cursor-pointer ${subText}`}>Technical detail</summary>
+                      <p className={`text-[11px] mt-1 font-mono break-all ${subText}`}>{postErrorExplanation.raw}</p>
+                    </details>
+                  </div>
+                ) : (
+                  <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                    <Ban className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                    {postError}
+                  </p>
+                )}
                 {postErrorReconcile && postErrorReconcile.errors.length > 0 && (
                   <ul className="space-y-0.5 pl-5">
                     {postErrorReconcile.errors.map((e, i) => (

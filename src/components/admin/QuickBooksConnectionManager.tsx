@@ -22,6 +22,21 @@ const LOCATIONS = [
   { key: 'FOCAS', name: 'FOCAS', qbCompany: 'FOCAS Institute' },
 ] as const;
 
+/**
+ * Plain-English readings of the `?error=` codes the OAuth routes redirect back with. The security
+ * codes are deliberately vague on the wire (they must not tell an attacker which check they
+ * failed) which makes them meaningless to an admin — so the translation happens here, where the
+ * reader is already known to be one.
+ */
+const CONNECT_ERROR_MESSAGE: Record<string, string> = {
+  state_expired:
+    'The connection window timed out. Connecting has to be finished within 10 minutes of starting it — click Connect again.',
+  invalid_state:
+    'The response from QuickBooks did not match the request we sent, so nothing was connected. Start again from Connect on this page rather than from a bookmark or an old browser tab.',
+  invalid_location: 'That company is not one of the configured QuickBooks slots.',
+  missing_params: 'QuickBooks sent an incomplete response — nothing was connected. Try again.',
+};
+
 export function QuickBooksConnectionManager() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +79,7 @@ export function QuickBooksConnectionManager() {
       // Refresh status after connection
       setTimeout(fetchStatus, 500);
     } else if (errorParam) {
-      setError(`Connection failed: ${errorParam}`);
+      setError(`Connection failed: ${CONNECT_ERROR_MESSAGE[errorParam] ?? errorParam}`);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);

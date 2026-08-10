@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { loadDraft } from '@/lib/payroll/store';
+import { costCenterFor, deptLabelFor } from '@/lib/payroll/cost-center';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,25 @@ export interface RosterItem {
   positionId: string;
   payDate: string;
   payGroup: string;
+  /** ADP's raw home_department, e.g. 'MARKET-Marketing'. Carries the department a JE line's
+   *  dollars came from — for marketers this is the tie between the person and their team. */
+  homeDepartment: string;
+  /** ADP's location for this person, e.g. 'Dallas'. The physical/regional tie accounting asked
+   *  to see next to the name (Carson, 2026-08-06). */
+  location: string;
+  /** Readable department label derived from homeDepartment ('MARKET' -> 'Marketing'), or null
+   *  for DFLT/unknown. Same vocabulary the JE line memos use, so the two read alike. */
+  department: string | null;
+}
+
+interface RosterQueryRow {
+  rowKey: string;
+  name: string;
+  positionId: string;
+  payDate: string;
+  payGroup: string;
+  homeDepartment: string | null;
+  location: string | null;
 }
 
 interface ApiErrorBody {
@@ -48,13 +68,15 @@ export async function GET(request: NextRequest) {
     }
     const { header } = loaded;
 
-    const { rows } = await getRdsPool().query<RosterItem>(
+    const { rows } = await getRdsPool().query<RosterQueryRow>(
       `SELECT DISTINCT ON (ph.row_key)
               ph.row_key AS "rowKey",
               ph.name AS "name",
               ph.position_id AS "positionId",
               ph.pay_date AS "payDate",
-              ph.pay_group AS "payGroup"
+              ph.pay_group AS "payGroup",
+              ph.home_department AS "homeDepartment",
+              ph.location AS "location"
        FROM source.payroll_history ph
        WHERE ph.pay_date = $1 AND ph.pay_group = $2
        ORDER BY ph.row_key, ph.name`,
@@ -62,7 +84,18 @@ export async function GET(request: NextRequest) {
     );
 
     // Sort by name for display (DISTINCT ON forced row_key ordering above).
-    const result: RosterItem[] = [...rows].sort((a, b) => a.name.localeCompare(b.name));
+    const result: RosterItem[] = [...rows]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((r) => ({
+        rowKey: r.rowKey,
+        name: r.name,
+        positionId: r.positionId,
+        payDate: r.payDate,
+        payGroup: r.payGroup,
+        homeDepartment: r.homeDepartment ?? '',
+        location: r.location ?? '',
+        department: deptLabelFor(costCenterFor(r.homeDepartment)),
+      }));
     return NextResponse.json(result);
   } catch (error) {
     console.error('[payroll/roster GET]', error);

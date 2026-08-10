@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../../src/lib/rds-ssl';
 
 const envText = readFileSync(resolve(__dirname, '..', '..', '.env.local'), 'utf-8');
 for (const line of envText.split(/\r?\n/)) {
@@ -20,7 +21,7 @@ if (!connectionString) throw new Error('RDS_DATABASE_URL not set');
 async function main(): Promise<void> {
   // Matches the app's own pool config (src/lib/rds.ts) — RDS uses an AWS-issued
   // cert chain that isn't in the default Node trust store.
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const pool = new Pool({ connectionString, ssl: RDS_SSL });
 
   const headers = await pool.query<{ d: string; entities: string; n: string }>(
     `SELECT to_char(to_date(pay_date, 'MM/DD/YYYY'), 'YYYY-MM-DD') AS d,

@@ -1,4 +1,4 @@
-import '../ramp-split-push/load-env';
+import '../receipt-enrichment/engines/ramp-split-push/load-env';
 import { getRdsPool } from '../../src/lib/rds';
 
 async function main(): Promise<void> {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Receipt Capture — Control Panel</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="titles">
+    <h1>Receipt Capture</h1>
+    <p class="subtitle" id="last-sweep">&nbsp;</p>
+  </div>
+  <div class="attention" id="attention" hidden></div>
+</header>
+
+<main class="layout">
+
+  <div class="column">
+    <section class="group" id="group-receipts">
+      <h2>Ramp card receipts <span class="group-note">attach receipts to card transactions</span></h2>
+      <div class="cards" data-group="receipts"></div>
+    </section>
+
+    <section class="group" id="group-bills">
+      <h2>Vendor bills <span class="group-note">code &amp; create bills in QuickBooks</span></h2>
+      <div class="cards" data-group="bills"></div>
+    </section>
+  </div>
+
+  <div class="column">
+    <section class="panel">
+      <h2>Sweep</h2>
+      <div class="banner" id="busy-banner" hidden></div>
+      <div class="banner" id="done-banner" hidden></div>
+      <div class="run-row">
+        <button class="primary" id="btn-dry">Dry run</button>
+        <button id="btn-scan">Scan (refresh counts)</button>
+      </div>
+      <div class="run-row live-row">
+        <label class="arm"><input type="checkbox" id="arm-live" /> Arm LIVE</label>
+        <button class="danger" id="btn-live" disabled>Run LIVE sweep</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Console</h2>
+      <pre class="console" id="console" aria-live="polite"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>Latest report</h2>
+      <p class="report-name" id="report-name">no report yet</p>
+      <pre class="report" id="report"></pre>
+    </section>
+  </div>
+
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

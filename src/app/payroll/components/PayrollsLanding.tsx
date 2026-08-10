@@ -37,6 +37,8 @@ interface PayrollHeader {
   period_segment: string;
   txn_date: string | null;
   kind: string;
+  /** Total pieces in this run, counted server-side independently of any date filter. */
+  piece_count: number;
 }
 
 interface ExcludedGroup {
@@ -99,6 +101,20 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 function segmentLabel(segment: string): string {
   const m = /^\d{4}-(\d{2})$/.exec(segment);
   return m ? SHORT_MONTHS[Number(m[1]) - 1] : segment;
+}
+
+/**
+ * True when an MM/DD/YYYY period spans more than one calendar month, i.e. the run SHOULD post as
+ * two journal entries (one per month). A straddling run that is not split is a real accounting
+ * problem, not a display quirk: splitStraddle deliberately leaves an UNBALANCED draft whole
+ * (split.ts), so a variance silently parks the entire period's expense in the pay-date month.
+ * As of 2026-08-07 that had happened to seven runs, three of them off by five figures.
+ */
+function straddlesMonths(start: string | null, end: string | null): boolean {
+  const s = start ? /^(\d{2})\/\d{2}\/(\d{4})$/.exec(start) : null;
+  const e = end ? /^(\d{2})\/\d{2}\/(\d{4})$/.exec(end) : null;
+  if (!s || !e) return false;
+  return s[1] !== e[1] || s[2] !== e[2];
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -221,10 +237,23 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
           <strong>Import a pay period</strong> below to pull it from ADP.
         </p>
         <p>
+          Four entities build drafts: <strong>MedRock FL</strong>, <strong>TN</strong>,{' '}
+          <strong>TX</strong> and <strong>FOCAS</strong>. Not every entity appears on every pay
+          date — a card only exists where ADP had rows for that pay group.
+        </p>
+        <p>
           A card with a <strong>Split</strong> badge is a payroll whose pay period crosses a month
           boundary: it posts as <strong>two journal entries</strong>, one per calendar month, and the
           card lists each month&apos;s share. Open it to review the pieces on sub-tabs — they approve
-          and post together as a pair.
+          and post together as a pair. Filtering by an accounting period can show just one of the two
+          pieces; the badge then reads <em>(1 of 2)</em> and the total is labelled{' '}
+          <strong>Shown here</strong> rather than Combined, so a part is never mistaken for the whole.
+        </p>
+        <p>
+          An <strong>amber warning</strong> on a card means the opposite problem: the period crosses a
+          month boundary but only one entry was produced, so the earlier month&apos;s share is sitting
+          in the wrong month. That happens when the draft doesn&apos;t balance — a run is only split
+          once its variance is zero. Clear the variance, then rebuild the period to split it.
         </p>
       </DirectionsBanner>
 
@@ -511,10 +540,21 @@ function RunCard({
   onOpen: () => void;
 }) {
   const header = pieces[0];
-  const split = pieces.length > 1;
-  const balanced = split ? pieces.every((p) => p.variance === 0) : header.variance === 0;
+  // Whether the run IS split comes from the server-side piece_count, never from how many
+  // siblings this query returned. Under a month filter only one piece of a split run comes
+  // back (the pieces post in different months), and inferring `pieces.length > 1` there both
+  // hid the Split badge AND presented one piece's debits/credits as if they were the whole
+  // run's — the dangerous half of the bug. See store.listHeaders.
+  const split = (header.piece_count ?? pieces.length) > 1;
+  // True when the run is split but this view is only showing some of its pieces.
+  const partial = split && pieces.length < (header.piece_count ?? pieces.length);
+  const balanced = pieces.every((p) => p.variance === 0);
   const status = split ? (pieces.find((p) => p.status !== 'posted')?.status ?? 'posted') : header.status;
   const combinedVariance = round2(pieces.reduce((s, p) => s + p.variance, 0));
+  // A period crossing a month boundary that produced only ONE entry never got split. The cause is
+  // almost always the variance below (splitStraddle refuses to split an unbalanced draft), and the
+  // consequence is that the prior month's share of this payroll posts in the wrong month.
+  const shouldHaveSplit = !split && straddlesMonths(header.period_start, header.period_end);
   return (
     <button
       onClick={onOpen}
@@ -533,6 +573,7 @@ function RunCard({
               }`}
             >
               Split · {pieces.map((p) => segmentLabel(p.period_segment)).join('/')}
+              {partial && ` (${pieces.length} of ${header.piece_count})`}
             </span>
           )}
           <StatusBadge darkMode={darkMode} status={status} />
@@ -544,6 +585,21 @@ function RunCard({
         {header.period_start && header.period_end ? ` · period ${header.period_start}–${header.period_end}` : ''}
       </div>
 
+      {shouldHaveSplit && (
+        <p
+          className={`text-[11px] flex items-start gap-1 rounded-md border px-2 py-1 ${
+            darkMode ? 'bg-amber-950/50 text-amber-200 border-amber-800' : 'bg-amber-50 text-amber-800 border-amber-200'
+          }`}
+        >
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden />
+          <span>
+            This period crosses a month boundary but posted as <strong>one</strong> entry — the earlier
+            month&apos;s share will land in the wrong month.
+            {!balanced && ' Clear the variance below, then rebuild to split it.'}
+          </span>
+        </p>
+      )}
+
       {split ? (
         <div className="space-y-1 text-sm">
           {pieces.map((p) => (
@@ -553,9 +609,18 @@ function RunCard({
             </div>
           ))}
           <div className={`flex items-center justify-between gap-2 border-t pt-1 ${border}`}>
-            <span className={`text-xs font-semibold ${subText}`}>Combined</span>
+            {/* Only the pieces in view are summed, so label it honestly rather than calling a
+                partial sum "Combined" — under a month filter that would understate the run. */}
+            <span className={`text-xs font-semibold ${subText}`}>{partial ? 'Shown here' : 'Combined'}</span>
             <span className="tabular-nums font-semibold">{fmtMoney(round2(pieces.reduce((s, p) => s + p.total_debits, 0)))}</span>
           </div>
+          {partial && (
+            <p className={`text-[11px] ${subText}`}>
+              The other {header.piece_count - pieces.length} piece
+              {header.piece_count - pieces.length === 1 ? '' : 's'} post{header.piece_count - pieces.length === 1 ? 's' : ''} in
+              another month and {header.piece_count - pieces.length === 1 ? 'is' : 'are'} outside this filter. Open to see the whole run.
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-sm">

@@ -1,7 +1,7 @@
 // READ-ONLY: find a $20.99 Amazon txn on/near 2026-03-26 across all Ramp entities.
-import '../ramp-split-push/load-env';
-import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
-import type { Entity } from '../ramp-split-push/types';
+import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import { rampToken, rampGet } from '../receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from '../receipt-enrichment/engines/ramp-split-push/types';
 
 interface Raw {
   id: string;

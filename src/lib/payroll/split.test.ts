@@ -73,6 +73,25 @@ describe('pieceDocNumber / pieceTxnDate / segmentTag / pieceLabel', () => {
   });
 });
 
+/**
+ * Regression for 2026-08-10: a real 2025 MedRock FL run reached the balance repair with no credit
+ * line to shift cents against, and splitStraddle THREW — aborting a whole-year regeneration
+ * mid-write and leaving half the year stale. The documented contract is that impossible repairs
+ * return the draft unchanged, so an unsplittable run must degrade to "not split", never crash.
+ */
+describe('splitStraddle: impossible repair degrades instead of throwing', () => {
+  it('returns the draft unchanged when there is no credit line to repair against', () => {
+    // Debit-only, and balanced only because the amounts cancel. The three cents round across the
+    // 9/14 + 5/14 segments WITHOUT cancelling per segment, so the pieces come out imbalanced and
+    // the repair is genuinely needed — but there is no Credit line to shift cents against.
+    const draft = straddler([line('Debit', 0.01), line('Debit', 0.01), line('Debit', -0.02)]);
+    expect(draft.variance).toBe(0); // precondition: it gets past the unbalanced early-return
+    const pieces = splitStraddle(draft);
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0]).toBe(draft);
+  });
+});
+
 describe('splitStraddle', () => {
   it('non-straddler passes through untouched (deep-equal, same reference contents)', () => {
     const d = { ...straddler([line('Debit', 100), line('Credit', 100)]), periodStart: '06/17/2026', periodEnd: '06/30/2026' };

@@ -5,14 +5,17 @@ import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 
 /**
  * Collapsible "how this page works" banner shown at the top of each payroll view.
- * Expanded by default so first-time users see the directions; collapsible so daily
- * users can tuck it away. Purely presentational — no data, no side effects.
+ *
+ * COLLAPSED by default (Carson, 2026-08-07). These pages are used daily by two accountants who
+ * know the workflow; leaving several paragraphs expanded on every visit pushed the actual work
+ * below the fold. The title stays visible so the directions are still one click away.
+ * Purely presentational — no data, no side effects.
  */
 export function DirectionsBanner({
   darkMode,
   title,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
 }: {
   darkMode: boolean;
   title: string;

@@ -4,12 +4,12 @@
 // Ramp card charges land in QB as Purchases matching on amount + date (±3 days) — no Ramp id
 // is stored on the QB side. Honors the dry-run mandate: zero writes to Ramp or QB.
 // Run from web/ dir:  npx tsx scripts/ramp-qbo-gap-scan.ts
-import './ramp-split-push/load-env';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
-import type { Entity } from './ramp-split-push/types';
-import { ENTITY_TO_QB_LOCATION, ALL_ENTITIES } from './ramp-split-push/types';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import { ENTITY_TO_QB_LOCATION, ALL_ENTITIES } from './receipt-enrichment/engines/ramp-split-push/types';
 import { qbQueryAll } from '../src/lib/quickbooks-multi';
 
 const DATE_WINDOW_DAYS = 3;

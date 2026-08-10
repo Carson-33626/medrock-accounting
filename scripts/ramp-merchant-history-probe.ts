@@ -1,8 +1,8 @@
 // READ-ONLY: dump the shape of a coded Ramp txn's accounting fields so we can build a merchant->GL
 // history poll. Prints the first few txns that carry accounting_field_selections / line-item GL.
-import './ramp-split-push/load-env';
-import { rampToken, rampGet } from './ramp-split-push/ramp-client';
-import type { Entity } from './ramp-split-push/types';
+import './receipt-enrichment/engines/ramp-split-push/load-env';
+import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
 
 const ENTITY: Entity = 'FL';
 

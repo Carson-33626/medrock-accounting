@@ -3,7 +3,7 @@
 // 2) Pulls JournalEntries since 2025-10-01 and prints any whose lines carry an
 //    Allocate-ish department or class, with full leg detail (account, dept, class,
 //    posting, amount, memo) so the generator can mirror the real structure.
-import '../ramp-split-push/load-env';
+import '../receipt-enrichment/engines/ramp-split-push/load-env';
 import { qbQueryAll, type Location } from '../../src/lib/quickbooks-multi';
 
 interface NamedEntity { Id: string; Name: string; FullyQualifiedName?: string; Active?: boolean }

@@ -28,10 +28,49 @@ export interface JournalLine {
   sourceRowKeys: string[];
 }
 
-/** Minimal roster shape the Name column needs — rowKey → display name. */
+/**
+ * Minimal roster shape the Name column needs — rowKey → display name, plus the department and
+ * location that name is tied to. Department/location are optional so any caller holding only
+ * names still type-checks; when present they are what accounting reads to tell one Marketing
+ * line from another (Carson, 2026-08-06: marketers "and their region and location").
+ */
 export interface RosterName {
   rowKey: string;
   name: string;
+  /** Readable department label ('Marketing'), or null/absent when DFLT/unknown. */
+  department?: string | null;
+  /** ADP location ('Dallas'), or '' / absent when the source row carries none. */
+  location?: string | null;
+}
+
+/** "Marketing · Dallas", "Marketing", "Dallas", or '' — whichever parts this person has. */
+export function personContext(p: Pick<RosterName, 'department' | 'location'>): string {
+  return [p.department, p.location].filter((s): s is string => Boolean(s && s.trim() !== '')).join(' · ');
+}
+
+/**
+ * Full people-behind-this-line text for the Name cell's tooltip: one person per line, each as
+ * "Name — Department · Location". The visible cell can only fit two names; hovering has to answer
+ * "which Marketing people, in which locations, make up this number?" without expanding the row.
+ * Returns '' when the line has no source rows.
+ */
+export function sourcePeopleTitle(sourceRowKeys: string[], roster: readonly RosterName[]): string {
+  if (sourceRowKeys.length === 0) return '';
+  const byKey = new Map(roster.map((r) => [r.rowKey, r]));
+  const people = sourceRowKeys.map((k) => byKey.get(k)).filter((p): p is RosterName => p !== undefined);
+  if (people.length === 0) return `${sourceRowKeys.length} people (names not loaded)`;
+  const lines = people
+    .map((p) => {
+      const ctx = personContext(p);
+      return ctx ? `${p.name} — ${ctx}` : p.name;
+    })
+    .sort((a, b) => a.localeCompare(b));
+  // A partially-resolved roster must SAY so. Silently listing only the people we could name would
+  // read as the complete set behind the line's dollars, which is exactly the thing this tooltip
+  // exists to answer — an undercount here is worse than no tooltip.
+  const missing = sourceRowKeys.length - people.length;
+  if (missing > 0) lines.push(`+${missing} more (names not loaded)`);
+  return lines.join('\n');
 }
 
 /**

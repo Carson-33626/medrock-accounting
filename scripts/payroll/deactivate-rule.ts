@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../../src/lib/rds-ssl';
 
 const envText = readFileSync(resolve(__dirname, '..', '..', '.env.local'), 'utf-8');
 for (const line of envText.split(/\r?\n/)) {
@@ -28,7 +29,7 @@ if (!idArg || !/^\d+$/.test(idArg)) throw new Error('usage: deactivate-rule.ts <
 const id = Number(idArg);
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const pool = new Pool({ connectionString, ssl: RDS_SSL });
 
   const before = await pool.query(`SELECT * FROM accounting.payroll_account_map WHERE id = $1`, [id]);
   if (before.rowCount === 0) {

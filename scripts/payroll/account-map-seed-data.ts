@@ -14,10 +14,15 @@
 import type { AccountMapRule, CreditBucket, Entity } from '../../src/lib/payroll/types';
 import { DEPT_LABEL } from '../../src/lib/payroll/cost-center';
 
-/** Entities whose seed rules exist. FOCAS joins once its probe-derived rules land
- *  (spec §4) — until then buildSeedAccountMap('FOCAS') returns []. */
-export type SeededEntity = Exclude<Entity, 'FOCAS'>;
-export const SEEDED_ENTITIES: SeededEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
+/**
+ * Entities whose seed rules exist — now all four. FOCAS joined on 2026-08-07, once its
+ * QuickBooks company was connected AND its chart of accounts was populated from the MedRock FL
+ * template (scripts/payroll/focas-coa-sync.ts). Both were prerequisites: FOCAS's QBO file was a
+ * near-default one holding none of the 26 accounts these rules name, and QBO rejects a
+ * journal-entry line whose AccountRef does not exist in that company.
+ */
+export type SeededEntity = Entity;
+export const SEEDED_ENTITIES: SeededEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock TX', 'FOCAS'];
 
 const COST_CENTERS = ['LAB', 'PHARM', 'RD', 'ADMIN', 'ACCOUN', 'CS', 'DATA', 'SHIP', 'MARKET'] as const;
 type CostCenter = (typeof COST_CENTERS)[number];
@@ -38,6 +43,12 @@ const REGULAR_EARNING_COLUMNS = [
   'DELIVERY - EARNING',
   'COMMITTEE - EARNING',
   'BEREAVEMENT - EARNING',
+  // FMLA pay is a wage earning like the rest of this list and belongs here rather than as a
+  // hand-made UI rule (Barbara 2026-08-06). Seeding it per cost center also corrects a real
+  // mis-coding: the manual rule that had been resolving it was a cost_center '*' wildcard
+  // pointing at COGS - Pharmacists Wages, so FL's MARKET ($8,938), LAB ($3,656) and CS ($2,775)
+  // FMLA — and TN's LAB — were all posting to Pharmacists COGS.
+  'FMLA - EARNING',
 ] as const;
 
 const OT_EARNING_COLUMNS = ['OVERTIME PREMIUM - EARNING', 'OVERTIME STRAIGHT - EARNING'] as const;
@@ -56,23 +67,49 @@ const REGULAR_WAGE_ACCOUNT: Record<CostCenter, string> = {
 };
 
 /**
- * OT-wage account per cost_center. PHARM ("(rare)") and ADMIN/ACCOUN/MARKET ("—")
- * have no dedicated OT account in the addendum table, so they're omitted here —
- * OT earning columns simply don't emit a rule for those cost centers.
+ * OT-wage account per cost_center — now COMPLETE for every cost center.
+ *
+ * It used to omit PHARM ("(rare)") and ADMIN/ACCOUN/MARKET ("—") because the mapping addendum
+ * left those cells blank, which meant OT columns emitted no rule for them and the column
+ * resurfaced as "new columns detected" on nearly every run. That is the answer to Barbara's
+ * "overtime rules should have populated already, why are we being prompted for a new overtime
+ * rule?" (2026-08-06): FL's ACCOUN staff work a little overtime on 12 of 17 pay dates, so the
+ * one unmapped cell prompted almost every time.
+ *
+ * Every account below was verified to exist in MedRock FL's and TN's live chart of accounts.
+ * ADMIN and ACCOUN share 'Administrative - OT Wages', matching how their regular wages already
+ * share 'Administrative Wages' (Carson, 2026-08-07) — and matching the intent of two rules
+ * written by hand on 2026-07-20 that never fired because their cost_center was saved as
+ * '*admin' / '*Admin'.
  */
-const OT_WAGE_ACCOUNT: Partial<Record<CostCenter, string>> = {
+const OT_WAGE_ACCOUNT: Record<CostCenter, string> = {
   LAB: 'COGS - Payroll Expense:COGS - Lab OT Wages',
+  PHARM: 'COGS - Payroll Expense:COGS - Pharmacists OT Wages',
   RD: 'COGS - Payroll Expense:COGS - R & D OT Wages',
+  ADMIN: 'Payroll Expense -:Administrative - OT Wages',
+  ACCOUN: 'Payroll Expense -:Administrative - OT Wages',
   CS: 'Payroll Expense -:Customer Service - OT Wages',
   DATA: 'Payroll Expense -:Data Entry - OT Wages',
   SHIP: 'Payroll Expense -:Shipping - OT Wages',
+  MARKET: 'Payroll Expense -:Marketing - OT Wages',
 };
 
-/** State-UI employer-cost ADP column is state-specific; verified present in live vocab for all 3 states. */
-const STATE_UI_COLUMN: Record<SeededEntity, string> = {
-  'MedRock FL': 'FL STATE - UNEMPLOYMENT INSURANCE ER',
-  'MedRock TN': 'TN STATE - UNEMPLOYMENT INSURANCE ER',
-  'MedRock TX': 'TX STATE - UNEMPLOYMENT INSURANCE ER',
+/**
+ * State-UI employer-cost ADP columns, per entity. A LIST rather than a single column because
+ * FOCAS is not a single-state employer: its 2026 rows carry FL ($329.40, ADMIN), TN ($378.00, RD)
+ * AND TX ($243.01, RD) unemployment-insurance columns, since its handful of staff sit in three
+ * different states. Giving it only one would leave the other two permanently unmapped.
+ * Verified present in the live column vocabulary for every entity listed.
+ */
+const STATE_UI_COLUMNS: Record<SeededEntity, readonly string[]> = {
+  'MedRock FL': ['FL STATE - UNEMPLOYMENT INSURANCE ER'],
+  'MedRock TN': ['TN STATE - UNEMPLOYMENT INSURANCE ER'],
+  'MedRock TX': ['TX STATE - UNEMPLOYMENT INSURANCE ER'],
+  FOCAS: [
+    'FL STATE - UNEMPLOYMENT INSURANCE ER',
+    'TN STATE - UNEMPLOYMENT INSURANCE ER',
+    'TX STATE - UNEMPLOYMENT INSURANCE ER',
+  ],
 };
 
 /**
@@ -91,9 +128,38 @@ const OUT_OF_STATE_UI_ER_COLUMNS = [
   'IL STATE - UNEMPLOYMENT INSURANCE ER',
   'MD STATE - UNEMPLOYMENT INSURANCE ER',
   'OH STATE - UNEMPLOYMENT INSURANCE ER',
+  // Added 2026-08-07 from live unmapped-column dollars: TN carries real AZ ($319.99) and GA
+  // ($256.50) unemployment for remote marketing reps, same pattern as the states above.
+  'AZ STATE - UNEMPLOYMENT INSURANCE ER',
+  'GA STATE - UNEMPLOYMENT INSURANCE ER',
+  // The three HOME states belong here too. An employee of one entity can live in another entity's
+  // state — MedRock FL carries $72.01 of TX unemployment — and that column is only in
+  // STATE_UI_COLUMNS for MedRock TX, so it went unmapped on FL. Listing all three here maps them
+  // everywhere; the entity's own state then appears twice in the composed list, which is exactly
+  // what the dedupe at the call site exists to absorb.
+  'FL STATE - UNEMPLOYMENT INSURANCE ER',
+  'TN STATE - UNEMPLOYMENT INSURANCE ER',
+  'TX STATE - UNEMPLOYMENT INSURANCE ER',
   // Double space before "ER" is a real ADP quirk (verified in the live 03/27/2026 TN data),
   // matching the same pattern as 'RI STATE - DISABILITY INSURANCE  EE' below.
   'CO STATE - FAMILY AND MEDICAL LEAVE INSURANCE  ER',
+] as const;
+
+/**
+ * Puerto Rico's EMPLOYER-side taxes. PR runs its own social security, medicare and disability
+ * rather than sitting under the federal ones, so these are additional employer costs — but they
+ * are still employer payroll taxes and belong in the same accounts as SOCIAL SECURITY - ER and
+ * MEDICARE - ER (Carson, 2026-08-10: Puerto Rico goes to the Florida payroll pieces).
+ *
+ * 'PR STATE - MEDICARE  ER__123' carries a literal `__123` suffix in the live export — an ADP
+ * artifact, not a real distinction. The clean name is mapped alongside it so the rule keeps
+ * working if ADP ever drops the suffix; whichever name is absent simply never matches a row.
+ */
+const PR_EMPLOYER_TAX_COLUMNS = [
+  'PR STATE - SOCIAL SECURITY  ER',
+  'PR STATE - MEDICARE  ER__123',
+  'PR STATE - MEDICARE  ER',
+  'PR STATE - DISABILITY INSURANCE  ER',
 ] as const;
 
 /**
@@ -105,10 +171,14 @@ const OUT_OF_STATE_UI_ER_COLUMNS = [
  * using the FL (parent LLC) column as a placeholder for MedRock TX pending Amy's confirmation of
  * which policy/column actually carries TX employees' WC cost.
  */
-const WC_COLUMN: Record<SeededEntity, string> = {
-  'MedRock FL': 'WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX',
-  'MedRock TN': 'WORKERS COMPENSATION INSURANCE - MEDROCK TN LLC - POST-TAX',
-  'MedRock TX': 'WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX',
+const WC_COLUMNS: Record<SeededEntity, readonly string[]> = {
+  'MedRock FL': ['WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX'],
+  'MedRock TN': ['WORKERS COMPENSATION INSURANCE - MEDROCK TN LLC - POST-TAX'],
+  'MedRock TX': ['WORKERS COMPENSATION INSURANCE - MEDROCK PHARMACY LLC - POST-TAX'],
+  // Deliberately EMPTY. FOCAS carries no workers'-comp column at all in the live ADP data (its
+  // 2026 rows have 19 postable columns and none is a WC premium). Pointing it at another
+  // entity's LLC-named column would invent a cost FOCAS does not bear, so it emits no WC rule.
+  FOCAS: [],
 };
 
 /**
@@ -128,6 +198,11 @@ const GARNISHMENT_ACCOUNT: Record<SeededEntity, string> = {
   'MedRock FL': 'Employee Garnishment Liability',
   'MedRock TN': 'Payroll Withholdings',
   'MedRock TX': 'Payroll Withholdings',
+  // FOCAS has no garnishment columns in the live data, so this rule is never exercised today.
+  // It follows TN/TX's pooled default rather than FL's dedicated liability account, which is the
+  // safer of the two if a wage order ever does appear: the money lands in the general
+  // withholdings pool where it is visible, rather than in a FOCAS-specific account nobody checks.
+  FOCAS: 'Payroll Withholdings',
 };
 
 /**
@@ -161,6 +236,15 @@ const EE_WITHHOLDING_RULES: ReadonlyArray<{ column: string; bucket: CreditBucket
   { column: 'AZ STATE - EE INCOME TAX', bucket: 'Taxes' },
   { column: 'OH MUNICIPAL : GRANDVIEW HEIGHTS - EE INCOME TAX', bucket: 'Taxes' },
   { column: 'CO STATE - FAMILY AND MEDICAL LEAVE INSURANCE  EE', bucket: 'Taxes' },
+  // Puerto Rico (Carson, 2026-08-10: "Puerto Rico expenses should go to florida payroll pieces").
+  // PR operates its own social security / medicare / disability alongside an income tax, so it
+  // has more EE columns than a mainland state — but they are ordinary employee withholdings and
+  // land in the same pooled 'Payroll Withholdings' liability as every other state's. Carried by
+  // MedRock FL marketing reps living in PR. Double space before "EE" is the usual ADP quirk.
+  { column: 'PR STATE - EE INCOME TAX', bucket: 'Taxes' },
+  { column: 'PR STATE - SOCIAL SECURITY  EE', bucket: 'Taxes' },
+  { column: 'PR STATE - MEDICARE  EE', bucket: 'Taxes' },
+  { column: 'PR STATE - DISABILITY INSURANCE  EE', bucket: 'Taxes' },
   { column: 'MEDICAL - EE PRE-TAX', bucket: 'Health' },
   { column: 'DENTAL - EE PRE-TAX', bucket: 'Health' },
   { column: 'VISION - EE PRE-TAX', bucket: 'Health' },
@@ -175,6 +259,11 @@ const EE_WITHHOLDING_RULES: ReadonlyArray<{ column: string; bucket: CreditBucket
   { column: 'RS 401K LOAN -  401A POST-TAX', bucket: 'Retirement' },
   { column: 'RS 401K LOAN 2 -  401A POST-TAX', bucket: 'Retirement' },
   { column: 'RS 401K LOAN2 088086 -  401A POST-TAX', bucket: 'Retirement' },
+  // Fourth variant of the same loan-repayment column. ADP emits a per-plan/per-loan name, so these
+  // accumulate; this one ('LOAN 088086', distinct from 'LOAN2 088086' above) carried $305.64 of
+  // real TN dollars while unmapped. Note the DOUBLE space before '401A' — an ADP quirk shared by
+  // all four.
+  { column: 'RS 401K LOAN 088086 -  401A POST-TAX', bucket: 'Retirement' },
   { column: 'GARNISH', bucket: 'Garnishments' },
   { column: 'CHILD PAYMENTS', bucket: 'Garnishments' },
   { column: 'BKWITHHOLD', bucket: 'Garnishments' },
@@ -197,7 +286,11 @@ function addEmployerCostRules(
   bucket: CreditBucket,
   memoKind: string,
 ): void {
-  for (const column of columns) {
+  // Deduplicate. A column reaching this function twice would emit two IDENTICAL same-direction
+  // rules, and resolveLine returns every in-direction match — so the amount would post TWICE.
+  // The composed employer-tax list can legitimately repeat a column (an entity's home-state
+  // unemployment appears in both STATE_UI_COLUMNS and the all-states list), so this is load-bearing.
+  for (const column of [...new Set(columns)]) {
     for (const cc of COST_CENTERS) {
       const isCogs = COGS_COST_CENTERS.has(cc);
       rules.push({
@@ -250,7 +343,6 @@ function addPerDeptDebitSpecial(
 }
 
 export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
-  if (entity === 'FOCAS') return [];
   const rules: AccountMapRule[] = [];
 
   // --- Wage earnings: Debit, per cost_center ---
@@ -303,8 +395,9 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
       'SOCIAL SECURITY - ER',
       'MEDICARE - ER',
       'FEDERAL UNEMPLOYMENT INSURANCE - ER',
-      STATE_UI_COLUMN[entity],
+      ...STATE_UI_COLUMNS[entity],
       ...OUT_OF_STATE_UI_ER_COLUMNS,
+      ...PR_EMPLOYER_TAX_COLUMNS,
     ],
     'COGS - Payroll Expense:COGS - Employer Payroll Taxes',
     'Payroll Expense -:Employer Taxes',
@@ -323,7 +416,7 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   addEmployerCostRules(
     rules,
     entity,
-    [WC_COLUMN[entity]],
+    WC_COLUMNS[entity],
     "COGS - Payroll Expense:COGS - Workmen's Compensation Ins",
     "Payroll Expense -:Workmen's Compensation Ins.",
     'WC',
@@ -379,35 +472,60 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
     active: true,
   });
 
-  // CHILD PAYMENTS - ER (Barbara, 2026-08-05): ADP's employer-paid child-support processing fee
-  // (~$2) — the other half of the $252 residual traced 2026-07-20 (COMPANY LOAN above was the
-  // ~$250 half; this one was deliberately left unmapped pending her account call). Debits QBO
-  // 6500.80 'Payroll Processing Fees' (a sub of 6500 'Payroll Expense -', so the name carries the
-  // parent prefix like Employer Taxes does) with her requested memo, and credits the standard
-  // withholdings pool like every other employer cost so the JE stays balanced.
-  rules.push(
-    {
-      entity,
-      adpColumn: 'CHILD PAYMENTS - ER',
-      costCenter: '*',
-      accountName: 'Payroll Expense -:Payroll Processing Fees',
-      postingType: 'Debit',
-      isCogs: false,
-      creditBucket: null,
-      active: true,
-      memo: 'Child Support Fee',
-    },
-    {
-      entity,
-      adpColumn: 'CHILD PAYMENTS - ER',
-      costCenter: '*',
-      accountName: 'Payroll Withholdings',
-      postingType: 'Credit',
-      isCogs: false,
-      creditBucket: 'Other',
-      active: true,
-    },
-  );
+  // ADV DEDUCTION is the same thing under a different ADP name — a post-tax deduction repaying a
+  // pay ADVANCE — so it gets identical treatment: credit the asset, not the withholdings pool.
+  // It was unmapped on all three entities (FL $1,261.07, TN $1,936.03, TX $558.26), dropping its
+  // credit line while NET PAY already reflected the deduction, exactly the residual mechanism
+  // COMPANY LOAN above was fixed for.
+  rules.push({
+    entity,
+    adpColumn: 'ADV DEDUCTION - EE - PRINCIPAL POST-TAX',
+    costCenter: '*',
+    accountName: 'Employee Advances',
+    postingType: 'Credit',
+    isCogs: false,
+    creditBucket: 'Other',
+    active: true,
+  });
+
+  /**
+   * CHILD PAYMENTS - ER — the ~$2 child-support processing fee.
+   *
+   * CORRECTED 2026-08-07. Despite ADP's "- ER" suffix this fee is withheld from the EMPLOYEE, not
+   * borne by the employer, and the source data says so unambiguously. For the one MedRock FL
+   * employee who carries it, ADP's own subtotals close only when the fee is counted inside the
+   * withholding order (figures from 01/02/2026):
+   *
+   *     TOTAL VOLUNTARY DEDUCTIONS - EE    152.06
+   *     TOTAL TAXES - EE                   455.59
+   *     TOTAL WITHHOLDING ORDERS           291.21   <- CHILD PAYMENTS 289.21 + this fee 2.00
+   *     NET PAY                          1,665.19
+   *                                      --------
+   *                                      2,564.05   = GROSS PAY, exactly
+   *
+   * The 2026-08-05 mapping booked it as an employer cost: a Debit to 'Payroll Processing Fees'
+   * plus a Credit to the withholdings pool. That pair is self-balancing, so it could not close
+   * the $2 residual it was written to close — and the phantom debit left the JE $2.00 heavy on
+   * EVERY pay date this employee appears (all 16 of 2026's FL runs). That variance is not
+   * cosmetic: splitStraddle refuses to split an unbalanced draft, so it also blocked the
+   * month-boundary split on every straddling FL run.
+   *
+   * Correct treatment is a Credit ONLY, and to the entity's own garnishment account rather than
+   * the generic pool, so the full 291.21 withholding order sits together in the liability of the
+   * location it came from (Barbara's 2026-08-06 note: "child support pieces/processing fee needs
+   * to stay with the location it's from").
+   */
+  rules.push({
+    entity,
+    adpColumn: 'CHILD PAYMENTS - ER',
+    costCenter: '*',
+    accountName: GARNISHMENT_ACCOUNT[entity],
+    postingType: 'Credit',
+    isCogs: false,
+    creditBucket: 'Garnishments',
+    active: true,
+    memo: 'Child Support Fee',
+  });
 
   // --- Real-dollar "specials" confirmed against Amy's actual 03/27/2026 JE (Debit-only, like
   // wage-earning columns — their Credit-side offset is already captured by the generic NET PAY
@@ -416,10 +534,31 @@ export function buildSeedAccountMap(entity: Entity): AccountMapRule[] {
   // 2026-07-21), same as MEDICAL - ER above, with a '*' fallback for blank-department rows. ---
   const SPECIAL_DEBIT_COLUMNS: ReadonlyArray<{ column: string; accountName: string; memoKind: string }> = [
     { column: 'CAR ALLOWANCE - EARNING', accountName: 'Accrued Payroll Liability', memoKind: 'Car Allowance' },
+    // SIC - EARNING is the marketing team's commission (Carson, 2026-08-07). It was the single
+    // largest unmapped column in the system — $51,148 FL + $68,104 TN + $13,308 TX = $132,560 of
+    // 2026 dollars dropped out of the JE entirely, which is a direct cause of the residuals that
+    // stop those runs from splitting across a month boundary.
+    //
+    // It posts to 6500.45 'Commission Wages', NOT to 6500.30 'Marketing Wages - Base'. That
+    // account exists in all four companies, sits beside Marketing Wages under 'Payroll Expense -',
+    // and carried no payroll rule at all until now — it is purpose-built for exactly this and
+    // keeps commission separate from base salary in the P&L. Only MARKET-cost-center rows carry
+    // the column today, but the per-department memo split means a commission paid to any other
+    // department still resolves and is still readable.
+    { column: 'SIC - EARNING', accountName: 'Payroll Expense -:Commission Wages', memoKind: 'Commission' },
     {
       column: 'REIMBURSEMENT - REIMBURSEMENT NON-TAXABLE NON TAXABLE REIMBURSEMENT',
       accountName: 'Payroll Reimbursement Liabilities',
       memoKind: 'Reimbursement',
+    },
+    // Same column family, car-specific ADP variant — non-taxable reimbursement paid through
+    // payroll, so it lands in the same liability as the generic one above. Was unmapped on FL
+    // ($369.57, MARKET) and TN ($999.29, LAB/PHARM). Distinct from 'CAR ALLOWANCE - EARNING',
+    // which is TAXABLE compensation and correctly hits Accrued Payroll Liability instead.
+    {
+      column: 'CAR REIMBURSEMENT - REIMBURSEMENT NON-TAXABLE NON TAXABLE REIMBURSEMENT',
+      accountName: 'Payroll Reimbursement Liabilities',
+      memoKind: 'Car Reimbursement',
     },
     // NOTE: confirmed in Amy's FL JE ("Bonus - Marketing" -> Payroll Expense -:Bonus Wages,
     // single non-COGS account, not per-cost-center) and matches TX's real 'BONUS - EARNING'

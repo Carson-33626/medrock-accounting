@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
+import { RDS_SSL } from '../../src/lib/rds-ssl';
 
 const envText = readFileSync(resolve(__dirname, '..', '..', '.env.local'), 'utf-8');
 for (const line of envText.split(/\r?\n/)) {
@@ -19,7 +20,7 @@ const connectionString = process.env.RDS_DATABASE_URL;
 if (!connectionString) throw new Error('RDS_DATABASE_URL not set');
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const pool = new Pool({ connectionString, ssl: RDS_SSL });
 
   const cols = await pool.query<{ column_name: string }>(
     `SELECT column_name FROM information_schema.columns

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react';
 import {
   applyAmountEdit,
+  personContext,
   sourceNamesPreview,
+  sourcePeopleTitle,
   groupSourceDetail,
   type CreditBucket,
   type JournalLine,
@@ -159,6 +161,8 @@ function JournalGridRow({
   const numInput = `w-full text-right rounded-md border px-2 py-1 text-sm tabular-nums ${inputBg}`;
   const txtInput = `w-full rounded-md border px-2 py-1 text-sm ${inputBg}`;
   const namePreview = sourceNamesPreview(line.sourceRowKeys, roster);
+  // Two names fit in the cell; the tooltip carries everyone with their department and location.
+  const nameTitle = sourcePeopleTitle(line.sourceRowKeys, roster);
 
   const editAmount = (side: PostingType, value: number): void => {
     onUpdate(line._key, applyAmountEdit(line, side, value));
@@ -226,10 +230,10 @@ function JournalGridRow({
               type="button"
               onClick={() => setExpanded((v) => !v)}
               aria-expanded={expanded}
-              className={`inline-flex items-center gap-1 text-xs ${subText} hover:underline`}
-              title="Show source people"
+              className={`inline-flex items-center gap-1 text-xs text-left ${subText} hover:underline`}
+              title={nameTitle ? `${nameTitle}\n\nClick for pay detail` : 'Show source people'}
             >
-              {expanded ? <ChevronDown className="w-3 h-3" aria-hidden /> : <ChevronRight className="w-3 h-3" aria-hidden />}
+              {expanded ? <ChevronDown className="w-3 h-3 shrink-0" aria-hidden /> : <ChevronRight className="w-3 h-3 shrink-0" aria-hidden />}
               {namePreview}
             </button>
           ) : (
@@ -376,6 +380,10 @@ interface DrilldownRowDetail {
   name: string;
   pay_date: string;
   pay_group: string;
+  /** Plaintext, from /api/payroll/drilldown — who this person is, not what they were paid. */
+  home_department: string;
+  location: string;
+  department: string | null;
   sensitive: Record<string, number | string | null>;
 }
 
@@ -453,6 +461,15 @@ function SourceRowsDetail({
               }`}
             >
               {r.name} <span className={`font-normal ${subText}`}>· {r.position_id}</span>
+              {/* Department and location sit with the name because a single JE line pools many
+                  people: without them, "Marketing Wages $X" cannot be traced to a region. Raw
+                  home_department is the title so the ADP code behind the label stays reachable. */}
+              {personContext({ department: r.department, location: r.location }) && (
+                <span className={`font-normal ${subText}`} title={r.home_department || undefined}>
+                  {' · '}
+                  {personContext({ department: r.department, location: r.location })}
+                </span>
+              )}
             </div>
             <div className="p-2">
               {sections.length === 0 ? (

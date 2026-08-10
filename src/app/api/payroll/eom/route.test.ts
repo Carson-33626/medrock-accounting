@@ -25,6 +25,7 @@ const header: PayrollHeader = {
   period_start: '03/01/2026', period_end: '03/31/2026', status: 'needs_review',
   total_debits: 0, total_credits: 0, variance: 0, row_count: 0, source_snapshot_hash: 'h',
   qb_entry_id: null, qb_doc_number: null, kind: 'allocation', period_segment: '', txn_date: '2026-03-31',
+  piece_count: 1,
 };
 
 beforeEach(() => {
