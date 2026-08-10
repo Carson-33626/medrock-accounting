@@ -1,0 +1,115 @@
+[
+  {
+    "id": "dymo-large-shipping",
+    "match": "dymo",
+    "and": "1744907|4 ?[x×] ?6",
+    "gl_name": "Inventory Asset:Shipping Packaging Material Inventory",
+    "note": "Large DYMO labels (4x6) = shipping. Ruled by Carson 2026-06-29."
+  },
+  {
+    "id": "dymo-small-lab",
+    "match": "dymo",
+    "and": "30252|1-?1/8 ?[x×] ?3",
+    "gl_name": "Inventory Asset:Lab Supplies Inventory",
+    "note": "Small DYMO labels (1-1/8 x 3-1/2) = lab. Ruled by Carson 2026-06-29."
+  },
+
+  {
+    "id": "office-copy-paper",
+    "match": "\\b(copy|multipurpose|multi-purpose|printer) paper\\b|\\bream case\\b|\\b\\d+ reams\\b",
+    "gl_name": "General & Administrative -:Office Supplies",
+    "note": "Printer/copier paper. Was landing in Compound Ingredient Inventory (0.925) at Sam's and Suspense (0.704) at Walmart — 'bright', 'sheets', 'ply' vote like a compounding item. Added 2026-07-30."
+  },
+  {
+    "id": "office-paper-clips",
+    "match": "\\bpaper clips?\\b|\\bbinder clips?\\b",
+    "gl_name": "General & Administrative -:Office Supplies",
+    "note": "Was coding to Cost of Goods Sold:Research & Development Costs (0.835) off the 3-example 'clips' phrase. Added 2026-07-30."
+  },
+  {
+    "id": "office-letter-envelopes",
+    "match": "\\benvelopes?\\b",
+    "and": "#\\s?10|peel and seal|business|letter",
+    "gl_name": "General & Administrative -:Office Supplies",
+    "note": "Letter/business envelopes are office supplies. The lookup's 'envelopes' phrase points at Shipping Packaging Material Inventory because it was mined from poly shipping mailers, so this rule is deliberately narrowed to letter stock. Added 2026-07-30."
+  },
+
+  {
+    "id": "consumable-paper-towels",
+    "match": "\\bpaper towels?\\b|\\bmultifold\\b.{0,20}\\btowels?\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "Breakroom/janitorial paper towels. History: 'towel' and 'paper towel' both -> Office Expense. Also pulls Marathon Multifold off Lab Supplies Inventory so all paper towels agree. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-toilet-paper",
+    "match": "\\btoilet (paper|tissue)\\b|\\bbath tissue\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'toilet' -> Office Expense (conf 1.0). Was voting Compound Ingredient Inventory at 0.753 on 'ultra premium 2-ply'. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-facial-tissue",
+    "match": "\\bfacial tissues?\\b|\\bkleenex\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'tissues' -> Office Expense. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-trash-bags",
+    "match": "\\b(trash|garbage) bags?\\b|\\bcan liners?\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'trash' -> Office Expense (0.9). Identical Member's Mark trash bags were splitting between Office Expense (0.837) and Suspense (0.797) on a scent word. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-coffee-station",
+    "match": "\\bcoffee\\b|\\bcreamer\\b|\\bk-?cups?\\b|\\bespresso\\b|\\bhot cocoa\\b|\\bsweetener packets?\\b|\\bsugar packets?\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "Breakroom coffee station. History: 'coffee' 0.94, 'coffee cups' 1.0 -> Office Expense. Also pulls Sweet'N Low off Cost of Goods Sold:Lab Supplies. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-dish-detergent",
+    "match": "\\bdish (soap|detergent|liquid|spray)\\b|\\bdishwash(er|ing) (soap|detergent|pacs?)\\b|\\bpot (and|&) pan\\b|\\bpowerwash\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'detergent' -> Office Expense (0.8); Cascade already coded there. Every Dawn item was sitting in Suspense at 0.56-0.74. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-cleaning-supplies",
+    "match": "\\bdisinfect|\\ball.?purpose cleaner\\b|\\bscrub sponges?\\b|\\bsponges?\\b|\\bswiffer\\b|\\bcleaning wipes\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'sponges' -> Office Expense (1.0). NOTE: bleach is deliberately NOT here — Walmart already posted Great Value bleach to Lab Supplies Inventory and that is Barbara's call. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-air-freshener",
+    "match": "\\bair freshener\\b|\\bfebreze\\b|\\bodor eliminat",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "Two identical Febreze items were splitting between Office Expense (0.94) and Suspense (0). Added 2026-07-30."
+  },
+  {
+    "id": "consumable-disposable-tableware",
+    "match": "\\b(paper|foam|plastic|disposable)\\s+(\\w+\\s+){0,2}(plates?|bowls?|cups?|forks?|spoons?|knives|cutlery|utensils?)\\b|\\bdrink cups?\\b|\\bnapkins?\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "Breakroom disposables. Three near-identical Member's Mark paper plates were landing in Office Expense, Cost of Goods Sold:Lab Supplies and Suspense respectively; Hefty foam plates were coding to Computer Supplies & Equipment (0.99). This deliberately overrides the lookup's 'spoons' -> Lab Supplies signal, which was mined from lab spatulas/scoops, by requiring a disposable-material qualifier. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-breakroom-snacks",
+    "match": "\\b(candy|chocolate|chips|crackers|snack bars?|cookies|pop-?tarts|granola|pretzels|party mix)\\b|\\bsoft drinks?\\b|\\bcoca.?cola\\b|\\bgatorade\\b|\\bsports drinks?\\b|\\b100% juice\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'candy' -> Office Expense (1.0); most snacks already coded there. Chips/soda/juice multipacks were all sitting at 0 confidence. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-restroom-supplies",
+    "match": "\\btampons?\\b|\\bmaxi pads?\\b|\\bultra thin pads\\b|\\bsanitary (pads|napkins)\\b|\\bpanty liners?\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "Restroom stock. Always pads were coding to Computer Supplies & Equipment (0.835) and Tampax to Office Supplies (0.82); this makes them agree. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-hand-soap",
+    "match": "\\bhand soap\\b|\\bhand sanitizer\\b|\\bfoaming hand\\b",
+    "gl_name": "General & Administrative -:Office Expense",
+    "note": "History: 'sanitizer' -> Office Expense (0.75). Member's Mark aloe hand soap was coding to Compound Ingredient Inventory (0.8) on 'aloe vera moisturizing'. Narrow on purpose so Cetaphil/PanOxyl skin washes stay compounding stock. Added 2026-07-30."
+  },
+  {
+    "id": "consumable-alkaline-batteries",
+    "match": "\\b(alkaline|aa|aaa|9v) batteries\\b",
+    "gl_name": "General & Administrative -:Computer Supplies & Equipment",
+    "note": "History: 'battery' -> Computer Supplies & Equipment (0.71). Was Suspense at 0. Added 2026-07-30."
+  }
+]

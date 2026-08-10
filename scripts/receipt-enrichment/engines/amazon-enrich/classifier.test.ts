@@ -97,3 +97,16 @@ cases('classifier: regression guards — corrections must NOT hijack these', [
   ['DYMO LabelWriter 4XL Labels 1744907 4 x 6 Shipping', SHIPPING],
   ['DYMO 30252 Address Labels 1-1/8 x 3-1/2', LAB_INV],
 ]);
+
+import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+describe('classifier data location', () => {
+  it('reads its lookup and corrections from the program data/ directory', () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const data = resolve(here, '../../data');
+    expect(existsSync(resolve(data, 'item_gl_lookup.csv'))).toBe(true);
+    expect(existsSync(resolve(data, 'item_corrections.json'))).toBe(true);
+  });
+});

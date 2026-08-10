@@ -9,10 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// These CSV/JSON assets live in the MAIN repo's docs/, outside web/ entirely — five levels up
-// from here: engines/amazon-enrich -> engines -> receipt-enrichment -> scripts -> web -> repo.
-// (Was three levels before the 2026-08-07 program consolidation.)
-const DOCS = resolve(HERE, '../../../../../docs/ramp-recon');
+// Classifier inputs live inside the program (data/), not in the repo's docs tree — they are
+// program data, and an out-of-program read is exactly what standalone had to remove.
+const DOCS = resolve(HERE, '../../data');
 
 interface LookupRow { phrase: string; acctnum: string; glName: string; confidence: number; examples: number }
 interface Correction { id: string; match: string; and?: string; gl_name: string; note?: string }

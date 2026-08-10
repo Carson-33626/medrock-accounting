@@ -12,7 +12,7 @@ import { dirname, resolve } from 'node:path';
 import { readAllQbAmazonEntries } from '../ramp-split-push/qb-amazon-reader';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DOCS = resolve(HERE, '../../../docs/ramp-recon');
+const DOCS = resolve(HERE, '../../data');
 
 // Lines that would mis-train the model (per the original data-quality finding):
 // - intercompany "Due to/from" accounts (entity cross-charges, not item categories)
