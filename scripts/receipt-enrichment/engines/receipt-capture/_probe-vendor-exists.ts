@@ -4,7 +4,7 @@
 import '../ramp-split-push/load-env';
 import { rampGet, rampToken } from '../ramp-split-push/ramp-client';
 import { ALL_ENTITIES, ENTITY_TO_QB_LOCATION } from '../ramp-split-push/types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
 
 const NEEDLE = (process.argv[2] ?? 'Fagron').toLowerCase();
 

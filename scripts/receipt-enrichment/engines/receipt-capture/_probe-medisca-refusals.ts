@@ -8,7 +8,7 @@ import { planMediscaEnrichment, recordHistory, classifyLine } from './medisca-gl
 import type { MediscaHistory, MediscaDraftLine } from './medisca-gl';
 import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
 import { ALL_ENTITIES, ENTITY_TO_QB_LOCATION } from '../ramp-split-push/types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
 
 const VENDOR_RE = /medisca/i;
 const SINCE = '2023-01-01';

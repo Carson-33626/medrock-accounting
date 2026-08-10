@@ -1,7 +1,7 @@
 import './load-env';
 import { randomUUID } from 'node:crypto';
 import { logAuditEvents } from './audit-logger';
-import { getRdsPool } from '../../../../src/lib/rds';
+import { getRdsPool } from '../../platform/rds';
 import type { AuditEvent } from './types';
 
 async function main(): Promise<void> {

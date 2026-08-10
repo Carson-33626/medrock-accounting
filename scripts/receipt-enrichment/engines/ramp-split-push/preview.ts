@@ -10,7 +10,7 @@ import { matchEntries } from './matcher';
 import { classifyDrift } from './drift-classifier';
 import { buildPatchPayload, buildMemo } from './payload-builder';
 import { logAuditEvents } from './audit-logger';
-import { getRdsPool } from '../../../../src/lib/rds';
+import { getRdsPool } from '../../platform/rds';
 import { RSP } from '../../paths';
 
 const DATE_WINDOW_DAYS = 3;

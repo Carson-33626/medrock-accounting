@@ -45,7 +45,7 @@ import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
 import { buildGlIndex } from '../amazon-enrich/gl-resolve';
 import { ALL_ENTITIES, ENTITY_TO_QB_LOCATION } from '../ramp-split-push/types';
 import type { Entity } from '../ramp-split-push/types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
 import { RC } from '../../paths';
 
 const OUT = RC.out;

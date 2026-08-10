@@ -12,7 +12,7 @@ import { listDraftBills } from './bill-draft';
 import { rampToken, rampGet } from '../ramp-split-push/ramp-client';
 import { ALL_ENTITIES, ENTITY_TO_QB_LOCATION } from '../ramp-split-push/types';
 import type { Entity } from '../ramp-split-push/types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
 
 const VENDOR_RE = /medisca/i;
 const SINCE = process.argv[2] ?? '2026-05-01';

@@ -1,6 +1,6 @@
 import './load-env';
 import { readFileSync } from 'node:fs';
-import { getRdsPool } from '../../../../src/lib/rds';
+import { getRdsPool } from '../../platform/rds';
 
 async function main(): Promise<void> {
   const sqlPath = process.argv[2];

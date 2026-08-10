@@ -1,7 +1,7 @@
 import type { Entity, QBEntry, QBLine } from './types';
 import { ENTITY_TO_QB_LOCATION, ALL_ENTITIES } from './types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
-import type { Location } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
+import type { Location } from '../../platform/quickbooks';
 
 // Minimal shapes of the QB Vendor/Purchase/Bill objects we read (read-only).
 interface QBRef { value: string; name?: string }

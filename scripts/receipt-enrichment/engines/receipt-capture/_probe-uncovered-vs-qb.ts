@@ -5,7 +5,7 @@
 //   npx tsx scripts/receipt-enrichment/engines/receipt-capture/_probe-uncovered-vs-qb.ts
 import '../ramp-split-push/load-env';
 import { ALL_ENTITIES, ENTITY_TO_QB_LOCATION } from '../ramp-split-push/types';
-import { qbQueryAll } from '../../../../src/lib/quickbooks-multi';
+import { qbQueryAll } from '../../platform/quickbooks';
 import { readFileSync } from 'node:fs';
 import { RC } from '../../paths';
 

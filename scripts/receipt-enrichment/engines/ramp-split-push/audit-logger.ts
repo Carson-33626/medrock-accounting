@@ -1,5 +1,5 @@
 import type { AuditEvent } from './types';
-import { getRdsPool } from '../../../../src/lib/rds';
+import { getRdsPool } from '../../platform/rds';
 
 const COLS = [
   'run_id', 'phase', 'mode', 'event_type', 'outcome', 'entity', 'ramp_transaction_id',
