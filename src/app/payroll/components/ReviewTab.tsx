@@ -19,7 +19,7 @@ import { DirectionsBanner } from './DirectionsBanner';
 // same-account department lines the same way the builder + Excel export do.
 import { compareJournalLines } from '@/lib/payroll/line-order';
 import { JournalGrid } from './JournalGrid';
-import { personContext } from './journal-grid.helpers';
+import { personSubtext } from './journal-grid.helpers';
 import type { PostingType, JournalLine } from './journal-grid.helpers';
 
 /**
@@ -88,6 +88,8 @@ interface DrilldownResponse {
   home_department: string;
   location: string;
   department: string | null;
+  market: string;
+  title: string;
   sensitive: Record<string, number | string | null>;
 }
 
@@ -101,6 +103,9 @@ interface RosterItem {
   homeDepartment: string;
   location: string;
   department: string | null;
+  /** Marketers only — the market they cover and their sales title. '' for everyone else. */
+  market: string;
+  title: string;
 }
 
 interface ApiErrorBody {
@@ -445,15 +450,18 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
   const filteredRoster = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
     if (!q) return roster;
-    // Department and location are searchable too, so "dallas" or "marketing" narrows the run to a
-    // region's people — the question accounting actually asks when a Marketing line looks wrong.
+    // Department, market, title and location are all searchable, so "carolina", "marketing" or
+    // "territory manager" narrows the run to those people — the question accounting actually asks
+    // when a Marketing line looks wrong is "who covers that market?", not "what is their name?".
     return roster.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.positionId.toLowerCase().includes(q) ||
         (p.department ?? '').toLowerCase().includes(q) ||
         p.homeDepartment.toLowerCase().includes(q) ||
-        p.location.toLowerCase().includes(q),
+        p.location.toLowerCase().includes(q) ||
+        p.market.toLowerCase().includes(q) ||
+        p.title.toLowerCase().includes(q),
     );
   }, [roster, personSearch]);
 
@@ -668,12 +676,20 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                     type="text"
                     value={personSearch}
                     onChange={(e) => setPersonSearch(e.target.value)}
-                    placeholder="Search person…"
-                    className={`rounded-md border pl-7 pr-2 py-1 text-xs w-52 ${inputBg}`}
+                    placeholder="Name, market, title…"
+                    title="Searches name, employee id, department, market, sales title and location"
+                    className={`rounded-md border pl-7 pr-2 py-1 text-xs w-56 ${inputBg}`}
                   />
                 </div>
               )}
             </div>
+            {roster.length > 0 && (
+              <p className={`text-xs ${subText}`}>
+                Everyone paid on this run. Click a person to see the ADP figures behind their share of the lines
+                above. Marketers show the <span className="font-medium">market they cover</span> and their sales
+                title, so a Marketing cost can be traced to a territory.
+              </p>
+            )}
 
             {roster.length === 0 ? (
               <p className={`text-xs ${subText}`}>
@@ -683,21 +699,30 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
               <div className="flex flex-wrap gap-1.5">
                 {filteredRoster.map((p) => {
                   const active = p.rowKey === activeRowKey;
+                  // Name on top, who-they-are underneath. A flat list of ~90 bare names could not
+                  // answer "which of these is the Carolina rep?" without opening each one
+                  // (Carson, 2026-08-10).
+                  const subtext = personSubtext(p);
                   return (
                     <button
                       key={p.rowKey}
                       onClick={() => void handleDrilldown(p.rowKey)}
                       disabled={drilldownLoading}
-                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                      className={`text-left px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
                         active
                           ? 'bg-blue-600 text-white border-blue-600'
                           : darkMode
                             ? 'border-slate-600 hover:bg-slate-700'
                             : 'border-slate-300 hover:bg-slate-100'
                       }`}
-                      title={[p.name, personContext(p), p.payGroup].filter(Boolean).join(' · ')}
+                      title={[p.name, subtext, p.positionId, p.payGroup].filter(Boolean).join(' · ')}
                     >
-                      {p.name}
+                      <span className="block text-xs font-medium">{p.name}</span>
+                      {subtext && (
+                        <span className={`block text-[11px] ${active ? 'text-blue-100' : subText}`}>
+                          {subtext}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -732,9 +757,9 @@ export function ReviewTab({ headerId, onNavigateToMappings }: ReviewTabProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-sm font-semibold">{drilldown.name}</span>
-                    {personContext({ department: drilldown.department, location: drilldown.location }) && (
+                    {personSubtext(drilldown) && (
                       <span className={`text-xs ${subText}`} title={drilldown.home_department || undefined}>
-                        · {personContext({ department: drilldown.department, location: drilldown.location })}
+                        · {personSubtext(drilldown)}
                       </span>
                     )}
                     <span className={`text-xs ${subText}`}>· {drilldown.pay_date}</span>

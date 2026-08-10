@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react';
 import {
   applyAmountEdit,
-  personContext,
+  personSubtext,
   sourceNamesPreview,
   sourcePeopleTitle,
   groupSourceDetail,
@@ -384,6 +384,9 @@ interface DrilldownRowDetail {
   home_department: string;
   location: string;
   department: string | null;
+  /** Marketers only — market covered + sales title. '' for everyone else. */
+  market: string;
+  title: string;
   sensitive: Record<string, number | string | null>;
 }
 
@@ -461,13 +464,15 @@ function SourceRowsDetail({
               }`}
             >
               {r.name} <span className={`font-normal ${subText}`}>· {r.position_id}</span>
-              {/* Department and location sit with the name because a single JE line pools many
-                  people: without them, "Marketing Wages $X" cannot be traced to a region. Raw
-                  home_department is the title so the ADP code behind the label stays reachable. */}
-              {personContext({ department: r.department, location: r.location }) && (
+              {/* Department, market and title sit with the name because a single JE line pools many
+                  people: without them, "Marketing Wages $X" cannot be traced to a territory. Raw
+                  home_department is the tooltip so the ADP code behind the label stays reachable.
+                  ADP's `location` is deliberately absent — it is the entity code, which the run
+                  already states. */}
+              {personSubtext(r) && (
                 <span className={`font-normal ${subText}`} title={r.home_department || undefined}>
                   {' · '}
-                  {personContext({ department: r.department, location: r.location })}
+                  {personSubtext(r)}
                 </span>
               )}
             </div>

@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { loadDraft } from '@/lib/payroll/store';
 import { costCenterFor, deptLabelFor } from '@/lib/payroll/cost-center';
+import { resolveRepTerritory, resolveDirector } from '@/lib/payroll/territory';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,6 +24,13 @@ export interface RosterItem {
   /** Readable department label derived from homeDepartment ('MARKET' -> 'Marketing'), or null
    *  for DFLT/unknown. Same vocabulary the JE line memos use, so the two read alike. */
   department: string | null;
+  /** MARKETERS ONLY — the market/territory this rep covers ('Carolina Region'), or the division
+   *  for marketing leadership ('East'). '' for everyone else. Accounting asked for this
+   *  (Carson, 2026-08-10) because a Marketing cost is meaningless without knowing whose
+   *  territory it covers. */
+  market: string;
+  /** MARKETERS ONLY — sales title ('Senior Territory Manager' / 'Marketing Director East'). */
+  title: string;
 }
 
 interface RosterQueryRow {
@@ -86,16 +94,26 @@ export async function GET(request: NextRequest) {
     // Sort by name for display (DISTINCT ON forced row_key ordering above).
     const result: RosterItem[] = [...rows]
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((r) => ({
-        rowKey: r.rowKey,
-        name: r.name,
-        positionId: r.positionId,
-        payDate: r.payDate,
-        payGroup: r.payGroup,
-        homeDepartment: r.homeDepartment ?? '',
-        location: r.location ?? '',
-        department: deptLabelFor(costCenterFor(r.homeDepartment)),
-      }));
+      .map((r) => {
+        const costCenter = costCenterFor(r.homeDepartment);
+        // Territory is resolved ONLY for MARKET-cost-centre people. The snapshot is joined on
+        // NAME, so resolving it for everyone would let a coincidental name match stamp a sales
+        // territory onto a lab tech — a wrong answer that looks authoritative.
+        const rep = costCenter === 'MARKET' ? resolveRepTerritory(r.name) : null;
+        const director = costCenter === 'MARKET' && !rep ? resolveDirector(r.name) : null;
+        return {
+          rowKey: r.rowKey,
+          name: r.name,
+          positionId: r.positionId,
+          payDate: r.payDate,
+          payGroup: r.payGroup,
+          homeDepartment: r.homeDepartment ?? '',
+          location: r.location ?? '',
+          department: deptLabelFor(costCenter),
+          market: rep?.market ?? director?.division ?? '',
+          title: rep?.title ?? director?.title ?? '',
+        };
+      });
     return NextResponse.json(result);
   } catch (error) {
     console.error('[payroll/roster GET]', error);

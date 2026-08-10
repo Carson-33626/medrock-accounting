@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { decryptSensitive } from '@/lib/payroll/crypto';
 import { costCenterFor, deptLabelFor } from '@/lib/payroll/cost-center';
+import { resolveRepTerritory, resolveDirector } from '@/lib/payroll/territory';
 import type { SensitiveRow } from '@/lib/payroll/types';
 
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,10 @@ export async function GET(request: NextRequest) {
     // NEVER log `sensitive` — decrypted per-employee detail must not reach any log sink.
     const sensitive: SensitiveRow = decryptSensitive(row.sensitive_encrypted, key);
 
+    const costCenter = costCenterFor(row.home_department);
+    const rep = costCenter === 'MARKET' ? resolveRepTerritory(row.name) : null;
+    const director = costCenter === 'MARKET' && !rep ? resolveDirector(row.name) : null;
+
     return NextResponse.json({
       row_key: row.row_key,
       position_id: row.position_id,
@@ -68,7 +73,11 @@ export async function GET(request: NextRequest) {
       pay_group: row.pay_group,
       home_department: row.home_department ?? '',
       location: row.location ?? '',
-      department: deptLabelFor(costCenterFor(row.home_department)),
+      department: deptLabelFor(costCenter),
+      // Same MARKET-only gate as /api/payroll/roster — the territory snapshot joins on name, so
+      // resolving it for non-marketers would let a name collision invent a territory.
+      market: rep?.market ?? director?.division ?? '',
+      title: rep?.title ?? director?.title ?? '',
       sensitive,
     });
   } catch (error) {

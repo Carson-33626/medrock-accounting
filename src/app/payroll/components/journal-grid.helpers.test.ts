@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyAmountEdit,
-  personContext,
+  personSubtext,
   sourceNamesPreview,
   sourcePeopleTitle,
   classifyDetailColumn,
@@ -82,41 +82,55 @@ describe('sourceNamesPreview', () => {
   });
 });
 
-describe('personContext', () => {
-  it('joins department and location', () => {
-    expect(personContext({ department: 'Marketing', location: 'Dallas' })).toBe('Marketing · Dallas');
+/**
+ * The marketer question accounting actually asks: a Marketing cost is meaningless until you know
+ * whose territory it covers (Carson, 2026-08-10).
+ */
+describe('personSubtext', () => {
+  it('reads department, then market, then title', () => {
+    expect(
+      personSubtext({ department: 'Marketing', market: 'Carolina Region', title: 'Senior Territory Manager' }),
+    ).toBe('Marketing · Carolina Region · Senior Territory Manager');
   });
-  it('drops whichever part is missing rather than leaving a dangling separator', () => {
-    expect(personContext({ department: 'Marketing', location: '' })).toBe('Marketing');
-    expect(personContext({ department: null, location: 'Dallas' })).toBe('Dallas');
-    expect(personContext({ department: null, location: '' })).toBe('');
-    expect(personContext({})).toBe('');
+
+  it('a non-marketer with no territory is just their department', () => {
+    expect(personSubtext({ department: 'Lab', market: '', title: '' })).toBe('Lab');
   });
-  it('treats whitespace-only values as absent', () => {
-    expect(personContext({ department: '  ', location: 'Dallas' })).toBe('Dallas');
+
+  it('drops whichever parts are missing rather than leaving separators behind', () => {
+    expect(personSubtext({ department: 'Marketing', market: 'East', title: '' })).toBe('Marketing · East');
+    expect(personSubtext({ department: null, market: 'East', title: 'Director' })).toBe('East · Director');
+    expect(personSubtext({})).toBe('');
+  });
+
+  it('does NOT include location — that is where the dollars post, not who the person is', () => {
+    // personContext carries location; the two are deliberately different.
+    expect(personSubtext({ department: 'Marketing', market: 'Carolina Region' })).not.toContain('Dallas');
   });
 });
 
 /**
- * The Name cell can show two names; the tooltip is where "which Marketing people, in which
- * locations, add up to this line?" gets answered. Carson, 2026-08-06.
+ * The Name cell can show two names; the tooltip is where "which Marketing people, covering which
+ * markets, add up to this line?" gets answered. Carson, 2026-08-06 and 2026-08-10.
  */
 describe('sourcePeopleTitle', () => {
   const roster: RosterName[] = [
-    { rowKey: 'a', name: 'Bob', department: 'Marketing', location: 'Dallas' },
-    { rowKey: 'b', name: 'Amir', department: 'Marketing', location: 'Houston' },
-    { rowKey: 'c', name: 'Lee' }, // no department/location on file
+    { rowKey: 'a', name: 'Bob', department: 'Marketing', market: 'Carolina Region' },
+    { rowKey: 'b', name: 'Amir', department: 'Marketing', market: 'Gulf Region' },
+    { rowKey: 'c', name: 'Lee' }, // nothing on file
   ];
 
   it('empty source list → empty string', () => {
     expect(sourcePeopleTitle([], roster)).toBe('');
   });
 
-  it('one line per person, "Name — Dept · Location", alphabetical', () => {
-    expect(sourcePeopleTitle(['a', 'b'], roster)).toBe('Amir — Marketing · Houston\nBob — Marketing · Dallas');
+  it('one line per person, "Name — Dept · Market", alphabetical', () => {
+    expect(sourcePeopleTitle(['a', 'b'], roster)).toBe(
+      'Amir — Marketing · Gulf Region\nBob — Marketing · Carolina Region',
+    );
   });
 
-  it('a person with no department or location is listed by name alone', () => {
+  it('a person with no department or market is listed by name alone', () => {
     expect(sourcePeopleTitle(['c'], roster)).toBe('Lee');
   });
 
@@ -129,7 +143,18 @@ describe('sourcePeopleTitle', () => {
   });
 
   it('a PARTIALLY resolved roster says how many people it could not name', () => {
-    expect(sourcePeopleTitle(['a', 'x', 'y'], roster)).toBe('Bob — Marketing · Dallas\n+2 more (names not loaded)');
+    expect(sourcePeopleTitle(['a', 'x', 'y'], roster)).toBe(
+      'Bob — Marketing · Carolina Region\n+2 more (names not loaded)',
+    );
+  });
+
+  it("NEVER shows ADP's `location` — it is the entity code, which the run already states", () => {
+    const withLocation: RosterName[] = [
+      { rowKey: 'z', name: 'Bob', department: 'Marketing', location: 'MEDFL-MedRock FL', market: 'Miami Region' },
+    ];
+    const out = sourcePeopleTitle(['z'], withLocation);
+    expect(out).toBe('Bob — Marketing · Miami Region');
+    expect(out).not.toContain('MEDFL');
   });
 });
 

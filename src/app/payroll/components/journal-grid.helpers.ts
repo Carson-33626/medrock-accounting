@@ -39,14 +39,37 @@ export interface RosterName {
   name: string;
   /** Readable department label ('Marketing'), or null/absent when DFLT/unknown. */
   department?: string | null;
-  /** ADP location ('Dallas'), or '' / absent when the source row carries none. */
+  /**
+   * ADP's `location`. NOT a city — the real values are 'MEDFL-MedRock FL', 'MEDTN-MedRock TN',
+   * 'MEDTX-MedRock TX', 'FOCS-FOCAS Institute', i.e. the legal entity, which every card and JE
+   * line already shows. Kept because it is searchable, but deliberately NOT displayed: labelling
+   * it "Location" reads as a place and tells the reader nothing they did not already know.
+   * The field that actually answers "where does this person work" is `market`.
+   */
   location?: string | null;
+  /** MARKETERS ONLY — the market/territory they cover ('Carolina Region'), from the territory
+   *  snapshot. Empty for everyone else: it is resolved only for MARKET-cost-centre people, so a
+   *  lab tech who happens to share a name with a sales rep is never mislabelled. */
+  market?: string | null;
+  /** MARKETERS ONLY — sales title ('Senior Territory Manager') from the same snapshot. */
+  title?: string | null;
 }
 
-/** "Marketing · Dallas", "Marketing", "Dallas", or '' — whichever parts this person has. */
-export function personContext(p: Pick<RosterName, 'department' | 'location'>): string {
-  return [p.department, p.location].filter((s): s is string => Boolean(s && s.trim() !== '')).join(' · ');
+/** Drop blanks and join with ' · ' — so a missing part never leaves a dangling separator. */
+const joinFacets = (parts: Array<string | null | undefined>): string =>
+  parts.filter((s): s is string => Boolean(s && s.trim() !== '')).join(' · ');
+
+/**
+ * WHO this person is: 'Marketing · Carolina Region · Senior Territory Manager'.
+ *
+ * Department first (what they cost), then market and title (which market that cost covers).
+ * Accounting's question on a Marketing line is "whose territory is this?", and until the market
+ * was carried through, the roster could only answer "someone in Marketing".
+ */
+export function personSubtext(p: Pick<RosterName, 'department' | 'market' | 'title'>): string {
+  return joinFacets([p.department, p.market, p.title]);
 }
+
 
 /**
  * Full people-behind-this-line text for the Name cell's tooltip: one person per line, each as
@@ -61,7 +84,9 @@ export function sourcePeopleTitle(sourceRowKeys: string[], roster: readonly Rost
   if (people.length === 0) return `${sourceRowKeys.length} people (names not loaded)`;
   const lines = people
     .map((p) => {
-      const ctx = personContext(p);
+      // Market included so a pooled Marketing line names the territories behind it — the whole
+      // point of hovering one. `location` is excluded: it is the entity code, already on the run.
+      const ctx = personSubtext(p);
       return ctx ? `${p.name} — ${ctx}` : p.name;
     })
     .sort((a, b) => a.localeCompare(b));
