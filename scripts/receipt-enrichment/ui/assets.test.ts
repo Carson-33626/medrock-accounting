@@ -71,3 +71,23 @@ describe('readIndexHtml', () => {
     }
   });
 });
+
+// Every test above passes `dir` explicitly, which is exactly how a dead default went unnoticed:
+// `readIndexHtml()`/`makeAssetReader()` defaulted to a bare `__dirname` that does not exist once
+// this package became ESM (`"type": "module"`), so the real entrypoints (server.ts, serve.ts) —
+// which both call the zero-arg form — threw before Chrome ever opened. No test called it that way.
+// These exercise the zero-arg default against the module's REAL directory (this file's own `ui/`
+// folder), not a temp fixture, so a regression back to a bare `__dirname` fails here even though
+// vitest itself injects `__dirname` under the hood and would otherwise mask it (see README note on
+// verifying with `npx tsx` too).
+describe('zero-argument default (the real ui/ folder, not a fixture)', () => {
+  it('readIndexHtml() with no args reads the real panel page', () => {
+    expect(readIndexHtml()).toContain('<title>Receipt Capture');
+  });
+
+  it('makeAssetReader() with no args serves the real styles.css and app.js', () => {
+    const read = makeAssetReader();
+    expect(read('/styles.css')).not.toBeNull();
+    expect(read('/app.js')).not.toBeNull();
+  });
+});
