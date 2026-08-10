@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { checkCapabilities, formatMissing } from './env';
 
 const FULL: NodeJS.ProcessEnv = {
+  NODE_ENV: 'test',
   RAMP_FL_CLIENT_ID: 'x', RAMP_FL_CLIENT_SECRET: 'x',
   RAMP_TN_CLIENT_ID: 'x', RAMP_TN_CLIENT_SECRET: 'x',
   RAMP_TX_CLIENT_ID: 'x', RAMP_TX_CLIENT_SECRET: 'x',
