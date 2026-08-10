@@ -153,3 +153,45 @@ describe('ACTION_META', () => {
     }
   });
 });
+
+// ── surface (added 2026-08-10) ──────────────────────────────────────────────
+//
+// 'browser' vs 'api' answers "what could move to a Dokploy agent": vendor-portal bot protection
+// blocks anything that drives a real Chrome, but Ramp/QuickBooks/RDS work is plain HTTP and could
+// run headless today. The classification below was verified against the code, not assumed from
+// the vendor's name -- notably, Medisca reads "portal" in its labels but medisca-session.ts drives
+// it entirely over HTTP (NextAuth credentials login + cookie jar, its own header comment says
+// "NO BROWSER and no captcha"), so it lands in `api` alongside Letco rather than next to ULINE.
+describe('action surface', () => {
+  it('tags every action', () => {
+    for (const name of ACTION_NAMES) {
+      expect(['browser', 'api']).toContain(ACTION_META[name].surface);
+    }
+  });
+
+  it('tags the actions that drive a real browser', () => {
+    const browser = ACTION_NAMES.filter((n) => ACTION_META[n].surface === 'browser').sort();
+    expect(browser).toEqual([
+      'bootstrap-uline-FL', 'bootstrap-uline-TN', 'bootstrap-uline-TX',
+      'chrome-amazon', 'chrome-walmart',
+      'extract-amazon-FL', 'extract-amazon-TN', 'extract-amazon-TX',
+      'fetch-invoices',
+      'sweep-dry', 'sweep-live',
+    ].sort());
+  });
+
+  it('tags the pure-API actions, which are the Dokploy candidates', () => {
+    const api = ACTION_NAMES.filter((n) => ACTION_META[n].surface === 'api').sort();
+    expect(api).toEqual([
+      'attach-amazon-csv-dry',
+      'letco-enrich-dry',
+      'letco-enrich-FL', 'letco-enrich-TN', 'letco-enrich-TX',
+      'medisca-create-dry',
+      'medisca-create-FL', 'medisca-create-TN', 'medisca-create-TX',
+      'medisca-enrich-dry',
+      'medisca-enrich-FL', 'medisca-enrich-TN', 'medisca-enrich-TX',
+      'medisca-refresh-FL', 'medisca-refresh-TN', 'medisca-refresh-TX',
+      'scan-only',
+    ].sort());
+  });
+});

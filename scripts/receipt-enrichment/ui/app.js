@@ -44,9 +44,9 @@
   function metaFor(action) {
     var m = actionMeta[action];
     if (m) return m;
-    // Defensive only: an action the server didn't describe is treated as live, i.e. the safest
-    // possible assumption — it renders gated rather than as a one-click button.
-    return { label: action, risk: 'live', requiresArm: true };
+    // Defensive only: an action the server didn't describe is treated as live and browser, i.e.
+    // the safest possible assumption — it renders gated rather than as a one-click button.
+    return { label: action, risk: 'live', requiresArm: true, surface: 'browser' };
   }
 
   // ── Attention strip ──────────────────────────────────────────────────────
@@ -89,6 +89,17 @@
     btn.addEventListener('click', function () {
       runAction(action, meta.requiresArm ? true : undefined);
     });
+
+    // Surface badge: BROWSER = drives a real Chrome (desktop only). API = plain HTTP, a Dokploy
+    // candidate. textContent only, per this file's hard rule — never innerHTML.
+    var badge = document.createElement('span');
+    badge.className = meta.surface === 'api' ? 'surface surface-api' : 'surface surface-browser';
+    badge.textContent = meta.surface === 'api' ? 'API' : 'BROWSER';
+    badge.title = meta.surface === 'api'
+      ? 'Plain HTTP to Ramp/QuickBooks — could run on a server'
+      : 'Drives a real Chrome — desktop only';
+    btn.appendChild(badge);
+
     return btn;
   }
 

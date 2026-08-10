@@ -163,6 +163,29 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 button.danger  { background: var(--red);    color: #fff; border-color: var(--red); }
 button.danger:hover:not(:disabled) { border-color: var(--red); filter: brightness(1.08); }
 
+/* Surface badge: BROWSER = drives a real Chrome (desktop only). API = plain HTTP (server-capable).
+   Reuses the palette tokens above rather than one-off colors; .surface-api borrows the same
+   accent tint as .banner.busy below. */
+.surface {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.surface-browser {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.surface-api {
+  background: rgba(39, 87, 201, 0.16);
+  color: var(--accent);
+}
+
 /* Live actions are visually fenced off from dry ones and gated behind their own arm toggle —
    before this they rendered identically to read-only buttons and 400'd on every click. */
 .live-row {
