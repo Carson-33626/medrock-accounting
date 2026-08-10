@@ -74,3 +74,6 @@ scripts/receipt-capture/out/
 # NOTE: CSVs already tracked here predate this rule and are unaffected (git only ignores
 # untracked files) — see TODO.md for the follow-up to review and purge them.
 scripts/out/*.csv
+
+# Receipt-enrichment program env — Ramp secrets, Supabase service role key, RDS URL.
+scripts/receipt-enrichment/.env
