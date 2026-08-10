@@ -11,9 +11,9 @@
 import './lib/load-env';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rampToken, rampGet } from './lib/ramp';
-import { getReceipt } from './receipt-enrichment/engines/amazon-enrich/client';
-import { parseOcr } from './receipt-enrichment/engines/amazon-enrich/ocr-parser';
-import { classify } from './receipt-enrichment/engines/amazon-enrich/classifier';
+import { getReceipt } from './lib/receipt-client';
+import { parseOcr } from './lib/ocr-parser';
+import { classify } from './lib/classifier';
 import { overrideLabel, isOcrClassify, loadHistoryLabels } from './ramp-memo-fill/merchant-rules';
 import type { Entity } from './lib/entities';
 

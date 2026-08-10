@@ -3,8 +3,8 @@
 // Zero writes. Run from web/:  npx tsx scripts/ramp-memo-gap-probe.ts
 import './lib/load-env';
 import { rampToken, rampGet } from './lib/ramp';
-import { getReceipt } from './receipt-enrichment/engines/amazon-enrich/client';
-import { parseOcr } from './receipt-enrichment/engines/amazon-enrich/ocr-parser';
+import { getReceipt } from './lib/receipt-client';
+import { parseOcr } from './lib/ocr-parser';
 import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
