@@ -90,4 +90,15 @@ describe('zero-argument default (the real ui/ folder, not a fixture)', () => {
     expect(read('/styles.css')).not.toBeNull();
     expect(read('/app.js')).not.toBeNull();
   });
+
+  // The allowlist/traversal guarantee is a property of the closure returned by makeAssetReader,
+  // not of the temp-fixture tests above -- it must hold on the default-constructed (zero-arg)
+  // reader too, not only the one built with an explicit dir.
+  it('makeAssetReader() with no args still refuses a non-allowlisted name and traversal', () => {
+    const read = makeAssetReader();
+    expect(read('/paths.ts')).toBeNull(); // a real file next to ui/, but not on the allowlist
+    expect(read('/../paths.ts')).toBeNull();
+    expect(read('/../../paths.ts')).toBeNull();
+    expect(read('/styles.css/../../paths.ts')).toBeNull();
+  });
 });
