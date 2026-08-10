@@ -1,9 +1,9 @@
 // READ-ONLY: (1) confirm each entity's accounting connection type (DIRECT native-QB vs API-based) to
 // settle whether we can push to QBO ourselves; (2) break down the Apr/May missing-receipt txns by
 // merchant and flag which our Amazon/Walmart receipt pipelines could auto-attach. Zero writes.
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const MONTHS = ['2026-04', '2026-05'];

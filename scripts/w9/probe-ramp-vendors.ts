@@ -7,12 +7,12 @@
  * whether contact emails live behind a subresource. Emits a deduped CSV.
  *   npx tsx scripts/probe-ramp-vendors-w9.ts
  */
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import '../lib/load-env';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { rampGet, rampToken } from '../receipt-enrichment/engines/ramp-split-push/ramp-client';
-import { ALL_ENTITIES } from '../receipt-enrichment/engines/ramp-split-push/types';
-import type { Entity } from '../receipt-enrichment/engines/ramp-split-push/types';
+import { rampGet, rampToken } from '../lib/ramp';
+import { ALL_ENTITIES } from '../lib/entities';
+import type { Entity } from '../lib/entities';
 
 interface Money { amount?: number }
 interface RampVendor {

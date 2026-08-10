@@ -11,7 +11,7 @@
  * is useless without knowing WHO is unmatched. No dollar amounts, no decryption, no writes.
  *   npx tsx scripts/payroll/probe-marketer-territory-coverage.ts 2026
  */
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import '../lib/load-env';
 
 import { Pool } from 'pg';
 import { RDS_SSL } from '../../src/lib/rds-ssl';

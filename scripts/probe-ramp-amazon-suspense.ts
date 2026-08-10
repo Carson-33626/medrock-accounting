@@ -13,10 +13,10 @@
 //   5. the entity-specific Suspense (acct 8220) option id, resolved live — never hardcoded
 //
 // Run from web/:  npx tsx scripts/probe-ramp-amazon-suspense.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
+import './lib/load-env';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rampToken, rampGet, getRampAccounts, getRampFields } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import { rampToken, rampGet, getRampAccounts, getRampFields } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE = 'transactions:read accounting:read';

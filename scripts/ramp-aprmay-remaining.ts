@@ -1,9 +1,9 @@
 // READ-ONLY: what's left to close out April + May? Buckets the still-OPEN txns by the action each
 // needs (approval click / memo / receipt), splits ULINE out, and lists the non-ULINE memo-gap
 // merchants so we can see if anything BEYOND ULINE needs work. Zero writes.
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const MONTHS = ['2026-04', '2026-05'];

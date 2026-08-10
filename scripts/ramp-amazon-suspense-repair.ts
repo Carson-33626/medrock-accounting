@@ -30,10 +30,10 @@
  * Writes a rollback ledger CSV holding each transaction's PRIOR GL, so any write can be undone
  * while the transaction is still NOT_SYNC_READY.
  */
-import './receipt-enrichment/engines/ramp-split-push/load-env';
+import './lib/load-env';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rampToken, rampGet, rampFetch, getRampAccounts } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import { rampToken, rampGet, rampFetch, getRampAccounts } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE_READ = 'transactions:read accounting:read';

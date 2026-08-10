@@ -3,10 +3,10 @@
 // judgment) from WORKFLOW codings (existing auto-rules, which may be wrong) so we can see what the
 // vendor SHOULD map to vs what a rule is currently forcing. Zero writes.
 //   cd web && npx tsx scripts/ramp-merchant-history.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
+import './lib/load-env';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import { rampToken, rampGet } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const OUT = 'scripts/ramp-memo-fill/out';

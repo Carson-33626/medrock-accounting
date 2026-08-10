@@ -10,9 +10,9 @@
  * Prints raw JSON for a handful of real targets per entity, plus the resolved Suspense option id.
  *   NODE_OPTIONS=--dns-result-order=ipv4first npx tsx scripts/probe-ramp-amazon-rawshape.ts
  */
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet, getRampAccounts } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet, getRampAccounts } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE = 'transactions:read accounting:read';

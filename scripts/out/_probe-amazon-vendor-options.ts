@@ -1,8 +1,8 @@
 // READ-ONLY: list every QuickBooks VENDOR option per entity whose name looks Amazon-ish, with its
 // Ramp option id — the target values for "fix the vendor to be just amazon".
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from '../receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from '../receipt-enrichment/engines/ramp-split-push/types';
+import '../lib/load-env';
+import { rampToken, rampGet } from '../lib/ramp';
+import type { Entity } from '../lib/entities';
 
 // category_info.id for QuickbooksVendor, harvested live in probe-ramp-amazon-rule.ts.
 const VENDOR_FIELD: Record<Entity, string> = {

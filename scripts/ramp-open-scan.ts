@@ -1,8 +1,8 @@
 // READ-ONLY scan of Ramp "open" transactions (approval/documentation backlog) by month.
 // Honors the dry-run mandate: zero writes. Run from web/ dir:  npx tsx scripts/ramp-open-scan.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['TN', 'FL', 'TX'];
 const SCOPE = 'transactions:read receipts:read users:read';

@@ -9,9 +9,9 @@
 //   - the full sync_status vocabulary across the whole book, not just Amazon
 //
 // Zero writes.  Run from web/:  npx tsx scripts/probe-ramp-amazon-vendor.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet, getRampFields } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet, getRampFields } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE = 'transactions:read accounting:read';

@@ -7,9 +7,9 @@
 //   C. Is TX's Ramp->QB sync even switched on (every TX Amazon txn is uncoded + NOT_SYNC_READY)?
 //
 // Zero writes.  Run from web/:  npx tsx scripts/probe-ramp-amazon-rule.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE = 'transactions:read accounting:read';

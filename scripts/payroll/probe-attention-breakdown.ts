@@ -24,7 +24,7 @@
 // broken QuickBooks connection when nothing is wrong with it. This side-effect module also layers
 // .env.vercel over .env.local, which matters because .env.local's QB client id is a different
 // (localhost) Intuit app from the one that minted the live tokens.
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import '../lib/load-env';
 
 import { fetchAllocationPool } from '../../src/lib/payroll/qb-pool';
 import type { PoolLine } from '../../src/lib/payroll/qb-pool';

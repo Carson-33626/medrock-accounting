@@ -2,9 +2,9 @@
 // what ELSE rides on their line_items? A `PATCH /transactions {line_items:[...]}` REPLACES the whole
 // line array, so any line-level selection we do not re-send (Class, Billable, Inventory Item,
 // Customer) is destroyed. Quantify that collateral before costing the write.
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from '../receipt-enrichment/engines/ramp-split-push/ramp-client';
-import type { Entity } from '../receipt-enrichment/engines/ramp-split-push/types';
+import '../lib/load-env';
+import { rampToken, rampGet } from '../lib/ramp';
+import type { Entity } from '../lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const RETAIL_AMAZON = /amazon/i;

@@ -2,7 +2,7 @@
 // Regenerate persisted payroll drafts for a date range, applying the month-split.
 // Mirrors POST /api/payroll/runs exactly. Writes DRAFTS ONLY — never QuickBooks.
 // Usage: npx tsx scripts/payroll/regen-drafts.ts 2026-01-01 2026-12-31
-import '../receipt-enrichment/engines/ramp-split-push/load-env';
+import '../lib/load-env';
 import { selectSource } from '../../src/lib/payroll/source-select';
 import { buildJournal } from '../../src/lib/payroll/build-je';
 import { splitStraddle } from '../../src/lib/payroll/split';

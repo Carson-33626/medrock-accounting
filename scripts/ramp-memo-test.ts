@@ -1,8 +1,8 @@
 // ONE-TXN diagnostic: attempt a memo write via POST /developer/v1/memos/{transaction_id}.
 // Approval-gated per dry-run mandate (Carson said "try now"). Run from web/:
 //   npx tsx scripts/ramp-memo-test.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
 
 const BASE = 'https://api.ramp.com/developer/v1';
 const ENTITY = 'FL' as const;

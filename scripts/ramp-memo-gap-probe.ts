@@ -1,11 +1,11 @@
 // READ-ONLY probe: of the OPEN txns still missing a memo (all merchants), how many have a receipt
 // (→ OCR-able), what merchants/Ramp-categories they are, and what a generalized memo would look like.
 // Zero writes. Run from web/:  npx tsx scripts/ramp-memo-gap-probe.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
-import { rampToken, rampGet } from './receipt-enrichment/engines/ramp-split-push/ramp-client';
+import './lib/load-env';
+import { rampToken, rampGet } from './lib/ramp';
 import { getReceipt } from './receipt-enrichment/engines/amazon-enrich/client';
 import { parseOcr } from './receipt-enrichment/engines/amazon-enrich/ocr-parser';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
+import type { Entity } from './lib/entities';
 
 const ENTITIES: Entity[] = ['FL', 'TN', 'TX'];
 const SCOPE = 'transactions:read receipts:read';

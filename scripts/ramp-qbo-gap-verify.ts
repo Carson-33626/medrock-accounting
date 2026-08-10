@@ -2,11 +2,11 @@
 // matched in QB, hunt harder — same amount at ANY date, and across ALL purchase accounts
 // (not just the Ramp card account). Distinguishes "matcher miss" from "genuinely absent".
 // Run from web/ dir:  npx tsx scripts/ramp-qbo-gap-verify.ts
-import './receipt-enrichment/engines/ramp-split-push/load-env';
+import './lib/load-env';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { Entity } from './receipt-enrichment/engines/ramp-split-push/types';
-import { ENTITY_TO_QB_LOCATION } from './receipt-enrichment/engines/ramp-split-push/types';
+import type { Entity } from './lib/entities';
+import { ENTITY_TO_QB_LOCATION } from './lib/entities';
 import { qbQueryAll } from '../src/lib/quickbooks-multi';
 
 interface QBRef { value: string; name?: string }
