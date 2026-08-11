@@ -1,5 +1,11 @@
-// Copy of scripts/receipt-enrichment/engines/amazon-enrich/ocr-parser.ts. The program owns the
+// Copy of receipt-enrichment/engines/amazon-enrich/ocr-parser.ts. The program owns the
 // original; only the imports differ (both ./receipt-parser and ./client become ./receipt-types).
+//
+// The program moved to the repo root (a separate git repo) on 2026-08-10. Until then, two tests in
+// receipt-copies.test.ts asserted this copy's parseOcr() output matched the program's original
+// (a fixture and the null case); that guard was removed with the move (web/ can no longer import
+// the program to compare against). This copy can now silently drift from the original — nothing
+// here catches it.
 //
 // Map Ramp's own OCR (ocr.line_items + ocr.taxes) into the shared ParsedReceipt shape so it flows
 // through the same reconcile -> classify -> split path as the pdf-parse engine. OCR is the PRIMARY

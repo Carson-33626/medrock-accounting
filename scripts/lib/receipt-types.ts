@@ -2,6 +2,12 @@
 // (engines/amazon-enrich/receipt-parser.ts for ParsedReceipt/ParsedItem, engines/amazon-enrich/client.ts
 // for OcrData). Duplicated here so the web-side scripts (ramp-memo-fill.ts, ramp-memo-gap-probe.ts) never
 // pull receipt-parser.ts — and therefore its pdf-parse import — into the root TypeScript program.
+//
+// The program moved to the repo root (a separate git repo) on 2026-08-10. The `item_gl_lookup.csv`
+// and `item_corrections.json` byte-identical checks in receipt-copies.test.ts, and the parseOcr/
+// classify drift checks that depended on these declarations, were removed with the move (web/ can
+// no longer import the program to compare against). These declarations, and the data/ files below
+// them, can now silently drift from the program's originals — nothing here catches it.
 export interface ParsedItem {
   desc: string;
   amountCents: number; // pre-tax line amount

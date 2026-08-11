@@ -1,3 +1,0 @@
-# Cardholder PII + fetched invoice PDFs — never commit
-out/
-.receipts_cache/

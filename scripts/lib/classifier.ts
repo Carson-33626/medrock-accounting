@@ -1,5 +1,11 @@
-// Copy of scripts/receipt-enrichment/engines/amazon-enrich/classifier.ts. The program owns the
+// Copy of receipt-enrichment/engines/amazon-enrich/classifier.ts. The program owns the
 // original; only DOCS is repointed, from the program's data/ to this copy's own data/ (below).
+//
+// The program moved to the repo root (a separate git repo) on 2026-08-10. Until then, a test in
+// receipt-copies.test.ts asserted this copy's classify() output matched the program's original for
+// a fixed set of descriptions; that guard was removed with the move (web/ can no longer import the
+// program to compare against). This copy can now silently drift from the original — nothing here
+// catches it.
 //
 // Item -> GL classifier, rebuilt from the committed history-mined assets:
 //   docs/ramp-recon/item_gl_lookup.csv   (2,357 phrase -> GL rules, w/ confidence + example count)

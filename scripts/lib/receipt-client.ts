@@ -1,7 +1,13 @@
-// Copy of scripts/receipt-enrichment/engines/amazon-enrich/client.ts. The program owns the original;
+// Copy of receipt-enrichment/engines/amazon-enrich/client.ts. The program owns the original;
 // this copy exists so ramp-memo-fill.ts / ramp-memo-gap-probe.ts don't reach into the excluded program
 // folder. Only the imports differ (./ramp + ./entities instead of the program's ramp-split-push copies)
 // and OcrLine/OcrData are re-exported from ./receipt-types instead of being declared twice.
+//
+// The program moved to the repo root (a separate git repo) on 2026-08-10. Until then,
+// receipt-copies.test.ts asserted getReceipt's exported signature existed alongside the parseOcr /
+// classify drift checks; the signature check stayed only in spirit (getReceipt does live Ramp I/O,
+// so it was never compared against the program's output). This copy can now silently drift from
+// the original — nothing here catches it.
 //
 // Amazon-enrich Ramp client: read Amazon txns + receipts, and the ONE write method (PATCH split).
 // Reuses the committed ramp-split-push token/get helpers; adds receipt fetch + split write.
