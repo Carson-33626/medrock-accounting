@@ -8,7 +8,7 @@ import {
   type RollbackMonthValue,
 } from '@/lib/inventory/monthly-close';
 import { getBalanceSheetInventory } from '@/lib/quickbooks-multi';
-import { RDS_TO_QB_LOCATION } from '@/lib/qb-links';
+import { QB_LOCATIONS, QB_TO_RDS_LOCATION } from '@/lib/qb-links';
 import type {
   CloseBasis,
   LocationJE,
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
         // Rollback rows speak RDS naming ('MedRock Florida'); the QB client
         // speaks token naming ('MedRock FL'). An unmapped label (FOCAS has no
         // drug inventory) degrades to book-unavailable rather than a bad call.
-        const qbLocation = RDS_TO_QB_LOCATION[row.label];
+        const qbLocation = QB_LOCATIONS.find((qb) => QB_TO_RDS_LOCATION[qb] === row.label);
         if (qbLocation === undefined) {
           return buildLocationJE(row.label, fifoTarget, null, []);
         }
