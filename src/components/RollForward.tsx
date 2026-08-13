@@ -18,11 +18,12 @@ export default function RollForward({
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
+  const th = `px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider ${subText}`;
 
   if (rows.length === 0) {
     return (
-      <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-        <p className={`text-sm ${subText}`}>No roll-forward data for this month.</p>
+      <div className={`rounded-xl shadow-sm p-6 ${cardBg} border ${border} text-center text-sm ${subText}`}>
+        No roll-forward data for this month.
       </div>
     );
   }
@@ -30,26 +31,28 @@ export default function RollForward({
   const cell = (value: number | null): string => (value === null ? '—' : usd.format(value));
 
   return (
-    <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-      <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
-        Roll-forward
-        <HelpTip
-          label="How the roll-forward works"
-          text="Beginning inventory, plus purchases received during the month, minus ending inventory = cost of goods consumed. Deriving COGS this way means the roll-forward always ties to the balance-sheet change — it never disagrees with the inventory values above."
-        />
-      </p>
-      <p className={`text-xs mb-3 ${subText}`}>
-        COGS is derived: Beginning + Purchases − Ending. It ties to the balance sheet by construction.
-      </p>
+    <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
+      <div>
+        <p className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${subText}`}>
+          Roll-forward
+          <HelpTip
+            label="How the roll-forward works"
+            text="Beginning inventory, plus purchases received during the month, minus ending inventory = cost of goods consumed. Deriving COGS this way means the roll-forward always ties to the balance-sheet change — it never disagrees with the inventory values above."
+          />
+        </p>
+        <p className="text-sm font-medium mt-1">
+          COGS is derived: Beginning + Purchases − Ending. It ties to the balance sheet by construction.
+        </p>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className={`text-xs uppercase tracking-wider ${subText}`}>
-              <th className="py-2 text-left font-semibold">Location</th>
-              <th className="py-2 text-right font-semibold">Beginning</th>
-              <th className="py-2 text-right font-semibold">Purchases</th>
-              <th className="py-2 text-right font-semibold">COGS (derived)</th>
-              <th className="py-2 text-right font-semibold">Ending</th>
+            <tr className={`border-b ${border}`}>
+              <th className={`${th} text-left`}>Location</th>
+              <th className={`${th} text-right`}>Beginning</th>
+              <th className={`${th} text-right`}>Purchases</th>
+              <th className={`${th} text-right`}>COGS (derived)</th>
+              <th className={`${th} text-right`}>Ending</th>
             </tr>
           </thead>
           <tbody>
@@ -58,19 +61,18 @@ export default function RollForward({
               return (
                 <tr
                   key={r.label}
-                  className={`border-t ${border} ${isTotal ? 'font-semibold' : ''}`}
-                  style={isTotal ? { borderTopWidth: 2 } : undefined}
+                  className={`border-b last:border-0 ${border} ${isTotal ? 'border-t font-semibold' : ''}`}
                 >
-                  <td className="py-2">
+                  <td className="px-2 py-1">
                     {r.label.replace('MedRock ', '')}
                     {r.windowStart && !isTotal && (
                       <span className={`ml-2 text-xs font-normal ${subText}`}>window start</span>
                     )}
                   </td>
-                  <td className="py-2 text-right tabular-nums">{cell(r.beginning)}</td>
-                  <td className="py-2 text-right tabular-nums">{cell(r.purchases)}</td>
-                  <td className="py-2 text-right tabular-nums">{cell(r.cogs)}</td>
-                  <td className="py-2 text-right tabular-nums">{cell(r.ending)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{cell(r.beginning)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{cell(r.purchases)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{cell(r.cogs)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{cell(r.ending)}</td>
                 </tr>
               );
             })}
@@ -78,7 +80,7 @@ export default function RollForward({
         </table>
       </div>
       {!purchasesAvailable && (
-        <p className={`text-xs mt-3 ${subText}`}>
+        <p className={`text-xs ${subText}`}>
           Purchases data pending next data-loader run — COGS cannot be derived yet. Beginning and Ending
           are shown; the roll-forward completes once the loader writes the purchases columns.
         </p>

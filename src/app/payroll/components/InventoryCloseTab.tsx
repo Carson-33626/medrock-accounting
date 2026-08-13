@@ -79,17 +79,15 @@ export function InventoryCloseTab() {
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
-  const inputCls = `rounded-lg border px-3 py-2 text-sm ${
-    darkMode ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
-  }`;
+  const inputBg = darkMode
+    ? 'bg-slate-700 border-slate-600 text-slate-100'
+    : 'bg-white border-slate-300 text-slate-900';
 
   if (loaded && months.length === 0) {
     return (
-      <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-        <p className={`text-sm ${subText}`}>
-          No reconstructed month-end valuations yet — the close appears once the Data Loader ships
-          rollback rows.
-        </p>
+      <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
+        No reconstructed month-end valuations yet — the close appears once the Data Loader ships
+        rollback rows.
       </div>
     );
   }
@@ -118,32 +116,48 @@ export function InventoryCloseTab() {
         </p>
       </Explainer>
 
-      {/* Controls */}
+      {/* Controls — mirrors the End of Month tab's month/action row. */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className={`text-sm ${subText}`}>Close for</label>
-        <select value={selectedMonth ?? ''} onChange={(e) => setMonth(e.target.value)} className={inputCls}>
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {m} (close {monthDates(m).asOf})
-            </option>
-          ))}
-        </select>
+        <label className="flex items-center gap-2 text-sm">
+          <span className={subText}>Month</span>
+          <select
+            value={selectedMonth ?? ''}
+            onChange={(e) => setMonth(e.target.value)}
+            className={`rounded-lg border px-3 py-2 text-sm ${inputBg}`}
+          >
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {m} (close {monthDates(m).asOf})
+              </option>
+            ))}
+          </select>
+        </label>
         <HelpTip
           label="Floor vs. full-coverage"
           text="Which ending value the roll-forward and journal entry are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt."
         />
-        <div className={`inline-flex rounded-lg border overflow-hidden ${border}`}>
+        <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
           <button
             onClick={() => setCloseBasis('floor')}
-            className={`px-3 py-2 text-sm font-medium ${closeBasis === 'floor' ? 'text-white' : subText}`}
-            style={closeBasis === 'floor' ? { backgroundColor: '#5e3b8d' } : undefined}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              closeBasis === 'floor'
+                ? 'bg-blue-600 text-white'
+                : darkMode
+                  ? 'text-slate-300 hover:bg-slate-700'
+                  : 'text-slate-600 hover:bg-slate-100'
+            }`}
           >
             Receipt-priced floor
           </button>
           <button
             onClick={() => setCloseBasis('full')}
-            className={`px-3 py-2 text-sm font-medium ${closeBasis === 'full' ? 'text-white' : subText}`}
-            style={closeBasis === 'full' ? { backgroundColor: '#5e3b8d' } : undefined}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              closeBasis === 'full'
+                ? 'bg-blue-600 text-white'
+                : darkMode
+                  ? 'text-slate-300 hover:bg-slate-700'
+                  : 'text-slate-600 hover:bg-slate-100'
+            }`}
           >
             Full-coverage estimate
           </button>
@@ -151,7 +165,11 @@ export function InventoryCloseTab() {
         {selectedMonth && (
           <a
             href={`/api/inventory/monthly-close?month=${encodeURIComponent(selectedMonth)}&basis=${closeBasis}&format=xlsx`}
-            className={`ml-auto px-3 py-2 text-sm rounded-lg border ${border} ${cardBg}`}
+            className={`ml-auto flex items-center px-3 py-2 text-sm font-medium rounded-lg border ${
+              darkMode
+                ? 'border-slate-600 text-slate-100 hover:bg-slate-700'
+                : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
           >
             Excel (close package)
           </a>
@@ -164,7 +182,7 @@ export function InventoryCloseTab() {
         </p>
       )}
 
-      {closeReady && monthlyClose ? (
+      {closeReady && monthlyClose && selectedMonth ? (
         <>
           <RollForward
             rows={monthlyClose.rollForward}
@@ -175,12 +193,13 @@ export function InventoryCloseTab() {
             journalEntries={monthlyClose.journalEntries}
             basis={monthlyClose.basis}
             monthEnd={monthlyClose.monthEnd}
+            month={selectedMonth}
             darkMode={darkMode}
           />
         </>
       ) : (
-        <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-          <p className={`text-sm ${subText}`}>Loading monthly close…</p>
+        <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
+          Loading monthly close…
         </div>
       )}
     </div>
