@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import Explainer from './Explainer';
+import HelpTip from './HelpTip';
 import {
   LineChart,
   Line,
@@ -60,18 +62,49 @@ interface LotColumn {
   align: 'left' | 'right';
   /** Numeric/value columns open on descending — that's the useful direction */
   defaultDesc?: boolean;
+  /** Mouseover "?" explanation shown next to the column header */
+  help?: string;
 }
 
 const LOT_COLUMNS: LotColumn[] = [
   { key: 'product_name', label: 'Product', align: 'left' },
-  { key: 'qb_category', label: 'Category', align: 'left' },
+  { key: 'qb_category', label: 'Category', align: 'left', help: 'The QuickBooks category this product’s purchases are coded to.' },
   { key: 'locations', label: 'Locations', align: 'left' },
-  { key: 'lot_count', label: 'Lots', align: 'right', defaultDesc: true },
+  {
+    key: 'lot_count',
+    label: 'Lots',
+    align: 'right',
+    defaultDesc: true,
+    help: 'Purchase receipts behind this product — each receipt is one lot. “Open” lots still hold quantity.',
+  },
   { key: 'last_received', label: 'Last Received', align: 'left' },
-  { key: 'qty_consumed', label: 'Consumed', align: 'right', defaultDesc: true },
-  { key: 'qty_remaining', label: 'Remaining', align: 'right', defaultDesc: true },
-  { key: 'remaining_value', label: 'Value Left', align: 'right', defaultDesc: true },
-  { key: 'open_lots', label: 'Status', align: 'left' },
+  {
+    key: 'qty_consumed',
+    label: 'Consumed',
+    align: 'right',
+    defaultDesc: true,
+    help: 'Units drawn out of this product’s lots: dispensing, use in compounding, and reconciliation write-downs against LifeFile.',
+  },
+  {
+    key: 'qty_remaining',
+    label: 'Remaining',
+    align: 'right',
+    defaultDesc: true,
+    help: 'Units still on hand across this product’s open lots.',
+  },
+  {
+    key: 'remaining_value',
+    label: 'Value Left',
+    align: 'right',
+    defaultDesc: true,
+    help: 'Remaining units valued at the actual purchase price of the lots they sit in. This column is what sums to the on-hand total.',
+  },
+  {
+    key: 'open_lots',
+    label: 'Status',
+    align: 'left',
+    help: '“Fully used” means every lot for this product is exhausted; “open” means stock remains.',
+  },
 ];
 
 export default function InventoryValuation() {
@@ -283,6 +316,10 @@ export default function InventoryValuation() {
 
           {/* Basis toggle */}
           <div className="flex items-center gap-3">
+            <HelpTip
+              label="Accrual vs. cash basis"
+              text="Accrual counts a purchase when the goods were received. Cash re-times it to the date QuickBooks shows the bill was paid — it un-grays once receipts are linked to QB payments on the QB Links page."
+            />
             <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
               <button
                 onClick={() => setBasis('accrual')}
@@ -326,6 +363,37 @@ export default function InventoryValuation() {
           </div>
         </div>
 
+        <Explainer id="inventory-valuation" title="What am I looking at?">
+          <p>
+            Every purchase entered into LifeFile becomes a <strong>lot</strong> — a batch of stock with the date,
+            quantity, and actual price we paid. As product is dispensed or used in compounding, the oldest lots are
+            drawn down first (FIFO). What remains, valued at what each lot actually cost, is the inventory value on
+            this page.
+          </p>
+          <p>
+            <strong>Only the latest month is reconciled to LifeFile.</strong> The current month is checked lot-by-lot
+            against LifeFile&rsquo;s live lot report; earlier months come from a usage simulation over incomplete
+            historical records and <em>overstate</em> inventory — that is why the trend chart climbs. For defensible
+            month-end numbers, use the <strong>As-of Value</strong> page.
+          </p>
+          <p>
+            <strong>Accrual vs. Cash:</strong> accrual counts a purchase when the goods were received; cash re-times
+            it to the date QuickBooks shows the bill was paid. Cash stays grayed out until receipts are linked to QB
+            payments on the QB Links page.
+          </p>
+          <p>
+            <strong>Badges you will see:</strong> <span className="font-semibold">OB</span> = includes an opening
+            balance (stock that predates our receipt history, estimated from a LifeFile snapshot).{' '}
+            <span className="font-semibold">Shortfall</span> = usage exceeded known purchases at some point, a sign of
+            missing receipts or duplicate product records. <span className="font-semibold">LF</span> = that lot&rsquo;s
+            remaining quantity is pinned to LifeFile&rsquo;s report rather than simulated.
+          </p>
+          <p>
+            These figures are best-available estimates built from pharmacy records — a consistent, reproducible
+            method, not an audited count.
+          </p>
+        </Explainer>
+
         {summaryError && (
           <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">
             {summaryError}
@@ -335,7 +403,13 @@ export default function InventoryValuation() {
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className={`text-xs uppercase tracking-wide ${subText}`}>Total On-Hand Value</p>
+            <p className={`text-xs uppercase tracking-wide flex items-center gap-1.5 ${subText}`}>
+              Total On-Hand Value
+              <HelpTip
+                label="Total on-hand value"
+                text="Everything still on hand in the latest month, priced at what each lot actually cost when it was received. Includes the estimated opening balance shown below."
+              />
+            </p>
             <p className="text-2xl font-bold mt-1">{usd0.format(totals.total)}</p>
             <p className={`text-xs mt-1 ${subText}`}>
               incl. {usd0.format(totals.ob)} estimated opening balance
@@ -351,7 +425,17 @@ export default function InventoryValuation() {
           </div>
           {allCategories.map((cat) => (
             <div key={cat} className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-              <p className={`text-xs uppercase tracking-wide ${subText}`}>{cat}</p>
+              <p className={`text-xs uppercase tracking-wide flex items-center gap-1.5 ${subText}`}>
+                {cat}
+                <HelpTip
+                  label={`${cat} value`}
+                  text={
+                    cat === 'Uncoded'
+                      ? 'Purchases not yet mapped to a QuickBooks category. Assign drug codes to move this value into the right bucket.'
+                      : `Portion of the on-hand total whose purchases are coded to “${cat}” in QuickBooks.`
+                  }
+                />
+              </p>
               <p className="text-2xl font-bold mt-1" style={{ color: categoryColor(cat) }}>
                 {usd0.format(totals.byCategory.get(cat) ?? 0)}
               </p>
@@ -376,7 +460,13 @@ export default function InventoryValuation() {
         {/* Trend chart */}
         {chartData.length > 1 && (
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className={`text-sm font-semibold mb-3`}>On-Hand Value by Month</p>
+            <p className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+              On-Hand Value by Month
+              <HelpTip
+                label="How to read this chart"
+                text="Month-end on-hand value by category. Only the latest month is reconciled against LifeFile’s live lot report — earlier months come from the usage simulation over incomplete historical records and run high. Don’t read the historical slope as real growth."
+              />
+            </p>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -476,18 +566,21 @@ export default function InventoryValuation() {
                       key={col.key}
                       className={`px-3 py-2 font-medium ${col.align === 'right' ? 'text-right' : 'text-left'}`}
                     >
-                      <button
-                        onClick={() => handleSort(col)}
-                        className={`inline-flex items-center gap-1 hover:underline ${
-                          col.align === 'right' ? 'flex-row-reverse' : ''
-                        }`}
-                        title={`Sort by ${col.label}`}
-                      >
-                        {col.label}
-                        <span className="text-[10px] w-3 inline-block">
-                          {sortKey === col.key ? (sortDir === 'asc' ? '▲' : '▼') : ''}
-                        </span>
-                      </button>
+                      <span className={`inline-flex items-center gap-1.5 ${col.align === 'right' ? 'flex-row-reverse' : ''}`}>
+                        <button
+                          onClick={() => handleSort(col)}
+                          className={`inline-flex items-center gap-1 hover:underline ${
+                            col.align === 'right' ? 'flex-row-reverse' : ''
+                          }`}
+                          title={`Sort by ${col.label}`}
+                        >
+                          {col.label}
+                          <span className="text-[10px] w-3 inline-block">
+                            {sortKey === col.key ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+                          </span>
+                        </button>
+                        {col.help && <HelpTip label={col.label} text={col.help} />}
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -578,10 +671,20 @@ function ProductTableRow({ row, expanded, onToggle, detail, detailLoading, darkM
           <div className="font-medium flex items-center gap-2">
             {row.product_name ?? row.product_key}
             {row.has_opening_balance && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-500 uppercase">OB</span>
+              <span
+                title="Includes an opening balance — stock that predates our receipt history, estimated from a LifeFile snapshot"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-500 uppercase cursor-help"
+              >
+                OB
+              </span>
             )}
             {row.had_shortfall && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 uppercase">Shortfall</span>
+              <span
+                title="Usage exceeded known purchases at some point — a sign of missing receipts or duplicate product records"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 uppercase cursor-help"
+              >
+                Shortfall
+              </span>
             )}
           </div>
           {productNumber && <div className={`text-xs ${subText}`}>{productNumber}</div>}
@@ -614,11 +717,15 @@ function ProductTableRow({ row, expanded, onToggle, detail, detailLoading, darkM
             {detailLoading && <p className={`text-sm ${subText}`}>Loading FIFO history…</p>}
             {detail && (
               <div className="space-y-3">
-                <p className="text-sm font-semibold">
+                <p className="text-sm font-semibold flex items-center gap-1.5">
                   FIFO queue — {detail.product_name ?? detail.product_key}
                   {detail.product_name && !detail.product_key.startsWith('name:')
                     ? ` (${detail.product_key})`
                     : ''}
+                  <HelpTip
+                    label="How the FIFO queue works"
+                    text="Each row is one purchase receipt, oldest first. Consumption draws from the top of the queue down, so remaining stock always sits in the newest lots. “LF” marks receipts whose remaining quantity is pinned to LifeFile’s lot report rather than simulated."
+                  />
                 </p>
                 {detail.locations.map((loc) => {
                   const locReceipts = detail.receipts.filter((r) => r.location === loc);

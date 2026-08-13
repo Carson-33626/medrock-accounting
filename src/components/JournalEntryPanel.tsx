@@ -1,5 +1,6 @@
 'use client';
 
+import HelpTip from './HelpTip';
 import type { CloseBasis, LocationJE } from '@/types/inventory';
 import { journalEntryLines } from '@/lib/inventory/monthly-close';
 
@@ -28,7 +29,13 @@ export default function JournalEntryPanel({
   return (
     <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
       <div className="flex items-center justify-between gap-2 mb-1">
-        <p className="text-sm font-semibold">Suggested adjusting journal entry</p>
+        <p className="text-sm font-semibold flex items-center gap-1.5">
+          Suggested adjusting journal entry
+          <HelpTip
+            label="What this entry does"
+            text="Books the difference between the FIFO ending value and the QuickBooks inventory-asset book balance, per location. It restates the inventory asset to the FIFO figure — review it with the CPA and post manually; this page never writes to QuickBooks."
+          />
+        </p>
         <span className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold">
           Suggested only — nothing is posted to QuickBooks
         </span>

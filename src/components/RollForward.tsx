@@ -1,5 +1,6 @@
 'use client';
 
+import HelpTip from './HelpTip';
 import type { RollForwardRow } from '@/types/inventory';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -30,7 +31,13 @@ export default function RollForward({
 
   return (
     <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-      <p className="text-sm font-semibold mb-1">Roll-forward</p>
+      <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+        Roll-forward
+        <HelpTip
+          label="How the roll-forward works"
+          text="Beginning inventory, plus purchases received during the month, minus ending inventory = cost of goods consumed. Deriving COGS this way means the roll-forward always ties to the balance-sheet change — it never disagrees with the inventory values above."
+        />
+      </p>
       <p className={`text-xs mb-3 ${subText}`}>
         COGS is derived: Beginning + Purchases − Ending. It ties to the balance sheet by construction.
       </p>

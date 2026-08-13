@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import Explainer from './Explainer';
+import HelpTip from './HelpTip';
 import RollForward from './RollForward';
 import JournalEntryPanel from './JournalEntryPanel';
 import type {
@@ -184,6 +186,31 @@ export default function InventorySnapshot() {
           </a>
         </div>
 
+        <Explainer id="inventory-as-of" title="What am I looking at?">
+          <p>
+            This page states what inventory was worth at the close of a chosen month, built lot-by-lot from actual
+            LifeFile purchase receipts drawn down first-in-first-out, and reconstructed backward from
+            LifeFile&rsquo;s lot report actuals.
+          </p>
+          <p>
+            <strong>Two numbers are shown because coverage isn&rsquo;t perfect.</strong> The{' '}
+            <strong>receipt-priced floor</strong> counts only stock traceable to a priced purchase receipt — it is
+            conservative and understates. The <strong>full-coverage estimate</strong> counts everything on
+            LifeFile&rsquo;s lot report, using estimated prices where a receipt is missing. The true value sits
+            between them; accounting picks which basis becomes official.
+          </p>
+          <p>
+            <strong>Monthly Close</strong> below derives cost of goods as Beginning + Purchases − Ending, so the
+            roll-forward always ties to the balance-sheet change, then proposes the adjusting entry that brings the
+            QuickBooks inventory-asset balance to the FIFO target. The entry is a suggestion for the CPA — nothing is
+            posted automatically.
+          </p>
+          <p>
+            These figures are best-available estimates built from pharmacy records — a consistent, reproducible
+            method, not an audited count.
+          </p>
+        </Explainer>
+
         {error && (
           <div className="rounded-lg bg-red-100 border border-red-300 text-red-800 px-4 py-3 text-sm">{error}</div>
         )}
@@ -238,7 +265,13 @@ export default function InventorySnapshot() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Card A — receipt-priced floor */}
                 <div className={`rounded-2xl shadow-sm p-6 ${cardBg}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Receipt-priced floor</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${subText}`}>
+                    Receipt-priced floor
+                    <HelpTip
+                      label="Receipt-priced floor"
+                      text="Counts only stock that traces to a purchase receipt with a real price. Anything LifeFile reports beyond our receipts is left out, so this understates true value — a defensible minimum."
+                    />
+                  </p>
                   <p className="text-3xl md:text-4xl font-bold mt-2">{usd.format(floorValue)}</p>
                   <p className={`text-xs mt-2 ${subText}`}>
                     Only stock traceable to a priced receipt. Conservative — understates true value.
@@ -260,7 +293,13 @@ export default function InventorySnapshot() {
 
                 {/* Card B — full-coverage estimate */}
                 <div className={`rounded-2xl shadow-sm p-6 ${cardBg}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Full-coverage estimate</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${subText}`}>
+                    Full-coverage estimate
+                    <HelpTip
+                      label="Full-coverage estimate"
+                      text="Everything on LifeFile’s lot report, valued at receipt prices where we have the receipt and at estimated prices where we don’t. More complete, less certain."
+                    />
+                  </p>
                   <p className="text-3xl md:text-4xl font-bold mt-2">{usd.format(rollbackView.full)}</p>
                   <p className={`text-xs mt-2 ${subText}`}>
                     Everything on the LifeFile lot report, valued at receipt costs with estimated costs where receipts
@@ -275,7 +314,10 @@ export default function InventorySnapshot() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
+                <span
+                  title="Instead of simulating forward from old, incomplete records, this month is rebuilt backward from what LifeFile's lot report says is on hand today — validated by predicting months we could check"
+                  className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
+                >
                   ✓ Reconstructed from LifeFile lot actuals (backward rollback, out-of-sample validated)
                 </span>
                 <span className={`text-xs ${subText}`}>Accrual basis</span>
@@ -292,11 +334,17 @@ export default function InventorySnapshot() {
               <p className="text-4xl md:text-5xl font-bold mt-2">{usd.format(view.total)}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {anchored ? (
-                  <span className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
+                  <span
+                    title="This month's remaining quantities were checked lot-by-lot against LifeFile's live lot report"
+                    className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
+                  >
                     ✓ LifeFile-reconciled
                   </span>
                 ) : (
-                  <span className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold">
+                  <span
+                    title="This month comes from the usage simulation over incomplete historical records and likely overstates — treat as an upper-bound estimate"
+                    className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
+                  >
                     ⚠ Estimate — usage simulation, not yet LifeFile-anchored
                   </span>
                 )}
@@ -377,6 +425,10 @@ export default function InventorySnapshot() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
+                  <HelpTip
+                    label="Floor vs. full-coverage"
+                    text="Which ending value the roll-forward and journal entry are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt."
+                  />
                   <div className={`inline-flex rounded-lg border overflow-hidden ${border}`}>
                     <button
                       onClick={() => setCloseBasis('floor')}
