@@ -176,6 +176,36 @@ export default function JournalEntryPanel({
   );
 }
 
+/**
+ * Amber context note shown when the adjustment is disproportionately large
+ * (> 25% of the bigger of |FIFO target| and |book balance|). A first-ever close
+ * against a plug-maintained book balance produces exactly this, and without the
+ * explanation the number reads like an error.
+ */
+function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: LocationJE }) {
+  if (je.adjustment === null || je.qbBookBalance === null) return null;
+  const scale = Math.max(Math.abs(je.fifoTarget), Math.abs(je.qbBookBalance), 1);
+  if (Math.abs(je.adjustment) <= 0.25 * scale) return null;
+  return (
+    <div
+      className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+        darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+      }`}
+    >
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+      <p>
+        <span className="font-semibold">This adjustment is large — that is expected on a first close, not a
+        red flag.</span>{' '}
+        The QuickBooks balance was maintained with rough monthly estimates and has never been tied to an
+        actual valuation, so this entry is catching up <em>years</em> of accumulated drift in one step —
+        it does not mean inventory moved by this much in one month. Note the offset lands in Cost of Goods
+        Sold for this month, which will distort that month&rsquo;s margin. Worth confirming treatment with
+        the CPA (post as-is, or split/backdate the catch-up) before posting.
+      </p>
+    </div>
+  );
+}
+
 function StatusBadge({ darkMode, label }: { darkMode: boolean; label: string }) {
   return (
     <span
@@ -292,20 +322,40 @@ function DraftCard({
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className={`rounded-lg border p-3 ${border}`}>
-              <p className={`text-xs ${subText}`}>FIFO target</p>
+              <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
+                FIFO target
+                <HelpTip
+                  label="FIFO target"
+                  text="What this close is bringing the books to: month-end stock valued at the actual purchase price of the lots it sits in, on the selected basis (receipt-priced floor or full-coverage estimate)."
+                />
+              </p>
               <p className="text-lg font-bold tabular-nums">{usd.format(je.fifoTarget)}</p>
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
-              <p className={`text-xs ${subText}`}>QB book balance</p>
+              <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
+                QB book balance
+                <HelpTip
+                  label="QB book balance"
+                  text="The inventory-asset balance in QuickBooks at month end. Historically it was maintained with rough monthly write-off estimates rather than a valuation, so it drifts from reality over time — it is the number being corrected, not a benchmark."
+                />
+              </p>
               <p className="text-lg font-bold tabular-nums">{usd.format(je.qbBookBalance ?? 0)}</p>
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
-              <p className={`text-xs ${subText}`}>Adjustment</p>
+              <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
+                Adjustment
+                <HelpTip
+                  label="Why the adjustment can be large"
+                  text="FIFO target minus the QB book balance — the entry that restates the asset to the FIFO figure. A large number here is not one month of activity: the book balance carries years of accumulated estimates that were never tied to a valuation, so the first close catches up all of that drift in a single entry. The offset posts to Cost of Goods Sold."
+                />
+              </p>
               <p className="text-lg font-bold tabular-nums" style={{ color: '#2563eb' }}>
                 {usd.format(je.adjustment ?? 0)}
               </p>
             </div>
           </div>
+
+          <LargeAdjustmentNote darkMode={darkMode} je={je} />
 
           {lines.length === 0 ? (
             <p className={`text-sm ${subText}`}>No adjustment needed — FIFO ties to the book balance.</p>
@@ -354,6 +404,7 @@ function DraftCard({
               <button
                 onClick={() => onApprove(header.id)}
                 disabled={busy || header.status === 'approved'}
+                title="Marks the draft reviewed and unlocks posting — approval alone sends nothing to QuickBooks"
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                 }`}
@@ -364,6 +415,7 @@ function DraftCard({
               <button
                 onClick={() => onDryRun(header.id)}
                 disabled={busy}
+                title="Builds the exact QuickBooks payload and previews it below — nothing is sent"
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                 }`}
