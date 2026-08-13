@@ -4,12 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import Explainer from './Explainer';
 import HelpTip from './HelpTip';
-import RollForward from './RollForward';
-import JournalEntryPanel from './JournalEntryPanel';
+import { monthDates } from '@/lib/inventory/month-dates';
 import type {
   Basis,
-  CloseBasis,
-  MonthlyCloseResponse,
   RollbackResponse,
   RollbackValuationRow,
   SummaryResponse,
@@ -20,20 +17,6 @@ const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' 
 const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const qty0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
-/** 'YYYY-MM' → { asOf: last day of that month, opening: first day of next month } as M/D/YYYY. */
-function monthDates(month: string): { asOf: string; opening: string; openingLong: string } {
-  const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!m) return { asOf: month, opening: month, openingLong: month };
-  const year = parseInt(m[1], 10);
-  const mon = parseInt(m[2], 10); // 1..12
-  const last = new Date(Date.UTC(year, mon, 0)); // day 0 of next month = last day of this month
-  const open = new Date(Date.UTC(year, mon, 1)); // first day of next month
-  const fmt = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
-  const fmtLong = (d: Date) =>
-    d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-  return { asOf: fmt(last), opening: fmt(open), openingLong: fmtLong(open) };
-}
-
 export default function InventorySnapshot() {
   const { darkMode } = useDarkMode();
   const [basis, setBasis] = useState<Basis>('accrual');
@@ -41,11 +24,6 @@ export default function InventorySnapshot() {
   const [rollbackRows, setRollbackRows] = useState<RollbackValuationRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
-
-  // Monthly-close section (accrual + rollback rows only). Its own floor/full
-  // basis toggle, independent of the accrual/cash toggle above.
-  const [closeBasis, setCloseBasis] = useState<CloseBasis>('floor');
-  const [monthlyClose, setMonthlyClose] = useState<MonthlyCloseResponse | null>(null);
 
   // Backward-rollback reconstruction (accrual-only). The table may not exist
   // yet — the route returns { rows: [] } in that case, so the page behaves
@@ -133,33 +111,6 @@ export default function InventorySnapshot() {
   // to avoid a fake cliff against prior months.
   const floorValue = rollbackView.floor;
 
-  // Monthly Close is accrual-only and needs reconstructed rollback rows for the
-  // selected month (the roll-forward + JE both derive from the rollback basis).
-  const showMonthlyClose = basis === 'accrual' && rollbackForMonth.length > 0;
-
-  useEffect(() => {
-    if (!showMonthlyClose || !selectedMonth) return;
-    let cancelled = false;
-    fetch(`/api/inventory/monthly-close?month=${encodeURIComponent(selectedMonth)}&basis=${closeBasis}`)
-      .then((r) => r.json() as Promise<MonthlyCloseResponse | { error: string }>)
-      .then((data) => {
-        if (cancelled) return;
-        if ('rollForward' in data) setMonthlyClose(data);
-      })
-      .catch(() => {
-        // Non-fatal: the Monthly Close section simply renders nothing.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showMonthlyClose, selectedMonth, closeBasis]);
-
-  // Only render the close once the fetched payload matches the current
-  // selection — avoids briefly showing a stale month/basis on a switch, and
-  // lets the effect avoid synchronous setState resets.
-  const closeReady =
-    monthlyClose && monthlyClose.month === selectedMonth && monthlyClose.basis === closeBasis;
-
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -200,10 +151,9 @@ export default function InventorySnapshot() {
             between them; accounting picks which basis becomes official.
           </p>
           <p>
-            <strong>Monthly Close</strong> below derives cost of goods as Beginning + Purchases − Ending, so the
-            roll-forward always ties to the balance-sheet change, then proposes the adjusting entry that brings the
-            QuickBooks inventory-asset balance to the FIFO target. The entry is a suggestion for the CPA — nothing is
-            posted automatically.
+            The monthly close — the roll-forward and the suggested adjusting entry against the QuickBooks
+            inventory-asset balance — lives on the <strong>Journal Entries page</strong> under{' '}
+            <strong>Inventory Close</strong>.
           </p>
           <p>
             These figures are best-available estimates built from pharmacy records — a consistent, reproducible
@@ -409,73 +359,14 @@ export default function InventorySnapshot() {
           </div>
         )}
 
-        {/* Monthly Close — roll-forward + suggested JE (accrual + rollback rows only) */}
-        {showMonthlyClose && selectedMonth && (
-          <div className="space-y-4 pt-2">
-            <div className={`border-t ${border} pt-6`}>
-              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-                <div>
-                  <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Monthly Close</p>
-                  <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                    Roll-forward &amp; suggested journal entry
-                  </h2>
-                  <p className={`text-sm mt-1 ${subText}`}>
-                    Beginning + Purchases − Ending = COGS (derived), then FIFO target vs. the QuickBooks book
-                    balance as of {dates?.asOf ?? selectedMonth}.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <HelpTip
-                    label="Floor vs. full-coverage"
-                    text="Which ending value the roll-forward and journal entry are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt."
-                  />
-                  <div className={`inline-flex rounded-lg border overflow-hidden ${border}`}>
-                    <button
-                      onClick={() => setCloseBasis('floor')}
-                      className={`px-3 py-2 text-sm font-medium ${closeBasis === 'floor' ? 'text-white' : subText}`}
-                      style={closeBasis === 'floor' ? { backgroundColor: '#5e3b8d' } : undefined}
-                    >
-                      Receipt-priced floor
-                    </button>
-                    <button
-                      onClick={() => setCloseBasis('full')}
-                      className={`px-3 py-2 text-sm font-medium ${closeBasis === 'full' ? 'text-white' : subText}`}
-                      style={closeBasis === 'full' ? { backgroundColor: '#5e3b8d' } : undefined}
-                    >
-                      Full-coverage estimate
-                    </button>
-                  </div>
-                  <a
-                    href={`/api/inventory/monthly-close?month=${encodeURIComponent(selectedMonth)}&basis=${closeBasis}&format=xlsx`}
-                    className={`px-3 py-2 text-sm rounded-lg border ${border} ${cardBg}`}
-                  >
-                    Excel (close package)
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {closeReady && monthlyClose ? (
-              <>
-                <RollForward
-                  rows={monthlyClose.rollForward}
-                  purchasesAvailable={monthlyClose.purchasesAvailable}
-                  darkMode={darkMode}
-                />
-                <JournalEntryPanel
-                  journalEntries={monthlyClose.journalEntries}
-                  basis={monthlyClose.basis}
-                  monthEnd={monthlyClose.monthEnd}
-                  darkMode={darkMode}
-                />
-              </>
-            ) : (
-              <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-                <p className={`text-sm ${subText}`}>Loading monthly close…</p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* The monthly close (roll-forward + suggested JE) moved to the Journal Entries page. */}
+        <p className={`text-sm ${subText}`}>
+          Looking for the roll-forward &amp; suggested journal entry? The monthly close now lives on the{' '}
+          <a href="/payroll?tab=inventoryclose" className="underline font-medium">
+            Journal Entries page → Inventory Close
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { PayrollsLanding } from './PayrollsLanding';
@@ -9,14 +9,20 @@ import { MappingsTab } from './MappingsTab';
 import { PostPanel } from './PostPanel';
 import { AccrualAllocationNotes } from './AccrualAllocationNotes';
 import { EndOfMonthTab } from './EndOfMonthTab';
+import { InventoryCloseTab } from './InventoryCloseTab';
 
-type View = 'payrolls' | 'endofmonth' | 'mappings';
+type View = 'payrolls' | 'endofmonth' | 'inventoryclose' | 'mappings';
 
 const TABS: Array<{ key: View; label: string }> = [
   { key: 'payrolls', label: 'Payrolls' },
   { key: 'endofmonth', label: 'End of Month' },
+  { key: 'inventoryclose', label: 'Inventory Close' },
   { key: 'mappings', label: 'Mappings' },
 ];
+
+function isView(value: string | null): value is View {
+  return TABS.some((t) => t.key === value);
+}
 
 /**
  * `/payroll` client shell. Three primary destinations — Payrolls (the landing list), End of
@@ -29,6 +35,13 @@ export function PayrollTabs() {
   const [view, setView] = useState<View>('payrolls');
   const [selectedHeaderId, setSelectedHeaderId] = useState<number | null>(null);
   const [mappingsEntity, setMappingsEntity] = useState<string | undefined>(undefined);
+
+  // ?tab=<view> deep link (e.g. the as-of page links to ?tab=inventoryclose).
+  // Read post-hydration so the server and first client render agree.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (isView(tab)) setView(tab);
+  }, []);
 
   // Click a payroll card → open its Review/Post detail.
   const handleOpen = useCallback((headerId: number) => {
@@ -69,11 +82,15 @@ export function PayrollTabs() {
               ? 'Payroll Journal'
               : view === 'endofmonth'
                 ? 'End of Month Allocation'
-                : 'Payroll Mappings'}
+                : view === 'inventoryclose'
+                  ? 'Inventory Month-End Close'
+                  : 'Payroll Mappings'}
           </h1>
         </div>
 
-        <AccrualAllocationNotes darkMode={darkMode} view={inDetail ? 'payrolls' : view} />
+        {view !== 'inventoryclose' && (
+          <AccrualAllocationNotes darkMode={darkMode} view={inDetail ? 'payrolls' : view} />
+        )}
 
         {inDetail ? (
           <button
@@ -114,6 +131,8 @@ export function PayrollTabs() {
           <PayrollsLanding onOpen={handleOpen} />
         ) : view === 'endofmonth' ? (
           <EndOfMonthTab />
+        ) : view === 'inventoryclose' ? (
+          <InventoryCloseTab />
         ) : (
           <MappingsTab initialEntity={mappingsEntity} />
         )}
