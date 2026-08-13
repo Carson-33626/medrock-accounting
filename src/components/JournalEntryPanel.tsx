@@ -1,33 +1,55 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
-import type { CloseBasis, LocationJE } from '@/types/inventory';
-import { journalEntryLines } from '@/lib/inventory/monthly-close';
+import type { CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
+import { invCloseDocNumber, journalEntryLines, shortInventoryLocation } from '@/lib/inventory/monthly-close';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
-function shortLocation(location: string): string {
-  const name = location.replace('MedRock ', '');
-  if (name === 'Florida') return 'FL';
-  if (name === 'Tennessee') return 'TN';
-  if (name === 'Texas') return 'TX';
-  return name;
+const STATUS_LABEL: Record<InvCloseHeader['status'], string> = {
+  draft: 'Draft',
+  needs_review: 'Needs review',
+  approved: 'Approved',
+  posted: 'Posted',
+  error: 'Error',
+};
+
+/** Local mirror of qb-journal's QbJournalEntryPayload — that module pulls in the
+ *  QuickBooks client and must never land in a client bundle. */
+interface QbJournalEntryLineDetail {
+  PostingType: 'Debit' | 'Credit';
+  AccountRef: { value: string };
+  DepartmentRef?: { value: string };
+  ClassRef?: { value: string };
+}
+interface QbJournalEntryLine {
+  Amount: number;
+  DetailType: 'JournalEntryLineDetail';
+  Description?: string;
+  JournalEntryLineDetail: QbJournalEntryLineDetail;
+}
+export interface QbJournalEntryPayload {
+  DocNumber: string;
+  TxnDate: string;
+  PrivateNote?: string;
+  Line: QbJournalEntryLine[];
 }
 
-/** 'FL Inv Adj 2026.07' — display-only draft doc number, styled after 'FL % Allo 2026.06'. */
-function draftDocNumber(location: string, month: string): string {
-  return `${shortLocation(location)} Inv Adj ${month.replace('-', '.')}`;
+/** A location's suggested numbers joined with its stored draft (when generated). */
+interface LocationView {
+  je: LocationJE;
+  header: InvCloseHeader | null;
+  storedLines: InvCloseLine[];
 }
 
 /**
- * Suggested adjusting JE per location: FIFO target (selected basis Ending) vs.
- * the QB inventory-asset book balance. Presented in the End of Month tab's
- * draft-card style — sub-tab per location + Combined — because that is the JE
- * layout accounting reviews everywhere else. Review-only: nothing posts to QB.
+ * Inventory-close JE per location, in the End of Month tab's draft-card style —
+ * sub-tab per location + Combined, with the same Approve / Dry run / Post
+ * workflow once drafts are generated. Until then each card shows the live
+ * suggested numbers.
  */
 export default function JournalEntryPanel({
   journalEntries,
@@ -35,51 +57,78 @@ export default function JournalEntryPanel({
   monthEnd,
   month,
   darkMode,
+  headers,
+  linesById,
+  busyHeaderId,
+  dryRunPayloads,
+  onApprove,
+  onDryRun,
+  onPostLive,
 }: {
   journalEntries: LocationJE[];
   basis: CloseBasis;
   monthEnd: string;
   month: string;
   darkMode: boolean;
+  headers: InvCloseHeader[];
+  linesById: Record<string, InvCloseLine[]>;
+  busyHeaderId: number | null;
+  dryRunPayloads: Record<number, QbJournalEntryPayload>;
+  onApprove: (headerId: number) => void;
+  onDryRun: (headerId: number) => void;
+  onPostLive: (headerId: number, entityLabel: string) => void;
 }) {
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
 
+  const views = useMemo<LocationView[]>(
+    () =>
+      journalEntries.map((je) => {
+        const short = shortInventoryLocation(je.location);
+        const header = headers.find((h) => shortInventoryLocation(h.entity) === short) ?? null;
+        return { je, header, storedLines: header ? (linesById[String(header.id)] ?? []) : [] };
+      }),
+    [journalEntries, headers, linesById],
+  );
+
   const [tab, setTab] = useState<string>('first');
-  const activeLocation = tab === 'first' ? (journalEntries[0]?.location ?? 'combined') : tab;
-  const activeJe = journalEntries.find((je) => je.location === activeLocation) ?? null;
+  const activeLocation = tab === 'first' ? (views[0]?.je.location ?? 'combined') : tab;
+  const activeView = views.find((v) => v.je.location === activeLocation) ?? null;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm font-semibold flex items-center gap-1.5">
-          Suggested adjusting journal entry
+          Adjusting journal entry
           <HelpTip
             label="What this entry does"
-            text="Books the difference between the FIFO ending value and the QuickBooks inventory-asset book balance, per location. It restates the inventory asset to the FIFO figure — review it with the CPA and post manually; this page never writes to QuickBooks."
+            text="Books the difference between the FIFO ending value and the QuickBooks inventory-asset book balance, per location — it restates the inventory asset to the FIFO figure. Generate drafts, review, approve, then post; nothing reaches QuickBooks without an explicit approve + post."
           />
         </p>
-        <span className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold">
-          Suggested only — nothing is posted to QuickBooks
-        </span>
+        {headers.length === 0 && (
+          <span className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold">
+            Suggested only — generate drafts to enable posting
+          </span>
+        )}
       </div>
 
       {/* Sub-tab bar — one tab per location + Combined (mirrors the End of Month drafts). */}
       <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
-        {journalEntries.map((je) => (
+        {views.map((v) => (
           <button
-            key={je.location}
-            onClick={() => setTab(je.location)}
+            key={v.je.location}
+            onClick={() => setTab(v.je.location)}
             className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
-              activeLocation === je.location
+              activeLocation === v.je.location
                 ? 'bg-blue-600 text-white'
                 : darkMode
                   ? 'text-slate-300 hover:bg-slate-700'
                   : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            {shortLocation(je.location)} · {je.bookAvailable ? 'Suggested' : 'No QB link'}
+            {shortInventoryLocation(v.je.location)} ·{' '}
+            {v.header ? STATUS_LABEL[v.header.status] : v.je.bookAvailable ? 'Suggested' : 'No QB balance'}
           </button>
         ))}
         <button
@@ -96,23 +145,28 @@ export default function JournalEntryPanel({
         </button>
       </div>
 
-      {activeJe ? (
-        <SuggestedDraftCard
+      {activeView ? (
+        <DraftCard
           darkMode={darkMode}
           cardBg={cardBg}
           subText={subText}
           border={border}
-          je={activeJe}
+          view={activeView}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
+          busy={activeView.header !== null && busyHeaderId === activeView.header.id}
+          dryRunPayload={activeView.header ? (dryRunPayloads[activeView.header.id] ?? null) : null}
+          onApprove={onApprove}
+          onDryRun={onDryRun}
+          onPostLive={onPostLive}
         />
       ) : (
         <CombinedCard
           cardBg={cardBg}
           subText={subText}
           border={border}
-          journalEntries={journalEntries}
+          views={views}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
@@ -134,42 +188,95 @@ function StatusBadge({ darkMode, label }: { darkMode: boolean; label: string }) 
   );
 }
 
-function SuggestedDraftCard({
+function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJournalEntryPayload }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`text-xs flex items-center gap-1 font-medium ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}
+      >
+        {open ? <ChevronDown className="w-3.5 h-3.5" aria-hidden /> : <ChevronRight className="w-3.5 h-3.5" aria-hidden />}
+        Dry-run payload — {payload.DocNumber}
+      </button>
+      {open && (
+        <pre
+          className={`text-[11px] font-mono rounded-lg border p-3 overflow-x-auto max-h-72 overflow-y-auto ${
+            darkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+          }`}
+        >
+          {JSON.stringify(payload, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+/** Rows the tables render — stored draft lines when a draft exists (that is what
+ *  will post), the live suggestion otherwise. */
+function displayLines(view: LocationView, basis: CloseBasis, monthEnd: string): InvCloseLine[] {
+  if (view.header) return view.storedLines;
+  return journalEntryLines(view.je, basis, monthEnd).map((l) => ({
+    postingType: l.debit !== null ? 'Debit' : 'Credit',
+    amount: l.debit ?? l.credit ?? 0,
+    accountName: l.account,
+    memo: l.memo,
+  }));
+}
+
+function DraftCard({
   darkMode,
   cardBg,
   subText,
   border,
-  je,
+  view,
   basis,
   month,
   monthEnd,
+  busy,
+  dryRunPayload,
+  onApprove,
+  onDryRun,
+  onPostLive,
 }: {
   darkMode: boolean;
   cardBg: string;
   subText: string;
   border: string;
-  je: LocationJE;
+  view: LocationView;
   basis: CloseBasis;
   month: string;
   monthEnd: string;
+  busy: boolean;
+  dryRunPayload: QbJournalEntryPayload | null;
+  onApprove: (headerId: number) => void;
+  onDryRun: (headerId: number) => void;
+  onPostLive: (headerId: number, entityLabel: string) => void;
 }) {
+  const { je, header } = view;
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
-  const lines = useMemo(() => journalEntryLines(je, basis, monthEnd), [je, basis, monthEnd]);
-  const debitTotal = round2(lines.reduce((s, l) => s + (l.debit ?? 0), 0));
-  const creditTotal = round2(lines.reduce((s, l) => s + (l.credit ?? 0), 0));
+  const posted = header?.status === 'posted';
+  const docNumber = posted ? (header?.qb_doc_number ?? '—') : invCloseDocNumber(je.location, month);
+  const lines = displayLines(view, basis, monthEnd);
+  const debitTotal = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+  const creditTotal = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
 
-  if (!je.bookAvailable) {
-    return (
-      <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold">{je.location}</p>
-            <p className={`text-xs ${subText}`}>
-              {draftDocNumber(je.location, month)} · {monthEnd}
-            </p>
-          </div>
-          <StatusBadge darkMode={darkMode} label="Book balance unavailable" />
+  return (
+    <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">{je.location}</p>
+          <p className={`text-xs ${subText}`}>
+            {docNumber} · {header?.txn_date ?? monthEnd}
+          </p>
         </div>
+        <StatusBadge
+          darkMode={darkMode}
+          label={header ? STATUS_LABEL[header.status] : je.bookAvailable ? 'Suggested' : 'Book balance unavailable'}
+        />
+      </div>
+
+      {!je.bookAvailable && !header ? (
         <div
           className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
             darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
@@ -181,89 +288,115 @@ function SuggestedDraftCard({
             balance and compute the adjustment.
           </p>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold">{je.location}</p>
-          <p className={`text-xs ${subText}`}>
-            {draftDocNumber(je.location, month)} · {monthEnd}
-          </p>
-        </div>
-        <StatusBadge darkMode={darkMode} label="Suggested" />
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className={`rounded-lg border p-3 ${border}`}>
-          <p className={`text-xs ${subText}`}>FIFO target</p>
-          <p className="text-lg font-bold tabular-nums">{usd.format(je.fifoTarget)}</p>
-        </div>
-        <div className={`rounded-lg border p-3 ${border}`}>
-          <p className={`text-xs ${subText}`}>QB book balance</p>
-          <p className="text-lg font-bold tabular-nums">{usd.format(je.qbBookBalance ?? 0)}</p>
-        </div>
-        <div className={`rounded-lg border p-3 ${border}`}>
-          <p className={`text-xs ${subText}`}>Adjustment</p>
-          <p className="text-lg font-bold tabular-nums" style={{ color: '#2563eb' }}>
-            {usd.format(je.adjustment ?? 0)}
-          </p>
-        </div>
-      </div>
-
-      {lines.length === 0 ? (
-        <p className={`text-sm ${subText}`}>No adjustment needed — FIFO ties to the book balance.</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`border-b ${border}`}>
-                  <th className={th}>Posting</th>
-                  <th className={th}>Account</th>
-                  <th className={th}>Memo</th>
-                  <th className={`${th} text-right`}>Debit</th>
-                  <th className={`${th} text-right`}>Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) => (
-                  <tr key={`${l.account}-${i}`} className={`border-b last:border-0 ${border}`}>
-                    <td className={`px-2 py-1 text-xs ${subText}`}>{l.debit !== null ? 'Debit' : 'Credit'}</td>
-                    <td className="px-2 py-1">{l.account}</td>
-                    <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
-                    <td className="px-2 py-1 text-right tabular-nums">{l.debit !== null ? usd.format(l.debit) : ''}</td>
-                    <td className="px-2 py-1 text-right tabular-nums">{l.credit !== null ? usd.format(l.credit) : ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className={`border-t font-semibold ${border}`}>
-                  <td className="px-2 py-1" colSpan={3}>
-                    Total
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums">{usd.format(debitTotal)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{usd.format(creditTotal)}</td>
-                </tr>
-              </tfoot>
-            </table>
+          <div className="grid grid-cols-3 gap-3">
+            <div className={`rounded-lg border p-3 ${border}`}>
+              <p className={`text-xs ${subText}`}>FIFO target</p>
+              <p className="text-lg font-bold tabular-nums">{usd.format(je.fifoTarget)}</p>
+            </div>
+            <div className={`rounded-lg border p-3 ${border}`}>
+              <p className={`text-xs ${subText}`}>QB book balance</p>
+              <p className="text-lg font-bold tabular-nums">{usd.format(je.qbBookBalance ?? 0)}</p>
+            </div>
+            <div className={`rounded-lg border p-3 ${border}`}>
+              <p className={`text-xs ${subText}`}>Adjustment</p>
+              <p className="text-lg font-bold tabular-nums" style={{ color: '#2563eb' }}>
+                {usd.format(je.adjustment ?? 0)}
+              </p>
+            </div>
           </div>
+
+          {lines.length === 0 ? (
+            <p className={`text-sm ${subText}`}>No adjustment needed — FIFO ties to the book balance.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className={`border-b ${border}`}>
+                    <th className={th}>Posting</th>
+                    <th className={th}>Account</th>
+                    <th className={th}>Memo</th>
+                    <th className={`${th} text-right`}>Debit</th>
+                    <th className={`${th} text-right`}>Credit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((l, i) => (
+                    <tr key={`${l.accountName}-${i}`} className={`border-b last:border-0 ${border}`}>
+                      <td className={`px-2 py-1 text-xs ${subText}`}>{l.postingType}</td>
+                      <td className="px-2 py-1">{l.accountName}</td>
+                      <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {l.postingType === 'Debit' ? usd.format(l.amount) : ''}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {l.postingType === 'Credit' ? usd.format(l.amount) : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className={`border-t font-semibold ${border}`}>
+                    <td className="px-2 py-1" colSpan={3}>
+                      Total
+                    </td>
+                    <td className="px-2 py-1 text-right tabular-nums">{usd.format(debitTotal)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{usd.format(creditTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {header && !posted && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => onApprove(header.id)}
+                disabled={busy || header.status === 'approved'}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                  darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <ShieldCheck className="w-4 h-4" aria-hidden />}
+                {header.status === 'approved' ? 'Approved' : 'Approve'}
+              </button>
+              <button
+                onClick={() => onDryRun(header.id)}
+                disabled={busy}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                  darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
+                Dry run
+              </button>
+              <button
+                onClick={() => onPostLive(header.id, je.location)}
+                disabled={busy || header.status !== 'approved'}
+                title={header.status !== 'approved' ? 'Approve this draft before posting' : 'Post the live journal entry to QuickBooks'}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-bold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Zap className="w-4 h-4" aria-hidden />}
+                Post to QuickBooks
+              </button>
+            </div>
+          )}
+
+          {dryRunPayload && <DryRunPreview darkMode={darkMode} payload={dryRunPayload} />}
         </>
       )}
     </div>
   );
 }
 
-/** Read-only merged view of every location's suggested lines (mirrors the End of
- *  Month Combined grid): each line with its entity, one totals row. */
+/** Read-only merged view of every location's lines (mirrors the End of Month
+ *  Combined grid): each line with its entity, one totals row. */
 function CombinedCard({
   cardBg,
   subText,
   border,
-  journalEntries,
+  views,
   basis,
   month,
   monthEnd,
@@ -271,26 +404,26 @@ function CombinedCard({
   cardBg: string;
   subText: string;
   border: string;
-  journalEntries: LocationJE[];
+  views: LocationView[];
   basis: CloseBasis;
   month: string;
   monthEnd: string;
 }) {
-  const rows = journalEntries.flatMap((je) =>
-    journalEntryLines(je, basis, monthEnd).map((l, i) => ({
+  const rows = views.flatMap((v) =>
+    displayLines(v, basis, monthEnd).map((l, i) => ({
       ...l,
-      location: je.location,
-      _key: `${je.location}-${i}`,
+      location: v.je.location,
+      _key: `${v.je.location}-${i}`,
     })),
   );
-  const debitTotal = round2(rows.reduce((s, l) => s + (l.debit ?? 0), 0));
-  const creditTotal = round2(rows.reduce((s, l) => s + (l.credit ?? 0), 0));
+  const debitTotal = round2(rows.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+  const creditTotal = round2(rows.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
 
   return (
     <div className={`rounded-xl shadow-sm ${cardBg}`}>
       <div className={`px-4 py-3 border-b ${border} flex items-center justify-between`}>
         <p className="text-sm font-semibold">Combined — all locations, {month}</p>
-        <p className={`text-xs ${subText}`}>read-only · per-location detail on each tab</p>
+        <p className={`text-xs ${subText}`}>read-only · approve and post on each location&apos;s tab</p>
       </div>
       {rows.length === 0 ? (
         <p className={`px-4 py-6 text-sm ${subText}`}>
@@ -312,12 +445,16 @@ function CombinedCard({
             <tbody>
               {rows.map((l) => (
                 <tr key={l._key} className={`border-t ${border}`}>
-                  <td className={`px-2 py-1 text-xs whitespace-nowrap ${subText}`}>{shortLocation(l.location)}</td>
-                  <td className={`px-2 py-1 text-xs ${subText}`}>{l.debit !== null ? 'Debit' : 'Credit'}</td>
-                  <td className="px-2 py-1">{l.account}</td>
+                  <td className={`px-2 py-1 text-xs whitespace-nowrap ${subText}`}>{shortInventoryLocation(l.location)}</td>
+                  <td className={`px-2 py-1 text-xs ${subText}`}>{l.postingType}</td>
+                  <td className="px-2 py-1">{l.accountName}</td>
                   <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{l.debit !== null ? usd.format(l.debit) : ''}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{l.credit !== null ? usd.format(l.credit) : ''}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    {l.postingType === 'Debit' ? usd.format(l.amount) : ''}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    {l.postingType === 'Credit' ? usd.format(l.amount) : ''}
+                  </td>
                 </tr>
               ))}
               <tr className={`border-t font-semibold ${border}`}>

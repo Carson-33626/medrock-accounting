@@ -156,6 +156,21 @@ export function buildLocationJE(
 export const INVENTORY_ACCOUNT = '1220 Inventory Asset';
 export const COGS_ACCOUNT = 'Cost of Goods Sold';
 
+/** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
+export function shortInventoryLocation(location: string): string {
+  const name = location.replace('MedRock ', '');
+  if (name === 'Florida') return 'FL';
+  if (name === 'Tennessee') return 'TN';
+  if (name === 'Texas') return 'TX';
+  return name;
+}
+
+/** 'FL Inv Adj 2026.07' — the close JE's DocNumber, styled after 'FL % Allo 2026.06'.
+ *  One source of truth: the UI preview and the live post both derive from here. */
+export function invCloseDocNumber(location: string, month: string): string {
+  return `${shortInventoryLocation(location)} Inv Adj ${month.replace('-', '.')}`;
+}
+
 /** One copy-ready journal line (debit XOR credit). */
 export interface JeLine {
   account: string;

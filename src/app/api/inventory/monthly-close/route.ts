@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRdsPool } from '@/lib/rds';
 import { xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
-import {
-  buildRollForward,
-  buildLocationJE,
-  journalEntryLines,
-  type RollbackMonthValue,
-} from '@/lib/inventory/monthly-close';
-import { getBalanceSheetInventory } from '@/lib/quickbooks-multi';
-import { QB_LOCATIONS, QB_TO_RDS_LOCATION } from '@/lib/qb-links';
-import type {
-  CloseBasis,
-  LocationJE,
-  MonthlyCloseResponse,
-  RollForwardRow,
-} from '@/types/inventory';
+import { journalEntryLines } from '@/lib/inventory/monthly-close';
+import { computeClose, loadStoredDrafts, monthEndDate } from '@/lib/inventory/close-server';
+import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,37 +19,6 @@ function isPgUndefinedTable(error: unknown): boolean {
   );
 }
 
-interface RollbackCloseRow {
-  as_of_month: string;
-  location: string;
-  value_floor: number | null;
-  value_full: number | null;
-  purchases_floor: number | null;
-  purchases_full: number | null;
-}
-
-/** 'YYYY-MM' → last day of that month as 'YYYY-MM-DD', or null when malformed. */
-function monthEndDate(month: string): string | null {
-  const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!m) return null;
-  const year = parseInt(m[1], 10);
-  const mon = parseInt(m[2], 10); // 1..12
-  if (mon < 1 || mon > 12) return null;
-  const last = new Date(Date.UTC(year, mon, 0));
-  return last.toISOString().slice(0, 10);
-}
-
-
-function toMonthValue(r: RollbackCloseRow): RollbackMonthValue {
-  return {
-    location: r.location,
-    valueFloor: r.value_floor,
-    valueFull: r.value_full,
-    purchasesFloor: r.purchases_floor,
-    purchasesFull: r.purchases_full,
-  };
-}
-
 const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): MonthlyCloseResponse => ({
   month,
   monthEnd,
@@ -69,6 +26,8 @@ const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): Mont
   purchasesAvailable: false,
   rollForward: [],
   journalEntries: [],
+  headers: [],
+  linesById: {},
 });
 
 export async function GET(request: NextRequest) {
@@ -83,99 +42,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid month; expected YYYY-MM' }, { status: 400 });
     }
 
-    const pool = getRdsPool();
-
-    // The rollback table is written by a loader phase that may not have run yet.
-    // Guard on to_regclass so a missing table degrades to an empty close.
-    const exists = await pool.query<{ regclass: string | null }>(
-      `SELECT to_regclass('inventory.fifo_rollback_valuation')::text AS regclass`,
-    );
-    if (!exists.rows[0]?.regclass) {
-      return NextResponse.json(emptyResponse(month, monthEnd, basis));
-    }
-
-    // The purchases_floor / purchases_full columns were just added to the loader
-    // and may not exist (or be NULL) until the next nightly run. Probe column
-    // existence; when absent, select NULL so the query never 42703s and the
-    // roll-forward degrades to "purchases pending".
-    const cols = await pool.query<{ column_name: string }>(
-      `SELECT column_name FROM information_schema.columns
-       WHERE table_schema = 'inventory' AND table_name = 'fifo_rollback_valuation'
-         AND column_name IN ('purchases_floor', 'purchases_full')`,
-    );
-    const colNames = new Set(cols.rows.map((c) => c.column_name));
-    const purchasesAvailable = colNames.has('purchases_floor') && colNames.has('purchases_full');
-    const purchasesFloorExpr = purchasesAvailable
-      ? 'purchases_floor::float8'
-      : 'NULL::float8';
-    const purchasesFullExpr = purchasesAvailable ? 'purchases_full::float8' : 'NULL::float8';
-
-    // Beginning = the immediately-prior month present in the table (not merely
-    // the previous calendar month — a gap month has no beginning of its own).
-    const priorRes = await pool.query<{ as_of_month: string }>(
-      `SELECT as_of_month FROM inventory.fifo_rollback_valuation
-       WHERE as_of_month < $1
-       ORDER BY as_of_month DESC
-       LIMIT 1`,
-      [month],
-    );
-    const priorMonth = priorRes.rows[0]?.as_of_month ?? null;
-
-    const months = priorMonth ? [month, priorMonth] : [month];
-    const result = await pool.query<RollbackCloseRow>(
-      `SELECT as_of_month, location,
-              value_floor::float8 AS value_floor,
-              value_full::float8  AS value_full,
-              ${purchasesFloorExpr} AS purchases_floor,
-              ${purchasesFullExpr}  AS purchases_full
-       FROM inventory.fifo_rollback_valuation
-       WHERE as_of_month = ANY($1)
-       ORDER BY as_of_month, location`,
-      [months],
-    );
-
-    const currentRows = result.rows
-      .filter((r) => r.as_of_month === month)
-      .map(toMonthValue);
-    const priorRows = priorMonth
-      ? result.rows.filter((r) => r.as_of_month === priorMonth).map(toMonthValue)
-      : null;
-
-    if (currentRows.length === 0) {
-      // No rollback rows for this month → nothing to close.
-      const empty = emptyResponse(month, monthEnd, basis);
-      empty.purchasesAvailable = purchasesAvailable;
-      if (format === 'xlsx') return closeWorkbook(empty, month, basis, monthEnd);
-      return NextResponse.json(empty);
-    }
-
-    const rollForward = buildRollForward(currentRows, priorRows, basis, purchasesAvailable);
-
-    // Suggested JE per location: FIFO target (this basis Ending) vs QB book
-    // balance. Fetch each realm independently and tolerate per-location failure.
-    const locationRows = rollForward.filter((r) => r.cut === 'location');
-    const journalEntries: LocationJE[] = await Promise.all(
-      locationRows.map(async (row) => {
-        const fifoTarget = row.ending;
-        // Rollback rows speak RDS naming ('MedRock Florida'); the QB client
-        // speaks token naming ('MedRock FL'). An unmapped label (FOCAS has no
-        // drug inventory) degrades to book-unavailable rather than a bad call.
-        const qbLocation = QB_LOCATIONS.find((qb) => QB_TO_RDS_LOCATION[qb] === row.label);
-        if (qbLocation === undefined) {
-          return buildLocationJE(row.label, fifoTarget, null, []);
-        }
-        const book = await getBalanceSheetInventory(qbLocation, monthEnd);
-        return buildLocationJE(row.label, fifoTarget, book?.total ?? null, book?.accounts ?? []);
-      }),
-    );
+    const close = await computeClose(month, basis, monthEnd);
+    const stored = await loadStoredDrafts(monthEnd);
 
     const body: MonthlyCloseResponse = {
       month,
       monthEnd,
       basis,
-      purchasesAvailable,
-      rollForward,
-      journalEntries,
+      ...close,
+      ...stored,
     };
 
     if (format === 'xlsx') return closeWorkbook(body, month, basis, monthEnd);

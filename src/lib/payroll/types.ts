@@ -11,7 +11,7 @@ export interface PayrollRow {
 export type Entity = 'MedRock FL' | 'MedRock TN' | 'MedRock TX' | 'FOCAS';
 export type PostingType = 'Debit' | 'Credit';
 export type LineOrigin = 'generated' | 'manual' | 'inter_entity';
-export type JeKind = 'pay_date' | 'accrual' | 'reversal' | 'allocation';
+export type JeKind = 'pay_date' | 'accrual' | 'reversal' | 'allocation' | 'inventory';
 export type CreditBucket = 'Net Pay' | 'Taxes' | 'Garnishments' | 'Retirement' | 'Health' | 'WC' | 'Other';
 
 export interface JournalLine {

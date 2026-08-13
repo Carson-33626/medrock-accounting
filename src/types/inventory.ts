@@ -109,6 +109,29 @@ export interface LocationJE {
   direction: 'debit-inventory' | 'credit-inventory' | 'none' | null;
 }
 
+/** Stored inventory-close draft header — client mirror of the payroll store's
+ *  PayrollHeader, narrowed to what the close UI renders (the store module pulls
+ *  in `pg` and must never land in a client bundle). */
+export interface InvCloseHeader {
+  id: number;
+  /** QB token naming ('MedRock FL') — translate for display against RDS names. */
+  entity: string;
+  status: 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
+  qb_doc_number: string | null;
+  txn_date: string | null;
+  total_debits: number;
+  total_credits: number;
+  variance: number;
+}
+
+/** Stored draft line — what will actually post, frozen at generation time. */
+export interface InvCloseLine {
+  postingType: 'Debit' | 'Credit';
+  amount: number;
+  accountName: string;
+  memo: string;
+}
+
 export interface MonthlyCloseResponse {
   month: string; // 'YYYY-MM'
   monthEnd: string; // 'YYYY-MM-DD' (last day of month)
@@ -117,6 +140,10 @@ export interface MonthlyCloseResponse {
   purchasesAvailable: boolean;
   rollForward: RollForwardRow[];
   journalEntries: LocationJE[];
+  /** Stored drafts for this month (empty until Generate drafts is run). */
+  headers: InvCloseHeader[];
+  /** headerId (as string) -> stored draft lines. */
+  linesById: Record<string, InvCloseLine[]>;
 }
 
 export interface LotRow {
