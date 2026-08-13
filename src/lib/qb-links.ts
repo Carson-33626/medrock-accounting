@@ -31,6 +31,13 @@ export const QB_TO_RDS_LOCATION: Record<InventoryLocation, string> = {
   'MedRock TX': 'MedRock Texas',
 };
 
+/** purchase_lots.location -> QB company (token) location. The inventory tables
+ *  speak RDS naming ('MedRock Florida'); every QB call speaks token naming
+ *  ('MedRock FL') — translate before touching QuickBooks. */
+export const RDS_TO_QB_LOCATION: Record<string, InventoryLocation> = Object.fromEntries(
+  (Object.entries(QB_TO_RDS_LOCATION) as [InventoryLocation, string][]).map(([qb, rds]) => [rds, qb]),
+) as Record<string, InventoryLocation>;
+
 export const QB_LOCATIONS: InventoryLocation[] = ['MedRock FL', 'MedRock TN', 'MedRock TX'];
 
 /** Receiving window starts 2025-06-16; pad for bills dated slightly earlier. */

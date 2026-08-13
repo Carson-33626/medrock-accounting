@@ -7,8 +7,8 @@ import {
   journalEntryLines,
   type RollbackMonthValue,
 } from '@/lib/inventory/monthly-close';
-import { getBalanceSheetInventory, type Location } from '@/lib/quickbooks-multi';
-import { QB_LOCATIONS } from '@/lib/qb-links';
+import { getBalanceSheetInventory } from '@/lib/quickbooks-multi';
+import { RDS_TO_QB_LOCATION } from '@/lib/qb-links';
 import type {
   CloseBasis,
   LocationJE,
@@ -51,11 +51,6 @@ function monthEndDate(month: string): string | null {
   return last.toISOString().slice(0, 10);
 }
 
-// Inventory monthly close is MedRock-only — FOCAS has no drug inventory, so this
-// guard deliberately scans QB_LOCATIONS (the trio) rather than the full LOCATION_MAPPING.
-function isKnownLocation(location: string): location is Location {
-  return (QB_LOCATIONS as string[]).includes(location);
-}
 
 function toMonthValue(r: RollbackCloseRow): RollbackMonthValue {
   return {
@@ -162,10 +157,14 @@ export async function GET(request: NextRequest) {
     const journalEntries: LocationJE[] = await Promise.all(
       locationRows.map(async (row) => {
         const fifoTarget = row.ending;
-        if (!isKnownLocation(row.label)) {
+        // Rollback rows speak RDS naming ('MedRock Florida'); the QB client
+        // speaks token naming ('MedRock FL'). An unmapped label (FOCAS has no
+        // drug inventory) degrades to book-unavailable rather than a bad call.
+        const qbLocation = RDS_TO_QB_LOCATION[row.label];
+        if (qbLocation === undefined) {
           return buildLocationJE(row.label, fifoTarget, null, []);
         }
-        const book = await getBalanceSheetInventory(row.label, monthEnd);
+        const book = await getBalanceSheetInventory(qbLocation, monthEnd);
         return buildLocationJE(row.label, fifoTarget, book?.total ?? null, book?.accounts ?? []);
       }),
     );
