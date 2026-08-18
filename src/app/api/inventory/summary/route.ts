@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRdsPool } from '@/lib/rds';
 import { csvResponse, xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
+import { fetchRollbackRows } from '@/lib/inventory-rollback';
 import type { Basis, SummaryResponse, ValuationSummaryRow } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,19 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'Consumed Value (Month)', key: 'consumed_value_in_month', currency: true },
   { header: 'Opening Balance Value', key: 'opening_balance_value', currency: true },
   { header: 'Shortfall Count', key: 'shortfall_count' },
+  { header: 'LifeFile Qty Left', key: 'lifefile_qty_left_total' },
   { header: 'Estimated-Timing Value (Cash)', key: 'cash_estimated_value', currency: true },
+];
+
+// Rollback (backward) valuation bases — the As-of page's headline numbers.
+const ROLLBACK_COLUMNS: ExportColumn[] = [
+  { header: 'Month', key: 'as_of_month' },
+  { header: 'Location', key: 'location' },
+  { header: 'Receipt-Priced Floor', key: 'value_floor', currency: true },
+  { header: 'Full-Coverage Estimate', key: 'value_full', currency: true },
+  { header: 'On-Hand Qty', key: 'on_hand_qty' },
+  { header: 'Uncosted Qty', key: 'uncosted_qty' },
+  { header: 'OOS Ratio', key: 'oos_ratio' },
 ];
 
 export async function GET(request: NextRequest) {
@@ -94,11 +107,46 @@ export async function GET(request: NextRequest) {
     if (format === 'csv' || format === 'xlsx') {
       const exportRows: Record<string, CellValue>[] = rows.map((r) => ({ ...r }));
       const filename = `fifo-valuation_${location && location !== 'all' ? location.replace(/\s+/g, '-') : 'all'}_${latestMonth ?? 'na'}_${basis}`;
+
+      // The As-of page's headline numbers (receipt-priced floor / full-coverage estimate) come
+      // from the rollback valuation, not this summary table — until 2026-08-18 they were shown
+      // on screen but absent from every export. Best-effort: a rollback hiccup never blocks the
+      // summary export, the extra sheet/section is just omitted.
+      let rollbackRows: Record<string, CellValue>[] = [];
+      try {
+        rollbackRows = (await fetchRollbackRows(pool))
+          .filter((r) => !location || location === 'all' || r.location === location)
+          .map((r) => ({
+            as_of_month: r.as_of_month,
+            location: r.location,
+            value_floor: r.value_floor,
+            value_full: r.value_full,
+            on_hand_qty: r.on_hand_qty,
+            uncosted_qty: r.uncosted_qty,
+            oos_ratio: r.oos_ratio,
+          }));
+      } catch (rollbackErr) {
+        console.warn('[inventory/summary GET] rollback sheet skipped:', rollbackErr instanceof Error ? rollbackErr.message : rollbackErr);
+      }
+
       if (format === 'csv') {
-        return csvResponse(EXPORT_COLUMNS, exportRows, filename);
+        const res = csvResponse(EXPORT_COLUMNS, exportRows, filename);
+        if (rollbackRows.length === 0) return res;
+        const [body, rollbackBody] = await Promise.all([
+          res.text(),
+          csvResponse(ROLLBACK_COLUMNS, rollbackRows, filename).text(),
+        ]);
+        return new NextResponse(
+          `${body}\r\n\r\nRollback bases (receipt-priced floor vs full-coverage estimate)\r\n${rollbackBody}`,
+          { headers: res.headers },
+        );
       }
       const note = `FIFO Inventory Valuation Summary — basis: ${basis}, generated ${new Date().toISOString()} (data as of nightly Data Loader run)`;
-      return xlsxResponse([{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }], filename, note);
+      const sheets = [{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }];
+      if (rollbackRows.length > 0) {
+        sheets.push({ name: 'Rollback Bases', columns: ROLLBACK_COLUMNS, rows: rollbackRows });
+      }
+      return xlsxResponse(sheets, filename, note);
     }
 
     const body: SummaryResponse = { basis, months, locations, categories, rows, latestMonth, hasCashBasis, anchoredMonths };

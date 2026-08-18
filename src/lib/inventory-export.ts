@@ -46,6 +46,8 @@ export async function xlsxResponse(
     name: string;
     columns: ExportColumn[];
     rows: Record<string, CellValue>[];
+    /** Per-sheet note row; falls back to the workbook-level `note` when absent. */
+    note?: string;
   }>,
   filename: string,
   note: string,
@@ -56,7 +58,7 @@ export async function xlsxResponse(
   for (const sheet of sheets) {
     const ws = workbook.addWorksheet(sheet.name);
 
-    const noteRow = ws.addRow([note]);
+    const noteRow = ws.addRow([sheet.note ?? note]);
     noteRow.font = { italic: true, color: { argb: 'FF666666' } };
     ws.mergeCells(1, 1, 1, Math.max(sheet.columns.length, 1));
 

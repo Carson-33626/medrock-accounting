@@ -4,18 +4,16 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
 import type { CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
-import { invCloseDocNumber, journalEntryLines, shortInventoryLocation } from '@/lib/inventory/monthly-close';
+import {
+  CLOSE_STATUS_LABEL as STATUS_LABEL,
+  closeDisplayLines,
+  findCloseHeader,
+  invCloseDocNumber,
+  shortInventoryLocation,
+} from '@/lib/inventory/monthly-close';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
-
-const STATUS_LABEL: Record<InvCloseHeader['status'], string> = {
-  draft: 'Draft',
-  needs_review: 'Needs review',
-  approved: 'Approved',
-  posted: 'Posted',
-  error: 'Error',
-};
 
 /** Local mirror of qb-journal's QbJournalEntryPayload — that module pulls in the
  *  QuickBooks client and must never land in a client bundle. */
@@ -85,8 +83,7 @@ export default function JournalEntryPanel({
   const views = useMemo<LocationView[]>(
     () =>
       journalEntries.map((je) => {
-        const short = shortInventoryLocation(je.location);
-        const header = headers.find((h) => shortInventoryLocation(h.entity) === short) ?? null;
+        const header = findCloseHeader(je.location, headers);
         return { je, header, storedLines: header ? (linesById[String(header.id)] ?? []) : [] };
       }),
     [journalEntries, headers, linesById],
@@ -242,16 +239,11 @@ function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJo
   );
 }
 
-/** Rows the tables render — stored draft lines when a draft exists (that is what
+/** Rows the tables render — one selection rule shared with the xlsx export
+ *  (closeDisplayLines): stored draft lines when a draft exists (that is what
  *  will post), the live suggestion otherwise. */
 function displayLines(view: LocationView, basis: CloseBasis, monthEnd: string): InvCloseLine[] {
-  if (view.header) return view.storedLines;
-  return journalEntryLines(view.je, basis, monthEnd).map((l) => ({
-    postingType: l.debit !== null ? 'Debit' : 'Credit',
-    amount: l.debit ?? l.credit ?? 0,
-    accountName: l.account,
-    memo: l.memo,
-  }));
+  return closeDisplayLines(view.je, view.header, view.storedLines, basis, monthEnd);
 }
 
 function DraftCard({

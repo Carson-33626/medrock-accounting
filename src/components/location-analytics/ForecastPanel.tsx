@@ -15,7 +15,9 @@ import { ForecastChart } from './ForecastChart';
 import { ForecastTable } from './ForecastTable';
 import { VarianceTable } from './VarianceTable';
 import { ManualForecastTab } from './ManualForecastTab';
-import { exportForecastCsv, exportForecastXlsx, exportForecastPdf } from '@/lib/forecast/forecast-export';
+import {
+  exportForecastCsv, exportForecastXlsx, exportForecastPdf, type VarianceExport,
+} from '@/lib/forecast/forecast-export';
 
 function labelForMetric(metric: TrendMetric): string {
   return METRIC_OPTIONS.find((m) => m.key === metric)?.label ?? metric;
@@ -122,9 +124,13 @@ export function ForecastPanel({
   }, [recommended]);
 
   const exportFilename = `location-forecast_${metric}_${horizon}mo`;
-  const handleExportCsv = () => exportForecastCsv(model, metricLabel, exportFilename);
+  // When an overlay is selected, the exported file carries the same
+  // manual-vs-system variance the VarianceTable shows on screen.
+  const varianceExport: VarianceExport | undefined =
+    overlay && varianceGroups ? { overlayName: overlay.name, groups: varianceGroups } : undefined;
+  const handleExportCsv = () => exportForecastCsv(model, metricLabel, exportFilename, varianceExport);
   const handleExportXlsx = () => {
-    void exportForecastXlsx(model, metricLabel, exportFilename);
+    void exportForecastXlsx(model, metricLabel, exportFilename, varianceExport);
   };
   const handleExportPdf = () => exportForecastPdf();
 

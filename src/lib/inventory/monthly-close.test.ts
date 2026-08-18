@@ -3,10 +3,14 @@ import {
   buildRollForward,
   buildLocationJE,
   journalEntryLines,
+  findCloseHeader,
+  closeDisplayLines,
+  closeJeSheetNote,
   INVENTORY_ACCOUNT,
   COGS_ACCOUNT,
   type RollbackMonthValue,
 } from './monthly-close';
+import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
 const mv = (over: Partial<RollbackMonthValue> & { location: string }): RollbackMonthValue => ({
   valueFloor: null,
@@ -186,5 +190,96 @@ describe('journalEntryLines', () => {
   it('returns no lines when the adjustment is zero or the book is unavailable', () => {
     expect(journalEntryLines(buildLocationJE('X', 1000, 1000, []), 'floor', '2026-06-30')).toHaveLength(0);
     expect(journalEntryLines(buildLocationJE('X', 1000, null, []), 'floor', '2026-06-30')).toHaveLength(0);
+  });
+});
+
+const header = (over: Partial<InvCloseHeader> & { id: number; entity: string }): InvCloseHeader => ({
+  status: 'draft',
+  qb_doc_number: null,
+  txn_date: null,
+  total_debits: 0,
+  total_credits: 0,
+  variance: 0,
+  ...over,
+});
+
+const storedLine = (over: Partial<InvCloseLine>): InvCloseLine => ({
+  postingType: 'Debit',
+  amount: 0,
+  accountName: INVENTORY_ACCOUNT,
+  memo: 'stored',
+  ...over,
+});
+
+describe('findCloseHeader', () => {
+  it('matches a QB-named header to an RDS-named location via the short label', () => {
+    const headers = [header({ id: 1, entity: 'MedRock FL' }), header({ id: 2, entity: 'MedRock TN' })];
+    expect(findCloseHeader('MedRock Florida', headers)?.id).toBe(1);
+    expect(findCloseHeader('MedRock Tennessee', headers)?.id).toBe(2);
+  });
+
+  it('returns null when no draft exists for the location', () => {
+    expect(findCloseHeader('MedRock Texas', [header({ id: 1, entity: 'MedRock FL' })])).toBeNull();
+  });
+});
+
+describe('closeDisplayLines', () => {
+  const je = buildLocationJE('MedRock Florida', 1200, 1000, []); // suggestion would be a 200 adjustment
+
+  it('returns the STORED draft lines when a draft header exists — never the recomputed suggestion', () => {
+    const stored = [
+      storedLine({ postingType: 'Debit', amount: 350, accountName: INVENTORY_ACCOUNT }),
+      storedLine({ postingType: 'Credit', amount: 350, accountName: COGS_ACCOUNT }),
+    ];
+    const lines = closeDisplayLines(je, header({ id: 1, entity: 'MedRock FL' }), stored, 'floor', '2026-06-30');
+    expect(lines).toBe(stored); // the frozen lines, untouched
+    expect(lines[0]?.amount).toBe(350); // not the live 200 suggestion
+  });
+
+  it('returns stored lines even when they are empty for a drafted location', () => {
+    expect(closeDisplayLines(je, header({ id: 1, entity: 'MedRock FL' }), [], 'floor', '2026-06-30')).toHaveLength(0);
+  });
+
+  it('falls back to the computed suggestion, mapped to stored-line shape, without a draft', () => {
+    const lines = closeDisplayLines(je, null, [], 'floor', '2026-06-30');
+    expect(lines).toEqual([
+      {
+        postingType: 'Debit',
+        amount: 200,
+        accountName: INVENTORY_ACCOUNT,
+        memo: 'Adjust inventory to FIFO (rollback, floor) as of 2026-06-30',
+      },
+      {
+        postingType: 'Credit',
+        amount: 200,
+        accountName: COGS_ACCOUNT,
+        memo: 'Adjust inventory to FIFO (rollback, floor) as of 2026-06-30',
+      },
+    ]);
+  });
+});
+
+describe('closeJeSheetNote', () => {
+  const fl = buildLocationJE('MedRock Florida', 1200, 1000, []);
+  const tn = buildLocationJE('MedRock Tennessee', 900, 1000, []);
+
+  it('states SUGGESTED ONLY when no drafts have been generated', () => {
+    const note = closeJeSheetNote([fl, tn], [], '2026-07');
+    expect(note).toContain('SUGGESTED ONLY');
+    expect(note).toContain('nothing is posted');
+  });
+
+  it('reports each draft location with its DocNumber and status label', () => {
+    const headers = [header({ id: 1, entity: 'MedRock FL', status: 'approved' })];
+    const note = closeJeSheetNote([fl, tn], headers, '2026-07');
+    expect(note).toContain('STORED DRAFT');
+    expect(note).toContain('FL: FL Inv Adj 2026.07 — Approved');
+    expect(note).toContain('TN: live suggestion (no draft)');
+  });
+
+  it('uses the QuickBooks-assigned DocNumber once posted', () => {
+    const headers = [header({ id: 1, entity: 'MedRock FL', status: 'posted', qb_doc_number: 'QB-123' })];
+    const note = closeJeSheetNote([fl], headers, '2026-07');
+    expect(note).toContain('FL: QB-123 — Posted');
   });
 });

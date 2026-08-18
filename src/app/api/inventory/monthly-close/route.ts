@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
-import { journalEntryLines } from '@/lib/inventory/monthly-close';
+import { closeDisplayLines, closeJeSheetNote, findCloseHeader } from '@/lib/inventory/monthly-close';
 import { computeClose, loadStoredDrafts, monthEndDate } from '@/lib/inventory/close-server';
 import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/inventory';
 
@@ -108,9 +108,13 @@ function closeWorkbook(
     note: rowNote(r),
   }));
 
+  // Same line-selection rule as the UI: stored draft lines when a draft was
+  // generated for this month, computed suggestion otherwise.
   const jeRows: Record<string, CellValue>[] = [];
   for (const je of body.journalEntries) {
-    if (!je.bookAvailable) {
+    const header = findCloseHeader(je.location, body.headers);
+    const storedLines = header ? (body.linesById[String(header.id)] ?? []) : [];
+    if (!je.bookAvailable && !header) {
       jeRows.push({
         location: je.location,
         account: 'book balance unavailable — reconnect QuickBooks',
@@ -120,7 +124,7 @@ function closeWorkbook(
       });
       continue;
     }
-    const lines = journalEntryLines(je, basis, monthEnd);
+    const lines = closeDisplayLines(je, header, storedLines, basis, monthEnd);
     if (lines.length === 0) {
       jeRows.push({
         location: je.location,
@@ -134,26 +138,35 @@ function closeWorkbook(
     lines.forEach((line, idx) => {
       jeRows.push({
         location: idx === 0 ? je.location : '',
-        account: line.account,
-        debit: line.debit,
-        credit: line.credit,
+        account: line.accountName,
+        debit: line.postingType === 'Debit' ? line.amount : null,
+        credit: line.postingType === 'Credit' ? line.amount : null,
         memo: line.memo,
       });
     });
   }
 
   const filename = `inventory-close_${month}_${basis}`;
-  const note =
+  const packageNote =
     `Monthly Close Package — ${month} (close ${monthEnd}), basis: ${basisLabel}. ` +
-    `COGS is derived (Beginning + Purchases − Ending). Journal entries are SUGGESTED ONLY — ` +
-    `nothing is posted to QuickBooks. Generated ${new Date().toISOString()}.`;
+    `Generated ${new Date().toISOString()}.`;
 
   return xlsxResponse(
     [
-      { name: 'Roll-Forward', columns: ROLL_FORWARD_COLUMNS, rows: rollRows },
-      { name: 'Journal-Entries', columns: JE_COLUMNS, rows: jeRows },
+      {
+        name: 'Roll-Forward',
+        columns: ROLL_FORWARD_COLUMNS,
+        rows: rollRows,
+        note: `${packageNote} COGS is derived (Beginning + Purchases − Ending).`,
+      },
+      {
+        name: 'Journal-Entries',
+        columns: JE_COLUMNS,
+        rows: jeRows,
+        note: `${packageNote} ${closeJeSheetNote(body.journalEntries, body.headers, month)}`,
+      },
     ],
     filename,
-    note,
+    packageNote,
   );
 }

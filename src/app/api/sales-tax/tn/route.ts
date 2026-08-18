@@ -28,6 +28,24 @@ const SUMMARY_COLS: ExportColumn[] = [
   { header: 'Amount', key: 'amount', currency: true },
 ];
 
+const BY_STATE_COLS: ExportColumn[] = [
+  { header: 'Ship-to', key: 'state' },
+  { header: 'Gross', key: 'gross', currency: true },
+  { header: 'Tax', key: 'tax', currency: true },
+  { header: 'Txns', key: 'transactions' },
+  { header: 'Treatment', key: 'treatment' },
+];
+
+function byStateRows(result: TnReturnResponse): Record<string, CellValue>[] {
+  return result.diagnostics.byState.map((s) => ({
+    state: s.state,
+    gross: s.gross,
+    tax: s.tax,
+    transactions: s.transactions,
+    treatment: s.isTennessee ? 'taxable (TN)' : 'out-of-state — exempt',
+  }));
+}
+
 const SOURCE_COLS: ExportColumn[] = [
   { header: 'Tx ID', key: 'tx_id' },
   { header: 'Date', key: 'date' },
@@ -90,6 +108,12 @@ export async function GET(request: NextRequest) {
       return xlsxResponse(
         [
           { name: 'SLS-450 Summary', columns: SUMMARY_COLS, rows: summaryRows(result) },
+          {
+            name: 'By Ship-To State',
+            columns: BY_STATE_COLS,
+            rows: byStateRows(result),
+            note: 'Substantiates Line 1 Gross and the Schedule A Line 7 out-of-state deduction. Only Tennessee is taxable; every other state is deducted as out-of-state.',
+          },
           { name: 'Source Transactions', columns: SOURCE_COLS, rows: sourceAsRecords(source) },
         ],
         filename,
@@ -103,6 +127,10 @@ export async function GET(request: NextRequest) {
       lines.push('# === SLS-450 SUMMARY ===');
       lines.push(SUMMARY_COLS.map((c) => csvEscape(c.header)).join(','));
       for (const r of summaryRows(result)) lines.push(SUMMARY_COLS.map((c) => csvEscape(r[c.key] ?? null)).join(','));
+      lines.push('');
+      lines.push('# === GROSS BY SHIP-TO STATE ===');
+      lines.push(BY_STATE_COLS.map((c) => csvEscape(c.header)).join(','));
+      for (const r of byStateRows(result)) lines.push(BY_STATE_COLS.map((c) => csvEscape(r[c.key] ?? null)).join(','));
       lines.push('');
       lines.push('# === SOURCE TRANSACTIONS ===');
       lines.push(SOURCE_COLS.map((c) => csvEscape(c.header)).join(','));

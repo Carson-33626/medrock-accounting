@@ -2,27 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { usd0 } from './chartTheme';
-import type { ForecastLocation, ForecastModel } from './forecastModel';
-
-type CellKind = 'actual' | 'dual' | 'projected' | 'empty';
-interface CellView {
-  kind: CellKind;
-  value: number;
-  estValue: number | null;
-}
-
-function cellFor(loc: ForecastLocation, month: string, model: ForecastModel): CellView {
-  if (model.provisionalMonths.includes(month)) {
-    return { kind: 'dual', value: loc.actual[month] ?? 0, estValue: loc.est[month] ?? 0 };
-  }
-  if (month in loc.future) {
-    return { kind: 'projected', value: loc.future[month], estValue: null };
-  }
-  if (month in loc.actual) {
-    return { kind: 'actual', value: loc.actual[month], estValue: null };
-  }
-  return { kind: 'empty', value: 0, estValue: null };
-}
+import { cellFor, totalCell, computeTotalCmgr, type CellView } from '@/lib/forecast/forecast-cells';
+import type { ForecastModel } from './forecastModel';
 
 function Money({ value, muted }: { value: number; muted?: boolean }) {
   const cls = value < 0 ? 'text-red-500' : muted ? 'text-slate-400 italic' : undefined;
@@ -52,31 +33,6 @@ function methodBadge(method: string, darkMode: boolean): string {
   return darkMode ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
 }
 
-/** Aggregate one month across all locations for the Total column. */
-function totalCell(model: ForecastModel, month: string): CellView {
-  let actualSum = 0;
-  let estSum = 0;
-  let projSum = 0;
-  let kind: CellKind = 'empty';
-  for (const loc of model.locations) {
-    const c = cellFor(loc, month, model);
-    if (c.kind === 'actual') {
-      actualSum += c.value;
-      kind = 'actual';
-    } else if (c.kind === 'dual') {
-      actualSum += c.value;
-      estSum += c.estValue ?? 0;
-      kind = 'dual';
-    } else if (c.kind === 'projected') {
-      projSum += c.value;
-      kind = 'projected';
-    }
-  }
-  if (kind === 'dual') return { kind, value: actualSum, estValue: estSum };
-  if (kind === 'projected') return { kind, value: projSum, estValue: null };
-  return { kind, value: actualSum, estValue: null };
-}
-
 /** Sort key: a location's qbLocation, or 'total' for the Total column, or 'month' (chronological). */
 const MONTH_SORT_KEY = 'month';
 const TOTAL_SORT_KEY = 'total';
@@ -86,12 +42,6 @@ function sortValueFor(model: ForecastModel, month: string, key: string): number 
   if (key === TOTAL_SORT_KEY) return totalCell(model, month).value;
   const loc = model.locations.find((l) => l.qbLocation === key);
   return loc ? cellFor(loc, month, model).value : 0;
-}
-
-/** CMGR (%) from last-actual to final-forecast for an arbitrary summed series. */
-function cmgrFrom(lastActual: number, finalForecast: number, horizon: number): number {
-  if (horizon <= 0 || lastActual <= 0 || finalForecast <= 0) return 0;
-  return (Math.pow(finalForecast / lastActual, 1 / horizon) - 1) * 100;
 }
 
 /**
@@ -125,16 +75,7 @@ export function ForecastTable({
   const isFuture = (month: string): boolean => model.futureMonths.includes(month);
 
   // Total column: CMGR from the summed series, anchored on the last fully-closed month.
-  const totalCmgr = useMemo(() => {
-    const trained = model.completedMonths.filter((m) => !model.provisionalMonths.includes(m));
-    const lastActualMonth = trained[trained.length - 1];
-    const lastFutureMonth = model.futureMonths[model.futureMonths.length - 1];
-    if (!lastActualMonth || !lastFutureMonth) return 0;
-    const lastActual = model.locations.reduce((s, l) => s + (l.actual[lastActualMonth] ?? 0), 0);
-    const finalForecast = model.locations.reduce((s, l) => s + (l.future[lastFutureMonth] ?? 0), 0);
-    const periods = model.provisionalMonths.length + model.futureMonths.length;
-    return cmgrFrom(lastActual, finalForecast, periods);
-  }, [model]);
+  const totalCmgr = useMemo(() => computeTotalCmgr(model), [model]);
 
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 

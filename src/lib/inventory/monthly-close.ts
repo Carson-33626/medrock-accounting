@@ -13,6 +13,8 @@
  */
 import type {
   CloseBasis,
+  InvCloseHeader,
+  InvCloseLine,
   LocationJE,
   QbAccountLine,
   RollForwardRow,
@@ -201,4 +203,73 @@ export function journalEntryLines(je: LocationJE, basis: CloseBasis, monthEnd: s
     { account: COGS_ACCOUNT, debit: amount, credit: null, memo },
     { account: INVENTORY_ACCOUNT, debit: null, credit: amount, memo },
   ];
+}
+
+/** Display labels for the stored-draft workflow states. */
+export const CLOSE_STATUS_LABEL: Record<InvCloseHeader['status'], string> = {
+  draft: 'Draft',
+  needs_review: 'Needs review',
+  approved: 'Approved',
+  posted: 'Posted',
+  error: 'Error',
+};
+
+/**
+ * The stored draft header for one location, if drafts have been generated.
+ * Headers carry QB token naming ('MedRock FL') while rollback rows carry RDS
+ * names ('MedRock Florida') — match on the short label.
+ */
+export function findCloseHeader(location: string, headers: InvCloseHeader[]): InvCloseHeader | null {
+  const short = shortInventoryLocation(location);
+  return headers.find((h) => shortInventoryLocation(h.entity) === short) ?? null;
+}
+
+/**
+ * The lines a reader should see for one location — the stored draft's lines
+ * when a draft exists (those are frozen at generation and are what will post),
+ * the live suggestion otherwise. ONE rule for the close UI tables and the
+ * xlsx export; they must never disagree.
+ */
+export function closeDisplayLines(
+  je: LocationJE,
+  header: InvCloseHeader | null,
+  storedLines: InvCloseLine[],
+  basis: CloseBasis,
+  monthEnd: string,
+): InvCloseLine[] {
+  if (header) return storedLines;
+  return journalEntryLines(je, basis, monthEnd).map((l) => ({
+    postingType: l.debit !== null ? 'Debit' : 'Credit',
+    amount: l.debit ?? l.credit ?? 0,
+    accountName: l.account,
+    memo: l.memo,
+  }));
+}
+
+/**
+ * Provenance note for the export's Journal-Entries sheet: whether each
+ * location's rows are a stored draft (with its DocNumber + workflow status,
+ * as the UI badges show) or a live suggestion. A posted draft reports the
+ * DocNumber QuickBooks actually assigned.
+ */
+export function closeJeSheetNote(
+  journalEntries: LocationJE[],
+  headers: InvCloseHeader[],
+  month: string,
+): string {
+  if (headers.length === 0) {
+    return 'Journal entries are SUGGESTED ONLY — no drafts generated; nothing is posted to QuickBooks.';
+  }
+  const parts = journalEntries.map((je) => {
+    const short = shortInventoryLocation(je.location);
+    const header = findCloseHeader(je.location, headers);
+    if (!header) return `${short}: live suggestion (no draft)`;
+    const doc =
+      header.status === 'posted' ? (header.qb_doc_number ?? '—') : invCloseDocNumber(je.location, month);
+    return `${short}: ${doc} — ${CLOSE_STATUS_LABEL[header.status]}`;
+  });
+  return (
+    'Journal entries show the STORED DRAFT where one exists (frozen at generation — what posts), ' +
+    `the live suggestion otherwise. ${parts.join(' · ')}.`
+  );
 }

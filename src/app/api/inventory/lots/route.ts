@@ -187,10 +187,21 @@ export async function GET(request: NextRequest) {
         lot_anchored: r.lot_anchored,
       }));
       const filename = `fifo-lots_${location && location !== 'all' ? location.replace(/\s+/g, '-') : 'all'}_${month}_accrual`;
+      // The 50k cap above is a guardrail, not an expectation (the whole ledger is ~15k rows) —
+      // but if it ever fires, say so loudly instead of shipping a silently incomplete file.
+      const truncated = exportRows.length >= 50000;
       if (format === 'csv') {
-        return csvResponse(EXPORT_COLUMNS, exportRows, filename);
+        const res = csvResponse(EXPORT_COLUMNS, exportRows, filename);
+        if (!truncated) return res;
+        const body = await res.text();
+        return new NextResponse(
+          `${body}\r\nWARNING: export truncated at the 50000-row cap - narrow the filters and re-export`,
+          { headers: res.headers },
+        );
       }
-      const note = `FIFO Lot Ledger — month: ${month}, accrual basis, generated ${new Date().toISOString()}`;
+      const note =
+        `FIFO Lot Ledger — month: ${month}, accrual basis, generated ${new Date().toISOString()}` +
+        (truncated ? ' — WARNING: TRUNCATED at the 50,000-row cap; narrow the filters and re-export' : '');
       return xlsxResponse([{ name: 'Lot Ledger', columns: EXPORT_COLUMNS, rows: exportRows }], filename, note);
     }
 

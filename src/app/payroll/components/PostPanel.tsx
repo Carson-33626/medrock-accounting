@@ -271,13 +271,16 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     }
   }, [headerId]);
 
-  // Download the draft JE as an .xlsx (dry-run artifact to review/circulate before posting).
+  // Download the run as an .xlsx (dry-run artifact to review/circulate before posting).
+  // scope=run: a split payroll exports EVERY month piece (one sheet each) plus a Combined
+  // sheet — Barbara's 2026-08-18 report was this button only ever downloading the first piece,
+  // so the "combined" file was half the payroll and every sub-tab re-downloaded that same half.
   const handleExport = useCallback(async () => {
     if (headerId === null) return;
     setExporting(true);
     setExportError(null);
     try {
-      const res = await fetch(`/api/payroll/export?headerId=${headerId}`);
+      const res = await fetch(`/api/payroll/export?headerId=${headerId}&scope=run`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
         throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -557,13 +560,17 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                 <button
                   onClick={() => void handleExport()}
                   disabled={exporting}
-                  title="Download this JE as an Excel file to review before posting"
+                  title={
+                    isSplit
+                      ? 'Download the whole split payroll as one Excel file — a sheet per month piece plus a Combined sheet'
+                      : 'Download this JE as an Excel file to review before posting'
+                  }
                   className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                     darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   {exporting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />}
-                  {exporting ? 'Exporting…' : 'Download Excel'}
+                  {exporting ? 'Exporting…' : isSplit ? 'Download Excel (all months)' : 'Download Excel'}
                 </button>
                 <button
                   onClick={() => void handlePreview()}

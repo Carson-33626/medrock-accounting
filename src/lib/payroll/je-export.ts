@@ -12,6 +12,7 @@ import type { JournalLine } from './types';
 import type { ExportColumn, CellValue } from '../inventory-export';
 import { docNumber as deriveDocNumber, txnDate as deriveTxnDate } from './qb-journal';
 import { compareJournalLines } from './line-order';
+import { pieceLabel } from './split';
 
 /** Minimal header shape the export needs — a subset of store.PayrollHeader. */
 export interface JeExportHeader {
@@ -89,4 +90,95 @@ export function buildJeExportSheet(
     `(variance ${variance.toFixed(2)}) - dry-run preview, NOT yet posted to QuickBooks.`;
 
   return { columns: COLUMNS, rows, docNumber, txnDate, filename, note };
+}
+
+// ── Whole-run workbook (split payrolls) ─────────────────────────────────────
+
+/** One piece of a run: its persisted draft plus the piece-suffixed DocNumber/TxnDate it posts under. */
+export interface JeExportPiece {
+  header: JeExportHeader;
+  lines: JournalLine[];
+  /** 'YYYY-MM' month segment — orders the pieces and labels the sheet tab. */
+  periodSegment: string;
+  docNumber: string;
+  txnDate: string;
+}
+
+export interface JeExportWorkbookSheet {
+  name: string;
+  columns: ExportColumn[];
+  rows: Record<string, CellValue>[];
+  note: string;
+}
+
+export interface JeExportWorkbook {
+  sheets: JeExportWorkbookSheet[];
+  filename: string;
+}
+
+/**
+ * The download for a WHOLE run. A split payroll posts as multiple journal entries (one per
+ * calendar month), and the export must contain all of them — Barbara's 2026-08-18 report was
+ * exactly this: the file only ever held one piece, so the "combined" download was half the
+ * payroll and every sub-tab re-downloaded that same half. Emits one sheet per piece (each a
+ * postable JE with its own DocNumber/TxnDate) plus a read-only Combined sheet whose JE column
+ * says which entry each line posts under. A single-piece run degrades to the plain export.
+ */
+export function buildRunJeExportWorkbook(
+  pieces: JeExportPiece[],
+  accountNums?: Record<string, string>,
+): JeExportWorkbook {
+  const ordered = [...pieces].sort((a, b) => a.periodSegment.localeCompare(b.periodSegment));
+
+  const pieceSheets = ordered.map((p) => {
+    const s = buildJeExportSheet(p.header, p.lines, accountNums, { docNumber: p.docNumber, txnDate: p.txnDate });
+    return { sheet: s, piece: p };
+  });
+
+  if (ordered.length === 1) {
+    const { sheet } = pieceSheets[0];
+    return {
+      sheets: [{ name: 'Journal Entry', columns: sheet.columns, rows: sheet.rows, note: sheet.note }],
+      filename: sheet.filename,
+    };
+  }
+
+  const sheets: JeExportWorkbookSheet[] = pieceSheets.map(({ sheet, piece }) => ({
+    // Tab names stay within Excel's 31-char / no \ / ? * [ ] : rules — 'Jun (PR 2026.07.01A)'.
+    name: `${pieceLabel(piece.periodSegment)} (${sheet.docNumber})`,
+    columns: sheet.columns,
+    rows: sheet.rows,
+    note: sheet.note,
+  }));
+
+  // Combined sheet: every piece's lines (piece order preserved), tagged with the JE they post
+  // under, and one TOTAL row across the whole run.
+  const combinedColumns: ExportColumn[] = [{ header: 'JE', key: 'je' }, ...COLUMNS];
+  const combinedRows: Record<string, CellValue>[] = pieceSheets.flatMap(({ sheet }) =>
+    sheet.rows
+      .filter((r) => r.type !== 'TOTAL')
+      .map((r) => ({ je: sheet.docNumber, ...r })),
+  );
+  const allLines = ordered.flatMap((p) => p.lines);
+  const totalDebits = round2(allLines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+  const totalCredits = round2(allLines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
+  combinedRows.push({
+    je: '', type: 'TOTAL', acctNum: '', account: '', memo: '', department: '', className: '',
+    debit: totalDebits, credit: totalCredits, origin: '',
+  });
+
+  const head = ordered[0].header;
+  const docNumbers = pieceSheets.map(({ sheet }) => sheet.docNumber);
+  const variance = round2(totalDebits - totalCredits);
+  const combinedNote =
+    `${head.entity} - ${head.pay_group} - pay date ${head.pay_date} - COMBINED review view of ` +
+    `${ordered.length} separate journal entries (${docNumbers.join(' + ')}), one per month - ` +
+    `debits ${totalDebits.toFixed(2)} / credits ${totalCredits.toFixed(2)} (variance ${variance.toFixed(2)}) - ` +
+    `this sheet is review-only; the pieces post individually.`;
+
+  sheets.push({ name: 'Combined', columns: combinedColumns, rows: combinedRows, note: combinedNote });
+
+  const stem = deriveDocNumber(head.pay_date);
+  const filename = `JE_${head.entity}_${stem}_split`.replace(/[^A-Za-z0-9._-]+/g, '_');
+  return { sheets, filename };
 }
