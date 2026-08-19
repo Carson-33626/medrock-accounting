@@ -26,7 +26,8 @@ import type { AccountMapRule, EmployeeMapRule } from '../../src/lib/payroll/type
 import { POSTABLE_ENTITIES } from '../../src/lib/payroll/entity';
 import { selectSource } from '../../src/lib/payroll/source-select';
 import { buildJournal } from '../../src/lib/payroll/build-je';
-import { getAccountMap, getEmployeeMap, saveDraft, sourceSnapshotHash } from '../../src/lib/payroll/store';
+import { splitStraddle } from '../../src/lib/payroll/split';
+import { deleteStaleSiblings, getAccountMap, getEmployeeMap, runSnapshotHash, saveDraft } from '../../src/lib/payroll/store';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const start = process.argv[2];
@@ -80,7 +81,6 @@ async function main(): Promise<void> {
       console.log(`${w.tag}  no source rows`);
       continue;
     }
-    const snapshot = sourceSnapshotHash(rows);
     const { drafts, unmappedColumns, excluded } = buildJournal(rows, accountMap, employeeMap);
 
     for (const c of unmappedColumns) allUnmapped.add(c);
@@ -91,9 +91,22 @@ async function main(): Promise<void> {
     if (drafts.some((d) => Math.abs(d.variance) >= 0.005)) nonZeroVariance += 1;
 
     if (apply) {
+      // Mirror POST /api/payroll/runs exactly: split straddling runs into per-month pieces,
+      // save each, then drop unposted leftovers whose segment set changed (e.g. a previously
+      // saved unsplit '' header replaced by 'YYYY-MM' pieces, or vice versa).
       for (const draft of drafts) {
-        await saveDraft(draft, snapshot);
-        totalSaved += 1;
+        // Per-run hash (pay_date + pay_group), matching the post route's drift recompute —
+        // a whole-range hash flags every draft as drifted and blocks live posting.
+        const snapshot = runSnapshotHash(rows, draft.payDate, draft.payGroup);
+        const pieces = splitStraddle(draft);
+        for (const piece of pieces) {
+          await saveDraft(piece, snapshot);
+          totalSaved += 1;
+        }
+        await deleteStaleSiblings(
+          draft.entity, draft.payDate, draft.payGroup,
+          pieces.map((p) => p.periodSegment ?? ''),
+        );
       }
     }
 

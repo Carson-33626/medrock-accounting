@@ -64,6 +64,19 @@ export function sourceSnapshotHash(rows: PayrollRow[]): string {
   return createHash('sha256').update(parts.join('\n')).digest('hex');
 }
 
+/**
+ * The snapshot hash for ONE run (pay_date + pay_group) out of a wider fetch. This is the hash
+ * a draft must be SAVED with, because the post route's drift check (I3) recomputes over
+ * exactly this row set — `fetchRange(day, day)` filtered to the run's pay_group. Hashing the
+ * whole build range instead (what the builders did until 2026-08-19) made `hasDrift` true for
+ * every draft ever built from a multi-run range, so a live payroll post could NEVER pass the
+ * drift gate — Barbara's "Post to QuickBooks failed". sourceSnapshotHash sorts row keys, so
+ * fetch-order differences between the build and post paths cannot break equality.
+ */
+export function runSnapshotHash(rows: PayrollRow[], payDate: string, payGroup: string): string {
+  return sourceSnapshotHash(rows.filter((r) => r.pay_date === payDate && r.pay_group === payGroup));
+}
+
 interface AccountMapRow {
   id: number;
   entity: Entity;

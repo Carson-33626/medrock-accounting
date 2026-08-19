@@ -4,9 +4,42 @@ import {
   normalizeAccountName,
   poolLinesFromJournalEntry,
   poolLinesFromExpenseTxn,
+  poolLineFromLocalDraftRow,
   type RawJournalEntry,
   type RawExpenseTxn,
+  type LocalDraftLineRow,
 } from './qb-pool';
+
+describe('poolLineFromLocalDraftRow', () => {
+  const base: LocalDraftLineRow = {
+    header_id: '412', entity: 'MedRock FL', pay_date: '07/31/2026', txn_date: '2026-07-31',
+    posting_type: 'Debit', amount: '13815.01', account_name: 'Payroll Expense -:Administrative Wages',
+    department_name: '% Allocation', class_name: 'Allocate - %', memo: 'Admin Wages',
+  };
+
+  it('maps a tagged Debit draft line to a positive revenue-rule pool line', () => {
+    const l = poolLineFromLocalDraftRow(base);
+    expect(l).toMatchObject({
+      entity: 'MedRock FL', txnType: 'DraftJE', txnId: '412', txnDate: '2026-07-31',
+      accountName: 'Payroll Expense -:Administrative Wages', amount: 13815.01,
+      rule: 'revenue', counterparty: null,
+    });
+  });
+
+  it('maps a tagged Credit line to a negative amount', () => {
+    const l = poolLineFromLocalDraftRow({ ...base, posting_type: 'Credit', amount: '100.50' });
+    expect(l?.amount).toBe(-100.5);
+  });
+
+  it('returns null for an untagged line', () => {
+    expect(poolLineFromLocalDraftRow({ ...base, class_name: null, department_name: null })).toBeNull();
+  });
+
+  it('classifies an Allocate - TX line as passthrough (attention, not pool)', () => {
+    const l = poolLineFromLocalDraftRow({ ...base, class_name: 'Allocate - TX', department_name: 'Dallas Region' });
+    expect(l).toMatchObject({ rule: 'passthrough', counterparty: 'MedRock TX' });
+  });
+});
 
 describe('normalizeAccountName', () => {
   it('strips a leading dotted account-number prefix', () => {

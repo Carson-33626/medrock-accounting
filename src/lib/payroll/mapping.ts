@@ -25,16 +25,25 @@ export function resolveLine(
   // department so the month-end allocation pool picks the line up (spec §4.7). The
   // cost-center label stays in the memo — dollars and memos are unchanged.
   const dept = emp?.className === 'Allocate - %' ? '% Allocation' : emp?.departmentName ?? null;
-  const targets: ResolvedTarget[] = chosen.map((rule) => ({
-    accountName: rule.accountName,
-    departmentName: dept,
-    className: emp?.className ?? null,
-    postingType: rule.postingType,
-    creditBucket: rule.creditBucket,
-    isCogs: rule.isCogs,
-    memo: rule.memo ?? null,
-    costCenter: cc,
-    pooled: rule.costCenter === '*',
-  }));
+  // An Allocate flag marks a COST to redistribute, so it rides expense debits only. Amy
+  // never tagged the credit side (net pay, withholdings) — and qb-pool reads credits as
+  // negatives, so a tagged credit would net the employee's wages out of the EOM pool.
+  // Both spellings of the flag gate this: an Allocate* class AND a bare '% Allocation'
+  // department (marketers are mapped that way, with no class).
+  const isAllocate = emp?.className?.startsWith('Allocate') === true || dept === '% Allocation';
+  const targets: ResolvedTarget[] = chosen.map((rule) => {
+    const carryOverlay = !isAllocate || rule.postingType === 'Debit';
+    return {
+      accountName: rule.accountName,
+      departmentName: carryOverlay ? dept : null,
+      className: carryOverlay ? emp?.className ?? null : null,
+      postingType: rule.postingType,
+      creditBucket: rule.creditBucket,
+      isCogs: rule.isCogs,
+      memo: rule.memo ?? null,
+      costCenter: cc,
+      pooled: rule.costCenter === '*',
+    };
+  });
   return { targets };
 }

@@ -133,6 +133,63 @@ describe('resolveLine Allocate - % department override', () => {
     });
   });
 
+  it('carries the Allocate - % overlay on Debit targets ONLY — credit lines must stay out of the EOM pool', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: 'LAB', accountName: 'COGS - Employer Payroll Taxes', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },
+      { entity: 'MedRock FL', adpColumn: 'SOCIAL SECURITY - ER', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Taxes', active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: null, className: 'Allocate - %', cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'SOCIAL SECURITY - ER', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    const debit = res.targets.find((t) => t.postingType === 'Debit');
+    const credit = res.targets.find((t) => t.postingType === 'Credit');
+    expect(debit).toMatchObject({ departmentName: '% Allocation', className: 'Allocate - %' });
+    expect(credit).toMatchObject({ departmentName: null, className: null });
+  });
+
+  it('strips the overlay from Credit targets for every Allocate-family class (Allocate - TX net pay must not hit the attention list)', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: 'Dallas Region', className: 'Allocate - TX', cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'NET PAY', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets).toHaveLength(1);
+    expect(res.targets[0]).toMatchObject({ postingType: 'Credit', departmentName: null, className: null });
+  });
+
+  it('strips the % Allocation DEPARTMENT from Credit targets too (marketers mapped by dept, no class)', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'MARKET', accountName: 'Payroll Expense:Marketing Wages - Base', postingType: 'Debit', isCogs: false, creditBucket: null, active: true },
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: '% Allocation', className: null, cogsOverride: null, active: true },
+    ];
+    const marketRow = { position_id: '2001', home_department: 'MARKET-Marketing' } as unknown as PayrollRow;
+    const wages = resolveLine(marketRow, 'REGULAR PAY - EARNING', accountMap, empMap);
+    const net = resolveLine(marketRow, 'NET PAY', accountMap, empMap);
+    if (!('targets' in wages) || !('targets' in net)) throw new Error('expected targets');
+    expect(wages.targets[0]).toMatchObject({ postingType: 'Debit', departmentName: '% Allocation' });
+    expect(net.targets[0]).toMatchObject({ postingType: 'Credit', departmentName: null, className: null });
+  });
+
+  it('keeps the overlay on Credit targets for a NON-Allocate class (regional tagging unchanged)', () => {
+    const accountMap: AccountMapRule[] = [
+      { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
+    ];
+    const empMap: EmployeeMapRule[] = [
+      { entity: 'MedRock FL', positionId: '2001', departmentName: 'Dallas Region', className: null, cogsOverride: null, active: true },
+    ];
+    const res = resolveLine(allocateRow, 'NET PAY', accountMap, empMap);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets[0]).toMatchObject({ postingType: 'Credit', departmentName: 'Dallas Region', className: null });
+  });
+
   it('keeps mapped department when no class is set', () => {
     const accountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'LAB', accountName: 'COGS - Lab Wages', postingType: 'Debit', isCogs: true, creditBucket: null, active: true },

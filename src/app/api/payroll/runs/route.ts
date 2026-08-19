@@ -9,7 +9,7 @@ import {
   getEmployeeMap,
   saveDraft,
   deleteStaleSiblings,
-  sourceSnapshotHash,
+  runSnapshotHash,
   listHeaders,
   listRecentHeaders,
   countDistinctPayDates,
@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = await selectSource().fetchRange(start, end);
-    const snapshot = sourceSnapshotHash(rows);
 
     const accountMapLists: AccountMapRule[][] = await Promise.all(POSTABLE_ENTITIES.map(getAccountMap));
     const employeeMapLists: EmployeeMapRule[][] = await Promise.all(POSTABLE_ENTITIES.map(getEmployeeMap));
@@ -49,6 +48,10 @@ export async function POST(request: NextRequest) {
     const { drafts, unmappedColumns, unmappedPositions, excluded } = buildJournal(rows, accountMap, employeeMap);
 
     for (const draft of drafts) {
+      // Hash ONLY this run's rows (pay_date + pay_group) — the post route's drift check
+      // recomputes over exactly that set, so a whole-range hash would flag every draft as
+      // drifted and permanently block live posting (Barbara's 2026-08-19 report).
+      const snapshot = runSnapshotHash(rows, draft.payDate, draft.payGroup);
       const pieces = splitStraddle(draft);
       for (const piece of pieces) {
         await saveDraft(piece, snapshot);
