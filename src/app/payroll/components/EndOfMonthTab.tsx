@@ -5,6 +5,7 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
 import QboImportGuide from '@/components/QboImportGuide';
 import StatusBadge from '@/components/PayrollStatusBadge';
+import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -384,14 +385,34 @@ export function EndOfMonthTab() {
         </label>
         <button
           onClick={() => void handleGenerate()}
-          disabled={generating || anyPosted}
-          title={anyPosted ? 'A draft for this month has already posted — regeneration is locked' : undefined}
+          disabled={generating || anyPosted || isEomMonthComplete(month)}
+          title={
+            isEomMonthComplete(month)
+              ? PERIOD_COMPLETE_MESSAGE
+              : anyPosted
+                ? 'A draft for this month has already posted — regeneration is locked'
+                : undefined
+          }
           className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {generating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
           {generateLabel}
         </button>
       </div>
+
+      {isEomMonthComplete(month) && (
+        <div
+          className={`rounded-xl border-2 p-3 flex items-start gap-2 ${
+            darkMode ? 'border-violet-800 bg-violet-950/30 text-violet-200' : 'border-violet-300 bg-violet-50 text-violet-900'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold">Month-end for {month} is complete — do not post or regenerate</p>
+            <p className="text-xs mt-0.5">{PERIOD_COMPLETE_MESSAGE}</p>
+          </div>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div
@@ -1183,14 +1204,25 @@ function DraftCard({
         </table>
       </div>
 
-      {!posted && (
+      {!posted && isEomMonthComplete(month) && (
+        <p
+          title={PERIOD_COMPLETE_MESSAGE}
+          className={`text-xs flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-medium ${
+            darkMode ? 'bg-violet-950/40 text-violet-200 border-violet-800' : 'bg-violet-50 text-violet-700 border-violet-300'
+          }`}
+        >
+          Period complete — do not post. Kept for comparison only.
+        </p>
+      )}
+
+      {!posted && !isEomMonthComplete(month) && (
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setQboGuideOpen(true)}
             title={
               `Download ${docNumber} as a CSV formatted for QuickBooks journal-entry import ` +
               `(Settings → Import data → Journal entries). One file per company — import this one into ${header.entity}. ` +
-              'Account names come pre-numbered to match the chart of accounts. Opens an import checklist first.'
+              'Opens an import checklist first.'
             }
             className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border ${
               darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'

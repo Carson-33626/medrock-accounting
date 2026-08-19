@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import StatusBadge from '@/components/PayrollStatusBadge';
+import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import {
   AlertTriangle,
   Ban,
@@ -602,6 +603,16 @@ function RunCard({
             >
               Split · {pieces.map((p) => segmentLabel(p.period_segment)).join('/')}
               {partial && ` (${pieces.length} of ${header.piece_count})`}
+            </span>
+          )}
+          {isPayrollPeriodComplete(header.pay_date) && status !== 'posted' && (
+            <span
+              title={PERIOD_COMPLETE_MESSAGE}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
+                darkMode ? 'bg-violet-950/60 text-violet-200 border-violet-800' : 'bg-violet-50 text-violet-700 border-violet-200'
+              }`}
+            >
+              Period complete — do not post
             </span>
           )}
           <StatusBadge darkMode={darkMode} status={status} />

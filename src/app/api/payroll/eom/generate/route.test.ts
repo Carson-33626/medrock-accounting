@@ -50,7 +50,7 @@ import { POST } from './route';
 import { NextRequest } from 'next/server';
 
 const revenueTestFixture: RevenueTest = {
-  month: '2026-03',
+  month: '2026-07',
   income: { 'MedRock FL': 100, 'MedRock TN': 0, 'MedRock TX': 0 },
 };
 const sharesFixture: Record<string, number> = { 'MedRock FL': 100, 'MedRock TN': 0, 'MedRock TX': 0 };
@@ -58,10 +58,10 @@ const sharesFixture: Record<string, number> = { 'MedRock FL': 100, 'MedRock TN':
 const postedHeader: PayrollHeader = {
   id: 1,
   entity: 'MedRock FL',
-  pay_date: '03/31/2026',
+  pay_date: '07/31/2026',
   pay_group: 'EOM',
   period_start: '03/01/2026',
-  period_end: '03/31/2026',
+  period_end: '07/31/2026',
   status: 'posted',
   total_debits: 0,
   total_credits: 0,
@@ -69,10 +69,10 @@ const postedHeader: PayrollHeader = {
   row_count: 0,
   source_snapshot_hash: null,
   qb_entry_id: 'qb-1',
-  qb_doc_number: 'FL % Allo 2026.03',
+  qb_doc_number: 'FL % Allo 2026.07',
   kind: 'allocation',
   period_segment: '',
-  txn_date: '2026-03-31',
+  txn_date: '2026-07-31',
   piece_count: 1,
 };
 
@@ -80,7 +80,7 @@ const revenuePoolLine: PoolLine = {
   entity: 'MedRock FL',
   txnType: 'JournalEntry',
   txnId: 'je-1',
-  txnDate: '2026-03-15',
+  txnDate: '2026-07-15',
   docNumber: null,
   accountName: 'Rent Expense',
   className: 'Allocate - %',
@@ -94,10 +94,10 @@ const revenuePoolLine: PoolLine = {
 function draftFixture(entity: JournalDraft['entity']): JournalDraft {
   return {
     entity,
-    payDate: '03/31/2026',
+    payDate: '07/31/2026',
     payGroup: 'EOM',
     periodStart: '03/01/2026',
-    periodEnd: '03/31/2026',
+    periodEnd: '07/31/2026',
     lines: [],
     totalDebits: 0,
     totalCredits: 0,
@@ -141,18 +141,18 @@ describe('POST /api/payroll/eom/generate', () => {
 
   it('409 short-circuits before any QuickBooks fetch when the month has a posted header', async () => {
     listEomHeaders.mockResolvedValueOnce([postedHeader]);
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/regeneration locked/);
-    expect(body.error).toContain('FL % Allo 2026.03');
+    expect(body.error).toContain('FL % Allo 2026.07');
     expect(fetchRevenuePresence).not.toHaveBeenCalled();
     expect(fetchAllocationPool).not.toHaveBeenCalled();
   });
 
   it('502s when QuickBooks is unreachable', async () => {
     fetchRevenuePresence.mockRejectedValueOnce(new Error('QuickBooks not connected for location: MedRock TX'));
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/QuickBooks not connected/);
@@ -161,21 +161,21 @@ describe('POST /api/payroll/eom/generate', () => {
   it('422s when shares are null and the pool has a revenue-rule line', async () => {
     sharesFromPresence.mockReturnValueOnce(null);
     fetchAllocationPool.mockResolvedValueOnce({ pool: [revenuePoolLine], attention: [] });
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(422);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toBe('no location has revenue for 2026-03');
+    expect(body.error).toBe('no location has revenue for 2026-07');
   });
 
   it('falls back to zero shares (no 422) when shares are null but no revenue-rule line exists', async () => {
     sharesFromPresence.mockReturnValueOnce(null);
     fetchAllocationPool.mockResolvedValueOnce({ pool: [], attention: [] });
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(200);
     expect(buildMonthEndAllocation).toHaveBeenCalledWith(
       [],
       { 'MedRock FL': 0, 'MedRock TN': 0, 'MedRock TX': 0 },
-      { year: 2026, month: 3 },
+      { year: 2026, month: 7 },
     );
   });
 
@@ -185,11 +185,11 @@ describe('POST /api/payroll/eom/generate', () => {
     saveDraft.mockResolvedValueOnce(101).mockResolvedValueOnce(102);
     loadDraft.mockResolvedValue({ header: { ...postedHeader, id: 101, status: 'needs_review' }, lines: [] });
 
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(200);
 
     expect(saveDraft).toHaveBeenCalledTimes(2);
-    expect(deleteUnpostedEomHeaders).toHaveBeenCalledWith({ year: 2026, month: 3 }, ['MedRock FL', 'MedRock TN']);
+    expect(deleteUnpostedEomHeaders).toHaveBeenCalledWith({ year: 2026, month: 7 }, ['MedRock FL', 'MedRock TN']);
     expect(saveEomRun).toHaveBeenCalledTimes(1);
 
     const lastSaveDraftOrder = saveDraft.mock.invocationCallOrder[1];
@@ -208,7 +208,7 @@ describe('POST /api/payroll/eom/generate', () => {
   it('collects a warning when fetchDimensions fails for a draft entity', async () => {
     buildMonthEndAllocation.mockReturnValueOnce([draftFixture('MedRock FL')]);
     fetchDimensions.mockRejectedValueOnce(new Error('QuickBooks not connected'));
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { warnings: string[] };
     expect(body.warnings).toEqual(['MedRock FL: could not verify accounts (QuickBooks fetch failed)']);
@@ -222,7 +222,7 @@ describe('POST /api/payroll/eom/generate', () => {
     });
     buildMonthEndAllocation.mockReturnValueOnce([draft]);
     fetchDimensions.mockResolvedValueOnce({ accounts: {}, departments: {}, classes: {} });
-    const res = await POST(req({ month: '2026-03' }));
+    const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { warnings: string[] };
     expect(body.warnings).toEqual(['MedRock FL: account not found: Ghost Account']);

@@ -5,6 +5,7 @@ import { getEomRun } from '@/lib/payroll/eom-store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
 import { EOM_ENTITIES, type EomEntity } from '@/lib/payroll/revenue-rule';
+import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
 import type { Month } from '@/lib/payroll/month';
@@ -94,6 +95,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'live') {
+      // GATE 2a (closed period): month-end allocations through March 2026 are complete —
+      // accounting booked them; a post from here would duplicate the close.
+      const lockMonth = monthFromPayDate(header.pay_date);
+      if (isEomMonthComplete(`${lockMonth.year}-${pad2(lockMonth.month)}`)) {
+        await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'period complete — posting locked' });
+        return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
+      }
+
       // GATE 2 (belt-and-suspenders): never re-post an already-posted header, even if
       // qb_entry_id and status somehow disagree.
       if (header.qb_entry_id || header.status === 'posted') {

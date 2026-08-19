@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { loadDraft, listSiblings, setHeadersStatus } from '@/lib/payroll/store';
+import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,6 +30,12 @@ export async function POST(request: NextRequest) {
     if (!loaded) {
       return NextResponse.json({ error: 'header not found' }, { status: 404 });
     }
+    // Closed period: approval's only purpose is unlocking a post, and posting a
+    // pre-04/10/2026 payroll would duplicate what accounting already booked.
+    if (isPayrollPeriodComplete(loaded.header.pay_date)) {
+      return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
+    }
+
     const siblings = await listSiblings(loaded.header.entity, loaded.header.pay_date, loaded.header.pay_group);
     // A split run is approved as a PAIR — a lone approved half could then post alone and
     // misstate two months. setHeadersStatus is one UPDATE (atomic) and skips posted rows.

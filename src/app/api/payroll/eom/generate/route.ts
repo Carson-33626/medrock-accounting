@@ -6,6 +6,7 @@ import { fetchAllocationPool, type PoolLine } from '@/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '@/lib/payroll/month-end';
 import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '@/lib/payroll/eom-store';
 import { saveDraft, loadDraft, type JsonValue } from '@/lib/payroll/store';
+import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
 import type { JournalLine } from '@/lib/payroll/types';
 import type { Month } from '@/lib/payroll/month';
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'month is required as YYYY-MM' }, { status: 400 });
     }
     const { month, m } = parsed;
+
+    // SAFETY GATE (closed period): months through 2026-03 are complete — regenerating
+    // one would rebuild drafts accounting has already superseded (and March regeneration
+    // additionally double-counts the manually posted March payroll).
+    if (isEomMonthComplete(month)) {
+      return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
+    }
 
     // SAFETY GATE: never rebuild a month that has already posted — regeneration would
     // orphan the live QuickBooks JE. Checked before any QuickBooks call.

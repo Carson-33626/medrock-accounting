@@ -5,6 +5,7 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import { AlertTriangle, Ban, CheckCircle2, Download, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
 import QboImportGuide from '@/components/QboImportGuide';
 import StatusBadge from '@/components/PayrollStatusBadge';
+import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/store.ts
@@ -337,15 +338,19 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const splitVarianceBad = isSplit && splitOriginal !== null &&
     (round2(combinedDebits - splitOriginal.totalDebits) !== 0 || round2(combinedCredits - splitOriginal.totalCredits) !== 0);
 
+  // Already in QuickBooks — from the stored status/entry id, or from a live post this visit.
+  const isPosted = header?.status === 'posted' || !!header?.qb_entry_id || liveResult !== null;
+  // Completed period (pre-04/10/2026): accounting booked it outside this system. Kept
+  // visible for comparison; every posting path is disabled (the server refuses too).
+  const periodComplete = !isPosted && !!header && isPayrollPeriodComplete(header.pay_date);
+
   const canPostLive =
     headerId !== null &&
+    !periodComplete &&
     reconcileResult?.postable === true &&
     header?.status === 'approved' &&
     !splitVarianceBad &&
     (!isSplit || siblings.every((s) => s.status === 'approved' || s.status === 'posted'));
-
-  // Already in QuickBooks — from the stored status/entry id, or from a live post this visit.
-  const isPosted = header?.status === 'posted' || !!header?.qb_entry_id || liveResult !== null;
   // Which of Barbara's three clicks comes next (Reconcile → Approve → Post). Drives the
   // step banner and the highlighted card so the next action is never a guess.
   const activeStep: 'reconcile' | 'approve' | 'post' | 'done' = isPosted
@@ -515,8 +520,26 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
       {header && (
         <>
+          {/* Completed period: accounting booked everything before 04/10/2026 outside this
+              system. The draft stays for comparison; every posting path below is disabled
+              and the server refuses regardless. */}
+          {periodComplete && (
+            <div
+              className={`rounded-lg border-2 p-3 flex items-start gap-2 ${
+                darkMode ? 'border-violet-800 bg-violet-950/30 text-violet-200' : 'border-violet-300 bg-violet-50 text-violet-900'
+              }`}
+            >
+              <Ban className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              <div>
+                <p className="text-sm font-semibold">Period complete — do not post</p>
+                <p className="text-xs mt-0.5">{PERIOD_COMPLETE_MESSAGE}</p>
+              </div>
+            </div>
+          )}
+
           {/* The three clicks in order — the lit chip (and the glowing card below) is the
               next action. Preview is optional and deliberately not a step. */}
+          {!periodComplete && (
           <div className={`rounded-lg border p-3 ${border}`}>
             <div className="flex items-center flex-wrap gap-2">
               {([
@@ -551,6 +574,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
               </span>
             </div>
           </div>
+          )}
 
           {/* Step 1: Reconcile */}
           <div className={`rounded-lg border p-3 space-y-2 ${border} ${activeStep === 'reconcile' ? activeRing : ''}`}>
@@ -627,11 +651,13 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                 </button>
                 <button
                   onClick={() => setQboGuideOpen(true)}
-                  disabled={exporting}
+                  disabled={exporting || periodComplete}
                   title={
-                    'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
-                    (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
-                    'Account names come pre-numbered to match the chart of accounts. Opens an import checklist first.'
+                    periodComplete
+                      ? 'Period complete — importing this into QuickBooks would duplicate what accounting already booked'
+                      : 'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
+                        (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
+                        'Opens an import checklist first.'
                   }
                   className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                     darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
@@ -706,7 +732,8 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
               <p className="text-sm font-semibold">3. {isSplit ? 'Approve pair' : 'Approve'}</p>
               <button
                 onClick={() => void handleApprove()}
-                disabled={approving || header.status === 'approved' || header.status === 'posted' || splitVarianceBad}
+                disabled={approving || header.status === 'approved' || header.status === 'posted' || splitVarianceBad || periodComplete}
+                title={periodComplete ? 'Period complete — approving is disabled' : undefined}
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                 }`}
@@ -749,7 +776,18 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                 <Zap className="w-4 h-4" aria-hidden />
                 4. Post to QuickBooks (live)
               </p>
-              {isPosted ? (
+              {periodComplete ? (
+                <button
+                  disabled
+                  title={PERIOD_COMPLETE_MESSAGE}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 cursor-not-allowed ${
+                    darkMode ? 'border-violet-700 text-violet-200 bg-violet-950/40' : 'border-violet-300 text-violet-700 bg-violet-50'
+                  }`}
+                >
+                  <Ban className="w-4 h-4" aria-hidden />
+                  Period complete — do not post
+                </button>
+              ) : isPosted ? (
                 <button
                   disabled
                   title={`This payroll is already in QuickBooks${header.qb_doc_number ? ` as ${header.qb_doc_number}` : ''}${header.qb_entry_id ? ` (JE ${header.qb_entry_id})` : ''} — posting again would create a duplicate.`}

@@ -6,6 +6,7 @@ import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { loadDraft, insertAudit, setHeaderStatus, listSiblings, getAccountMap, getEmployeeMap, sourceSnapshotHash } from '@/lib/payroll/store';
 import { decidePost } from '@/lib/payroll/post-guard';
+import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import { adpDateToIso } from '@/lib/payroll/dates';
 import { pieceDocNumber } from '@/lib/payroll/split';
 import { explainPostError } from '@/lib/payroll/post-error';
@@ -71,6 +72,14 @@ export async function POST(request: NextRequest) {
     }
     const { header, lines } = loaded;
     entity = header.entity;
+
+    // SAFETY GATE (closed period): everything before the 04/10/2026 payroll was booked by
+    // accounting outside this system — a live post would duplicate it. Kept visible for
+    // comparison; posting refused here regardless of what the UI shows.
+    if (mode === 'live' && isPayrollPeriodComplete(header.pay_date)) {
+      await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'period complete — posting locked' });
+      return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
+    }
 
     const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
     const isSplit = siblings.length > 1;

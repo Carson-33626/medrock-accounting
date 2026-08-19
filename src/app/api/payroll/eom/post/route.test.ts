@@ -31,10 +31,10 @@ import { NextRequest } from 'next/server';
 const header: PayrollHeader = {
   id: 5,
   entity: 'MedRock FL',
-  pay_date: '03/31/2026',
+  pay_date: '07/31/2026',
   pay_group: 'EOM',
   period_start: '03/01/2026',
-  period_end: '03/31/2026',
+  period_end: '07/31/2026',
   status: 'approved',
   total_debits: 100,
   total_credits: 100,
@@ -45,7 +45,7 @@ const header: PayrollHeader = {
   qb_doc_number: null,
   kind: 'allocation',
   period_segment: '',
-  txn_date: '2026-03-31',
+  txn_date: '2026-07-31',
   piece_count: 1,
 };
 const lines: JournalLine[] = [];
@@ -127,20 +127,20 @@ describe('POST /api/payroll/eom/post', () => {
 
   it('live success: posts + flips status to posted with entryId/docNumber', async () => {
     postJournalEntry.mockResolvedValueOnce({
-      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.03', TxnDate: '2026-03-31', Line: [] },
-      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.03',
+      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.07', TxnDate: '2026-07-31', Line: [] },
+      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.07',
     } as PostResult);
     const res = await POST(req({ headerId: 5, mode: 'live' }));
     expect(res.status).toBe(200);
     expect(postJournalEntry).toHaveBeenCalledWith('MedRock FL', expect.anything(), { mode: 'live' });
-    expect(setHeaderStatus).toHaveBeenCalledWith(5, 'posted', { entryId: 'qb-99', docNumber: 'FL % Allo 2026.03' });
+    expect(setHeaderStatus).toHaveBeenCalledWith(5, 'posted', { entryId: 'qb-99', docNumber: 'FL % Allo 2026.07' });
     expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'posted' }));
   });
 
   it('live success calls setHeaderStatus before insertAudit writes the posted outcome (double-post guard)', async () => {
     postJournalEntry.mockResolvedValueOnce({
-      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.03', TxnDate: '2026-03-31', Line: [] },
-      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.03',
+      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.07', TxnDate: '2026-07-31', Line: [] },
+      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.07',
     } as PostResult);
     await POST(req({ headerId: 5, mode: 'live' }));
 
@@ -155,8 +155,8 @@ describe('POST /api/payroll/eom/post', () => {
   it('derives the docNumber/privateNote from header.pay_date and posts a balanced allocation draft', async () => {
     await POST(req({ headerId: 5, mode: 'dry_run' }));
     const draftArg = postJournalEntry.mock.calls[0][1] as { docNumber: string; privateNote: string; kind: string };
-    expect(draftArg.docNumber).toBe('FL % Allo 2026.03');
-    expect(draftArg.privateNote).toBe('Month-end allocation — 2026-03');
+    expect(draftArg.docNumber).toBe('FL % Allo 2026.07');
+    expect(draftArg.privateNote).toBe('Month-end allocation — 2026-07');
     expect(draftArg.kind).toBe('allocation');
   });
 });
