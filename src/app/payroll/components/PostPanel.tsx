@@ -275,12 +275,12 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   // scope=run: a split payroll exports EVERY month piece (one sheet each) plus a Combined
   // sheet — Barbara's 2026-08-18 report was this button only ever downloading the first piece,
   // so the "combined" file was half the payroll and every sub-tab re-downloaded that same half.
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (format?: 'qbo') => {
     if (headerId === null) return;
     setExporting(true);
     setExportError(null);
     try {
-      const res = await fetch(`/api/payroll/export?headerId=${headerId}&scope=run`);
+      const res = await fetch(`/api/payroll/export?headerId=${headerId}&scope=run${format ? `&format=${format}` : ''}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as ApiErrorBody;
         throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -288,7 +288,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       const blob = await res.blob();
       const cd = res.headers.get('Content-Disposition') ?? '';
       const match = /filename="?([^"]+)"?/.exec(cd);
-      const filename = match?.[1] ?? `payroll-je-${headerId}.xlsx`;
+      const filename = match?.[1] ?? `payroll-je-${headerId}.${format === 'qbo' ? 'csv' : 'xlsx'}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -571,6 +571,21 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                 >
                   {exporting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />}
                   {exporting ? 'Exporting…' : isSplit ? 'Download Excel (all months)' : 'Download Excel'}
+                </button>
+                <button
+                  onClick={() => void handleExport('qbo')}
+                  disabled={exporting}
+                  title={
+                    'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
+                    (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
+                    'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE.'
+                  }
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+                    darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />}
+                  QBO Import CSV
                 </button>
                 <button
                   onClick={() => void handlePreview()}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
 import type { CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
 import {
@@ -393,6 +393,21 @@ function DraftCard({
 
           {header && !posted && (
             <div className="flex flex-wrap gap-2">
+              <a
+                href={`/api/payroll/export?headerId=${header.id}&format=qbo`}
+                download
+                title={
+                  `Download ${docNumber} as a CSV formatted for QuickBooks journal-entry import ` +
+                  `(Settings → Import data → Journal entries). One file per company — import this one into ${je.location}. ` +
+                  'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE.'
+                }
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border ${
+                  darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Download className="w-4 h-4" aria-hidden />
+                QBO Import CSV
+              </a>
               <button
                 onClick={() => onApprove(header.id)}
                 disabled={busy || header.status === 'approved'}

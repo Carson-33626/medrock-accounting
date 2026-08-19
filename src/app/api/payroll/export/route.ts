@@ -4,9 +4,11 @@ import { loadDraft, listSiblings } from '@/lib/payroll/store';
 import { buildJeExportSheet, buildRunJeExportWorkbook, type JeExportPiece } from '@/lib/payroll/je-export';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
 import { pieceDocNumber } from '@/lib/payroll/split';
+import { deriveJeIdentity } from '@/lib/payroll/je-identity';
+import { buildQboImportRows, qboImportFilename, QBO_IMPORT_COLUMNS, type QboImportJe } from '@/lib/payroll/qbo-import-csv';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
 import type { Entity } from '@/lib/payroll/types';
-import { xlsxResponse } from '@/lib/inventory-export';
+import { csvResponse, xlsxResponse } from '@/lib/inventory-export';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,8 +44,35 @@ export async function GET(request: NextRequest) {
 
     const { header, lines } = loaded;
     const scope = request.nextUrl.searchParams.get('scope');
+    const format = request.nextUrl.searchParams.get('format');
 
     const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
+
+    // format=qbo: a QuickBooks-importable CSV (Settings -> Import data -> Journal entries) —
+    // Barbara imports the JE herself instead of using the Post button. Kind-aware DocNumber /
+    // TxnDate / PrivateNote come from deriveJeIdentity, so the imported JE is identical to what
+    // the Post button would write. Posted pieces are excluded: they are already in QuickBooks,
+    // and importing the CSV again would duplicate them.
+    if (format === 'qbo') {
+      const wanted = scope === 'run' && siblings.length > 1
+        ? await Promise.all(siblings.map(async (s) => (s.id === headerId ? loaded : await loadDraft(s.id))))
+        : [loaded];
+      const jes: QboImportJe[] = [];
+      for (const piece of wanted) {
+        if (!piece) throw new Error('split piece could not be loaded');
+        if (piece.header.status === 'posted') continue;
+        const segIndex = Math.max(0, siblings.findIndex((s) => s.id === piece.header.id));
+        const id = deriveJeIdentity(piece.header, segIndex, siblings.length);
+        jes.push({ docNumber: id.docNumber, txnDateIso: id.txnDateIso, privateNote: id.privateNote, lines: piece.lines });
+      }
+      if (jes.length === 0) {
+        return NextResponse.json(
+          { error: 'already posted to QuickBooks — importing the CSV would create a duplicate journal entry' },
+          { status: 409 },
+        );
+      }
+      return csvResponse(QBO_IMPORT_COLUMNS, buildQboImportRows(jes), qboImportFilename(header.entity, jes));
+    }
 
     // Best-effort QB account-number lookup (read-only). Never let a QuickBooks hiccup block the
     // dry-run export — degrade to blank Account # instead.
@@ -76,12 +105,18 @@ export async function GET(request: NextRequest) {
       return xlsxResponse(workbook.sheets, workbook.filename, workbook.sheets[0].note);
     }
 
-    const overrides = siblings.length > 1
-      ? {
-          docNumber: pieceDocNumber(header.pay_date, siblings.length, Math.max(0, siblings.findIndex((s) => s.id === headerId))),
-          txnDate: header.txn_date ?? '',
-        }
-      : undefined;
+    let overrides: { docNumber: string; txnDate: string } | undefined;
+    if (siblings.length > 1) {
+      overrides = {
+        docNumber: pieceDocNumber(header.pay_date, siblings.length, Math.max(0, siblings.findIndex((s) => s.id === headerId))),
+        txnDate: header.txn_date ?? '',
+      };
+    } else if (header.kind !== 'pay_date') {
+      // allocation / inventory headers must not fall through to the payroll 'PR YYYY.MM.DD'
+      // derivation — use the kind's real identity ('FL % Allo 2026.07', 'FL Inv Adj 2026.08').
+      const id = deriveJeIdentity(header, 0, 1);
+      overrides = { docNumber: id.docNumber, txnDate: id.txnDateIso };
+    }
 
     const sheet = buildJeExportSheet(header, lines, accountNums, overrides);
     return xlsxResponse(
