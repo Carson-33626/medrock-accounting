@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { AlertTriangle, Ban, CheckCircle2, Download, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
 import QboImportGuide from '@/components/QboImportGuide';
+import StatusBadge from '@/components/PayrollStatusBadge';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/store.ts
@@ -822,22 +823,3 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-const STATUS_LABEL: Record<HeaderStatus, string> = {
-  draft: 'Draft',
-  needs_review: 'Needs review',
-  approved: 'Approved',
-  posted: 'Posted',
-  error: 'Error',
-};
-
-function StatusBadge({ darkMode, status }: { darkMode: boolean; status: HeaderStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-        darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-      }`}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  );
-}

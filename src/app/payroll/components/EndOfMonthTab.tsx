@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
 import QboImportGuide from '@/components/QboImportGuide';
+import StatusBadge from '@/components/PayrollStatusBadge';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -1012,17 +1013,6 @@ function AttentionTable({
   );
 }
 
-function StatusBadge({ darkMode, status }: { darkMode: boolean; status: HeaderStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-        darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-      }`}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  );
-}
 
 function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJournalEntryPayload }) {
   const [open, setOpen] = useState(true);

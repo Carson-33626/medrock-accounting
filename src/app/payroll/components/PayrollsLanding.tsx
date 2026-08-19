@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import StatusBadge from '@/components/PayrollStatusBadge';
 import {
   AlertTriangle,
   Ban,
@@ -117,13 +118,6 @@ function straddlesMonths(start: string | null, end: string | null): boolean {
   return s[1] !== e[1] || s[2] !== e[2];
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  needs_review: 'Needs review',
-  approved: 'Approved',
-  posted: 'Posted',
-  error: 'Error',
-};
 
 interface PayrollsLandingProps {
   /** Open a draft's Review/Post detail view. */
@@ -656,18 +650,6 @@ function RunCard({
   );
 }
 
-function StatusBadge({ darkMode, status }: { darkMode: boolean; status: string }) {
-  const label = STATUS_LABEL[status] ?? status;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${
-        darkMode ? 'bg-slate-700 text-slate-200 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
 
 // ── Accounting-period filter (collapsed by default) ─────────────────────────
 
