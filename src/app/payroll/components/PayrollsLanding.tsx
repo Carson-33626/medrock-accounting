@@ -124,6 +124,9 @@ interface PayrollsLandingProps {
   onOpen: (headerId: number) => void;
 }
 
+/** sessionStorage key for the landing's view state (periods window + period filter). */
+const FILTER_STORAGE_KEY = 'payroll-landing-view';
+
 /**
  * `/payroll` landing: the most recent pay periods, already populated and clickable.
  * No "generate first" gate — recent runs load on mount. A collapsed panel lets the
@@ -146,6 +149,36 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   const [periodLabel, setPeriodLabel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The landing unmounts when a card opens the Review/Post view; without persistence the
+  // accountant's period filter resets on every return trip (Carson, 2026-08-19: post one
+  // entity's 4/10 payroll, come back, still be looking at the 4/10 view). sessionStorage
+  // scopes the memory to the tab; `restored` holds the first fetch until hydration-safe
+  // restore has run, so the list never flashes the unfiltered recent-N view first.
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(FILTER_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { periods?: number; range?: DateRange | null; periodLabel?: string | null };
+        if (typeof saved.periods === 'number' && Number.isFinite(saved.periods)) setPeriods(saved.periods);
+        if (saved.range && typeof saved.range.start === 'string' && typeof saved.range.end === 'string') setRange(saved.range);
+        if (typeof saved.periodLabel === 'string') setPeriodLabel(saved.periodLabel);
+      }
+    } catch {
+      // corrupt/unavailable storage: fall through to defaults
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      window.sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ periods, range, periodLabel }));
+    } catch {
+      // storage full/unavailable: the filter just won't stick
+    }
+  }, [restored, periods, range, periodLabel]);
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -173,8 +206,9 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
   }, []);
 
   useEffect(() => {
+    if (!restored) return; // wait for the saved filter so we never fetch-then-refetch
     void load(periods, range);
-  }, [periods, range, load]);
+  }, [restored, periods, range, load]);
 
   // Group headers by pay_date. The API already sorts newest-first, but sort here too
   // rather than depending on SQL order surviving JSON — pay_date is an MM/DD/YYYY

@@ -344,6 +344,19 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     !splitVarianceBad &&
     (!isSplit || siblings.every((s) => s.status === 'approved' || s.status === 'posted'));
 
+  // Already in QuickBooks — from the stored status/entry id, or from a live post this visit.
+  const isPosted = header?.status === 'posted' || !!header?.qb_entry_id || liveResult !== null;
+  // Which of Barbara's three clicks comes next (Reconcile → Approve → Post). Drives the
+  // step banner and the highlighted card so the next action is never a guess.
+  const activeStep: 'reconcile' | 'approve' | 'post' | 'done' = isPosted
+    ? 'done'
+    : reconcileResult?.postable !== true
+      ? 'reconcile'
+      : header?.status !== 'approved'
+        ? 'approve'
+        : 'post';
+  const activeRing = 'ring-2 ring-blue-500 ring-offset-0';
+
   const handlePostLive = useCallback(async () => {
     if (headerId === null || !canPostLive) return;
     const confirmed = window.confirm(
@@ -502,8 +515,45 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
       {header && (
         <>
+          {/* The three clicks in order — the lit chip (and the glowing card below) is the
+              next action. Preview is optional and deliberately not a step. */}
+          <div className={`rounded-lg border p-3 ${border}`}>
+            <div className="flex items-center flex-wrap gap-2">
+              {([
+                { key: 'reconcile', label: 'Reconcile', done: reconcileResult?.postable === true || activeStep === 'approve' || activeStep === 'post' || isPosted },
+                { key: 'approve', label: 'Approve', done: header.status === 'approved' || isPosted },
+                { key: 'post', label: 'Post', done: isPosted },
+              ] as const).map((s, i) => (
+                <span key={s.key} className="flex items-center gap-2">
+                  {i > 0 && <span className={subText}>→</span>}
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      s.done
+                        ? darkMode
+                          ? 'bg-emerald-950/60 text-emerald-200 border-emerald-800'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : activeStep === s.key
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : darkMode
+                            ? 'bg-slate-800 text-slate-400 border-slate-700'
+                            : 'bg-slate-50 text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    {s.done && <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />}
+                    {s.label}
+                  </span>
+                </span>
+              ))}
+              <span className={`text-xs ${subText}`}>
+                {isPosted
+                  ? '— this payroll is in QuickBooks.'
+                  : '— click Reconcile, then Approve, then Post. The highlighted step is your next click.'}
+              </span>
+            </div>
+          </div>
+
           {/* Step 1: Reconcile */}
-          <div className={`rounded-lg border p-3 space-y-2 ${border}`}>
+          <div className={`rounded-lg border p-3 space-y-2 ${border} ${activeStep === 'reconcile' ? activeRing : ''}`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm font-semibold">1. Reconcile</p>
               <button
@@ -651,7 +701,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           </div>
 
           {/* Step 3: Approve */}
-          <div className={`rounded-lg border p-3 space-y-2 ${border}`}>
+          <div className={`rounded-lg border p-3 space-y-2 ${border} ${activeStep === 'approve' ? activeRing : ''}`}>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className="text-sm font-semibold">3. {isSplit ? 'Approve pair' : 'Approve'}</p>
               <button
@@ -685,29 +735,56 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           {/* Step 4: Post to QuickBooks (LIVE) */}
           <div
             className={`rounded-lg border-2 p-3 space-y-2 ${
-              darkMode ? 'border-orange-800 bg-orange-950/20' : 'border-orange-300 bg-orange-50'
-            }`}
+              isPosted
+                ? darkMode
+                  ? 'border-emerald-800 bg-emerald-950/20'
+                  : 'border-emerald-300 bg-emerald-50'
+                : darkMode
+                  ? 'border-orange-800 bg-orange-950/20'
+                  : 'border-orange-300 bg-orange-50'
+            } ${activeStep === 'post' ? activeRing : ''}`}
           >
             <div className="flex items-center justify-between flex-wrap gap-2">
               <p className={`text-sm font-semibold flex items-center gap-1.5 ${darkMode ? 'text-orange-200' : 'text-orange-900'}`}>
                 <Zap className="w-4 h-4" aria-hidden />
                 4. Post to QuickBooks (live)
               </p>
-              <button
-                onClick={() => void handlePostLive()}
-                disabled={!canPostLive || posting}
-                title={canPostLive ? 'Post the live journal entry to QuickBooks' : 'Reconcile as postable and approve the draft first'}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-              >
-                {posting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Zap className="w-4 h-4" aria-hidden />}
-                {posting ? 'Posting…' : 'Post to QuickBooks'}
-              </button>
+              {isPosted ? (
+                <button
+                  disabled
+                  title={`This payroll is already in QuickBooks${header.qb_doc_number ? ` as ${header.qb_doc_number}` : ''}${header.qb_entry_id ? ` (JE ${header.qb_entry_id})` : ''} — posting again would create a duplicate.`}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 cursor-not-allowed ${
+                    darkMode ? 'border-emerald-700 text-emerald-200 bg-emerald-950/40' : 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4" aria-hidden />
+                  Already posted
+                </button>
+              ) : (
+                <button
+                  onClick={() => void handlePostLive()}
+                  disabled={!canPostLive || posting}
+                  title={canPostLive ? 'Post the live journal entry to QuickBooks' : 'Reconcile as postable and approve the draft first'}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {posting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Zap className="w-4 h-4" aria-hidden />}
+                  {posting ? 'Posting…' : 'Post to QuickBooks'}
+                </button>
+              )}
             </div>
 
-            <p className={`text-xs ${darkMode ? 'text-orange-200/80' : 'text-orange-800'}`}>
-              Writes a real journal entry to the QuickBooks general ledger for {header.entity}. Enabled only when the
-              draft reconciles as postable <em>and</em> has been approved.
-            </p>
+            {isPosted ? (
+              <p className={`text-xs ${darkMode ? 'text-emerald-200/80' : 'text-emerald-800'}`}>
+                Already in the QuickBooks general ledger for {header.entity}
+                {header.qb_doc_number ? ` as ${header.qb_doc_number}` : ''}
+                {header.qb_entry_id ? ` (JE ${header.qb_entry_id})` : ''}. Nothing here will post it again.
+              </p>
+            ) : (
+              <p className={`text-xs ${darkMode ? 'text-orange-200/80' : 'text-orange-800'}`}>
+                Writes a real journal entry to the QuickBooks general ledger for {header.entity}. Enabled only when the
+                draft reconciles as postable <em>and</em> has been approved.
+              </p>
+            )}
 
             {postError && (
               <div className="space-y-1">
