@@ -22,6 +22,25 @@ describe('explainPostError', () => {
     expect(e.canSelfClear).toBe(true);
   });
 
+  it('offers a rebuild — never a retry — when the source drifted under the draft', () => {
+    // post-guard I3's exact wording. Retrying this posts the stale draft, so `retryable` must
+    // stay false or the panel would show a "Try again" button that books the wrong numbers.
+    const e = explainPostError('source changed since draft was built — rebuild the run', 'MedRock TX');
+    expect(e.canRebuild).toBe(true);
+    expect(e.retryable).toBe(false);
+    expect(e.canSelfClear).toBe(true);
+    expect(e.summary).toMatch(/changed/i);
+    expect(e.action).toMatch(/rebuild/i);
+    // The reset of Reconcile/Approve is the surprising part — it has to be stated up front.
+    expect(e.action).toMatch(/reconcile/i);
+    expect(e.action).toMatch(/approve/i);
+  });
+
+  it('leaves canRebuild false for failures a rebuild would not fix', () => {
+    expect(explainPostError('unresolved department: Tampa Region', 'MedRock FL').canRebuild).toBe(false);
+    expect(explainPostError('could not reach QuickBooks', 'MedRock FL').canRebuild).toBe(false);
+  });
+
   it('parses a raw QuickBooks fault blob rather than showing it', () => {
     const raw =
       'QB API error for MedRock FL: 400 {"Fault":{"Error":[{"Message":"A business validation error has occurred",' +

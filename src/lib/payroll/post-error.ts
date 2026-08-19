@@ -21,6 +21,13 @@ export interface PostErrorExplanation {
   canSelfClear: boolean;
   /** True when simply retrying may work (transient). */
   retryable: boolean;
+  /**
+   * True when the fix is to REBUILD the run from source and start review over. Distinct from
+   * `retryable`: retrying posts the same draft again, which for these failures would post
+   * numbers that no longer match the source. The panel turns this into a one-click rebuild
+   * that necessarily drops the run back to needs_review, so Reconcile and Approve are re-done.
+   */
+  canRebuild: boolean;
   /** The original message, kept for engineering — never the only thing shown. */
   raw: string;
 }
@@ -46,9 +53,26 @@ function parseQbFault(raw: string): { message: string; detail: string; code: str
 const entityLabel = (entity: string | null): string => entity ?? 'this entity';
 
 export function explainPostError(raw: string, entity: string | null = null): PostErrorExplanation {
-  const base = { raw, canSelfClear: false, retryable: false };
+  const base = { raw, canSelfClear: false, retryable: false, canRebuild: false };
 
   // ---- Our own pre-flight checks, thrown before anything reaches QuickBooks ----
+
+  // The drift gate (post-guard I3): the ADP source rows behind this run changed after the
+  // draft was built, so the reviewed numbers are no longer the numbers on file. Retrying is
+  // exactly wrong here — it would post the stale draft. The run has to be rebuilt from source
+  // and re-reviewed, which is a button, not an engineering task.
+  if (/source changed since draft was built/i.test(raw)) {
+    return {
+      ...base,
+      summary: 'The payroll data behind this run changed after the draft was built.',
+      action:
+        'Nothing was posted. Rebuild the run from the current source data, then Reconcile and Approve it again — ' +
+        'rebuilding clears those two steps on purpose, because the numbers you approved are not the numbers on file. ' +
+        'For a split payroll both pieces are rebuilt together.',
+      canSelfClear: true,
+      canRebuild: true,
+    };
+  }
   const unresolved = /^unresolved (account|department|class): (.+)$/.exec(raw.trim());
   if (unresolved) {
     const kind = unresolved[1];

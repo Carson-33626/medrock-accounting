@@ -88,6 +88,7 @@ interface PostErrorExplanation {
   action: string;
   canSelfClear: boolean;
   retryable: boolean;
+  canRebuild: boolean;
   raw: string;
 }
 
@@ -149,6 +150,10 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const [approveError, setApproveError] = useState<string | null>(null);
 
   const [posting, setPosting] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+  /** Timestamp of the last rebuild, so the panel can say plainly that review was reset. */
+  const [rebuiltAt, setRebuiltAt] = useState<string | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
   const [postErrorExplanation, setPostErrorExplanation] = useState<PostErrorExplanation | null>(null);
   const [postErrorReconcile, setPostErrorReconcile] = useState<ReconcileResult | null>(null);
@@ -251,6 +256,41 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     }
     await handleReconcile();
   }, [headerId, handleReconcile]);
+
+  /**
+   * "Rebuild this run." The drift gate blocks a post when the ADP rows changed after the draft
+   * was built, and until now clearing that needed an engineer to run regen-drafts.ts. Retrying
+   * is not the fix — it would post numbers that no longer match the source — so this rebuilds
+   * the run from current source data instead.
+   *
+   * It deliberately does NOT re-reconcile afterwards the way handleRecheck does: the rebuild
+   * drops the run to needs_review, and Reconcile then Approve have to be walked again against
+   * the new numbers. Silently re-reconciling would hide that the approval was thrown away.
+   */
+  const handleRebuild = useCallback(async () => {
+    if (headerId === null) return;
+    setRebuilding(true);
+    setRebuildError(null);
+    try {
+      const res = await fetch(`/api/payroll/run/${headerId}/rebuild`, { method: 'POST' });
+      const body = (await res.json()) as DraftResponse & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setHeader(body.header);
+      setSiblings(body.siblings ?? []);
+      // Everything downstream of the rebuild is now stale by definition.
+      setPostError(null);
+      setPostErrorExplanation(null);
+      setPostErrorReconcile(null);
+      setReconcileResult(null);
+      setPreviewPayload(null);
+      setPreviewError(null);
+      setRebuiltAt(new Date().toLocaleTimeString());
+    } catch (e) {
+      setRebuildError(e instanceof Error ? e.message : 'Failed to rebuild run');
+    } finally {
+      setRebuilding(false);
+    }
+  }, [headerId]);
 
   const handlePreview = useCallback(async () => {
     if (headerId === null) return;
@@ -824,6 +864,22 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
               </p>
             )}
 
+            {/* A rebuild that failed must not look like one that worked — the run is still
+                un-rebuilt and still unpostable. Refusals here are deliberate 409s (posted piece,
+                closed period, run absent from source), not crashes. */}
+            {rebuildError && (
+              <p className={`text-xs flex items-start gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                <Ban className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden />
+                Rebuild failed — nothing changed. {rebuildError}
+              </p>
+            )}
+            {rebuiltAt && !rebuildError && (
+              <p className={`text-xs flex items-start gap-1.5 ${darkMode ? 'text-amber-200' : 'text-amber-800'}`}>
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden />
+                Rebuilt from source at {rebuiltAt}. Reconcile and Approve were cleared — walk both steps again before posting.
+              </p>
+            )}
+
             {postError && (
               <div className="space-y-1">
                 {/* Lead with the plain-English reading and the next action. The raw text stays
@@ -869,7 +925,22 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                           {posting ? 'Posting…' : 'Try again'}
                         </button>
                       )}
-                      {postErrorExplanation.canSelfClear && (
+                      {/* Rebuild from source. Shown instead of a retry because for this class
+                          of failure the draft itself is wrong, not the attempt. Approve/Reconcile
+                          are cleared by the rebuild — the label says so rather than surprising
+                          the accountant with a run that quietly went back to needs_review. */}
+                      {postErrorExplanation.canRebuild && (
+                        <button
+                          onClick={() => void handleRebuild()}
+                          disabled={rebuilding || posting}
+                          title="Rebuild this run from the current payroll source. Reconcile and Approve must be done again."
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {rebuilding ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
+                          {rebuilding ? 'Rebuilding…' : 'Rebuild run — resets review'}
+                        </button>
+                      )}
+                      {postErrorExplanation.canSelfClear && !postErrorExplanation.canRebuild && (
                         <button
                           onClick={() => void handleRecheck()}
                           disabled={reconciling}
