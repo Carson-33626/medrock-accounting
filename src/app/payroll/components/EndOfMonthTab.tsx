@@ -759,8 +759,10 @@ const CODE_TITLE: Record<AttentionCode, string> = {
 };
 
 /** What Barbara does about each code. Shown once per code in the legend rather than repeated
- *  on all 80 rows. Wording is grounded in the design spec (§3 "100%-reassignment classes are
- *  already handled per-transaction by QBO's Intercompany allocation feature"). */
+ *  on all 80 rows. Passthrough wording is scoped to Bill/Purchase/VendorCredit — the only
+ *  txnTypes that still land here after 2026-08-19 (qb-pool.isPooledLine pools passthrough from
+ *  Deposits/JEs/drafts, where nothing else moves the money; QBO's Intercompany auto-booking was
+ *  verified live for bills/card purchases and proven ABSENT for deposits). */
 const CODE_ACTION: Record<AttentionCode, string> = {
   passthrough:
     'Only Bills and card Purchases appear here. For those, QuickBooks’ Intercompany allocation books the move on the transaction itself — a system journal entry credits the expense and debits Due From/To within minutes of entry (verified 2026-08-19 against live pairs in both books). Month-end skips them so the cost is never moved twice — but the automation is QuickBooks’, not ours, so spot-check that the matching system JE exists (it has no journal number). Allocate-classed deposits, journal entries, and payroll drafts do NOT show here: nothing in QuickBooks moves those, so month-end builds their legs into the allocation JE directly.',
@@ -840,11 +842,12 @@ function AttentionCard({
    * held-back lines were `passthrough`, which need no action whatsoever. The card was announcing
    * 89 problems where there were zero.
    *
-   * `passthrough` is not a problem at all: an "Allocate - FL/TN/TX" class means 100% of the cost
-   * belongs to that one company, and QuickBooks' own Intercompany allocation already books the
-   * move on the transaction. Month-end skips those precisely so the cost is never moved twice.
-   * So they are split out, counted separately, and collapsed — while anything that genuinely
-   * needs a person is what the heading now counts.
+   * `passthrough` here is not a problem: since 2026-08-19 only Bill/Purchase/VendorCredit
+   * passthrough reaches this card (qb-pool.isPooledLine), and for those QuickBooks' own
+   * Intercompany allocation books the move on the transaction (verified against live JE
+   * pairs). Month-end skips them precisely so the cost is never moved twice. So they are
+   * split out, counted separately, and collapsed — while anything that genuinely needs a
+   * person is what the heading now counts.
    */
   const toFix = useMemo(() => rows.filter((r) => r.reason.code !== 'passthrough'), [rows]);
   const noAction = useMemo(() => rows.filter((r) => r.reason.code === 'passthrough'), [rows]);
@@ -877,16 +880,20 @@ function AttentionCard({
 
       <p className={`text-xs leading-relaxed ${subText}`}>
         <span className="font-semibold">What this is:</span> generating drafts pulls every Journal Entry, Expense,
-        Bill and Vendor Credit dated in {month} from all three QuickBooks companies and keeps the lines carrying an{' '}
-        <code>Allocate&nbsp;-&nbsp;…</code> class or the <code>% Allocation</code> department. Lines whose class
-        matches a split rule go into the allocation pool above. Everything else is listed here rather than guessed
-        at — but <span className="font-semibold">most of it is normal</span>, so it is separated below into what
-        needs you and what does not.
+        Bill, Vendor Credit and Deposit dated in {month} from all three QuickBooks companies and keeps the lines
+        carrying an <code>Allocate&nbsp;-&nbsp;…</code> class or the <code>% Allocation</code> department. Lines
+        whose class matches a split rule — including 100%-reassignment classes on deposits, journal entries and
+        payroll drafts — go into the allocation pool above. Held back here are only the lines month-end must NOT
+        move: bills and card purchases that QuickBooks&apos; Intercompany automation books itself, plus anything
+        broken enough to need a person.
       </p>
 
       {clean ? (
         <p className={`text-xs ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`}>
-          Every line held back this month is already handled by QuickBooks. There is nothing to do here.
+          Every line held back this month is a bill or card purchase that QuickBooks&apos; Intercompany automation
+          books on the transaction itself — month-end skips them so the money never moves twice. Nothing needs
+          re-entry; worth a periodic spot-check that the matching system entries exist (open a transaction below and
+          look for its paired journal entry, dated the same day with no journal number).
         </p>
       ) : (
         <>
