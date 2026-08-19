@@ -155,11 +155,20 @@ export function buildJournal(
   for (const g of groups.values()) {
     const bucketList = [...g.buckets.values()];
     const amounts = roundBucketAmounts(bucketList);
-    const lines: JournalLine[] = bucketList.map((b) => ({
-      postingType: b.postingType, amount: amounts.get(b) ?? round2(b.amount), accountName: b.accountName,
-      departmentName: b.departmentName, className: b.className,
-      memo: b.memo, creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
-    }));
+    const lines: JournalLine[] = bucketList.map((b) => {
+      const amount = amounts.get(b) ?? round2(b.amount);
+      // A bucket that nets NEGATIVE flips sides instead of carrying a negative amount:
+      // a -49.55 "Debit" is a 49.55 Credit. QuickBooks rejects negative JE line amounts,
+      // the grid can't render them honestly, and accountants can't edit generated lines
+      // to fix it themselves (Barbara, TN 04/24/2026: WC - Admin netted -49.55).
+      const flip = amount < 0;
+      return {
+        postingType: flip ? (b.postingType === 'Debit' ? 'Credit' as const : 'Debit' as const) : b.postingType,
+        amount: flip ? round2(-amount) : amount, accountName: b.accountName,
+        departmentName: b.departmentName, className: b.className,
+        memo: b.memo, creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
+      };
+    });
     // Group lines by account then memo so same-account department lines (e.g. Admin/Accounting
     // Wages) sit adjacent instead of in arbitrary bucket-first-appearance order.
     lines.sort(compareJournalLines);

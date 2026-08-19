@@ -29,6 +29,19 @@ describe('buildJournal', () => {
     expect(d.totalCredits).toBe(1200);
     expect(unmappedColumns).not.toContain('MEDICARE - EE TAXABLE'); // taxable bases excluded
   });
+  it('a bucket that nets negative flips sides: -49.55 Debit becomes 49.55 Credit (QBO rejects negative amounts)', () => {
+    // Barbara, TN 04/24/2026: WC - Admin netted -49.55 and landed as an uneditable
+    // negative Debit in the grid; the mirrored withholdings credit was -49.55 too.
+    const rows = [baseRow({ sensitive: { 'REGULAR PAY - EARNING': -49.55, 'NET PAY': -49.55 } })];
+    const { drafts } = buildJournal(rows, accountMap, empMap);
+    const wages = drafts[0].lines.find((l) => l.accountName === 'COGS - Lab Wages');
+    const withheld = drafts[0].lines.find((l) => l.accountName === 'Payroll Withholdings');
+    expect(wages).toMatchObject({ postingType: 'Credit', amount: 49.55 });
+    expect(withheld).toMatchObject({ postingType: 'Debit', amount: 49.55 });
+    expect(drafts[0].variance).toBe(0);
+    expect(drafts[0].lines.every((l) => l.amount >= 0)).toBe(true);
+  });
+
   it('does not flag ADP report aggregates (hours/totals/gross/rate) as unmapped columns', () => {
     // These carry no account-map rule by design — they summarize columns already mapped.
     // They must not pollute the "new columns detected" worklist (reconcile requires zero
