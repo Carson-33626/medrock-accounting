@@ -578,7 +578,9 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                   title={
                     'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
                     (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
-                    'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE.'
+                    'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE. ' +
+                    'IMPORTANT: turn OFF "Enable account numbers" (Settings → Advanced → Chart of accounts) before importing, ' +
+                    'then turn it back on after — with numbers on, the import wizard rejects every account name as "Line Account invalid".'
                   }
                   className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                     darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'

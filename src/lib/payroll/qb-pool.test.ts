@@ -4,7 +4,11 @@ import {
   normalizeAccountName,
   poolLinesFromJournalEntry,
   poolLinesFromExpenseTxn,
+  poolLinesFromDeposit,
   poolLineFromLocalDraftRow,
+  isPooledLine,
+  type PoolLine,
+  type RawDeposit,
   type RawJournalEntry,
   type RawExpenseTxn,
   type LocalDraftLineRow,
@@ -38,6 +42,70 @@ describe('poolLineFromLocalDraftRow', () => {
   it('classifies an Allocate - TX line as passthrough (attention, not pool)', () => {
     const l = poolLineFromLocalDraftRow({ ...base, class_name: 'Allocate - TX', department_name: 'Dallas Region' });
     expect(l).toMatchObject({ rule: 'passthrough', counterparty: 'MedRock TX' });
+  });
+});
+
+describe('poolLinesFromDeposit', () => {
+  // Shape from the 2026-08-19 revenue-true-up sweep: bank-feed deposit whose
+  // revenue line was split into an unclassed home line + classed foreign lines.
+  const dep: RawDeposit = {
+    Id: '49563', TxnDate: '2026-03-13',
+    Line: [
+      { Id: '1', Amount: 45000.0, Description: 'DEPOSIT TRUIST MERCHANT',
+        DepositLineDetail: { AccountRef: { value: '180', name: '4000 Revenue' } } },
+      { Id: '2', Amount: 5000.5, Description: 'DEPOSIT TRUIST MERCHANT — TX share',
+        DepositLineDetail: { AccountRef: { value: '180', name: '4000 Revenue' }, ClassRef: { value: '1000000011', name: 'Allocate - TX' } } },
+      { Id: '3', Amount: 1237.45, Description: 'DEPOSIT TRUIST MERCHANT — TN share',
+        DepositLineDetail: { AccountRef: { value: '180', name: '4000 Revenue' }, ClassRef: { value: '1000000010', name: 'Allocate - TN' } } },
+    ],
+  };
+
+  it('keeps only Allocate-classed lines, as NEGATIVE amounts (revenue credits)', () => {
+    const lines = poolLinesFromDeposit(dep, 'MedRock FL');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({
+      entity: 'MedRock FL', txnType: 'Deposit', txnId: '49563', txnDate: '2026-03-13',
+      accountName: 'Revenue', amount: -5000.5, rule: 'passthrough', counterparty: 'MedRock TX',
+      className: 'Allocate - TX',
+    });
+    expect(lines[1]).toMatchObject({ amount: -1237.45, counterparty: 'MedRock TN' });
+  });
+
+  it('normalizes the baked-in account number off the line AccountRef name', () => {
+    expect(poolLinesFromDeposit(dep, 'MedRock FL')[0].accountName).toBe('Revenue');
+  });
+
+  it('a self-referential class in its own book surfaces as unknown, not silently split', () => {
+    const bad: RawDeposit = {
+      Id: '9', Line: [{ Id: '1', Amount: 10, DepositLineDetail: { AccountRef: { name: '4000 Revenue' }, ClassRef: { name: 'Allocate - FL' } } }],
+    };
+    expect(poolLinesFromDeposit(bad, 'MedRock FL')[0]).toMatchObject({ rule: 'unknown', counterparty: null });
+  });
+
+  it('ignores account-less lines (e.g. CashBack shapes)', () => {
+    const noAcct: RawDeposit = { Id: '9', Line: [{ Id: '1', Amount: 10, DepositLineDetail: {} }] };
+    expect(poolLinesFromDeposit(noAcct, 'MedRock FL')).toHaveLength(0);
+  });
+});
+
+describe('isPooledLine', () => {
+  const base: Omit<PoolLine, 'rule' | 'txnType' | 'counterparty'> = {
+    entity: 'MedRock FL', txnId: '1', txnDate: '2026-03-31', docNumber: null,
+    accountName: 'Revenue', className: null, departmentName: null, memo: null, amount: -10,
+  };
+  it('pools revenue/thirds/fifty from any source', () => {
+    expect(isPooledLine({ ...base, txnType: 'Bill', rule: 'revenue', counterparty: null })).toBe(true);
+    expect(isPooledLine({ ...base, txnType: 'Purchase', rule: 'thirds', counterparty: null })).toBe(true);
+    expect(isPooledLine({ ...base, txnType: 'JournalEntry', rule: 'fifty', counterparty: 'MedRock TN' })).toBe(true);
+  });
+  it('pools passthrough ONLY from Deposits — QBO Intercompany already auto-books Bill/Purchase passthrough, so pooling those would double-move', () => {
+    expect(isPooledLine({ ...base, txnType: 'Deposit', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(true);
+    expect(isPooledLine({ ...base, txnType: 'Bill', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
+    expect(isPooledLine({ ...base, txnType: 'Purchase', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
+    expect(isPooledLine({ ...base, txnType: 'DraftJE', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
+  });
+  it('never pools unknown', () => {
+    expect(isPooledLine({ ...base, txnType: 'Deposit', rule: 'unknown', counterparty: null })).toBe(false);
   });
 });
 

@@ -18,7 +18,7 @@ import { EOM_ENTITIES, type EomEntity } from './revenue-rule';
 // exhaustive Record; EOM generation itself stays trio-only via EOM_ENTITIES/EomEntity below,
 // so the FOCAS entry is never actually looked up by buildMonthEndAllocation.
 const SHORT_ENT: Record<Entity, string> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX', 'FOCAS': 'FOCAS' };
-const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3', fifty: '50/50' };
+const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3', fifty: '50/50', passthrough: '100%' };
 
 export function eomDocNumber(entity: Entity, m: Month): string {
   return `${SHORT_ENT[entity]} % Allo ${monthTag(m)}`;
@@ -53,7 +53,9 @@ export function buildMonthEndAllocation(
   // 1-2. Net cents per (entity, account, rule, counterparty)
   const groups = new Map<string, { entity: Entity; accountName: string; rule: string; counterparty: Entity | null; cents: number }>();
   for (const l of pool) {
-    if (l.rule !== 'revenue' && l.rule !== 'thirds' && l.rule !== 'fifty') continue;
+    // passthrough reaches here only for Deposit-sourced lines (qb-pool.isPooledLine) —
+    // Bill/Purchase passthrough is auto-booked by QBO Intercompany and must never re-move.
+    if (l.rule !== 'revenue' && l.rule !== 'thirds' && l.rule !== 'fifty' && l.rule !== 'passthrough') continue;
     const key = [l.entity, l.accountName, l.rule, l.counterparty ?? ''].join('¦');
     const g = groups.get(key) ?? { entity: l.entity, accountName: l.accountName, rule: l.rule, counterparty: l.counterparty, cents: 0 };
     g.cents += Math.round(l.amount * 100);
@@ -79,6 +81,7 @@ export function buildMonthEndAllocation(
     const weights = EOM_ENTITIES.map((e) => {
       if (g.rule === 'revenue') return shares[e];
       if (g.rule === 'thirds') return 1;
+      if (g.rule === 'passthrough') return e === g.counterparty ? 1 : 0; // 100% to the named entity
       return e === g.entity || e === g.counterparty ? 1 : 0; // fifty
     });
     const sign = g.cents >= 0 ? 1 : -1;

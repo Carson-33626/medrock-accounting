@@ -40,6 +40,11 @@ async function runMonth(month: string): Promise<void> {
   const { pool, attention } = await fetchAllocationPool(m);
   const draftLines = pool.filter((l) => l.txnType === 'DraftJE');
   console.log(`  pool: ${pool.length} lines (${draftLines.length} from local payroll drafts, ${money(draftLines.reduce((s, l) => s + l.amount, 0))}); attention: ${attention.length}`);
+  // Revenue true-up visibility: the class-split deposit lines this regen scoops (2026-08-19).
+  const depositLines = pool.filter((l) => l.rule === 'passthrough' && l.txnType === 'Deposit');
+  if (depositLines.length > 0) {
+    console.log(`  deposit passthrough: ${depositLines.length} lines, net ${money(depositLines.reduce((s, l) => s + l.amount, 0))}`);
+  }
 
   let shares = sharesFromPresence(revenueTest);
   if (shares === null) {

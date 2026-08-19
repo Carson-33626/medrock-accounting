@@ -92,6 +92,29 @@ describe('buildMonthEndAllocation', () => {
     expect(buildMonthEndAllocation([], THIRDS, M)).toHaveLength(0);
   });
 
+  it('passthrough revenue credit (class-split deposit) moves 100% to the counterparty with flipped sides', () => {
+    // FL deposit revenue line classed 'Allocate - TX': negative pool amount.
+    // FL must DEBIT Revenue (shed the revenue) and CREDIT Due From TX;
+    // TX must CREDIT Revenue and DEBIT its Due-to-FL account. TN untouched.
+    const drafts = buildMonthEndAllocation(
+      [{ ...pl('MedRock FL', 'Revenue', -5000.5, 'passthrough', 'MedRock TX'), txnType: 'Deposit' }], THIRDS, M);
+    expect(drafts.find((d) => d.entity === 'MedRock TN')).toBeUndefined();
+    const fl = drafts.find((d) => d.entity === 'MedRock FL') as JournalDraft;
+    const tx = drafts.find((d) => d.entity === 'MedRock TX') as JournalDraft;
+    expect(fl.lines.some((l) => l.accountName === 'Revenue' && l.postingType === 'Debit' && l.amount === 5000.5)).toBe(true);
+    expect(fl.lines.some((l) => l.accountName === 'Due From MedRock TX, LLC' && l.postingType === 'Credit' && l.amount === 5000.5)).toBe(true);
+    expect(tx.lines.some((l) => l.accountName === 'Revenue' && l.postingType === 'Credit' && l.amount === 5000.5)).toBe(true);
+    expect(tx.lines.some((l) => l.accountName === 'Due to Medrock Pharmacy' && l.postingType === 'Debit' && l.amount === 5000.5)).toBe(true);
+    for (const d of drafts) expect(d.variance).toBe(0);
+  });
+
+  it('passthrough of a positive cost sheds at source and lands whole at the counterparty', () => {
+    const drafts = buildMonthEndAllocation(
+      [{ ...pl('MedRock TN', 'G&A -:Rent', 900, 'passthrough', 'MedRock FL'), txnType: 'Deposit' }], THIRDS, M);
+    const fl = drafts.find((d) => d.entity === 'MedRock FL') as JournalDraft;
+    expect(fl.lines.some((l) => l.accountName === 'G&A -:Rent' && l.postingType === 'Debit' && l.amount === 900)).toBe(true);
+  });
+
   it('doc number and note formats', () => {
     expect(eomDocNumber('MedRock TX', M)).toBe('TX % Allo 2026.03');
     expect(eomPrivateNote(THIRDS, M)).toContain('March 2026');

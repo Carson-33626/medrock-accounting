@@ -75,6 +75,12 @@ scripts/receipt-capture/out/
 # untracked files) — see TODO.md for the follow-up to review and purge them.
 scripts/out/*.csv
 
+# Returned vendor Form W-9s. These carry TINs and, for sole proprietors, SSNs — the highest-
+# sensitivity data this repo's tooling touches. The PDFs live in Google Drive; the local copies
+# are a staging area only. The OAuth refresh token grants read access to the whole mailbox.
+scripts/out/w9-pdfs/
+scripts/w9/.google-token-*.json
+
 # Receipt-enrichment program env — Ramp secrets, Supabase service role key, RDS URL.
 scripts/receipt-enrichment/.env
 

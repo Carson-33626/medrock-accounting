@@ -2,7 +2,9 @@
  * Month-end allocation pool: every QB line coded to the Allocate flag (class family
  * `Allocate - *` and/or department `% Allocation`) during a month. Pure extraction from
  * raw QBO entity JSON (testable) + a thin fetch that queries JournalEntry / Purchase /
- * Bill / VendorCredit per company. See spec §4.1.
+ * Bill / VendorCredit / Deposit per company. See spec §4.1. Deposits joined 2026-08-19
+ * for the revenue true-up class-splits; their passthrough lines are the ONLY passthrough
+ * the JE generator consumes (see isPooledLine).
  */
 import type { Entity } from './types';
 import { qbQueryAll } from '../quickbooks-multi';
@@ -133,6 +135,45 @@ export function poolLinesFromExpenseTxn(
   return out;
 }
 
+// ── Deposits (revenue class-splits) ──
+// The 2026-08-19 revenue true-up split TRUIST MERCHANT deposit revenue lines into
+// class-tagged lines ('Allocate - TX/TN/FL' on the foreign shares). QBO's Intercompany
+// allocation does NOT react to deposit lines (verified: zero auto-JEs after 213 splits),
+// so month-end is what moves this revenue — unlike Bill/Purchase passthrough, which QBO
+// auto-books per transaction and must never be pooled (it would double-move).
+export interface RawDepositLine {
+  Id?: string; Amount?: number; Description?: string;
+  DepositLineDetail?: { AccountRef?: QbRef; ClassRef?: QbRef };
+}
+export interface RawDeposit { Id: string; DocNumber?: string; TxnDate?: string; Line?: RawDepositLine[] }
+
+export function poolLinesFromDeposit(dep: RawDeposit, entity: Entity): PoolLine[] {
+  const out: PoolLine[] = [];
+  for (const l of dep.Line ?? []) {
+    const d = l.DepositLineDetail;
+    if (!d?.AccountRef?.name) continue;
+    const cls = classifyAllocateFlag(d.ClassRef?.name ?? null, null, entity);
+    if (!cls) continue;
+    // A deposit line CREDITS its account (revenue), so the pool amount is negative —
+    // the same "credits are negative" convention every other source uses.
+    out.push({
+      entity, txnType: 'Deposit', txnId: dep.Id, txnDate: dep.TxnDate ?? '', docNumber: dep.DocNumber ?? null,
+      accountName: normalizeAccountName(d.AccountRef.name), className: d.ClassRef?.name ?? null, departmentName: null,
+      memo: l.Description ?? null, amount: -(l.Amount ?? 0), rule: cls.rule, counterparty: cls.counterparty,
+    });
+  }
+  return out;
+}
+
+/** Which lines the JE generator consumes (the rest surface on the attention list).
+ *  revenue/thirds/fifty pool from every source; passthrough pools ONLY from Deposits —
+ *  Bill/Purchase passthrough is already auto-booked per-transaction by QBO's
+ *  Intercompany allocation, and pooling it would move the money twice. */
+export function isPooledLine(l: PoolLine): boolean {
+  if (l.rule === 'revenue' || l.rule === 'thirds' || l.rule === 'fifty') return true;
+  return l.rule === 'passthrough' && l.txnType === 'Deposit';
+}
+
 // ── Local (unposted) payroll draft lines ──
 // The pool's QB queries only see POSTED transactions, but our payroll JEs live as local
 // drafts until an accountant posts them — without this, an entire month of Allocate-tagged
@@ -239,11 +280,12 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
   // herself) must not ALSO contribute its lines.
   const qbJeDocNumbers = new Set<string>();
   for (const entity of EOM_ENTITIES) {
-    const [jes, purchases, bills, vendorCredits] = [
+    const [jes, purchases, bills, vendorCredits, deposits] = [
       await qbQueryAll<RawJournalEntry>(entity, 'JournalEntry', where),
       await qbQueryAll<RawExpenseTxn>(entity, 'Purchase', where),
       await qbQueryAll<RawExpenseTxn>(entity, 'Bill', where),
       await qbQueryAll<RawExpenseTxn>(entity, 'VendorCredit', where),
+      await qbQueryAll<RawDeposit>(entity, 'Deposit', where),
     ];
     for (const je of jes) {
       if (je.DocNumber) qbJeDocNumbers.add(`${entity}¦${je.DocNumber}`);
@@ -252,9 +294,10 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
     for (const p of purchases) all.push(...poolLinesFromExpenseTxn(p, entity, 'Purchase'));
     for (const b of bills) all.push(...poolLinesFromExpenseTxn(b, entity, 'Bill'));
     for (const v of vendorCredits) all.push(...poolLinesFromExpenseTxn(v, entity, 'VendorCredit'));
+    for (const dep of deposits) all.push(...poolLinesFromDeposit(dep, entity));
   }
   all.push(...await fetchLocalDraftPool(start, end, qbJeDocNumbers));
-  const pool = all.filter((l) => l.rule === 'revenue' || l.rule === 'thirds' || l.rule === 'fifty');
-  const attention = all.filter((l) => l.rule === 'passthrough' || l.rule === 'unknown');
+  const pool = all.filter(isPooledLine);
+  const attention = all.filter((l) => !isPooledLine(l) && (l.rule === 'passthrough' || l.rule === 'unknown'));
   return { pool, attention };
 }

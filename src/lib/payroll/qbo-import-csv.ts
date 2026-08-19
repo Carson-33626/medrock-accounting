@@ -12,6 +12,10 @@
  *  - amounts are plain 2dp numbers, Debits XOR Credits per row;
  *  - Location carries the department, Class the class, Memo the JE-level PrivateNote.
  *  - ONE FILE = ONE QBO COMPANY: never mix entities in a single CSV.
+ *  - ⚠ the company's "Enable account numbers" setting must be OFF during import (Settings →
+ *    Advanced → Chart of accounts; turn it back on after). With numbers on, the wizard matches
+ *    against numbered display names and rejects every bare name as "Line Account invalid" —
+ *    Barbara hit exactly this 2026-08-19; Intuit's import doc says names must carry NO numbers.
  */
 import type { JournalLine } from './types';
 import type { ExportColumn, CellValue } from '../inventory-export';
