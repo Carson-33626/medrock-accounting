@@ -8,7 +8,7 @@ import { buildJournal } from '../../src/lib/payroll/build-je';
 import { splitStraddle } from '../../src/lib/payroll/split';
 import { POSTABLE_ENTITIES } from '../../src/lib/payroll/entity';
 import {
-  getAccountMap, getEmployeeMap, saveDraft, sourceSnapshotHash, deleteStaleSiblings,
+  getAccountMap, getEmployeeMap, saveDraft, runSnapshotHash, deleteStaleSiblings,
 } from '../../src/lib/payroll/store';
 import type { AccountMapRule, EmployeeMapRule } from '../../src/lib/payroll/types';
 
@@ -19,7 +19,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const rows = await selectSource().fetchRange(start, end);
-  const snapshot = sourceSnapshotHash(rows);
   const accountMapLists: AccountMapRule[][] = await Promise.all(POSTABLE_ENTITIES.map(getAccountMap));
   const employeeMapLists: EmployeeMapRule[][] = await Promise.all(POSTABLE_ENTITIES.map(getEmployeeMap));
   const { drafts } = buildJournal(rows, accountMapLists.flat(), employeeMapLists.flat());
@@ -32,6 +31,12 @@ async function main(): Promise<void> {
   const failures: Array<{ entity: string; payDate: string; payGroup: string; reason: string }> = [];
   for (const draft of drafts) {
     try {
+      // Per-run hash (pay_date + pay_group), matching the post route's drift recompute.
+      // This script hashed the WHOLE RANGE until 2026-08-19 — the one builder missed when
+      // runSnapshotHash was introduced — so every draft it saved was born drifted and could
+      // never pass the post gate ("source changed since draft was built"). See build-range.ts,
+      // which was fixed, and store.ts runSnapshotHash for the full story.
+      const snapshot = runSnapshotHash(rows, draft.payDate, draft.payGroup);
       const pieces = splitStraddle(draft);
       if (pieces.length > 1) splitRuns += 1;
       for (const piece of pieces) {
