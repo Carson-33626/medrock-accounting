@@ -4,17 +4,21 @@
  * Pure — drafts in, rows out — and deliberately free of everything the review .xlsx carries
  * that QBO's importer must not see: no TOTAL row, no banner note, no Account #/Origin columns.
  *
- * Format notes (QBO importer contract):
+ * Format notes (QBO importer contract — mirrors Intuit's sample_journalentry_import.csv
+ * byte-for-byte on headers so the wizard auto-maps every field):
+ *  - columns: *JournalNo,*JournalDate,*AccountName,*Debits,*Credits,Description,Name,Currency,
+ *    Location,Class (asterisks are part of the template's header text; there is NO Memo column —
+ *    the wizard cannot import a JE-level private note);
  *  - rows sharing a JournalNo group into one JE, so a split run ships every piece in ONE file;
- *  - JournalDate is MM/DD/YYYY (the wizard's date-format selector must match);
- *  - AccountName is the account's NUMBERED display name — `<AcctNum> <FullyQualifiedName>`
- *    (e.g. '2115 Accrued Payroll Liability', '6500.05 Payroll Expense -:Administrative Wages').
- *    Our books run with "Enable account numbers" ON, and in that mode the wizard matches the
- *    numbered display name and rejects bare names as "Line Account invalid" (Barbara,
- *    2026-08-19; the format mirrors how QBO itself renders AccountRef.name on transactions).
- *    Accounts with no number (or when the QB lookup fails) fall back to the bare FQN.
+ *  - JournalDate (MM/DD/YYYY — set the wizard's date-format selector to match) and Currency
+ *    ('USD') appear only on each JE's FIRST row, exactly like the sample;
+ *  - AccountName is the bare FullyQualifiedName with ':' sub-account separators. ⚠ QBO's
+ *    import wizard DOES NOT WORK while "Enable account numbers" is on — its own import guide
+ *    says to turn the setting off first (verified 2026-08-19: bare names fail with numbers on,
+ *    and numbered names `<AcctNum> <FQN>` fail too — there is NO file format that satisfies the
+ *    wizard with numbers enabled);
  *  - amounts are plain 2dp numbers, Debits XOR Credits per row;
- *  - Location carries the department, Class the class, Memo the JE-level PrivateNote.
+ *  - Location carries the department, Class the class; Name (per-line payee) stays blank.
  *  - ONE FILE = ONE QBO COMPANY: never mix entities in a single CSV.
  */
 import type { JournalLine } from './types';
@@ -22,15 +26,16 @@ import type { ExportColumn, CellValue } from '../inventory-export';
 import { compareJournalLines } from './line-order';
 
 export const QBO_IMPORT_COLUMNS: ExportColumn[] = [
-  { header: 'JournalNo', key: 'journalNo' },
-  { header: 'JournalDate', key: 'journalDate' },
-  { header: 'AccountName', key: 'accountName' },
-  { header: 'Debits', key: 'debits' },
-  { header: 'Credits', key: 'credits' },
+  { header: '*JournalNo', key: 'journalNo' },
+  { header: '*JournalDate', key: 'journalDate' },
+  { header: '*AccountName', key: 'accountName' },
+  { header: '*Debits', key: 'debits' },
+  { header: '*Credits', key: 'credits' },
   { header: 'Description', key: 'description' },
+  { header: 'Name', key: 'name' },
+  { header: 'Currency', key: 'currency' },
   { header: 'Location', key: 'location' },
   { header: 'Class', key: 'className' },
-  { header: 'Memo', key: 'memo' },
 ];
 
 export interface QboImportJe {
@@ -51,31 +56,26 @@ export function isoToQboDate(iso: string): string {
   return `${m[2]}/${m[3]}/${m[1]}`;
 }
 
-/** `<AcctNum> <FQN>` when the account carries a number — the display name QBO's import
- *  wizard matches while "Enable account numbers" is on; bare FQN otherwise. */
-export function qboImportAccountName(accountName: string, accountNums?: Record<string, string>): string {
-  const num = accountNums?.[accountName];
-  return num ? `${num} ${accountName}` : accountName;
-}
-
-export function buildQboImportRows(jes: QboImportJe[], accountNums?: Record<string, string>): Record<string, CellValue>[] {
+export function buildQboImportRows(jes: QboImportJe[]): Record<string, CellValue>[] {
   const rows: Record<string, CellValue>[] = [];
   for (const je of jes) {
     const date = isoToQboDate(je.txnDateIso);
     const ordered = [...je.lines].sort(compareJournalLines);
-    for (const l of ordered) {
+    ordered.forEach((l, i) => {
       rows.push({
         journalNo: je.docNumber,
-        journalDate: date,
-        accountName: qboImportAccountName(l.accountName, accountNums),
+        // Date + currency only on the JE's first row, mirroring Intuit's sample file.
+        journalDate: i === 0 ? date : '',
+        accountName: l.accountName,
         debits: l.postingType === 'Debit' ? round2(l.amount).toFixed(2) : '',
         credits: l.postingType === 'Credit' ? round2(l.amount).toFixed(2) : '',
         description: l.memo,
+        name: '',
+        currency: i === 0 ? 'USD' : '',
         location: l.departmentName ?? '',
         className: l.className ?? '',
-        memo: je.privateNote ?? '',
       });
-    }
+    });
   }
   return rows;
 }

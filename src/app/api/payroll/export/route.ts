@@ -48,10 +48,10 @@ export async function GET(request: NextRequest) {
 
     const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
 
-    // Best-effort QB account-number lookup (read-only), used by BOTH formats: the review .xlsx
-    // shows Account # in its own column, and the qbo CSV must emit `<AcctNum> <name>` because
-    // the import wizard matches numbered display names while "Enable account numbers" is on.
-    // Never let a QuickBooks hiccup block an export — degrade to bare names instead.
+    // Best-effort QB account-number lookup (read-only) for the review .xlsx's Account # column.
+    // Never let a QuickBooks hiccup block an export — degrade to blank Account # instead.
+    // (The qbo CSV deliberately does NOT use numbers: QBO's import wizard only works with
+    // "Enable account numbers" off, where bare names are the match key.)
     let accountNums: Record<string, string> | undefined;
     if ((POSTABLE_ENTITIES as string[]).includes(header.entity)) {
       try {
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           { status: 409 },
         );
       }
-      return csvResponse(QBO_IMPORT_COLUMNS, buildQboImportRows(jes, accountNums), qboImportFilename(header.entity, jes));
+      return csvResponse(QBO_IMPORT_COLUMNS, buildQboImportRows(jes), qboImportFilename(header.entity, jes));
     }
 
     if (scope === 'run' && siblings.length > 1) {

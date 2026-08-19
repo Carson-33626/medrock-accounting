@@ -27,8 +27,8 @@ interface QboImportGuideProps {
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
-    title: 'Account names come pre-numbered — no settings changes',
-    body: 'The AccountName column already carries the numbered name QuickBooks expects (e.g. "2115 Accrued Payroll Liability"), matching your chart of accounts with account numbers enabled. If the wizard still rejects lines as "Line Account invalid", screenshot the error and send it over — do not hand-edit account names to fix it.',
+    title: 'QuickBooks requires account numbers OFF to import — no way around it',
+    body: 'QuickBooks’ own import guide says: "Before import, make sure ‘Enable account numbers’ in the Advanced settings is turned off." With the setting on, every line fails as "Line Account invalid" no matter how the file is formatted (bare and numbered names both verified to fail). If turning it off even briefly is not acceptable, use the Post button instead — it writes through the API and needs no settings changes.',
   },
   {
     title: 'Editing the file first? Edit safely',

@@ -35,12 +35,17 @@ describe('buildQboImportRows', () => {
     const credit = rows.find((r) => r.credits !== '');
     const debit = rows.find((r) => r.debits !== '');
     expect(credit).toMatchObject({
-      journalNo: 'FL % Allo 2026.07', journalDate: '07/31/2026',
+      journalNo: 'FL % Allo 2026.07',
       accountName: 'Payroll Expense -:Administrative Wages', credits: '39680.96', debits: '',
       description: 'Allocation of Administrative Wages — revenue % split',
-      memo: 'Month-end allocation — July 2026',
     });
     expect(debit).toMatchObject({ accountName: 'Due from MedRock TN, LLC', debits: '29426.73', credits: '' });
+  });
+
+  it('mirrors the Intuit sample: date + USD only on each JE first row, blank after', () => {
+    const rows = buildQboImportRows([je]);
+    expect(rows[0]).toMatchObject({ journalDate: '07/31/2026', currency: 'USD', name: '' });
+    expect(rows[1]).toMatchObject({ journalDate: '', currency: '' });
   });
 
   it('carries department as Location and class as Class', () => {
@@ -48,19 +53,9 @@ describe('buildQboImportRows', () => {
     expect(rows[0]).toMatchObject({ location: '% Allocation', className: 'Allocate - %' });
   });
 
-  it('prefixes account names with their QB account number — the display name the wizard matches while "Enable account numbers" is on', () => {
-    const nums = { 'Payroll Expense -:Administrative Wages': '6500.05', 'Due from MedRock TN, LLC': '1205' };
-    const rows = buildQboImportRows([je], nums);
-    expect(rows.map((r) => r.accountName).sort()).toEqual([
-      '1205 Due from MedRock TN, LLC',
-      '6500.05 Payroll Expense -:Administrative Wages',
-    ]);
-  });
-
-  it('falls back to the bare name when the account has no number or the lookup was skipped', () => {
+  it('account names stay bare FQNs — numbered names fail the wizard too; numbers-off import matches bare names', () => {
     const bare = ['Due from MedRock TN, LLC', 'Payroll Expense -:Administrative Wages'];
     expect(buildQboImportRows([je]).map((r) => r.accountName).sort()).toEqual(bare);
-    expect(buildQboImportRows([je], { 'Something Else': '9999' }).map((r) => r.accountName).sort()).toEqual(bare);
   });
 
   it('groups a split run as multiple JournalNos in one file, with no TOTAL row', () => {
