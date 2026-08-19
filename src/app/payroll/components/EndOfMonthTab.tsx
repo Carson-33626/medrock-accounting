@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
+import QboImportGuide from '@/components/QboImportGuide';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -1133,6 +1134,7 @@ function DraftCard({
   onPostLive: () => void;
 }) {
   const posted = header.status === 'posted';
+  const [qboGuideOpen, setQboGuideOpen] = useState(false);
   const docNumber = posted ? (header.qb_doc_number ?? '—') : draftDocNumber(header.entity, month);
   const debitTotal = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
   const creditTotal = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
@@ -1186,13 +1188,12 @@ function DraftCard({
 
       {!posted && (
         <div className="flex flex-wrap gap-2">
-          <a
-            href={`/api/payroll/export?headerId=${header.id}&format=qbo`}
-            download
+          <button
+            onClick={() => setQboGuideOpen(true)}
             title={
               `Download ${docNumber} as a CSV formatted for QuickBooks journal-entry import ` +
               `(Settings → Import data → Journal entries). One file per company — import this one into ${header.entity}. ` +
-              'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE.'
+              'Opens a checklist first — the import fails with "Line Account invalid" unless "Enable account numbers" is turned off during import.'
             }
             className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border ${
               darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
@@ -1200,7 +1201,14 @@ function DraftCard({
           >
             <Download className="w-4 h-4" aria-hidden />
             QBO Import CSV
-          </a>
+          </button>
+          <QboImportGuide
+            open={qboGuideOpen}
+            onClose={() => setQboGuideOpen(false)}
+            darkMode={darkMode}
+            entity={header.entity}
+            href={`/api/payroll/export?headerId=${header.id}&format=qbo`}
+          />
           <button
             onClick={onApprove}
             disabled={busy || header.status === 'approved'}

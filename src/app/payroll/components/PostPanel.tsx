@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { AlertTriangle, Ban, CheckCircle2, Download, Eye, Loader2, RefreshCw, ShieldCheck, X, XCircle, Zap } from 'lucide-react';
+import QboImportGuide from '@/components/QboImportGuide';
 
 /**
  * Local mirrors of the payroll API response shapes (web/src/lib/payroll/store.ts
@@ -140,6 +141,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [qboGuideOpen, setQboGuideOpen] = useState(false);
 
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -573,14 +575,12 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                   {exporting ? 'Exporting…' : isSplit ? 'Download Excel (all months)' : 'Download Excel'}
                 </button>
                 <button
-                  onClick={() => void handleExport('qbo')}
+                  onClick={() => setQboGuideOpen(true)}
                   disabled={exporting}
                   title={
                     'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
                     (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
-                    'Keep the JournalNo column on import — it is how the system recognizes an externally-posted JE. ' +
-                    'IMPORTANT: turn OFF "Enable account numbers" (Settings → Advanced → Chart of accounts) before importing, ' +
-                    'then turn it back on after — with numbers on, the import wizard rejects every account name as "Line Account invalid".'
+                    'Opens a checklist first — the import fails with "Line Account invalid" unless "Enable account numbers" is turned off during import.'
                   }
                   className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                     darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
@@ -589,6 +589,13 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                   {exporting ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />}
                   QBO Import CSV
                 </button>
+                <QboImportGuide
+                  open={qboGuideOpen}
+                  onClose={() => setQboGuideOpen(false)}
+                  darkMode={darkMode}
+                  entity={header.entity}
+                  onDownload={() => void handleExport('qbo')}
+                />
                 <button
                   onClick={() => void handlePreview()}
                   disabled={previewing}
