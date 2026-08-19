@@ -39,7 +39,7 @@ describe('poolLineFromLocalDraftRow', () => {
     expect(poolLineFromLocalDraftRow({ ...base, class_name: null, department_name: null })).toBeNull();
   });
 
-  it('classifies an Allocate - TX line as passthrough (attention, not pool)', () => {
+  it('classifies an Allocate - TX line as passthrough (pooled — nothing else moves draft wages)', () => {
     const l = poolLineFromLocalDraftRow({ ...base, class_name: 'Allocate - TX', department_name: 'Dallas Region' });
     expect(l).toMatchObject({ rule: 'passthrough', counterparty: 'MedRock TX' });
   });
@@ -98,11 +98,13 @@ describe('isPooledLine', () => {
     expect(isPooledLine({ ...base, txnType: 'Purchase', rule: 'thirds', counterparty: null })).toBe(true);
     expect(isPooledLine({ ...base, txnType: 'JournalEntry', rule: 'fifty', counterparty: 'MedRock TN' })).toBe(true);
   });
-  it('pools passthrough ONLY from Deposits — QBO Intercompany already auto-books Bill/Purchase passthrough, so pooling those would double-move', () => {
+  it('pools passthrough from Deposits/JEs/local drafts; NOT from Bill/Purchase/VendorCredit, where QBO Intercompany already auto-books the move (pooling would double-move)', () => {
     expect(isPooledLine({ ...base, txnType: 'Deposit', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(true);
+    expect(isPooledLine({ ...base, txnType: 'JournalEntry', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(true);
+    expect(isPooledLine({ ...base, txnType: 'DraftJE', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(true);
     expect(isPooledLine({ ...base, txnType: 'Bill', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
     expect(isPooledLine({ ...base, txnType: 'Purchase', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
-    expect(isPooledLine({ ...base, txnType: 'DraftJE', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
+    expect(isPooledLine({ ...base, txnType: 'VendorCredit', rule: 'passthrough', counterparty: 'MedRock TX' })).toBe(false);
   });
   it('never pools unknown', () => {
     expect(isPooledLine({ ...base, txnType: 'Deposit', rule: 'unknown', counterparty: null })).toBe(false);

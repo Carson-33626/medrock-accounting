@@ -400,7 +400,7 @@ function DraftCard({
                 title={
                   `Download ${docNumber} as a CSV formatted for QuickBooks journal-entry import ` +
                   `(Settings → Import data → Journal entries). One file per company — import this one into ${je.location}. ` +
-                  'Opens a checklist first — the import fails with "Line Account invalid" unless "Enable account numbers" is turned off during import.'
+                  'Account names come pre-numbered to match the chart of accounts. Opens an import checklist first.'
                 }
                 className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border ${
                   darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'

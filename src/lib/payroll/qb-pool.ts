@@ -3,8 +3,8 @@
  * `Allocate - *` and/or department `% Allocation`) during a month. Pure extraction from
  * raw QBO entity JSON (testable) + a thin fetch that queries JournalEntry / Purchase /
  * Bill / VendorCredit / Deposit per company. See spec §4.1. Deposits joined 2026-08-19
- * for the revenue true-up class-splits; their passthrough lines are the ONLY passthrough
- * the JE generator consumes (see isPooledLine).
+ * for the revenue true-up class-splits; passthrough pools from Deposits/JEs/local drafts
+ * and stays out of the pool only where QBO auto-books it (see isPooledLine).
  */
 import type { Entity } from './types';
 import { qbQueryAll } from '../quickbooks-multi';
@@ -166,12 +166,17 @@ export function poolLinesFromDeposit(dep: RawDeposit, entity: Entity): PoolLine[
 }
 
 /** Which lines the JE generator consumes (the rest surface on the attention list).
- *  revenue/thirds/fifty pool from every source; passthrough pools ONLY from Deposits —
- *  Bill/Purchase passthrough is already auto-booked per-transaction by QBO's
- *  Intercompany allocation, and pooling it would move the money twice. */
+ *  revenue/thirds/fifty pool from every source. passthrough pools from Deposits,
+ *  JournalEntries, and local payroll drafts — nothing else moves those (verified
+ *  2026-08-19: zero auto-JEs after 213 deposit class-splits; no JE-triggered
+ *  auto-move ever observed). It stays OUT of the pool for Bill/Purchase/
+ *  VendorCredit, where QBO's Intercompany allocation auto-books the move on the
+ *  transaction itself within minutes (verified pairs, e.g. FL Bill 52277 ↔ FL JE
+ *  1521041161 + TN JE 1521040386) — pooling those would move the money twice. */
+const QBO_AUTOBOOKED_TXN_TYPES = new Set(['Purchase', 'Bill', 'VendorCredit']);
 export function isPooledLine(l: PoolLine): boolean {
   if (l.rule === 'revenue' || l.rule === 'thirds' || l.rule === 'fifty') return true;
-  return l.rule === 'passthrough' && l.txnType === 'Deposit';
+  return l.rule === 'passthrough' && !QBO_AUTOBOOKED_TXN_TYPES.has(l.txnType);
 }
 
 // ── Local (unposted) payroll draft lines ──

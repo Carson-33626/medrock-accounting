@@ -7,15 +7,15 @@
  * Format notes (QBO importer contract):
  *  - rows sharing a JournalNo group into one JE, so a split run ships every piece in ONE file;
  *  - JournalDate is MM/DD/YYYY (the wizard's date-format selector must match);
- *  - AccountName is the FullyQualifiedName with ':' sub-account separators — the same string
- *    the live post resolves against the COA;
+ *  - AccountName is the account's NUMBERED display name — `<AcctNum> <FullyQualifiedName>`
+ *    (e.g. '2115 Accrued Payroll Liability', '6500.05 Payroll Expense -:Administrative Wages').
+ *    Our books run with "Enable account numbers" ON, and in that mode the wizard matches the
+ *    numbered display name and rejects bare names as "Line Account invalid" (Barbara,
+ *    2026-08-19; the format mirrors how QBO itself renders AccountRef.name on transactions).
+ *    Accounts with no number (or when the QB lookup fails) fall back to the bare FQN.
  *  - amounts are plain 2dp numbers, Debits XOR Credits per row;
  *  - Location carries the department, Class the class, Memo the JE-level PrivateNote.
  *  - ONE FILE = ONE QBO COMPANY: never mix entities in a single CSV.
- *  - ⚠ the company's "Enable account numbers" setting must be OFF during import (Settings →
- *    Advanced → Chart of accounts; turn it back on after). With numbers on, the wizard matches
- *    against numbered display names and rejects every bare name as "Line Account invalid" —
- *    Barbara hit exactly this 2026-08-19; Intuit's import doc says names must carry NO numbers.
  */
 import type { JournalLine } from './types';
 import type { ExportColumn, CellValue } from '../inventory-export';
@@ -51,7 +51,14 @@ export function isoToQboDate(iso: string): string {
   return `${m[2]}/${m[3]}/${m[1]}`;
 }
 
-export function buildQboImportRows(jes: QboImportJe[]): Record<string, CellValue>[] {
+/** `<AcctNum> <FQN>` when the account carries a number — the display name QBO's import
+ *  wizard matches while "Enable account numbers" is on; bare FQN otherwise. */
+export function qboImportAccountName(accountName: string, accountNums?: Record<string, string>): string {
+  const num = accountNums?.[accountName];
+  return num ? `${num} ${accountName}` : accountName;
+}
+
+export function buildQboImportRows(jes: QboImportJe[], accountNums?: Record<string, string>): Record<string, CellValue>[] {
   const rows: Record<string, CellValue>[] = [];
   for (const je of jes) {
     const date = isoToQboDate(je.txnDateIso);
@@ -60,7 +67,7 @@ export function buildQboImportRows(jes: QboImportJe[]): Record<string, CellValue
       rows.push({
         journalNo: je.docNumber,
         journalDate: date,
-        accountName: l.accountName,
+        accountName: qboImportAccountName(l.accountName, accountNums),
         debits: l.postingType === 'Debit' ? round2(l.amount).toFixed(2) : '',
         credits: l.postingType === 'Credit' ? round2(l.amount).toFixed(2) : '',
         description: l.memo,

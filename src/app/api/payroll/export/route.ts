@@ -48,6 +48,20 @@ export async function GET(request: NextRequest) {
 
     const siblings = await listSiblings(header.entity, header.pay_date, header.pay_group);
 
+    // Best-effort QB account-number lookup (read-only), used by BOTH formats: the review .xlsx
+    // shows Account # in its own column, and the qbo CSV must emit `<AcctNum> <name>` because
+    // the import wizard matches numbered display names while "Enable account numbers" is on.
+    // Never let a QuickBooks hiccup block an export — degrade to bare names instead.
+    let accountNums: Record<string, string> | undefined;
+    if ((POSTABLE_ENTITIES as string[]).includes(header.entity)) {
+      try {
+        const refs = await fetchDimensions(header.entity as Entity);
+        accountNums = refs.accountNums;
+      } catch (dimErr) {
+        console.warn('[payroll/export GET] account-number lookup skipped:', dimErr instanceof Error ? dimErr.message : dimErr);
+      }
+    }
+
     // format=qbo: a QuickBooks-importable CSV (Settings -> Import data -> Journal entries) —
     // Barbara imports the JE herself instead of using the Post button. Kind-aware DocNumber /
     // TxnDate / PrivateNote come from deriveJeIdentity, so the imported JE is identical to what
@@ -71,19 +85,7 @@ export async function GET(request: NextRequest) {
           { status: 409 },
         );
       }
-      return csvResponse(QBO_IMPORT_COLUMNS, buildQboImportRows(jes), qboImportFilename(header.entity, jes));
-    }
-
-    // Best-effort QB account-number lookup (read-only). Never let a QuickBooks hiccup block the
-    // dry-run export — degrade to blank Account # instead.
-    let accountNums: Record<string, string> | undefined;
-    if ((POSTABLE_ENTITIES as string[]).includes(header.entity)) {
-      try {
-        const refs = await fetchDimensions(header.entity as Entity);
-        accountNums = refs.accountNums;
-      } catch (dimErr) {
-        console.warn('[payroll/export GET] account-number lookup skipped:', dimErr instanceof Error ? dimErr.message : dimErr);
-      }
+      return csvResponse(QBO_IMPORT_COLUMNS, buildQboImportRows(jes, accountNums), qboImportFilename(header.entity, jes));
     }
 
     if (scope === 'run' && siblings.length > 1) {

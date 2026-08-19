@@ -53,8 +53,8 @@ export function buildMonthEndAllocation(
   // 1-2. Net cents per (entity, account, rule, counterparty)
   const groups = new Map<string, { entity: Entity; accountName: string; rule: string; counterparty: Entity | null; cents: number }>();
   for (const l of pool) {
-    // passthrough reaches here only for Deposit-sourced lines (qb-pool.isPooledLine) —
-    // Bill/Purchase passthrough is auto-booked by QBO Intercompany and must never re-move.
+    // passthrough reaches here for Deposit/JournalEntry/DraftJE lines (qb-pool.isPooledLine) —
+    // Bill/Purchase/VendorCredit passthrough is auto-booked by QBO Intercompany and must never re-move.
     if (l.rule !== 'revenue' && l.rule !== 'thirds' && l.rule !== 'fifty' && l.rule !== 'passthrough') continue;
     const key = [l.entity, l.accountName, l.rule, l.counterparty ?? ''].join('¦');
     const g = groups.get(key) ?? { entity: l.entity, accountName: l.accountName, rule: l.rule, counterparty: l.counterparty, cents: 0 };

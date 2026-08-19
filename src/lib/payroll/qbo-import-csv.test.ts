@@ -48,6 +48,21 @@ describe('buildQboImportRows', () => {
     expect(rows[0]).toMatchObject({ location: '% Allocation', className: 'Allocate - %' });
   });
 
+  it('prefixes account names with their QB account number — the display name the wizard matches while "Enable account numbers" is on', () => {
+    const nums = { 'Payroll Expense -:Administrative Wages': '6500.05', 'Due from MedRock TN, LLC': '1205' };
+    const rows = buildQboImportRows([je], nums);
+    expect(rows.map((r) => r.accountName).sort()).toEqual([
+      '1205 Due from MedRock TN, LLC',
+      '6500.05 Payroll Expense -:Administrative Wages',
+    ]);
+  });
+
+  it('falls back to the bare name when the account has no number or the lookup was skipped', () => {
+    const bare = ['Due from MedRock TN, LLC', 'Payroll Expense -:Administrative Wages'];
+    expect(buildQboImportRows([je]).map((r) => r.accountName).sort()).toEqual(bare);
+    expect(buildQboImportRows([je], { 'Something Else': '9999' }).map((r) => r.accountName).sort()).toEqual(bare);
+  });
+
   it('groups a split run as multiple JournalNos in one file, with no TOTAL row', () => {
     const rows = buildQboImportRows([
       { docNumber: 'PR 2026.07.01A', txnDateIso: '2026-06-30', privateNote: null, lines: [line({})] },

@@ -580,7 +580,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                   title={
                     'Download a CSV formatted for QuickBooks journal-entry import (Settings → Import data → Journal entries). ' +
                     (isSplit ? 'Every month piece is included, each under its own Journal No. ' : '') +
-                    'Opens a checklist first — the import fails with "Line Account invalid" unless "Enable account numbers" is turned off during import.'
+                    'Account names come pre-numbered to match the chart of accounts. Opens an import checklist first.'
                   }
                   className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
                     darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'

@@ -751,7 +751,7 @@ const FIFTY_CLASS_RE = /^Allocate - Split (FL|TN|TX)50$/;
 const FULL_CLASS_RE = /^Allocate - (FL|TN|TX)$/;
 
 const CODE_TITLE: Record<AttentionCode, string> = {
-  passthrough: 'Already moved by QuickBooks — no action needed',
+  passthrough: 'Bill/card purchase — QuickBooks Intercompany books the move; confirm it did',
   self_class: 'Class names the line’s own company',
   item_line: 'Line has no expense account',
   unrecognized_class: 'Class is not a split rule we know',
@@ -763,7 +763,7 @@ const CODE_TITLE: Record<AttentionCode, string> = {
  *  already handled per-transaction by QBO's Intercompany allocation feature"). */
 const CODE_ACTION: Record<AttentionCode, string> = {
   passthrough:
-    'Nothing to do. An "Allocate - FL / TN / TX" class means the whole cost belongs to that one company, and QuickBooks’ Intercompany allocation already books that move on the transaction itself — it credits the expense and debits Due From/To when the transaction is entered. Month-end deliberately skips these so the cost is never moved twice. Open one only to confirm QuickBooks made its matching entry.',
+    'Only Bills and card Purchases appear here. For those, QuickBooks’ Intercompany allocation books the move on the transaction itself — a system journal entry credits the expense and debits Due From/To within minutes of entry (verified 2026-08-19 against live pairs in both books). Month-end skips them so the cost is never moved twice — but the automation is QuickBooks’, not ours, so spot-check that the matching system JE exists (it has no journal number). Allocate-classed deposits, journal entries, and payroll drafts do NOT show here: nothing in QuickBooks moves those, so month-end builds their legs into the allocation JE directly.',
   self_class:
     'Fix the class in QuickBooks, then Regenerate. The class names the same company the transaction is already sitting in, so there is no other company to move the cost to — usually the wrong state was picked off the class list.',
   item_line:
@@ -784,7 +784,7 @@ function attentionReason(l: PoolLine): { code: AttentionCode; label: string } {
   }
   if (l.rule === 'passthrough') {
     const target = l.counterparty ? SHORT_ENT[l.counterparty] : 'another company';
-    return { code: 'passthrough', label: `100% assigned to ${target} — QuickBooks already moved it` };
+    return { code: 'passthrough', label: `100% assigned to ${target} — QuickBooks Intercompany books this one; confirm its system JE` };
   }
   const cls = l.className;
   if (cls) {
@@ -1193,7 +1193,7 @@ function DraftCard({
             title={
               `Download ${docNumber} as a CSV formatted for QuickBooks journal-entry import ` +
               `(Settings → Import data → Journal entries). One file per company — import this one into ${header.entity}. ` +
-              'Opens a checklist first — the import fails with "Line Account invalid" unless "Enable account numbers" is turned off during import.'
+              'Account names come pre-numbered to match the chart of accounts. Opens an import checklist first.'
             }
             className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border ${
               darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'

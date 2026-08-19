@@ -27,12 +27,12 @@ interface QboImportGuideProps {
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
-    title: 'Turn OFF account numbers first',
-    body: 'Gear icon → Account and settings → Advanced → Chart of accounts → uncheck "Enable account numbers" → Save. With it on, the import wizard rejects every line as "Line Account invalid" even though the accounts exist. Your numbers are kept and come back when you re-enable it.',
+    title: 'Account names come pre-numbered — no settings changes',
+    body: 'The AccountName column already carries the numbered name QuickBooks expects (e.g. "2115 Accrued Payroll Liability"), matching your chart of accounts with account numbers enabled. If the wizard still rejects lines as "Line Account invalid", screenshot the error and send it over — do not hand-edit account names to fix it.',
   },
   {
     title: 'Editing the file first? Edit safely',
-    body: 'Change amounts or memos if you need to, but leave account names EXACTLY as exported (no numbers added, spelling and ":" sub-account separators untouched), keep dates MM/DD/YYYY, keep each row Debit OR Credit (never both), and keep every JE balanced. Save as CSV — not Excel workbook — and watch that Excel does not reformat dates or strip leading zeros.',
+    body: 'Change amounts or memos if you need to, but leave the AccountName column EXACTLY as exported (numbers, spelling, and ":" sub-account separators untouched), keep dates MM/DD/YYYY, keep each row Debit OR Credit (never both), and keep every JE balanced. Save as CSV — not Excel workbook — and watch that Excel does not reformat dates or account numbers.',
   },
   {
     title: 'Import the file',
@@ -41,10 +41,6 @@ const STEPS: Array<{ title: string; body: string }> = [
   {
     title: 'Keep JournalNo exactly as exported',
     body: 'Map JournalNo → Journal no. and do not edit its values — it is how this app recognizes the entry was posted manually and stops the draft from double-counting at month-end.',
-  },
-  {
-    title: 'Turn account numbers back ON',
-    body: 'After the import succeeds, re-enable the setting in Account and settings → Advanced → Chart of accounts.',
   },
 ];
 
