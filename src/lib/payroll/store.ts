@@ -59,8 +59,64 @@ export interface PayrollHeader {
   piece_count: number;
 }
 
+/**
+ * Business fields of a source row that the drift gate cares about. `updated_at` is deliberately
+ * ABSENT (see sourceSnapshotHash), and so is `sensitive` — it is hashed separately from its
+ * DECRYPTED values, because the ciphertext is AES-GCM with a fresh random nonce per write and
+ * so differs on every ingest even when the plaintext is byte-identical.
+ */
+const CONTENT_FIELDS = [
+  'position_id', 'name', 'status', 'worker_classification', 'home_department', 'location',
+  'pay_date', 'pay_num', 'pay_frequency', 'pay_group', 'pay_type', 'period_start_date',
+  'period_end_date', 'processed_as', 'rate_type', 'sui_sdi_tax_code',
+] as const satisfies readonly (keyof PayrollRow)[];
+
+/**
+ * Canonical text for one sensitive value. Numbers and numeric strings for the SAME amount
+ * collapse to one representation (1234.5 and '1234.50' are not drift), while null stays
+ * distinct from the empty string — a missing deduction is not a zero one.
+ */
+function canonicalSensitive(value: number | string | null): string {
+  if (value === null) return '\u0000null';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : `nan:${String(value)}`;
+  const trimmed = value.trim();
+  if (trimmed !== '' && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+    const n = Number(trimmed);
+    if (Number.isFinite(n)) return String(n);
+  }
+  return value;
+}
+
+/** Order-independent digest of ONE row's business content. */
+function rowContentDigest(row: PayrollRow): string {
+  const plain = CONTENT_FIELDS.map((f) => `${f}=${row[f] ?? ''}`);
+  const sensitive = row.sensitive ?? {};
+  const sens = Object.keys(sensitive)
+    .sort()
+    .map((k) => `${k}=${canonicalSensitive(sensitive[k])}`);
+  return [...plain, '--', ...sens].join('');
+}
+
+/**
+ * The drift fingerprint of a set of source rows: hashed over each row's CONTENT, never over
+ * `updated_at`.
+ *
+ * WHY NOT updated_at (the 2026-08-20 outage): `source.payroll_history` is written
+ * WINDOWED_REPLACE — every ADP ingest DELETEs the entire pay-date window and re-INSERTs it with
+ * `updated_at = now()`, whether or not a single figure changed. Keying the hash on that stamp
+ * meant every nightly load re-fingerprinted every row in the window, so EVERY draft built before
+ * that load reported "source changed since draft was built — rebuild the run" and could not be
+ * posted. On 2026-08-19 the 22:17 load re-stamped all 1,116 May–Aug rows and broke all 36 open
+ * drafts — Barbara's approved June JEs among them — with byte-identical payroll data.
+ *
+ * Content hashing keeps the gate's real job (a genuine source change must invalidate a reviewed
+ * draft) while making a no-op re-ingest a no-op. Row keys are sorted, so fetch-order differences
+ * between the build and post paths cannot break equality.
+ */
 export function sourceSnapshotHash(rows: PayrollRow[]): string {
-  const parts = rows.map((r) => `${r.row_key}=${r.updated_at}`).sort();
+  const parts = rows
+    .map((r) => `${r.row_key}=${createHash('sha256').update(rowContentDigest(r)).digest('hex')}`)
+    .sort();
   return createHash('sha256').update(parts.join('\n')).digest('hex');
 }
 
