@@ -89,7 +89,27 @@ interface PostErrorExplanation {
   canSelfClear: boolean;
   retryable: boolean;
   canRebuild: boolean;
+  canRenameDocNumber: boolean;
   raw: string;
+}
+
+/** Mirror of lib/payroll/doc-number-conflict.ts ConflictingEntry. */
+interface ConflictingEntry {
+  qbEntryId: string;
+  docNumber: string;
+  txnDate: string;
+  amount: number;
+  privateNote: string;
+}
+
+/** Response of GET /api/payroll/run/[id]/doc-number. */
+interface DocNumberConflict {
+  entity: string;
+  docNumber: string;
+  baseDocNumber: string;
+  overridden: boolean;
+  conflicts: ConflictingEntry[];
+  suggestedDocNumber: string;
 }
 
 interface ApiErrorBody {
@@ -159,6 +179,17 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
   const [postErrorReconcile, setPostErrorReconcile] = useState<ReconcileResult | null>(null);
   const [liveResult, setLiveResult] = useState<{ qbEntryId?: string; qbDocNumber?: string } | null>(null);
 
+  /** Who is holding this run's Doc No, looked up when QuickBooks rejects it as a duplicate. */
+  const [docConflict, setDocConflict] = useState<DocNumberConflict | null>(null);
+  const [docConflictError, setDocConflictError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  /**
+   * WHICH header hit the duplicate. Not always the loaded one: a split run posts its pieces in
+   * a loop, so the piece that collided can be a sibling. Renaming the loaded header instead
+   * would rename the wrong month's entry and leave the collision in place.
+   */
+  const [docConflictHeaderId, setDocConflictHeaderId] = useState<number | null>(null);
+
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
@@ -173,6 +204,9 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     setPostErrorExplanation(null);
     setPostErrorReconcile(null);
     setLiveResult(null);
+    setDocConflict(null);
+    setDocConflictError(null);
+    setDocConflictHeaderId(null);
   }, []);
 
   const loadHeader = useCallback(
@@ -416,12 +450,15 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
     setPostErrorExplanation(null);
     setPostErrorReconcile(null);
     setLiveResult(null);
+    setDocConflict(null);
+    setDocConflictError(null);
+    setDocConflictHeaderId(null);
     try {
       if (isSplit) {
         const toPost = siblings.filter((s) => s.status !== 'posted');
         const pieceLabel = (s: PayrollHeader): string => `${segmentLabel(s.period_segment)} (${s.txn_date ?? s.pay_date})`;
         const results: Array<{
-          label: string; ok: boolean; qbDocNumber?: string; error?: string;
+          id: number; label: string; ok: boolean; qbDocNumber?: string; error?: string;
           explanation?: PostErrorExplanation | null; reconcile?: ReconcileResult | null;
         }> = [];
         for (const s of toPost) {
@@ -433,6 +470,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           const body = (await res.json()) as PostResult & ApiErrorBody;
           if (!res.ok) {
             results.push({
+              id: s.id,
               label: pieceLabel(s),
               ok: false,
               error: body.error ?? `Request failed (${res.status})`,
@@ -441,7 +479,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
             });
             break; // stop the pair — surface partial state loudly, don't keep posting
           }
-          results.push({ label: pieceLabel(s), ok: true, qbDocNumber: body.qbDocNumber });
+          results.push({ id: s.id, label: pieceLabel(s), ok: true, qbDocNumber: body.qbDocNumber });
         }
         const failed = results.find((r) => !r.ok);
         if (failed) {
@@ -455,6 +493,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
           // worse message, purely because the run straddled a month boundary.
           setPostErrorExplanation(failed.explanation ?? null);
           setPostErrorReconcile(failed.reconcile ?? null);
+          setDocConflictHeaderId(failed.id);
           // Whatever DID post is real. Reflect it so the panel does not invite a re-post of a
           // piece QuickBooks has already accepted.
           const postedLabels = new Set(postedOk.map((r) => r.label));
@@ -478,6 +517,7 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
         setPostError(body.error ?? `Request failed (${res.status})`);
         setPostErrorExplanation(body.explanation ?? null);
         setPostErrorReconcile(body.reconcile ?? null);
+        setDocConflictHeaderId(headerId);
         return;
       }
       // Do NOT console.log `body` — never log live QB responses.
@@ -490,6 +530,77 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
       setPosting(false);
     }
   }, [headerId, canPostLive, header, isSplit, siblings]);
+
+  /**
+   * QuickBooks' duplicate fault (6240) names nothing — it says "Duplicate Document Number" and
+   * stops, leaving the accountant to hunt through hundreds of journal entries for the one that
+   * is in the way. As soon as that fault comes back, look up who is actually holding the number
+   * so the panel can name the entry instead of describing the problem. Read-only.
+   */
+  useEffect(() => {
+    if (!postErrorExplanation?.canRenameDocNumber || docConflictHeaderId === null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/payroll/run/${docConflictHeaderId}/doc-number`);
+        const body = (await res.json()) as DocNumberConflict & ApiErrorBody;
+        if (cancelled) return;
+        if (!res.ok) {
+          setDocConflictError(body.error ?? `Request failed (${res.status})`);
+          return;
+        }
+        setDocConflict(body);
+      } catch (e) {
+        if (!cancelled) setDocConflictError(e instanceof Error ? e.message : 'Failed to look up the Doc No conflict');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [postErrorExplanation?.canRenameDocNumber, docConflictHeaderId]);
+
+  /**
+   * Proceed: rename THIS run onto the next free Doc No, then post it.
+   *
+   * Renames ours, never theirs — the conflicting QuickBooks entry is somebody else's work and is
+   * never touched. The rename is a pin on our header (`qb_doc_number`), which the post route,
+   * the QBO import CSV and the month-end dedupe all read through `deriveJeIdentity`, so the new
+   * number is the run's number everywhere, not just on this one attempt.
+   */
+  const handleRenameAndPost = useCallback(async () => {
+    if (docConflictHeaderId === null || !docConflict) return;
+    const target = docConflict.suggestedDocNumber;
+    const confirmed = window.confirm(
+      `This will post this run to QuickBooks as Doc No "${target}" instead of "${docConflict.docNumber}", ` +
+        `which is already taken by entry ${docConflict.conflicts[0]?.qbEntryId ?? '(unknown)'}. ` +
+        'That existing entry is not changed. Continue?',
+    );
+    if (!confirmed) return;
+
+    setRenaming(true);
+    setDocConflictError(null);
+    try {
+      const res = await fetch(`/api/payroll/run/${docConflictHeaderId}/doc-number`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docNumber: target }),
+      });
+      const body = (await res.json()) as ApiErrorBody;
+      if (!res.ok) {
+        setDocConflictError(body.error ?? `Request failed (${res.status})`);
+        return;
+      }
+    } catch (e) {
+      setDocConflictError(e instanceof Error ? e.message : 'Failed to rename this run');
+      return;
+    } finally {
+      setRenaming(false);
+    }
+
+    // The rename cleared the cause; post it. handlePostLive resets the error block itself, so
+    // the conflict panel disappears on the way in rather than lingering behind a fresh attempt.
+    await handlePostLive();
+  }, [docConflictHeaderId, docConflict, handlePostLive]);
 
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} space-y-4 border ${border}`}>
@@ -910,6 +1021,55 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                         </span>
                       )}
                     </div>
+                    {/* DocNumber conflict: name the entry that is holding the number, then offer
+                        the one move that clears it — rename OUR entry onto the next free suffix.
+                        The conflicting entry is never touched; it may well be legitimate work by
+                        somebody else that merely happens to carry our number. */}
+                    {postErrorExplanation.canRenameDocNumber && (
+                      <div className="pl-5">
+                        {docConflictError ? (
+                          <p className={`text-xs ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+                            Could not look up the conflict: {docConflictError}
+                          </p>
+                        ) : !docConflict ? (
+                          <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                            Finding which QuickBooks entry is using this Doc No…
+                          </p>
+                        ) : (
+                          <div
+                            className={`rounded-lg border p-2 space-y-1.5 ${
+                              darkMode ? 'bg-slate-900/60 border-red-800' : 'bg-white border-red-200'
+                            }`}
+                          >
+                            {docConflict.conflicts.length === 0 ? (
+                              <p className={`text-xs ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                                Doc No <span className="font-mono">{docConflict.docNumber}</span> now looks free in{' '}
+                                {docConflict.entity} — the entry holding it may have been renamed or deleted since the
+                                post failed. Try posting again.
+                              </p>
+                            ) : (
+                              docConflict.conflicts.map((c) => (
+                                <p key={c.qbEntryId} className={`text-xs ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                                  Conflict with existing journal entry{' '}
+                                  <span className="font-mono font-semibold">{c.qbEntryId}</span> in {docConflict.entity} —{' '}
+                                  <span className="font-mono">{c.docNumber}</span>, dated {c.txnDate},{' '}
+                                  {c.amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                                  {c.privateNote ? ` — “${c.privateNote}”` : ''}.
+                                </p>
+                              ))
+                            )}
+                            {docConflict.conflicts.length > 0 && (
+                              <p className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                Proceed renames <strong>this payroll entry</strong> to{' '}
+                                <span className="font-mono font-semibold">{docConflict.suggestedDocNumber}</span> and posts
+                                it. Entry {docConflict.conflicts[0]?.qbEntryId} is not changed.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Clear it yourself. `retryable` is deliberately narrow — only genuinely
                         transient faults (network, QuickBooks 5010 stale-object) offer a retry, so
                         this button can never re-fire a post that QuickBooks already accepted. */}
@@ -938,6 +1098,21 @@ export function PostPanel({ headerId: selectedHeaderId }: PostPanelProps = {}) {
                         >
                           {rebuilding ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden />}
                           {rebuilding ? 'Rebuilding…' : 'Rebuild run — resets review'}
+                        </button>
+                      )}
+                      {postErrorExplanation.canRenameDocNumber && docConflict && docConflict.conflicts.length > 0 && (
+                        <button
+                          onClick={() => void handleRenameAndPost()}
+                          disabled={renaming || posting || !canPostLive}
+                          title={`Post this run as "${docConflict.suggestedDocNumber}". The conflicting QuickBooks entry is not touched.`}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {renaming || posting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <Zap className="w-3.5 h-3.5" aria-hidden />
+                          )}
+                          {renaming ? 'Renaming…' : posting ? 'Posting…' : `Proceed — rename to ${docConflict.suggestedDocNumber}`}
                         </button>
                       )}
                       {postErrorExplanation.canSelfClear && !postErrorExplanation.canRebuild && (

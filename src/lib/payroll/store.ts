@@ -649,6 +649,27 @@ export async function insertAudit(entry: AuditEntry): Promise<void> {
   );
 }
 
+/**
+ * Pin the DocNumber this header will post under, without touching its status.
+ *
+ * The DocNumber-conflict rename (see doc-number-conflict.ts): the derived number is taken in
+ * QuickBooks by an unrelated entry, so the run posts under a suffixed one instead. Persisting it
+ * here is what makes the rename stick — `deriveJeIdentity` prefers `qb_doc_number` over the
+ * derivation, so the post, the QBO import CSV and the EOM externally-posted dedupe all follow it.
+ *
+ * Refuses a posted header: its DocNumber is a record of what is live in QuickBooks, not a
+ * setting. Returns false when nothing was updated so the caller can say why.
+ */
+export async function setHeaderDocNumber(id: number, docNumber: string | null): Promise<boolean> {
+  const { rowCount } = await getRdsPool().query(
+    `UPDATE accounting.payroll_journal_headers
+     SET qb_doc_number = $2, updated_at = now()
+     WHERE id = $1 AND status <> 'posted'`,
+    [id, docNumber],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 export async function setHeaderStatus(
   id: number,
   status: HeaderStatus,

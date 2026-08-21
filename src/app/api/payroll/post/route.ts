@@ -8,7 +8,7 @@ import { loadDraft, insertAudit, setHeaderStatus, listSiblings, getAccountMap, g
 import { decidePost } from '@/lib/payroll/post-guard';
 import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import { adpDateToIso } from '@/lib/payroll/dates';
-import { pieceDocNumber } from '@/lib/payroll/split';
+import { deriveJeIdentity } from '@/lib/payroll/je-identity';
 import { explainPostError } from '@/lib/payroll/post-error';
 import type { Entity, JournalDraft, JournalLine } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
@@ -124,6 +124,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'already posted', qbEntryId: header.qb_entry_id }, { status: 409 });
     }
 
+    // DocNumber / TxnDate / PrivateNote come from `deriveJeIdentity` — the same source the QBO
+    // import CSV and the EOM externally-posted dedupe use, so all three agree on one number per
+    // run. Two things follow from routing the live post through it too: a DocNumber-conflict
+    // rename (header.qb_doc_number, see run/[id]/doc-number) actually takes effect here, and the
+    // split-piece derivation stops being duplicated inline. Behavior-preserving for the unsplit
+    // path — every unsplit pay_date header has txn_date == its pay date (verified 2026-08-21),
+    // and the note text is identical to buildJePayload's default.
+    const identity = deriveJeIdentity(
+      {
+        entity: header.entity,
+        kind: header.kind,
+        pay_date: header.pay_date,
+        pay_group: header.pay_group,
+        period_segment: header.period_segment,
+        period_start: header.period_start,
+        period_end: header.period_end,
+        txn_date: header.txn_date,
+        qb_doc_number: header.qb_doc_number,
+      },
+      segmentIndex,
+      siblings.length,
+    );
+
     const draft: JournalDraft = {
       entity: header.entity,
       payDate: header.pay_date,
@@ -135,15 +158,10 @@ export async function POST(request: NextRequest) {
       totalCredits: header.total_credits,
       variance: header.variance,
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
-      ...(isSplit
-        ? {
-            kind: 'pay_date' as const,
-            periodSegment: header.period_segment,
-            docNumber: pieceDocNumber(header.pay_date, siblings.length, segmentIndex),
-            txnDate: header.txn_date ?? undefined,
-            privateNote: `Split ${segmentIndex + 1}/${siblings.length} of ${pieceDocNumber(header.pay_date, 1, 0)} — period ${header.period_start ?? ''}–${header.period_end ?? ''}`,
-          }
-        : {}),
+      docNumber: identity.docNumber,
+      txnDate: identity.txnDateIso,
+      privateNote: identity.privateNote,
+      ...(isSplit ? { kind: 'pay_date' as const, periodSegment: header.period_segment } : {}),
     };
 
     const dayIso = adpDateToIso(header.pay_date);

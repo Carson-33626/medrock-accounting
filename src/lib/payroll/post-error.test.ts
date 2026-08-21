@@ -61,14 +61,24 @@ describe('explainPostError', () => {
     expect(e.canSelfClear).toBe(true);
   });
 
-  it('warns against re-posting a duplicate rather than suggesting a retry', () => {
+  it('offers a Doc No rename for a duplicate rather than suggesting a retry', () => {
     const raw =
       'QB API error for MedRock TX: 400 {"Fault":{"Error":[{"Message":"Duplicate Name Exists Error",' +
       '"Detail":"The name supplied already exists","code":"6240"}]}}';
     const e = explainPostError(raw, 'MedRock TX');
-    expect(e.action).toMatch(/double-book|already/i);
-    // Retrying a duplicate is exactly the wrong move — it would post the entry twice.
+    expect(e.action).toMatch(/rename/i);
+    expect(e.canRenameDocNumber).toBe(true);
+    // Retrying a duplicate is exactly the wrong move — it posts the same DocNumber and fails
+    // identically. The action is to rename THIS entry, never to touch the one already there.
     expect(e.retryable).toBe(false);
+    expect(e.action).not.toMatch(/mark this run posted/i);
+  });
+
+  it('does not offer a Doc No rename for any other failure', () => {
+    expect(explainPostError('unresolved account: Bonus Wages', 'MedRock FL').canRenameDocNumber).toBe(false);
+    expect(explainPostError('source changed since draft was built').canRenameDocNumber).toBe(false);
+    expect(explainPostError('Could not reach QuickBooks').canRenameDocNumber).toBe(false);
+    expect(explainPostError('something nobody has seen before').canRenameDocNumber).toBe(false);
   });
 
   it('treats a network failure as transient and explicitly NOT a reconnection', () => {

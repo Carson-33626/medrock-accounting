@@ -28,6 +28,13 @@ export interface PostErrorExplanation {
    * that necessarily drops the run back to needs_review, so Reconcile and Approve are re-done.
    */
   canRebuild: boolean;
+  /**
+   * True when the failure is QuickBooks refusing the DocNumber as a duplicate. The panel turns
+   * this into a conflict lookup — which entry is holding the number — and a one-click rename of
+   * OUR entry onto the next free suffix. Distinct from `retryable`: retrying posts the same
+   * DocNumber and fails identically.
+   */
+  canRenameDocNumber: boolean;
   /** The original message, kept for engineering — never the only thing shown. */
   raw: string;
 }
@@ -53,7 +60,7 @@ function parseQbFault(raw: string): { message: string; detail: string; code: str
 const entityLabel = (entity: string | null): string => entity ?? 'this entity';
 
 export function explainPostError(raw: string, entity: string | null = null): PostErrorExplanation {
-  const base = { raw, canSelfClear: false, retryable: false, canRebuild: false };
+  const base = { raw, canSelfClear: false, retryable: false, canRebuild: false, canRenameDocNumber: false };
 
   // ---- Our own pre-flight checks, thrown before anything reaches QuickBooks ----
 
@@ -109,12 +116,14 @@ export function explainPostError(raw: string, entity: string | null = null): Pos
     if (code === '6240' || combined.includes('duplicate')) {
       return {
         ...base,
-        summary: 'QuickBooks says this entry already exists (duplicate document number).',
+        summary: 'QuickBooks already has an entry using this Doc No.',
         action:
-          'Check QuickBooks for an entry with the same Doc No before retrying — posting again would double-book it. ' +
-          'If the earlier attempt actually succeeded, mark this run posted rather than re-posting.',
+          'Nothing was posted. The Doc No this run derives is taken by another entry in QuickBooks — it is not ' +
+          'necessarily this payroll. Check which entry is holding it, then rename THIS run onto the next free ' +
+          'number and post. The other entry is never touched.',
         canSelfClear: true,
         retryable: false,
+        canRenameDocNumber: true,
       };
     }
     if (code === '5010' || combined.includes('stale')) {
