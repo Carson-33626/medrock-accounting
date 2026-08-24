@@ -50,4 +50,13 @@ async function main(): Promise<void> {
   console.log(unresolved === 0 ? 'PASS — every account resolves' : 'FAIL — see UNRESOLVED above');
 }
 
-void main().then(() => process.exit(0));
+// Explicit both ways: `void main().then(() => process.exit(0))` turns a throw
+// into an unhandled rejection and leaves the exit code to chance, which makes
+// this unusable from a check script.
+main().then(
+  () => process.exit(0),
+  (e: unknown) => {
+    console.error(e);
+    process.exit(1);
+  },
+);
