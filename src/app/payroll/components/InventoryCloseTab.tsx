@@ -343,8 +343,17 @@ export function InventoryCloseTab() {
             purchasesAvailable={monthlyClose.purchasesAvailable}
             darkMode={darkMode}
           />
+          {monthlyClose.categoryJournalEntries.length > 0 && (
+            <p className={`text-sm ${subText}`}>
+              Drafts generate from the <strong>category detail below</strong> (summed from the lot
+              ledger, so every line traces to its lots). The roll-forward above is the backward-rollback
+              reconstruction — a different method, shown for reference; the two differ for months that
+              are not yet LifeFile-anchored.
+            </p>
+          )}
           <JournalEntryPanel
             journalEntries={monthlyClose.journalEntries}
+            categoryJournalEntries={monthlyClose.categoryJournalEntries}
             basis={monthlyClose.basis}
             monthEnd={monthlyClose.monthEnd}
             month={selectedMonth}

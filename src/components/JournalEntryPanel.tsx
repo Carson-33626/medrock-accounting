@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
 import QboImportGuide from './QboImportGuide';
-import type { CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
+import CategoryLotDrilldown from './CategoryLotDrilldown';
+import type { CategoryJE, CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
 import {
   CLOSE_STATUS_LABEL as STATUS_LABEL,
   closeDisplayLines,
@@ -52,6 +53,7 @@ interface LocationView {
  */
 export default function JournalEntryPanel({
   journalEntries,
+  categoryJournalEntries,
   basis,
   monthEnd,
   month,
@@ -65,6 +67,7 @@ export default function JournalEntryPanel({
   onPostLive,
 }: {
   journalEntries: LocationJE[];
+  categoryJournalEntries: CategoryJE[];
   basis: CloseBasis;
   monthEnd: string;
   month: string;
@@ -150,6 +153,7 @@ export default function JournalEntryPanel({
           subText={subText}
           border={border}
           view={activeView}
+          categoryJE={categoryJournalEntries.find((c) => c.location === activeView.je.location) ?? null}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
@@ -204,6 +208,104 @@ function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: Location
   );
 }
 
+/**
+ * Per-category breakdown of a location's entry, each row expandable to the lots
+ * behind it. This is what the CPA substantiates from: line -> category -> lots.
+ */
+function CategoryBreakdown({
+  je,
+  month,
+  darkMode,
+  subText,
+  border,
+}: {
+  je: CategoryJE;
+  month: string;
+  darkMode: boolean;
+  subText: string;
+  border: string;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  if (je.lines.length === 0) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-semibold flex items-center gap-1.5">
+        By inventory category
+        <HelpTip
+          label="Category detail"
+          text="Each category is valued from its own lots and compared against its own QuickBooks sub-account, so the entry can be substantiated category by category. Click a row to see the products and lots behind it."
+        />
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className={`border-b ${border}`}>
+              <th className={th}>Category</th>
+              <th className={th}>QB account</th>
+              <th className={`${th} text-right`}>FIFO (lots)</th>
+              <th className={`${th} text-right`}>QB book</th>
+              <th className={`${th} text-right`}>Adjustment</th>
+              <th className={`${th} text-right`}>Lots</th>
+            </tr>
+          </thead>
+          <tbody>
+            {je.lines.map((l) => (
+              <Fragment key={l.qbCategory}>
+                <tr
+                  onClick={() => setOpen((v) => (v === l.qbCategory ? null : l.qbCategory))}
+                  className={`border-b last:border-0 cursor-pointer ${border} ${
+                    darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <td className="px-2 py-1 font-medium flex items-center gap-1">
+                    {open === l.qbCategory ? (
+                      <ChevronDown className="w-3 h-3 shrink-0" aria-hidden />
+                    ) : (
+                      <ChevronRight className="w-3 h-3 shrink-0" aria-hidden />
+                    )}
+                    {l.qbCategory}
+                    {!l.mapped && (
+                      <span
+                        title="No QuickBooks category account — posts to the parent account as a residual. Assign drug codes to clear."
+                        className="ml-1 text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-600 font-semibold uppercase cursor-help"
+                      >
+                        residual
+                      </span>
+                    )}
+                  </td>
+                  <td className={`px-2 py-1 text-xs ${subText}`}>{l.inventoryAccount}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{usd.format(l.fifoTarget)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    {l.qbBookBalance === null ? '—' : usd.format(l.qbBookBalance)}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums font-medium">
+                    {l.adjustment === null ? '—' : usd.format(l.adjustment)}
+                  </td>
+                  <td className={`px-2 py-1 text-right ${subText}`}>{l.lotCount}</td>
+                </tr>
+                {open === l.qbCategory && (
+                  <tr>
+                    <td colSpan={6} className={darkMode ? 'bg-slate-800/60' : 'bg-slate-50'}>
+                      <CategoryLotDrilldown
+                        location={je.location}
+                        qbCategory={l.qbCategory}
+                        month={month}
+                        darkMode={darkMode}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ darkMode, label }: { darkMode: boolean; label: string }) {
   return (
     <span
@@ -253,6 +355,7 @@ function DraftCard({
   subText,
   border,
   view,
+  categoryJE,
   basis,
   month,
   monthEnd,
@@ -267,6 +370,7 @@ function DraftCard({
   subText: string;
   border: string;
   view: LocationView;
+  categoryJE: CategoryJE | null;
   basis: CloseBasis;
   month: string;
   monthEnd: string;
@@ -350,6 +454,10 @@ function DraftCard({
           </div>
 
           <LargeAdjustmentNote darkMode={darkMode} je={je} />
+
+          {categoryJE && (
+            <CategoryBreakdown je={categoryJE} month={month} darkMode={darkMode} subText={subText} border={border} />
+          )}
 
           {lines.length === 0 ? (
             <p className={`text-sm ${subText}`}>No adjustment needed — FIFO ties to the book balance.</p>
