@@ -132,6 +132,61 @@ export interface InvCloseLine {
   memo: string;
 }
 
+/**
+ * CATEGORY-GRAIN CLOSE (2026-08-24)
+ *
+ * The category path values inventory from inventory.lot_depletion_ledger (the
+ * lot-level pipeline behind the Inventory Valuation page), NOT from
+ * inventory.fifo_rollback_valuation (the location-only backward reconstruction
+ * that the LocationJE path above uses). The two disagree substantially for
+ * non-anchored months — that is expected and both are shown side by side. See
+ * docs/superpowers/specs/2026-08-24-inventory-close-category-lot-detail-design.md.
+ */
+
+/** One roll-forward line at (location, category) grain. */
+export interface CategoryRollForwardRow {
+  location: string;
+  qbCategory: string;
+  beginning: number | null; // null at the earliest month in the ledger
+  ending: number;
+  /** Distinct receipt_ids behind `ending` — the drill-down key set. */
+  receiptIds: string[];
+  /** Count of lots contributing, for an at-a-glance "is this one lot or 400". */
+  lotCount: number;
+}
+
+/** One category's adjusting pair within a location's entry. */
+export interface CategoryJELine {
+  qbCategory: string;
+  /** QB FullyQualifiedName of the inventory-asset account this line adjusts. */
+  inventoryAccount: string;
+  /** QB FullyQualifiedName of the COGS account taking the offset. */
+  cogsAccount: string;
+  /** false when the category fell back to the parent accounts (residual line). */
+  mapped: boolean;
+  fifoTarget: number;
+  /** Book balance of `inventoryAccount`; null when unavailable/never funded. */
+  qbBookBalance: number | null;
+  adjustment: number | null; // fifoTarget − qbBookBalance
+  direction: 'debit-inventory' | 'credit-inventory' | 'none' | null;
+  receiptIds: string[];
+  lotCount: number;
+}
+
+/** A location's category-grain entry — the sum of its category lines. */
+export interface CategoryJE {
+  location: string;
+  lines: CategoryJELine[];
+  /** Σ line.fifoTarget — what the categorized entry brings the books to. */
+  fifoTarget: number;
+  /** Σ line.adjustment (skipping nulls). */
+  adjustment: number;
+  /** false when the QB realm gave no balance sheet at all. */
+  bookAvailable: boolean;
+  /** Categories that fell back to parent accounts, for the warnings banner. */
+  unmappedCategories: string[];
+}
+
 export interface MonthlyCloseResponse {
   month: string; // 'YYYY-MM'
   monthEnd: string; // 'YYYY-MM-DD' (last day of month)
@@ -144,6 +199,10 @@ export interface MonthlyCloseResponse {
   headers: InvCloseHeader[];
   /** headerId (as string) -> stored draft lines. */
   linesById: Record<string, InvCloseLine[]>;
+  /** Category-grain roll-forward (lot-ledger sourced). Empty when unavailable. */
+  categoryRollForward: CategoryRollForwardRow[];
+  /** Category-grain entries — what actually generates/posts as of 2026-08-24. */
+  categoryJournalEntries: CategoryJE[];
 }
 
 export interface LotRow {
