@@ -87,6 +87,19 @@ const JE_COLUMNS: ExportColumn[] = [
   { header: 'Memo', key: 'memo' },
 ];
 
+const CATEGORY_COLUMNS: ExportColumn[] = [
+  { header: 'Location', key: 'location' },
+  { header: 'Category', key: 'category' },
+  { header: 'QB Inventory Account', key: 'inventoryAccount' },
+  { header: 'QB COGS Account', key: 'cogsAccount' },
+  { header: 'Beginning', key: 'beginning', currency: true },
+  { header: 'FIFO Ending (lots)', key: 'fifoTarget', currency: true },
+  { header: 'QB Book Balance', key: 'qbBookBalance', currency: true },
+  { header: 'Adjustment', key: 'adjustment', currency: true },
+  { header: 'Lots', key: 'lotCount' },
+  { header: 'Note', key: 'note' },
+];
+
 function rowNote(r: RollForwardRow): string {
   if (r.windowStart) return 'window start (no prior month)';
   if (r.purchasesPending) return 'purchases pending next data-loader run';
@@ -148,27 +161,54 @@ function closeWorkbook(
     });
   }
 
+  const beginningByKey = new Map<string, number | null>();
+  for (const r of body.categoryRollForward) {
+    beginningByKey.set(`${r.location}\u0000${r.qbCategory}`, r.beginning);
+  }
+  const categoryRows: Record<string, CellValue>[] = body.categoryJournalEntries.flatMap((je) =>
+    je.lines.map((l) => ({
+      location: je.location,
+      category: l.qbCategory,
+      inventoryAccount: l.inventoryAccount,
+      cogsAccount: l.cogsAccount,
+      beginning: beginningByKey.get(`${je.location}\u0000${l.qbCategory}`) ?? null,
+      fifoTarget: l.fifoTarget,
+      qbBookBalance: l.qbBookBalance,
+      adjustment: l.adjustment,
+      lotCount: l.lotCount,
+      note: l.mapped ? '' : 'residual — no QB category account, needs drug coding',
+    })),
+  );
+
   const filename = `inventory-close_${month}_${basis}`;
   const packageNote =
     `Monthly Close Package — ${month} (close ${monthEnd}), basis: ${basisLabel}. ` +
     `Generated ${new Date().toISOString()}.`;
 
-  return xlsxResponse(
-    [
-      {
-        name: 'Roll-Forward',
-        columns: ROLL_FORWARD_COLUMNS,
-        rows: rollRows,
-        note: `${packageNote} COGS is derived (Beginning + Purchases − Ending).`,
-      },
-      {
-        name: 'Journal-Entries',
-        columns: JE_COLUMNS,
-        rows: jeRows,
-        note: `${packageNote} ${closeJeSheetNote(body.journalEntries, body.headers, month)}`,
-      },
-    ],
-    filename,
-    packageNote,
-  );
+  const sheets = [
+    {
+      name: 'Roll-Forward',
+      columns: ROLL_FORWARD_COLUMNS,
+      rows: rollRows,
+      note: `${packageNote} COGS is derived (Beginning + Purchases − Ending).`,
+    },
+    {
+      name: 'Journal-Entries',
+      columns: JE_COLUMNS,
+      rows: jeRows,
+      note: `${packageNote} ${closeJeSheetNote(body.journalEntries, body.headers, month)}`,
+    },
+  ];
+  if (categoryRows.length > 0) {
+    sheets.push({
+      name: 'Category-Detail',
+      columns: CATEGORY_COLUMNS,
+      rows: categoryRows,
+      note:
+        `${packageNote} Category values are summed from the lot-depletion ledger — this is what the ` +
+        'drafts generate from. The Roll-Forward sheet is the backward-rollback reconstruction, a ' +
+        'different method shown for reference. Drill to individual lots on the Inventory (FIFO) page.',
+    });
+  }
+  return xlsxResponse(sheets, filename, packageNote);
 }
