@@ -298,7 +298,31 @@ export interface ProductMonthRow {
 export interface ProductDetailResponse {
   product_key: string;
   product_name: string | null;
+  /** The month these receipts are stated as of — echoed back so the drill-down
+   *  can caption itself, and so a caller can tell a fallback from its request. */
+  month: string | null;
   locations: string[];
   receipts: ProductReceiptRow[];
   history: ProductMonthRow[];
+}
+
+/**
+ * One (location, category) cell of the point-in-time value, at the SAME grain
+ * the inventory-close JE posts — see api/inventory/as-of/route.ts for why this
+ * cannot be read off `fifo_valuation_summary`.
+ */
+export interface AsOfCategoryRow {
+  location: string;
+  qbCategory: string;
+  value: number;
+  /** Lots behind `value` — an at-a-glance "is this one lot or four hundred". */
+  lotCount: number;
+}
+
+export interface AsOfResponse {
+  /** null only when the ledger is empty. */
+  month: string | null;
+  /** Every month the lot ledger holds, ascending. */
+  months: string[];
+  rows: AsOfCategoryRow[];
 }

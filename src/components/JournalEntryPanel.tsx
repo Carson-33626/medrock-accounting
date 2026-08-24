@@ -12,10 +12,25 @@ import {
   findCloseHeader,
   invCloseDocNumber,
   shortInventoryLocation,
+  sumCents,
 } from '@/lib/inventory/monthly-close';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Deep link into the Point-in-Time Inventory Value page, scoped to exactly the
+ * cell that was clicked. That page reads the same lot-ledger grain this entry
+ * posts from, so the figure a reviewer lands on is the figure they left — the
+ * link is only worth having as long as that stays true.
+ *
+ * `from=close` makes the destination offer a way back here.
+ */
+function asOfHref(month: string, location: string, category?: string): string {
+  const q = new URLSearchParams({ month, location, from: 'close' });
+  if (category) q.set('category', category);
+  return `/inventory/as-of?${q.toString()}`;
+}
 
 /** Local mirror of qb-journal's QbJournalEntryPayload — that module pulls in the
  *  QuickBooks client and must never land in a client bundle. */
@@ -231,6 +246,7 @@ function CategoryBreakdown({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  const categorizedTotal = sumCents(je.lines.map((l) => l.fifoTarget));
   if (je.lines.length === 0) return null;
 
   return (
@@ -288,6 +304,17 @@ function CategoryBreakdown({
                         residual
                       </span>
                     )}
+                    {/* stopPropagation: the row itself toggles the inline
+                        drill-down, so without it following the link would also
+                        expand the row it is leaving. */}
+                    <a
+                      href={asOfHref(month, je.location, l.qbCategory)}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open this category on the Point-in-Time Inventory Value page — the same figure, with full product and receipt detail"
+                      className="ml-1 text-[11px] font-normal underline opacity-70 hover:opacity-100"
+                    >
+                      open ↗
+                    </a>
                   </td>
                   <td className={`px-2 py-1 text-xs ${subText}`}>{l.inventoryAccount}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{usd.format(l.fifoTarget)}</td>
@@ -320,10 +347,20 @@ function CategoryBreakdown({
             <tr className={`border-t font-semibold ${border}`}>
               <td className="px-2 py-1.5" colSpan={2}>
                 Categorized total
+                <a
+                  href={asOfHref(month, je.location)}
+                  title="Open this location on the Point-in-Time Inventory Value page — the same total, cut by category and traceable to receipts"
+                  className="ml-2 text-[11px] font-normal underline opacity-70 hover:opacity-100"
+                >
+                  open ↗
+                </a>
               </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{usd.format(je.fifoTarget)}</td>
+              {/* Totalled from the rows above with sumCents, not from the raw
+                  float, so this equals both the visible lines and the same
+                  month's headline on the Point-in-Time page. */}
+              <td className="px-2 py-1.5 text-right tabular-nums">{usd.format(categorizedTotal)}</td>
               <td className="px-2 py-1.5 text-right tabular-nums">
-                {je.bookAvailable ? usd.format(round2(je.fifoTarget - je.adjustment)) : '—'}
+                {je.bookAvailable ? usd.format(round2(categorizedTotal - je.adjustment)) : '—'}
               </td>
               <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: '#2563eb' }}>
                 {je.bookAvailable ? usd.format(je.adjustment) : '—'}

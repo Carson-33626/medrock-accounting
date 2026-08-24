@@ -164,6 +164,23 @@ export function buildLocationJE(
 // without a cycle). Re-exported here so existing importers keep working.
 export { INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
+/**
+ * Total a column of currency the way a reader does: round each figure to cents,
+ * then add. Summing raw floats first and rounding once can land a cent away from
+ * the visible rows, and the order of the addends changes which way.
+ *
+ * That is not academic here. The point-in-time page and this close state the same
+ * month from the same lot values in different orders: Tennessee 2026-03 rendered
+ * $2,795,295.20 on one screen against $2,795,295.19 on the other. On two views
+ * whose whole claim is that they agree, a one-cent gap reads as a broken
+ * reconciliation. Use this for any total shown beneath the rows it totals.
+ *
+ * Display only — it must not be used to compute what posts to QuickBooks.
+ */
+export function sumCents(values: number[]): number {
+  return values.reduce((cents, v) => cents + Math.round(v * 100), 0) / 100;
+}
+
 /** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
 export function shortInventoryLocation(location: string): string {
   const name = location.replace('MedRock ', '');

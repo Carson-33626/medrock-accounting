@@ -35,12 +35,18 @@ export function PayrollTabs() {
   const [view, setView] = useState<View>('payrolls');
   const [selectedHeaderId, setSelectedHeaderId] = useState<number | null>(null);
   const [mappingsEntity, setMappingsEntity] = useState<string | undefined>(undefined);
+  const [closeMonth, setCloseMonth] = useState<string | undefined>(undefined);
 
   // ?tab=<view> deep link (e.g. the as-of page links to ?tab=inventoryclose).
   // Read post-hydration so the server and first client render agree.
+  // ?month= rides along with it so the Point-in-Time page can send a reviewer
+  // back to the month they came from.
   useEffect(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab');
+    const q = new URLSearchParams(window.location.search);
+    const tab = q.get('tab');
     if (isView(tab)) setView(tab);
+    const m = q.get('month');
+    if (m) setCloseMonth(m);
   }, []);
 
   // Click a payroll card → open its Review/Post detail.
@@ -132,7 +138,7 @@ export function PayrollTabs() {
         ) : view === 'endofmonth' ? (
           <EndOfMonthTab />
         ) : view === 'inventoryclose' ? (
-          <InventoryCloseTab />
+          <InventoryCloseTab initialMonth={closeMonth} />
         ) : (
           <MappingsTab initialEntity={mappingsEntity} />
         )}

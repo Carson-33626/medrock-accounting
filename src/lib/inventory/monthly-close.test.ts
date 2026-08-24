@@ -12,6 +12,7 @@ import {
   buildCategoryJE,
   categoryJournalEntryLines,
   categoryJournalEntryLinesWithSources,
+  sumCents,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
@@ -695,5 +696,37 @@ describe('categoryJournalEntryLines — aggregated residual', () => {
     expect(residualRows.map((l) => l.qbBookBalance)).toEqual([PARENT_BALANCE, 0]);
     const footed = residualRows.reduce((s, l) => s + (l.adjustment ?? 0), 0);
     expect(footed).toBe(1100);
+  });
+});
+
+describe('sumCents — the point-in-time page and the close must state one number', () => {
+  // The real 2026-03 Tennessee category values. Added in the order the close
+  // renders them, this float-sums to a hair under the true total and rounds DOWN
+  // to ...19; the point-in-time page groups the same cells in a different order
+  // and rounded UP to ...20. Two screens, same lots, one cent apart.
+  const TN_2026_03 = [1945681.65, 393095.93, 180812.77, 173134.02, 99187.04, 3383.78];
+
+  it('totals a column the way a reader adding the visible rows does', () => {
+    expect(sumCents(TN_2026_03)).toBe(2795295.19);
+  });
+
+  it('is order-independent, which naive float summation is not', () => {
+    const reversed = [...TN_2026_03].reverse();
+    const byValue = [...TN_2026_03].sort((a, b) => a - b);
+    expect(sumCents(reversed)).toBe(sumCents(TN_2026_03));
+    expect(sumCents(byValue)).toBe(sumCents(TN_2026_03));
+  });
+
+  it('does not drift on values that are already whole cents', () => {
+    // 0.1 + 0.2 !== 0.3 in binary floating point; this is the guard against
+    // that class of error showing up in a total shown to an accountant.
+    expect(sumCents([0.1, 0.2])).toBe(0.3);
+    expect(sumCents([])).toBe(0);
+  });
+
+  it('rounds each figure before adding, matching what each row displays', () => {
+    // Two rows that each display as $0.01 must total $0.02, not the $0.03 a
+    // sum-then-round would produce from their raw values.
+    expect(sumCents([0.014, 0.014])).toBe(0.02);
   });
 });

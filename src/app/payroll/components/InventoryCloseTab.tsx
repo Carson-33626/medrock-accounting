@@ -33,11 +33,14 @@ interface PostResponse {
  * the rollback dual-basis valuation, with the same Generate → Approve → Post
  * workflow as the other journal entries on this page.
  */
-export function InventoryCloseTab() {
+export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   const { darkMode } = useDarkMode();
   const [rollbackRows, setRollbackRows] = useState<RollbackValuationRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [month, setMonth] = useState<string | null>(null);
+  // `initialMonth` is the return trip from the Point-in-Time page, so a reviewer
+  // who drilled into March's category detail lands back on March's close rather
+  // than on the newest month.
+  const [month, setMonth] = useState<string | null>(initialMonth ?? null);
   const [closeBasis, setCloseBasis] = useState<CloseBasis>('floor');
   const [monthlyClose, setMonthlyClose] = useState<MonthlyCloseResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

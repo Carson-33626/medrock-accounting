@@ -22,12 +22,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productKey = searchParams.get('key');
     const location = searchParams.get('location');
+    const requestedMonth = searchParams.get('month');
     if (!productKey) {
       return NextResponse.json({ error: 'Missing required parameter: key' }, { status: 400 });
     }
 
     const pool = getRdsPool();
-    const params: string[] = [productKey];
+
+    // This route used to be pinned to max(as_of_month), which made it useless for
+    // substantiating a CLOSED month: expanding a March close line showed August's
+    // FIFO queue. Resolve the month up front so it can be echoed in the response
+    // and reused by every clause below.
+    const monthResult = await pool.query<{ m: string | null }>(
+      `SELECT max(as_of_month) AS m FROM inventory.lot_depletion_ledger`,
+    );
+    const month = requestedMonth ?? monthResult.rows[0]?.m ?? null;
+    if (!month) {
+      const empty: ProductDetailResponse = {
+        product_key: productKey,
+        product_name: null,
+        month: null,
+        locations: [],
+        receipts: [],
+        history: [],
+      };
+      return NextResponse.json(empty);
+    }
+
+    const params: string[] = [productKey, month];
     let locationCond = '';
     if (location && location !== 'all') {
       params.push(location);
@@ -35,14 +57,16 @@ export async function GET(request: NextRequest) {
     }
 
     // qty_consumed in the ledger is PER-MONTH consumption (see fifo_transform.py),
-    // so consumed-to-date per receipt is the sum across all its months.
+    // so consumed-to-date per receipt is the sum across all its months UP TO the
+    // month being viewed — summing every month would report a March lot as
+    // already drawn down by consumption that had not happened yet.
     const receipts = await pool.query<ReceiptQueryRow>(
       `WITH ${PRODUCT_NAMES_CTE},
        consumed AS (
          SELECT receipt_id, sum(qty_consumed)::float8 AS consumed_to_date,
                 min(as_of_month) AS first_month
          FROM inventory.lot_depletion_ledger
-         WHERE product_key = $1
+         WHERE product_key = $1 AND as_of_month <= $2
          GROUP BY receipt_id
        )
        SELECT l.receipt_id, l.location, l.product_key,
@@ -69,7 +93,7 @@ export async function GET(request: NextRequest) {
        LEFT JOIN product_names pn ON pn.key = l.product_key
        LEFT JOIN consumed c ON c.receipt_id = l.receipt_id
        WHERE l.product_key = $1${locationCond}
-         AND l.as_of_month = (SELECT max(as_of_month) FROM inventory.lot_depletion_ledger)
+         AND l.as_of_month = $2
        ORDER BY l.location, rn`,
       params,
     );
@@ -81,6 +105,7 @@ export async function GET(request: NextRequest) {
               sum(l.qty_consumed)::float8 AS consumed_in_month
        FROM inventory.lot_depletion_ledger l
        WHERE l.product_key = $1${locationCond}
+         AND l.as_of_month <= $2
        GROUP BY l.as_of_month
        ORDER BY l.as_of_month`,
       params,
@@ -106,6 +131,7 @@ export async function GET(request: NextRequest) {
     const body: ProductDetailResponse = {
       product_key: productKey,
       product_name: receiptRows.find((r) => r.product_name)?.product_name ?? null,
+      month,
       locations: [...new Set(receiptRows.map((r) => r.location))].sort(),
       receipts: receiptRows,
       history: historyRows,
