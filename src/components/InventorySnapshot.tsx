@@ -205,6 +205,27 @@ export default function InventorySnapshot() {
           </a>
         </div>
 
+        {/* Item-level export for the selected month */}
+        {selectedMonth && (
+          <div className="flex flex-wrap items-center gap-2 -mt-2">
+            <span className={`text-sm ${subText}`}>
+              Item-level detail for {selectedMonth} (every product/lot):
+            </span>
+            <a
+              href={`/api/inventory/lots?location=all&category=all&status=all&month=${encodeURIComponent(selectedMonth)}&format=csv`}
+              className={`px-3 py-2 text-sm rounded-lg border ${border} ${cardBg}`}
+            >
+              CSV
+            </a>
+            <a
+              href={`/api/inventory/lots?location=all&category=all&status=all&month=${encodeURIComponent(selectedMonth)}&format=xlsx`}
+              className={`px-3 py-2 text-sm rounded-lg border ${border} ${cardBg}`}
+            >
+              Excel
+            </a>
+          </div>
+        )}
+
         {/* The headline statement */}
         {dates && (
           showDual ? (
