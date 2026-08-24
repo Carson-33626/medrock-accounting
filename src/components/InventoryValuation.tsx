@@ -348,6 +348,16 @@ export default function InventoryValuation() {
     [allCells],
   );
 
+  /** The reconstruction totalled per month for the current location scope. */
+  const rollbackByMonth = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rollbackRows) {
+      if (location !== 'all' && r.location !== location) continue;
+      m.set(r.as_of_month, (m.get(r.as_of_month) ?? 0) + (r.value_full ?? 0));
+    }
+    return m;
+  }, [rollbackRows, location]);
+
   const chartData = useMemo(() => {
     const byMonth = new Map<string, Record<string, number | string>>();
     for (const c of scopedCells) {
@@ -356,8 +366,42 @@ export default function InventoryValuation() {
       entry.Total = (entry.Total as number) + c.value;
       byMonth.set(c.month, entry);
     }
+    // The reconstruction rides alongside the simulated total so the divergence is
+    // the visible story. Without it the series reads as four years of growth
+    // followed by an inexplicable collapse; with it, it reads as what it is —
+    // one line drifting away from the other and then being pulled back.
+    // Accrual only: the reconstruction has no cash basis.
+    if (basis === 'accrual') {
+      for (const [m, value] of rollbackByMonth) {
+        const entry = byMonth.get(m);
+        if (entry) entry.Reconstruction = value;
+      }
+    }
     return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  }, [scopedCells]);
+  }, [scopedCells, rollbackByMonth, basis]);
+
+  /**
+   * The simulated series accumulates stock it never draws down, so it climbs for
+   * years and then collapses the moment LifeFile anchors it. Detected rather than
+   * hardcoded — the drop is real in the data and the page should say so where the
+   * shape is visible, not only in the cross-check card further up.
+   *
+   * Measured on 2026-08: the anchor consumed $7.18M against $247k of receipts,
+   * writing off four years of accumulation in one month. $5.32M of that was
+   * Compound Ingredient, whose all-time consumed/received ratio is 0.17 — the
+   * depletion feed carries dispensing, not compounding usage.
+   */
+  const anchorDrop = useMemo(() => {
+    const anchoredMonths = summary?.anchoredMonths ?? [];
+    if (anchoredMonths.length === 0 || chartData.length < 2) return null;
+    const last = anchoredMonths[anchoredMonths.length - 1];
+    const i = chartData.findIndex((d) => d.month === last);
+    if (i < 1) return null;
+    const before = chartData[i - 1].Total as number;
+    const after = chartData[i].Total as number;
+    if (before <= 0 || after >= before * 0.75) return null;
+    return { month: last, before, after };
+  }, [summary, chartData]);
 
   // The backward reconstruction, kept as a CROSS-CHECK only. It has no category
   // or lot dimension, so nothing on it can be traced to a receipt — but it is
@@ -814,9 +858,33 @@ export default function InventoryValuation() {
               {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
               <HelpTip
                 label="How to read this chart"
-                text="Month-end on-hand value by category, for the current location scope. The dashed line marks the month selected above — click any point's month in the picker to restate the whole page. Only the most recent month is reconciled against LifeFile's live lot report; earlier months come from the usage simulation over incomplete historical records and run high, which is why the line climbs and then falls away sharply at the end. Don't read the historical slope as real growth."
+                text="Month-end on-hand value by category, for the current location scope. The vertical dashed line marks the month selected above. The red dashed line is the reconstruction — an independent estimate built backward from LifeFile's lot report — shown so the two methods can be compared directly rather than one being taken on faith. Don't read the green line's historical slope as real growth: it is stock the usage simulation never drew down."
               />
             </p>
+
+            {/* The shape of this chart is a data problem, not a design one, and
+                the explanation belongs next to it — the climb-then-collapse is
+                the first thing anyone asks about. */}
+            {anchorDrop && (
+              <div
+                className={`mb-3 rounded-lg border px-3 py-2 text-xs ${
+                  darkMode
+                    ? 'bg-amber-950/30 border-amber-800 text-amber-200'
+                    : 'bg-amber-50 border-amber-300 text-amber-800'
+                }`}
+              >
+                <span className="font-semibold">
+                  The climb and the drop at {anchorDrop.month} are both artifacts — inventory did not grow for four
+                  years and then fall {Math.round((1 - anchorDrop.after / anchorDrop.before) * 100)}% in a month.
+                </span>{' '}
+                Lots are drawn down by dispensing records, which do not include compounding usage — so ingredient
+                purchases accumulate instead of depleting (Compound Ingredient has consumed just{' '}
+                <strong>17%</strong> of everything ever received; Lab Supplies and Compound Packaging, effectively
+                nothing). {anchorDrop.month} is the one month reconciled against LifeFile&rsquo;s live lot report, and
+                that reconciliation writes the accumulation off in a single step. Read the red reconstruction line as
+                the more plausible level for the months in between.
+              </div>
+            )}
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -834,6 +902,18 @@ export default function InventoryValuation() {
                     <ReferenceLine x={selectedMonth} stroke="#2563eb" strokeDasharray="4 4" />
                   )}
                   <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
+                  {/* connectNulls: the reconstruction only covers the months the
+                      rollback table holds, and a straight line drawn across the
+                      gap would invent values it does not have. */}
+                  <Line
+                    type="monotone"
+                    dataKey="Reconstruction"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 3"
+                    dot={false}
+                    connectNulls={false}
+                  />
                   {allCategories.map((cat) => (
                     <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
                   ))}
