@@ -17,7 +17,6 @@ import { fetchDimensions } from '../payroll/qb-journal';
 import {
   buildRollForward,
   buildLocationJE,
-  journalEntryLines,
   invCloseDocNumber,
   buildCategoryRollForward,
   buildCategoryJE,
@@ -349,21 +348,36 @@ export async function generateInvCloseDrafts(
   const warnings: string[] = [];
   const savedEntities: Entity[] = [];
   const payDate = isoToAdp(monthEnd);
+  // Hash the CATEGORY entries — those are what generates now, so a change in a
+  // category value must invalidate the draft.
   const snapshotHash = createHash('sha256')
-    .update(JSON.stringify({ basis, journalEntries: close.journalEntries }))
+    .update(JSON.stringify({ basis, categoryJournalEntries: close.categoryJournalEntries }))
     .digest('hex');
 
-  for (const je of close.journalEntries) {
+  for (const je of close.categoryJournalEntries) {
     const entity = QB_LOCATIONS.find((qb) => QB_TO_RDS_LOCATION[qb] === je.location);
     if (entity === undefined) continue;
     if (!je.bookAvailable) {
       warnings.push(`${je.location}: QB book balance unavailable — no draft generated`);
       continue;
     }
-    const jeLines = journalEntryLines(je, basis, monthEnd);
+    if (je.unmappedCategories.length > 0) {
+      warnings.push(
+        `${je.location}: ${je.unmappedCategories.join(', ')} have no QuickBooks category account — ` +
+          'posted to the parent Inventory Asset / Cost of Goods Sold as a residual line (assign drug codes to clear)',
+      );
+    }
+    const jeLines = categoryJournalEntryLines(je, monthEnd);
     if (jeLines.length === 0) {
       warnings.push(`${je.location}: no adjustment needed (FIFO ties to book) — no draft generated`);
       continue;
+    }
+    // receiptIds per category, aligned to the Dr/Cr pair emitted for it — this is
+    // what the UI drill-down and the post route's rowKeys read.
+    const receiptsByAccount = new Map<string, string[]>();
+    for (const line of je.lines) {
+      receiptsByAccount.set(line.inventoryAccount, line.receiptIds);
+      receiptsByAccount.set(line.cogsAccount, line.receiptIds);
     }
     const lines: JournalLine[] = jeLines.map((l) => ({
       postingType: l.debit !== null ? 'Debit' : 'Credit',
@@ -374,7 +388,7 @@ export async function generateInvCloseDrafts(
       memo: l.memo,
       creditBucket: null,
       origin: 'generated',
-      sourceRowKeys: [],
+      sourceRowKeys: receiptsByAccount.get(l.account) ?? [],
     }));
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
@@ -388,7 +402,7 @@ export async function generateInvCloseDrafts(
       periodSegment: '',
       docNumber: invCloseDocNumber(je.location, month),
       txnDate: monthEnd,
-      privateNote: `Inventory FIFO close adjustment — ${month} (${basis === 'floor' ? 'receipt-priced floor' : 'full-coverage estimate'})`,
+      privateNote: `Inventory FIFO close adjustment — ${month} (category detail, lot-level)`,
       lines,
       totalDebits,
       totalCredits,
