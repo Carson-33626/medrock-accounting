@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import Explainer from './Explainer';
-import HelpTip from './HelpTip';
 import { monthDates } from '@/lib/inventory/month-dates';
 import type {
   Basis,
@@ -14,7 +13,6 @@ import type {
 } from '@/types/inventory';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const qty0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 export default function InventorySnapshot() {
@@ -102,14 +100,39 @@ export default function InventorySnapshot() {
   const anchored = !!(summary && selectedMonth && summary.anchoredMonths.includes(selectedMonth));
   const dates = selectedMonth ? monthDates(selectedMonth) : null;
 
-  const isLatestMonth = !!(summary && selectedMonth && selectedMonth === summary.latestMonth);
-  // Dual bases are accrual-only; cash keeps the original single headline entirely.
-  const showDual = basis === 'accrual' && rollbackForMonth.length > 0;
-  // Card A (floor) uses the rollback value_floor for EVERY month, so the series is
-  // consistent month-over-month. On the latest month the stricter lot-anchored
-  // figure (view.total) is shown as a footnote only — not the card headline —
-  // to avoid a fake cliff against prior months.
-  const floorValue = rollbackView.floor;
+  /**
+   * ONE METHOD, EVERYWHERE ON THIS PAGE — read this before adding a second number.
+   *
+   * The headline and the by-location breakdown both come from the backward
+   * reconstruction (`fifo_rollback_valuation`), so they always foot to each other.
+   *
+   * They used to disagree, badly. A previous change moved the headline onto the
+   * reconstruction but left the breakdowns on the forward usage simulation
+   * (`fifo_valuation_summary`), and labelled the mismatch "prior method, for
+   * reference" instead of fixing it. On 2026-03 that showed a $1.30M headline above
+   * a by-location table totalling $7.01M — 5.4x apart, and in the other direction
+   * (0.49x) on the latest month, so nobody could mentally correct for it.
+   *
+   * The reconstruction wins because it is the only method coherent over time: the
+   * simulation OVERSTATES historical months (it runs forward over incomplete
+   * records) and UNDERSTATES the current one (it goes strict there, excluding lot
+   * quantities beyond matched receipts).
+   *
+   * The one exception is the category cut, which the reconstruction cannot do —
+   * `fifo_rollback_valuation` has no category dimension. That table stays on the
+   * simulation and is explicitly marked as not tying to the headline.
+   *
+   * `value_floor` vs `value_full` are collapsed: they are identical in 14 of 16
+   * months (every month since 2026-04), so presenting them as two cards showed the
+   * same number twice and cost the reader two pieces of jargon. `value_full` is the
+   * one kept — it is the complete picture, using estimated cost only where a receipt
+   * is missing.
+   */
+  const totalValue = basis === 'accrual' && rollbackForMonth.length > 0 ? rollbackView.full : view.total;
+  /** True when the headline came from the reconstruction (accrual only). */
+  const usingReconstruction = basis === 'accrual' && rollbackForMonth.length > 0;
+  /** The simulation's total — the category table's own basis, shown so that table can state what it foots to. */
+  const categoryTotal = view.total;
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
@@ -144,11 +167,15 @@ export default function InventorySnapshot() {
             LifeFile&rsquo;s lot report actuals.
           </p>
           <p>
-            <strong>Two numbers are shown because coverage isn&rsquo;t perfect.</strong> The{' '}
-            <strong>receipt-priced floor</strong> counts only stock traceable to a priced purchase receipt — it is
-            conservative and understates. The <strong>full-coverage estimate</strong> counts everything on
-            LifeFile&rsquo;s lot report, using estimated prices where a receipt is missing. The true value sits
-            between them; accounting picks which basis becomes official.
+            <strong>The total and the by-location table are the same number, cut two ways</strong> — the locations
+            always add up to the headline. Both are built backward from what LifeFile&rsquo;s lot report says is
+            actually on hand, rather than simulated forward from older, patchier records.
+          </p>
+          <p>
+            <strong>The category table is the one exception.</strong> That breakdown isn&rsquo;t available in the
+            figure above, so it is measured a different way and will not add up to the headline. Read it for the mix
+            between categories, not for the dollar amounts. For category dollars, use the{' '}
+            <strong>Full valuation</strong> page or the item-level export above.
           </p>
           <p>
             The monthly close — the roll-forward and the suggested adjusting entry against the QuickBooks
@@ -230,159 +257,83 @@ export default function InventorySnapshot() {
           </div>
         )}
 
-        {/* The headline statement */}
+        {/* The headline statement — ONE number, one method. See the comment on totalValue. */}
         {dates && (
-          showDual ? (
-            <>
-              <p className={`text-sm ${subText}`}>
-                On <strong>{dates.openingLong}</strong> (close of business {dates.asOf}), total inventory value is
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Card A — receipt-priced floor */}
-                <div className={`rounded-2xl shadow-sm p-6 ${cardBg}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${subText}`}>
-                    Receipt-priced floor
-                    <HelpTip
-                      label="Receipt-priced floor"
-                      text="Counts only stock that traces to a purchase receipt with a real price. Anything LifeFile reports beyond our receipts is left out, so this understates true value — a defensible minimum."
-                    />
-                  </p>
-                  <p className="text-3xl md:text-4xl font-bold mt-2">{usd.format(floorValue)}</p>
-                  <p className={`text-xs mt-2 ${subText}`}>
-                    Only stock traceable to a priced receipt. Conservative — understates true value.
-                  </p>
-                  {isLatestMonth && (
-                    <div className={`mt-3 pt-3 border-t ${border}`}>
-                      <p className={`text-xs ${subText}`}>
-                        Strict lot-anchored figure (previous headline): <strong>{usd.format(view.total)}</strong> — also
-                        excludes lot quantities beyond matched receipts
-                      </p>
-                      {anchored && (
-                        <span className="mt-2 inline-block text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
-                          ✓ LifeFile-reconciled
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Card B — full-coverage estimate */}
-                <div className={`rounded-2xl shadow-sm p-6 ${cardBg}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${subText}`}>
-                    Full-coverage estimate
-                    <HelpTip
-                      label="Full-coverage estimate"
-                      text="Everything on LifeFile’s lot report, valued at receipt prices where we have the receipt and at estimated prices where we don’t. More complete, less certain."
-                    />
-                  </p>
-                  <p className="text-3xl md:text-4xl font-bold mt-2">{usd.format(rollbackView.full)}</p>
-                  <p className={`text-xs mt-2 ${subText}`}>
-                    Everything on the LifeFile lot report, valued at receipt costs with estimated costs where receipts
-                    are missing.
-                  </p>
-                  {rollbackView.uncosted > 0 && (
-                    <p className={`text-xs mt-2 ${subText}`}>
-                      excludes {qty0.format(rollbackView.uncosted)} units with no cost basis
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
+          <div className={`rounded-2xl shadow-sm p-6 md:p-8 ${cardBg}`}>
+            <p className={`text-sm ${subText}`}>
+              On <strong>{dates.openingLong}</strong> (close of business {dates.asOf}), total inventory value is
+            </p>
+            <p className="text-4xl md:text-5xl font-bold mt-2">{usd.format(totalValue)}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {usingReconstruction ? (
                 <span
-                  title="Instead of simulating forward from old, incomplete records, this month is rebuilt backward from what LifeFile's lot report says is on hand today — validated by predicting months we could check"
+                  title="Rebuilt backward from what LifeFile's lot report says is on hand, rather than simulated forward from old records — checked by predicting months we could verify"
                   className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
                 >
-                  ✓ Reconstructed from LifeFile lot actuals (backward rollback, out-of-sample validated)
+                  ✓ Built from LifeFile lot actuals
                 </span>
-                <span className={`text-xs ${subText}`}>Accrual basis</span>
-              </div>
-              <p className={`text-xs ${subText}`}>
-                Two valuation bases are shown pending accounting&rsquo;s selection of the official basis.
-              </p>
-            </>
-          ) : (
-            <div className={`rounded-2xl shadow-sm p-6 md:p-8 ${cardBg}`}>
-              <p className={`text-sm ${subText}`}>
-                On <strong>{dates.openingLong}</strong> (close of business {dates.asOf}), total inventory value is
-              </p>
-              <p className="text-4xl md:text-5xl font-bold mt-2">{usd.format(view.total)}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {anchored ? (
-                  <span
-                    title="This month's remaining quantities were checked lot-by-lot against LifeFile's live lot report"
-                    className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
-                  >
-                    ✓ LifeFile-reconciled
-                  </span>
-                ) : (
-                  <span
-                    title="This month comes from the usage simulation over incomplete historical records and likely overstates — treat as an upper-bound estimate"
-                    className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
-                  >
-                    ⚠ Estimate — usage simulation, not yet LifeFile-anchored
-                  </span>
-                )}
-                <span className={`text-xs ${subText}`}>
-                  {basis === 'accrual' ? 'Accrual basis' : 'Cash basis'} · includes {usd0.format(view.ob)} estimated opening balance
+              ) : anchored ? (
+                <span
+                  title="This month's remaining quantities were checked lot-by-lot against LifeFile's live lot report"
+                  className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
+                >
+                  ✓ LifeFile-reconciled
                 </span>
-              </div>
-              {!anchored && (
-                <p className={`text-xs mt-3 ${subText}`}>
-                  Historical months are valued by the usage simulation, which overstates on-hand inventory. This figure
-                  becomes reconciled once the Data Loader runs Phase 2d (historical LifeFile anchoring) and the receiving
-                  backfill reaches this date. See docs/superpowers/specs/2026-06-17-fifo-phase2d-historical-anchoring.md.
-                </p>
+              ) : (
+                <span
+                  title="No reconstruction available for this month and basis, so this falls back to the forward usage simulation, which overstates historical months"
+                  className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
+                >
+                  ⚠ Estimate only — not built from lot actuals
+                </span>
               )}
+              <span className={`text-xs ${subText}`}>{basis === 'accrual' ? 'Accrual basis' : 'Cash basis'}</span>
             </div>
-          )
-        )}
-
-        {showDual && (
-          <p className="text-sm font-semibold">
-            Breakdown — prior method, for reference
-            <span className={`ml-2 font-normal text-xs ${subText}`}>
-              (lot-anchored on the latest month, usage simulation on historical months)
-            </span>
-          </p>
-        )}
-
-        {/* Breakdown by location */}
-        <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-          <p className="text-sm font-semibold mb-3">By location</p>
-          <Breakdown map={view.byLocation} total={view.total} border={border} subText={subText} />
-        </div>
-
-        {/* Breakdown by QB category */}
-        <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-          <p className="text-sm font-semibold mb-3">By QuickBooks category</p>
-          <Breakdown map={view.byCategory} total={view.total} border={border} subText={subText} />
-        </div>
-
-        {/* Per-location rollback bases (accrual, when reconstructed data exists) */}
-        {showDual && (
-          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className="text-sm font-semibold mb-3">By location — rollback bases</p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`text-xs uppercase tracking-wider ${subText}`}>
-                  <th className="py-2 text-left font-semibold">Location</th>
-                  <th className="py-2 text-right font-semibold">Receipt-priced floor</th>
-                  <th className="py-2 text-right font-semibold">Full-coverage estimate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rollbackView.byLocation.map((r) => (
-                  <tr key={r.location} className={`border-t ${border}`}>
-                    <td className="py-2">{r.location.replace('MedRock ', '')}</td>
-                    <td className="py-2 text-right tabular-nums font-medium">{usd.format(r.value_floor ?? 0)}</td>
-                    <td className="py-2 text-right tabular-nums font-medium">{usd.format(r.value_full ?? 0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p className={`text-xs mt-3 ${subText}`}>
+              Stock on hand at month end, valued at what each lot actually cost — with an estimated cost only where the
+              purchase receipt is missing.
+              {usingReconstruction && rollbackView.uncosted > 0
+                ? ` Excludes ${qty0.format(rollbackView.uncosted)} units with no cost basis at all.`
+                : ''}
+            </p>
           </div>
         )}
+
+        {/* Breakdown by location — same source as the headline, so it always foots to it. */}
+        <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+          <p className="text-sm font-semibold mb-3">By location</p>
+          {usingReconstruction ? (
+            <Breakdown
+              map={new Map(rollbackView.byLocation.map((r) => [r.location, r.value_full ?? 0]))}
+              total={totalValue}
+              border={border}
+              subText={subText}
+            />
+          ) : (
+            <Breakdown map={view.byLocation} total={view.total} border={border} subText={subText} />
+          )}
+        </div>
+
+        {/* Breakdown by category — the ONE place a different source is unavoidable:
+            the reconstruction has no category dimension. Say so plainly and state the
+            total it actually foots to, so it can never be read as a cut of the headline. */}
+        <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+          <p className="text-sm font-semibold">By QuickBooks category</p>
+          {usingReconstruction && Math.abs(categoryTotal - totalValue) > 1 && (
+            <p
+              className={`text-xs mt-1 mb-3 px-2 py-1.5 rounded border ${
+                darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+              }`}
+            >
+              Category detail is not available in the figure above, so this table is measured a different way and totals{' '}
+              <strong>{usd.format(categoryTotal)}</strong> — not the {usd.format(totalValue)} headline. Use it for the
+              relative mix between categories, not for the dollar amounts.
+            </p>
+          )}
+          <div className={usingReconstruction ? '' : 'mt-3'}>
+            <Breakdown map={view.byCategory} total={categoryTotal} border={border} subText={subText} />
+          </div>
+        </div>
 
         {/* The monthly close (roll-forward + suggested JE) moved to the Journal Entries page. */}
         <p className={`text-sm ${subText}`}>
