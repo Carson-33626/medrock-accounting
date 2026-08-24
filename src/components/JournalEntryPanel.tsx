@@ -456,7 +456,14 @@ function DraftCard({
           <LargeAdjustmentNote darkMode={darkMode} je={je} />
 
           {categoryJE && (
-            <CategoryBreakdown je={categoryJE} month={month} darkMode={darkMode} subText={subText} border={border} />
+            <CategoryBreakdown
+              key={categoryJE.location}
+              je={categoryJE}
+              month={month}
+              darkMode={darkMode}
+              subText={subText}
+              border={border}
+            />
           )}
 
           {lines.length === 0 ? (
