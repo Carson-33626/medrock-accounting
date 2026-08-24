@@ -168,8 +168,12 @@ export default function InventorySnapshot() {
         {/* Controls */}
         <div className="flex flex-wrap items-center gap-3">
           <label className={`text-sm ${subText}`}>As of end of</label>
+          {/* Newest first — the close is almost always run for a recent month, and the
+              API ships `months` oldest-first (latestMonth is derived from its tail).
+              Reversing here is display-only so that derivation stays intact. Mirrors
+              the End of Month and Inventory Close tabs. */}
           <select value={selectedMonth ?? ''} onChange={(e) => setMonth(e.target.value)} className={inputCls}>
-            {(summary?.months ?? []).map((m) => {
+            {[...(summary?.months ?? [])].reverse().map((m) => {
               const d = monthDates(m);
               return (
                 <option key={m} value={m}>
