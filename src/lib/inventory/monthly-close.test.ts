@@ -283,3 +283,20 @@ describe('closeJeSheetNote', () => {
     expect(note).toContain('FL: QB-123 — Posted');
   });
 });
+
+describe('QuickBooks account constants', () => {
+  // These strings are looked up in refs.accounts (keyed by the Account entity's
+  // FullyQualifiedName) by buildJePayload, which THROWS on a miss. The
+  // BalanceSheet report calls the same account '1220 Inventory Asset', but that
+  // name does not exist in the Account entity — verified null in FL/TN/TX on
+  // 2026-08-24. Pinning this prevents a silent regression to the unpostable name.
+  it('uses the FullyQualifiedName form of the inventory account, not the balance-sheet form', () => {
+    expect(INVENTORY_ACCOUNT).toBe('Inventory Asset');
+    expect(INVENTORY_ACCOUNT).not.toMatch(/^\d/);
+  });
+
+  it('uses the FullyQualifiedName form of the COGS account', () => {
+    expect(COGS_ACCOUNT).toBe('Cost of Goods Sold');
+    expect(COGS_ACCOUNT).not.toMatch(/^\d/);
+  });
+});

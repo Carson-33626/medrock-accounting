@@ -155,7 +155,14 @@ export function buildLocationJE(
   };
 }
 
-export const INVENTORY_ACCOUNT = '1220 Inventory Asset';
+/**
+ * QB account names as the Account entity reports them (FullyQualifiedName) —
+ * the ONLY form `buildJePayload` can resolve (`refs.accounts` is keyed by it).
+ * The BalanceSheet report calls this same account '1220 Inventory Asset'; that
+ * string resolves to nothing and made every close JE throw `unresolved account`
+ * at post AND dry-run time. Never put a balance-sheet-style name here.
+ */
+export const INVENTORY_ACCOUNT = 'Inventory Asset';
 export const COGS_ACCOUNT = 'Cost of Goods Sold';
 
 /** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
