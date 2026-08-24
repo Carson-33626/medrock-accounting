@@ -8,7 +8,11 @@ import {
   closeJeSheetNote,
   INVENTORY_ACCOUNT,
   COGS_ACCOUNT,
+  buildCategoryRollForward,
+  buildCategoryJE,
+  categoryJournalEntryLines,
   type RollbackMonthValue,
+  type CategoryLedgerValue,
 } from './monthly-close';
 import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
@@ -298,5 +302,222 @@ describe('QuickBooks account constants', () => {
   it('uses the FullyQualifiedName form of the COGS account', () => {
     expect(COGS_ACCOUNT).toBe('Cost of Goods Sold');
     expect(COGS_ACCOUNT).not.toMatch(/^\d/);
+  });
+});
+
+const clv = (over: Partial<CategoryLedgerValue> & { location: string; qbCategory: string }): CategoryLedgerValue => ({
+  endingValue: 0,
+  receiptIds: [],
+  lotCount: 0,
+  ...over,
+});
+
+describe('buildCategoryRollForward', () => {
+  it('pairs each category with its prior-month beginning', () => {
+    const prior = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 800 })];
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, receiptIds: ['r1', 'r2'], lotCount: 2 }),
+    ];
+    const rows = buildCategoryRollForward(current, prior);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].beginning).toBe(800);
+    expect(rows[0].ending).toBe(1000);
+    expect(rows[0].receiptIds).toEqual(['r1', 'r2']);
+    expect(rows[0].lotCount).toBe(2);
+  });
+
+  it('treats a category absent last month as beginning at zero', () => {
+    const prior = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 800 })];
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 50 })];
+    const rows = buildCategoryRollForward(current, prior);
+    expect(rows.find((r) => r.qbCategory === 'Lab Supplies')?.beginning).toBe(0);
+  });
+
+  it('leaves beginning null at the window start (no prior month at all)', () => {
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows[0].beginning).toBeNull();
+  });
+
+  it('keeps locations separate for the same category name', () => {
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 100 }),
+      clv({ location: 'MedRock TN', qbCategory: 'Commercial Rx', endingValue: 200 }),
+    ];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.location === 'MedRock TN')?.ending).toBe(200);
+  });
+
+  it('sorts by descending ending value so the material categories read first', () => {
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 50 }),
+      clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 9000 }),
+    ];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows.map((r) => r.qbCategory)).toEqual(['Compound Ingredient', 'Lab Supplies']);
+  });
+});
+
+describe('buildCategoryJE', () => {
+  const accountNums: Record<string, string> = {
+    'Inventory Asset': '1220',
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+    'Inventory Asset:Compound Ingredient Inventory': '1220.10',
+  };
+  const bsAccounts = [
+    { name: '1220.05 Commercial Rx Inventory', value: 900 },
+    { name: '1220.10 Compound Ingredient Inventory', value: 5000 },
+  ];
+
+  it('computes a per-category adjustment against that sub-account balance', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, lotCount: 3 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines).toHaveLength(1);
+    expect(je.lines[0].inventoryAccount).toBe('Inventory Asset:Commercial Rx Inventory');
+    expect(je.lines[0].cogsAccount).toBe('Cost of Goods Sold:Commercial RX');
+    expect(je.lines[0].qbBookBalance).toBe(900);
+    expect(je.lines[0].adjustment).toBe(100); // 1000 − 900
+    expect(je.lines[0].direction).toBe('debit-inventory');
+    expect(je.lines[0].mapped).toBe(true);
+  });
+
+  it('sums the location total from its category lines', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.fifoTarget).toBe(5000);
+    expect(je.adjustment).toBe(100 + -1000); // (1000−900) + (4000−5000)
+  });
+
+  it('routes an unmapped category to the parent accounts and reports it', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 300 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines[0].mapped).toBe(false);
+    expect(je.lines[0].inventoryAccount).toBe('Inventory Asset');
+    expect(je.lines[0].cogsAccount).toBe('Cost of Goods Sold');
+    expect(je.unmappedCategories).toEqual(['Uncoded']);
+  });
+
+  it('treats a sub-account with no balance-sheet row as a zero book balance, not null', () => {
+    // A never-funded sub-account is legitimately $0 — the whole FIFO value is the
+    // adjustment. Only a MISSING BALANCE SHEET (bookAvailable=false) is unknown.
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 700 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines[0].qbBookBalance).toBe(0);
+    expect(je.lines[0].adjustment).toBe(700);
+  });
+
+  it('marks every adjustment null when the realm gave no balance sheet', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], accountNums, false);
+    expect(je.bookAvailable).toBe(false);
+    expect(je.lines[0].qbBookBalance).toBeNull();
+    expect(je.lines[0].adjustment).toBeNull();
+    expect(je.lines[0].direction).toBeNull();
+  });
+});
+
+describe('categoryJournalEntryLines', () => {
+  const accountNums: Record<string, string> = {
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+    'Inventory Asset:Compound Ingredient Inventory': '1220.10',
+  };
+  const bsAccounts = [
+    { name: '1220.05 Commercial Rx Inventory', value: 900 },
+    { name: '1220.10 Compound Ingredient Inventory', value: 5000 },
+  ];
+
+  it('emits Dr Inventory / Cr COGS on the category sub-accounts for a positive adjustment', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, receiptIds: ['r1'] })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({
+      account: 'Inventory Asset:Commercial Rx Inventory',
+      debit: 100,
+      credit: null,
+    });
+    expect(lines[1]).toMatchObject({
+      account: 'Cost of Goods Sold:Commercial RX',
+      debit: null,
+      credit: 100,
+    });
+    expect(lines[0].memo).toContain('Commercial Rx');
+    expect(lines[0].memo).toContain('2026-03-31');
+  });
+
+  it('reverses to Dr COGS / Cr Inventory for a negative adjustment', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines[0]).toMatchObject({ account: 'Cost of Goods Sold:Compound Ingredient', debit: 1000 });
+    expect(lines[1]).toMatchObject({ account: 'Inventory Asset:Compound Ingredient Inventory', credit: 1000 });
+  });
+
+  it('skips categories whose adjustment is exactly zero', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 900 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(categoryJournalEntryLines(je, '2026-03-31')).toEqual([]);
+  });
+
+  it('always balances: total debits equal total credits', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    const debits = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+    const credits = lines.reduce((s, l) => s + (l.credit ?? 0), 0);
+    expect(Math.round(debits * 100)).toBe(Math.round(credits * 100));
+  });
+
+  it('flags a residual (unmapped) category in the memo so it is never mistaken for a real category', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 300 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], { 'Inventory Asset': '1220' }, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines[0].memo).toContain('needs drug coding');
+  });
+
+  it('emits nothing when the book balance is unavailable', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], accountNums, false);
+    expect(categoryJournalEntryLines(je, '2026-03-31')).toEqual([]);
   });
 });

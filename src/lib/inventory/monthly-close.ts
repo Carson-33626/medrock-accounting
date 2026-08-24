@@ -12,6 +12,9 @@
  * The earliest month has no prior row → Beginning/COGS are null ("window start").
  */
 import type {
+  CategoryJE,
+  CategoryJELine,
+  CategoryRollForwardRow,
   CloseBasis,
   InvCloseHeader,
   InvCloseLine,
@@ -19,7 +22,7 @@ import type {
   QbAccountLine,
   RollForwardRow,
 } from '@/types/inventory';
-import { INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
+import { accountsForCategory, matchBalanceSheetAccount, INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
 /** Minimal per-(month, location) value shape the roll-forward needs. */
 export interface RollbackMonthValue {
@@ -275,4 +278,129 @@ export function closeJeSheetNote(
     'Journal entries show the STORED DRAFT where one exists (frozen at generation — what posts), ' +
     `the live suggestion otherwise. ${parts.join(' · ')}.`
   );
+}
+
+/** One (location, category) ending value out of the lot-depletion ledger. */
+export interface CategoryLedgerValue {
+  location: string;
+  qbCategory: string;
+  endingValue: number;
+  /** Distinct receipt_ids contributing — the drill-down key set. */
+  receiptIds: string[];
+  lotCount: number;
+}
+
+const categoryKey = (location: string, qbCategory: string): string => `${location}\u0000${qbCategory}`;
+
+/**
+ * Category-grain roll-forward for one month. Unlike the location-grain
+ * `buildRollForward`, there is no Purchases column: the lot ledger carries
+ * remaining value per lot, not a purchases roll — Beginning and Ending are the
+ * defensible pair, and COGS at category grain would need a purchases cut the
+ * loader does not emit. Rows sort by descending Ending.
+ */
+export function buildCategoryRollForward(
+  current: CategoryLedgerValue[],
+  prior: CategoryLedgerValue[] | null,
+): CategoryRollForwardRow[] {
+  const windowStart = prior === null;
+  const priorByKey = new Map<string, number>();
+  for (const p of prior ?? []) priorByKey.set(categoryKey(p.location, p.qbCategory), p.endingValue);
+
+  return [...current]
+    .sort((a, b) => b.endingValue - a.endingValue)
+    .map((c) => ({
+      location: c.location,
+      qbCategory: c.qbCategory,
+      // A category present now but absent last month began at zero — distinct
+      // from the window start, where there is no prior month to speak of at all.
+      beginning: windowStart ? null : round2(priorByKey.get(categoryKey(c.location, c.qbCategory)) ?? 0),
+      ending: round2(c.endingValue),
+      receiptIds: c.receiptIds,
+      lotCount: c.lotCount,
+    }));
+}
+
+/**
+ * A location's category-grain entry: each category compared against its own QB
+ * sub-account balance.
+ *
+ * A sub-account with no balance-sheet row is treated as $0 (a real, never-funded
+ * account — the whole FIFO value is the adjustment), NOT as unknown. Only a
+ * missing balance sheet entirely (`bookAvailable === false`) is unknown, and that
+ * nulls every adjustment.
+ */
+export function buildCategoryJE(
+  location: string,
+  rows: CategoryRollForwardRow[],
+  bsAccounts: ReadonlyArray<{ name: string; value: number }>,
+  accountNums: Record<string, string>,
+  bookAvailable: boolean,
+): CategoryJE {
+  const unmappedCategories: string[] = [];
+
+  const lines: CategoryJELine[] = rows
+    .filter((r) => r.location === location)
+    .map((r) => {
+      const accounts = accountsForCategory(r.qbCategory);
+      if (!accounts.mapped) unmappedCategories.push(r.qbCategory);
+
+      const fifoTarget = round2(r.ending);
+      const qbBookBalance = bookAvailable
+        ? round2(matchBalanceSheetAccount(accounts.inventory, accountNums, bsAccounts) ?? 0)
+        : null;
+      const adjustment = qbBookBalance === null ? null : round2(fifoTarget - qbBookBalance);
+      const direction: CategoryJELine['direction'] =
+        adjustment === null ? null : adjustment > 0 ? 'debit-inventory' : adjustment < 0 ? 'credit-inventory' : 'none';
+
+      return {
+        qbCategory: r.qbCategory,
+        inventoryAccount: accounts.inventory,
+        cogsAccount: accounts.cogs,
+        mapped: accounts.mapped,
+        fifoTarget,
+        qbBookBalance,
+        adjustment,
+        direction,
+        receiptIds: r.receiptIds,
+        lotCount: r.lotCount,
+      };
+    });
+
+  return {
+    location,
+    lines,
+    fifoTarget: round2(lines.reduce((s, l) => s + l.fifoTarget, 0)),
+    adjustment: round2(lines.reduce((s, l) => s + (l.adjustment ?? 0), 0)),
+    bookAvailable,
+    unmappedCategories,
+  };
+}
+
+/**
+ * The balanced Dr/Cr pairs for a location's categorized entry — one pair per
+ * category with a nonzero adjustment, each on that category's own sub-accounts.
+ * Returns [] when the book balance is unavailable (nothing to compare against).
+ */
+export function categoryJournalEntryLines(je: CategoryJE, monthEnd: string): JeLine[] {
+  if (!je.bookAvailable) return [];
+  const out: JeLine[] = [];
+
+  for (const line of je.lines) {
+    if (line.adjustment === null || line.adjustment === 0) continue;
+    const amount = round2(Math.abs(line.adjustment));
+    const residual = line.mapped ? '' : ' — residual, needs drug coding';
+    const memo = `Adjust ${line.qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}${residual}`;
+
+    if (line.adjustment > 0) {
+      // Inventory understated on the books → increase Inventory, relieve COGS.
+      out.push({ account: line.inventoryAccount, debit: amount, credit: null, memo });
+      out.push({ account: line.cogsAccount, debit: null, credit: amount, memo });
+    } else {
+      // Inventory overstated on the books → reduce Inventory, charge COGS.
+      out.push({ account: line.cogsAccount, debit: amount, credit: null, memo });
+      out.push({ account: line.inventoryAccount, debit: null, credit: amount, memo });
+    }
+  }
+  return out;
 }
