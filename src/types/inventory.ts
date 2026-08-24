@@ -132,6 +132,82 @@ export interface InvCloseLine {
   memo: string;
 }
 
+/**
+ * CATEGORY-GRAIN CLOSE (2026-08-24)
+ *
+ * The category path values inventory from inventory.lot_depletion_ledger (the
+ * lot-level pipeline behind the Inventory Valuation page), NOT from
+ * inventory.fifo_rollback_valuation (the location-only backward reconstruction
+ * that the LocationJE path above uses). The two disagree substantially for
+ * non-anchored months — that is expected and both are shown side by side. See
+ * docs/superpowers/specs/2026-08-24-inventory-close-category-lot-detail-design.md.
+ */
+
+/** One roll-forward line at (location, category) grain. */
+export interface CategoryRollForwardRow {
+  location: string;
+  qbCategory: string;
+  beginning: number | null; // null at the earliest month in the ledger
+  ending: number;
+  /** Distinct receipt_ids behind `ending` — the drill-down key set. */
+  receiptIds: string[];
+  /** Count of lots contributing, for an at-a-glance "is this one lot or 400". */
+  lotCount: number;
+}
+
+/**
+ * One category's COMPARISON row (FIFO vs. book) within a location's entry — the
+ * on-screen/workbook table grain. NOT a posting line: unmapped categories share
+ * one aggregated posting pair (see `CategoryPostingLine` in lib/inventory/
+ * monthly-close), so these rows and the emitted JE lines are 1:1 only for
+ * mapped categories.
+ */
+export interface CategoryComparisonRow {
+  qbCategory: string;
+  /** QB FullyQualifiedName of the inventory-asset account this line adjusts. */
+  inventoryAccount: string;
+  /** QB FullyQualifiedName of the COGS account taking the offset. */
+  cogsAccount: string;
+  /** false when the category fell back to the parent accounts (residual line). */
+  mapped: boolean;
+  fifoTarget: number;
+  /**
+   * Book balance of `inventoryAccount`; null when unavailable/never funded.
+   *
+   * RESIDUAL ROWS: every unmapped category resolves to the SAME parent account,
+   * so the parent balance is not attributable per category. It is claimed ONCE,
+   * by the first (largest) residual row; the rest read $0. That keeps the rows
+   * footing exactly to the single aggregated residual pair that actually posts —
+   * see `categoryJournalEntryLinesWithSources`.
+   */
+  qbBookBalance: number | null;
+  adjustment: number | null; // fifoTarget − qbBookBalance
+  direction: 'debit-inventory' | 'credit-inventory' | 'none' | null;
+  receiptIds: string[];
+  lotCount: number;
+}
+
+/** A location's category-grain entry — the sum of its category lines. */
+export interface CategoryJE {
+  location: string;
+  lines: CategoryComparisonRow[];
+  /** Σ line.fifoTarget — what the categorized entry brings the books to. */
+  fifoTarget: number;
+  /** Σ line.adjustment (skipping nulls) — equals what the emitted JE posts. */
+  adjustment: number;
+  /** false when the QB realm gave no balance sheet at all. */
+  bookAvailable: boolean;
+  /** Categories that fell back to parent accounts, for the warnings banner. */
+  unmappedCategories: string[];
+  /**
+   * The parent inventory account's book balance, read ONCE for the whole
+   * location. The aggregated residual pair is compared against this — two
+   * unmapped categories each subtracting it would double-count the parent
+   * balance. null when the balance sheet is unavailable.
+   */
+  residualBookBalance: number | null;
+}
+
 export interface MonthlyCloseResponse {
   month: string; // 'YYYY-MM'
   monthEnd: string; // 'YYYY-MM-DD' (last day of month)
@@ -144,6 +220,17 @@ export interface MonthlyCloseResponse {
   headers: InvCloseHeader[];
   /** headerId (as string) -> stored draft lines. */
   linesById: Record<string, InvCloseLine[]>;
+  /** Category-grain roll-forward (lot-ledger sourced). Empty when unavailable. */
+  categoryRollForward: CategoryRollForwardRow[];
+  /** Category-grain entries — what actually generates/posts as of 2026-08-24. */
+  categoryJournalEntries: CategoryJE[];
+  /**
+   * Non-null when the category grain FAILED (QB/ledger error) rather than being
+   * legitimately empty. Empty `categoryJournalEntries` with this null means the
+   * month genuinely has no categories; with a message it means the read broke —
+   * generate must then refuse to delete existing drafts and must say why.
+   */
+  categoryUnavailable: string | null;
 }
 
 export interface LotRow {

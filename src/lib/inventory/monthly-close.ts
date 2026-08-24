@@ -12,6 +12,9 @@
  * The earliest month has no prior row → Beginning/COGS are null ("window start").
  */
 import type {
+  CategoryJE,
+  CategoryComparisonRow,
+  CategoryRollForwardRow,
   CloseBasis,
   InvCloseHeader,
   InvCloseLine,
@@ -19,6 +22,7 @@ import type {
   QbAccountLine,
   RollForwardRow,
 } from '@/types/inventory';
+import { accountsForCategory, matchBalanceSheetAccount, INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
 /** Minimal per-(month, location) value shape the roll-forward needs. */
 export interface RollbackMonthValue {
@@ -155,8 +159,10 @@ export function buildLocationJE(
   };
 }
 
-export const INVENTORY_ACCOUNT = '1220 Inventory Asset';
-export const COGS_ACCOUNT = 'Cost of Goods Sold';
+// INVENTORY_ACCOUNT / COGS_ACCOUNT now live in ./category-accounts (that module
+// is their natural home, and monthly-close needs to depend on category-accounts
+// without a cycle). Re-exported here so existing importers keep working.
+export { INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
 /** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
 export function shortInventoryLocation(location: string): string {
@@ -272,4 +278,239 @@ export function closeJeSheetNote(
     'Journal entries show the STORED DRAFT where one exists (frozen at generation — what posts), ' +
     `the live suggestion otherwise. ${parts.join(' · ')}.`
   );
+}
+
+/** One (location, category) ending value out of the lot-depletion ledger. */
+export interface CategoryLedgerValue {
+  location: string;
+  qbCategory: string;
+  endingValue: number;
+  /** Distinct receipt_ids contributing — the drill-down key set. */
+  receiptIds: string[];
+  lotCount: number;
+}
+
+/** Composite (location, category) map key. Exported so every consumer builds it
+ *  identically — a hand-rolled second copy is how a join silently starts missing.
+ *  The separator is a NUL escape, which no category name can contain. */
+export const categoryKey = (location: string, qbCategory: string): string => `${location}\u0000${qbCategory}`;
+
+/**
+ * Category-grain roll-forward for one month. Unlike the location-grain
+ * `buildRollForward`, there is no Purchases column: the lot ledger carries
+ * remaining value per lot, not a purchases roll — Beginning and Ending are the
+ * defensible pair, and COGS at category grain would need a purchases cut the
+ * loader does not emit. Rows sort by descending Ending.
+ */
+export function buildCategoryRollForward(
+  current: CategoryLedgerValue[],
+  prior: CategoryLedgerValue[] | null,
+): CategoryRollForwardRow[] {
+  const windowStart = prior === null;
+  const priorByKey = new Map<string, number>();
+  for (const p of prior ?? []) priorByKey.set(categoryKey(p.location, p.qbCategory), p.endingValue);
+
+  return [...current]
+    .sort((a, b) => b.endingValue - a.endingValue)
+    .map((c) => ({
+      location: c.location,
+      qbCategory: c.qbCategory,
+      // A category present now but absent last month began at zero — distinct
+      // from the window start, where there is no prior month to speak of at all.
+      beginning: windowStart ? null : round2(priorByKey.get(categoryKey(c.location, c.qbCategory)) ?? 0),
+      ending: round2(c.endingValue),
+      receiptIds: c.receiptIds,
+      lotCount: c.lotCount,
+    }));
+}
+
+const directionOf = (adjustment: number | null): CategoryComparisonRow['direction'] =>
+  adjustment === null ? null : adjustment > 0 ? 'debit-inventory' : adjustment < 0 ? 'credit-inventory' : 'none';
+
+/**
+ * A location's category-grain entry: each category compared against its own QB
+ * sub-account balance.
+ *
+ * A sub-account with no balance-sheet row is treated as $0 (a real, never-funded
+ * account — the whole FIFO value is the adjustment), NOT as unknown. Only a
+ * missing balance sheet entirely (`bookAvailable === false`) is unknown, and that
+ * nulls every adjustment.
+ *
+ * THE PARENT BALANCE IS READ ONCE. Every unmapped category ('Uncoded',
+ * 'Opening Balance', anything new) falls back to the SAME parent accounts, so
+ * asking `matchBalanceSheetAccount` for the parent balance per category makes
+ * each of them subtract the whole balance B — `Σfifo − 2B` where the truth is
+ * `Σfifo − B`. That is inert only while the parent has no balance-sheet row of
+ * its own; this close's own residual posting is what gives it one. So the parent
+ * balance is captured once as `residualBookBalance`, claimed for display by the
+ * first (largest) residual row with the rest reading $0, and compared against the
+ * summed residual FIFO exactly once when the JE is emitted.
+ */
+export function buildCategoryJE(
+  location: string,
+  rows: CategoryRollForwardRow[],
+  bsAccounts: ReadonlyArray<{ name: string; value: number }>,
+  accountNums: Record<string, string>,
+  bookAvailable: boolean,
+): CategoryJE {
+  const unmappedCategories: string[] = [];
+  const residualBookBalance = bookAvailable
+    ? round2(matchBalanceSheetAccount(INVENTORY_ACCOUNT, accountNums, bsAccounts) ?? 0)
+    : null;
+  let residualBalanceClaimed = false;
+
+  const lines: CategoryComparisonRow[] = rows
+    .filter((r) => r.location === location)
+    .map((r) => {
+      const accounts = accountsForCategory(r.qbCategory);
+      if (!accounts.mapped) unmappedCategories.push(r.qbCategory);
+
+      const fifoTarget = round2(r.ending);
+      let qbBookBalance: number | null;
+      if (!bookAvailable) {
+        qbBookBalance = null;
+      } else if (accounts.mapped) {
+        qbBookBalance = round2(matchBalanceSheetAccount(accounts.inventory, accountNums, bsAccounts) ?? 0);
+      } else {
+        // Residual: the parent balance belongs to the aggregate, so exactly one
+        // row carries it and the rest read $0 — the rows then foot to the single
+        // pair that posts instead of double-subtracting.
+        qbBookBalance = residualBalanceClaimed ? 0 : (residualBookBalance ?? 0);
+        residualBalanceClaimed = true;
+      }
+      const adjustment = qbBookBalance === null ? null : round2(fifoTarget - qbBookBalance);
+
+      return {
+        qbCategory: r.qbCategory,
+        inventoryAccount: accounts.inventory,
+        cogsAccount: accounts.cogs,
+        mapped: accounts.mapped,
+        fifoTarget,
+        qbBookBalance,
+        adjustment,
+        direction: directionOf(adjustment),
+        receiptIds: r.receiptIds,
+        lotCount: r.lotCount,
+      };
+    });
+
+  return {
+    location,
+    lines,
+    fifoTarget: round2(lines.reduce((s, l) => s + l.fifoTarget, 0)),
+    adjustment: round2(lines.reduce((s, l) => s + (l.adjustment ?? 0), 0)),
+    bookAvailable,
+    unmappedCategories,
+    residualBookBalance,
+  };
+}
+
+/** One POSTING line plus the receipts behind it — the drill-down key set.
+ *  Distinct from `CategoryComparisonRow` (the FIFO-vs-book table grain): the
+ *  residual categories share a single posting pair. */
+export interface CategoryPostingLine extends JeLine {
+  /** The category this line posts for; the aggregated residual pair carries the
+   *  combined label ('Opening Balance + Uncoded'). */
+  qbCategory: string;
+  /** false on the aggregated residual pair (parent accounts, needs drug coding). */
+  mapped: boolean;
+  receiptIds: string[];
+}
+
+/** Dr/Cr pair for one adjustment. Positive → Dr Inventory / Cr COGS (inventory
+ *  understated on the books); negative → the reverse. */
+function drCrPair(
+  adjustment: number,
+  inventoryAccount: string,
+  cogsAccount: string,
+  memo: string,
+  qbCategory: string,
+  mapped: boolean,
+  receiptIds: string[],
+): CategoryPostingLine[] {
+  const amount = round2(Math.abs(adjustment));
+  const inv = { account: inventoryAccount, memo, qbCategory, mapped, receiptIds };
+  const cogs = { account: cogsAccount, memo, qbCategory, mapped, receiptIds };
+  return adjustment > 0
+    ? [
+        { ...inv, debit: amount, credit: null },
+        { ...cogs, debit: null, credit: amount },
+      ]
+    : [
+        { ...cogs, debit: amount, credit: null },
+        { ...inv, debit: null, credit: amount },
+      ];
+}
+
+/**
+ * As `categoryJournalEntryLines`, but each line carries the receipt ids of the
+ * category (or categories) that produced it — a later lookup keyed by account
+ * name cannot recover them.
+ *
+ * Mapped categories get one pair each, on their own sub-accounts.
+ *
+ * EVERY UNMAPPED CATEGORY GETS ONE SHARED PAIR. They all fall back to the same
+ * parent accounts, and the parent's book balance can only be subtracted once —
+ * emitting a pair per residual category would net `Σfifo − n·B` against a book
+ * balance of B (see `buildCategoryJE`). The aggregate sums their FIFO targets,
+ * compares that against `je.residualBookBalance` exactly once, and unions their
+ * receipt ids so the evidence trail is complete. Skipped entirely when the
+ * combined adjustment is zero.
+ */
+export function categoryJournalEntryLinesWithSources(je: CategoryJE, monthEnd: string): CategoryPostingLine[] {
+  if (!je.bookAvailable) return [];
+  const out: CategoryPostingLine[] = [];
+
+  for (const line of je.lines) {
+    if (!line.mapped) continue;
+    if (line.adjustment === null || line.adjustment === 0) continue;
+    const memo = `Adjust ${line.qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}`;
+    out.push(
+      ...drCrPair(
+        line.adjustment,
+        line.inventoryAccount,
+        line.cogsAccount,
+        memo,
+        line.qbCategory,
+        true,
+        line.receiptIds,
+      ),
+    );
+  }
+
+  const residualRows = je.lines.filter((l) => !l.mapped);
+  if (residualRows.length > 0) {
+    const fifoTarget = round2(residualRows.reduce((s, l) => s + l.fifoTarget, 0));
+    const adjustment = round2(fifoTarget - (je.residualBookBalance ?? 0));
+    if (adjustment !== 0) {
+      // Name the categories the pair actually covers, so the memo stays accurate
+      // whatever the mix — sorted for a stable, diffable string.
+      const covered = [...new Set(residualRows.map((l) => l.qbCategory))].sort();
+      const qbCategory = covered.join(' + ');
+      const memo =
+        `Adjust ${qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}` +
+        ' — residual, needs drug coding';
+      const receiptIds = [...new Set(residualRows.flatMap((l) => l.receiptIds))];
+      out.push(
+        ...drCrPair(adjustment, INVENTORY_ACCOUNT, COGS_ACCOUNT, memo, qbCategory, false, receiptIds),
+      );
+    }
+  }
+
+  return out;
+}
+
+/**
+ * The balanced Dr/Cr pairs for a location's categorized entry — one pair per
+ * mapped category with a nonzero adjustment on its own sub-accounts, plus at
+ * most one aggregated residual pair on the parent accounts.
+ * Returns [] when the book balance is unavailable (nothing to compare against).
+ */
+export function categoryJournalEntryLines(je: CategoryJE, monthEnd: string): JeLine[] {
+  return categoryJournalEntryLinesWithSources(je, monthEnd).map(({ account, debit, credit, memo }) => ({
+    account,
+    debit,
+    credit,
+    memo,
+  }));
 }

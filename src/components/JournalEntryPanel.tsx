@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
 import QboImportGuide from './QboImportGuide';
-import type { CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
+import CategoryLotDrilldown from './CategoryLotDrilldown';
+import type { CategoryJE, CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
 import {
   CLOSE_STATUS_LABEL as STATUS_LABEL,
   closeDisplayLines,
@@ -52,6 +53,7 @@ interface LocationView {
  */
 export default function JournalEntryPanel({
   journalEntries,
+  categoryJournalEntries,
   basis,
   monthEnd,
   month,
@@ -65,6 +67,7 @@ export default function JournalEntryPanel({
   onPostLive,
 }: {
   journalEntries: LocationJE[];
+  categoryJournalEntries: CategoryJE[];
   basis: CloseBasis;
   monthEnd: string;
   month: string;
@@ -150,6 +153,7 @@ export default function JournalEntryPanel({
           subText={subText}
           border={border}
           view={activeView}
+          categoryJE={categoryJournalEntries.find((c) => c.location === activeView.je.location) ?? null}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
@@ -204,6 +208,144 @@ function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: Location
   );
 }
 
+/**
+ * Per-category breakdown of a location's entry, each row expandable to the lots
+ * behind it. This is what the CPA substantiates from: line -> category -> lots.
+ */
+function CategoryBreakdown({
+  je,
+  month,
+  darkMode,
+  subText,
+  border,
+  hasDraft,
+}: {
+  je: CategoryJE;
+  month: string;
+  darkMode: boolean;
+  subText: string;
+  border: string;
+  /** true once a draft exists — the table below it is then the FROZEN stored
+   *  draft while these numbers stay LIVE, and the two can legitimately disagree. */
+  hasDraft: boolean;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  if (je.lines.length === 0) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-semibold flex items-center gap-1.5">
+        {hasDraft ? 'Category detail — live' : 'By inventory category — what generates'}
+        <HelpTip
+          label="Category detail"
+          text={
+            'Each category is valued from its own lots (the lot-depletion ledger) and compared against its own QuickBooks sub-account, so the entry can be substantiated category by category. This is what Generate drafts builds the entry from. Click a row to see the products and lots behind it.' +
+            (hasDraft
+              ? ' These figures are recomputed LIVE on every load, while the stored draft below was frozen when it was generated — if the lot ledger has been re-simulated since, the two will differ, and the stored draft is what posts.'
+              : '')
+          }
+        />
+      </p>
+      {hasDraft && (
+        <p className={`text-xs ${subText}`}>
+          Recomputed live — the stored draft below is frozen at generation and is what posts.
+        </p>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className={`border-b ${border}`}>
+              <th className={th}>Category</th>
+              <th className={th}>QB account</th>
+              <th className={`${th} text-right`}>FIFO (lots)</th>
+              <th className={`${th} text-right`}>QB book</th>
+              <th className={`${th} text-right`}>Adjustment</th>
+              <th className={`${th} text-right`}>Lots</th>
+            </tr>
+          </thead>
+          <tbody>
+            {je.lines.map((l) => (
+              <Fragment key={l.qbCategory}>
+                <tr
+                  onClick={() => setOpen((v) => (v === l.qbCategory ? null : l.qbCategory))}
+                  className={`border-b last:border-0 cursor-pointer ${border} ${
+                    darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <td className="px-2 py-1 font-medium flex items-center gap-1">
+                    {open === l.qbCategory ? (
+                      <ChevronDown className="w-3 h-3 shrink-0" aria-hidden />
+                    ) : (
+                      <ChevronRight className="w-3 h-3 shrink-0" aria-hidden />
+                    )}
+                    {l.qbCategory}
+                    {!l.mapped && (
+                      <span
+                        title="No QuickBooks category account — posts to the parent account as a residual. Assign drug codes to clear."
+                        className="ml-1 text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-600 font-semibold uppercase cursor-help"
+                      >
+                        residual
+                      </span>
+                    )}
+                  </td>
+                  <td className={`px-2 py-1 text-xs ${subText}`}>{l.inventoryAccount}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{usd.format(l.fifoTarget)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    {l.qbBookBalance === null ? '—' : usd.format(l.qbBookBalance)}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums font-medium">
+                    {l.adjustment === null ? '—' : usd.format(l.adjustment)}
+                  </td>
+                  <td className={`px-2 py-1 text-right ${subText}`}>{l.lotCount}</td>
+                </tr>
+                {open === l.qbCategory && (
+                  <tr>
+                    <td colSpan={6} className={darkMode ? 'bg-slate-800/60' : 'bg-slate-50'}>
+                      <CategoryLotDrilldown
+                        location={je.location}
+                        qbCategory={l.qbCategory}
+                        month={month}
+                        darkMode={darkMode}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+          {/* The categorized total — the figure the entry actually posts. Without
+              it a reviewer has to add the category rows up by hand. */}
+          <tfoot>
+            <tr className={`border-t font-semibold ${border}`}>
+              <td className="px-2 py-1.5" colSpan={2}>
+                Categorized total
+              </td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{usd.format(je.fifoTarget)}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">
+                {je.bookAvailable ? usd.format(round2(je.fifoTarget - je.adjustment)) : '—'}
+              </td>
+              <td className="px-2 py-1.5 text-right tabular-nums" style={{ color: '#2563eb' }}>
+                {je.bookAvailable ? usd.format(je.adjustment) : '—'}
+              </td>
+              <td className={`px-2 py-1.5 text-right ${subText}`}>
+                {je.lines.reduce((s, l) => s + l.lotCount, 0)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {je.unmappedCategories.length > 0 && (
+        <p className={`text-xs ${subText}`}>
+          Residual categories ({je.unmappedCategories.join(', ')}) share the parent Inventory Asset /
+          Cost of Goods Sold accounts, so they post as <strong>one combined line</strong> — the parent
+          book balance can only be subtracted once.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function StatusBadge({ darkMode, label }: { darkMode: boolean; label: string }) {
   return (
     <span
@@ -253,6 +395,7 @@ function DraftCard({
   subText,
   border,
   view,
+  categoryJE,
   basis,
   month,
   monthEnd,
@@ -267,6 +410,7 @@ function DraftCard({
   subText: string;
   border: string;
   view: LocationView;
+  categoryJE: CategoryJE | null;
   basis: CloseBasis;
   month: string;
   monthEnd: string;
@@ -337,10 +481,10 @@ function DraftCard({
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
               <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
-                Adjustment
+                Adjustment (rollback ref.)
                 <HelpTip
-                  label="Why the adjustment can be large"
-                  text="FIFO target minus the QB book balance — the entry that restates the asset to the FIFO figure. A large number here is not one month of activity: the book balance carries years of accumulated estimates that were never tied to a valuation, so the first close catches up all of that drift in a single entry. The offset posts to Cost of Goods Sold."
+                  label="Rollback reference — not the categorized total"
+                  text="These three figures come from the backward-rollback valuation, the reference method: FIFO target minus the QB book balance. The number that actually posts is the Categorized total in the by-category table below, summed from the lot ledger — for non-anchored months the two differ substantially. A large adjustment either way is not one month of activity: the book balance carries years of accumulated estimates that were never tied to a valuation, so the first close catches up all of that drift in a single entry. The offset posts to Cost of Goods Sold."
                 />
               </p>
               <p className="text-lg font-bold tabular-nums" style={{ color: '#2563eb' }}>
@@ -351,10 +495,38 @@ function DraftCard({
 
           <LargeAdjustmentNote darkMode={darkMode} je={je} />
 
+          {categoryJE && (
+            <CategoryBreakdown
+              key={categoryJE.location}
+              je={categoryJE}
+              month={month}
+              darkMode={darkMode}
+              subText={subText}
+              border={border}
+              hasDraft={header !== null}
+            />
+          )}
+
           {lines.length === 0 ? (
             <p className={`text-sm ${subText}`}>No adjustment needed — FIFO ties to the book balance.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto space-y-1">
+              {/* WHAT THESE ROWS ARE depends on whether a draft exists — with one
+                  they are the frozen stored lines (what posts); without one
+                  closeDisplayLines falls back to the single-pair ROLLBACK
+                  suggestion, which is NOT what Generate would produce. Saying so
+                  here beats a paragraph above the panel. */}
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                {header ? 'Stored draft — frozen at generation' : 'Rollback method — reference only (not what generates)'}
+                <HelpTip
+                  label={header ? 'Stored draft' : 'Rollback reference'}
+                  text={
+                    header
+                      ? 'The lines frozen into the draft when it was generated — these are exactly what posts to QuickBooks. The category table above is recomputed live, so if the lot ledger has been re-simulated since generation the two will differ. Regenerate to refresh the draft.'
+                      : 'A single debit/credit pair built from the backward-rollback valuation against the parent accounts — the OTHER method, shown for reference. Generate drafts builds from the category detail above instead, on its own sub-accounts, and the two totals differ substantially for months that are not LifeFile-anchored.'
+                  }
+                />
+              </p>
               <table className="w-full text-sm">
                 <thead>
                   <tr className={`border-b ${border}`}>

@@ -8,7 +8,12 @@ import {
   closeJeSheetNote,
   INVENTORY_ACCOUNT,
   COGS_ACCOUNT,
+  buildCategoryRollForward,
+  buildCategoryJE,
+  categoryJournalEntryLines,
+  categoryJournalEntryLinesWithSources,
   type RollbackMonthValue,
+  type CategoryLedgerValue,
 } from './monthly-close';
 import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
@@ -281,5 +286,414 @@ describe('closeJeSheetNote', () => {
     const headers = [header({ id: 1, entity: 'MedRock FL', status: 'posted', qb_doc_number: 'QB-123' })];
     const note = closeJeSheetNote([fl], headers, '2026-07');
     expect(note).toContain('FL: QB-123 — Posted');
+  });
+});
+
+describe('QuickBooks account constants', () => {
+  // These strings are looked up in refs.accounts (keyed by the Account entity's
+  // FullyQualifiedName) by buildJePayload, which THROWS on a miss. The
+  // BalanceSheet report calls the same account '1220 Inventory Asset', but that
+  // name does not exist in the Account entity — verified null in FL/TN/TX on
+  // 2026-08-24. Pinning this prevents a silent regression to the unpostable name.
+  it('uses the FullyQualifiedName form of the inventory account, not the balance-sheet form', () => {
+    expect(INVENTORY_ACCOUNT).toBe('Inventory Asset');
+    expect(INVENTORY_ACCOUNT).not.toMatch(/^\d/);
+  });
+
+  it('uses the FullyQualifiedName form of the COGS account', () => {
+    expect(COGS_ACCOUNT).toBe('Cost of Goods Sold');
+    expect(COGS_ACCOUNT).not.toMatch(/^\d/);
+  });
+});
+
+const clv = (over: Partial<CategoryLedgerValue> & { location: string; qbCategory: string }): CategoryLedgerValue => ({
+  endingValue: 0,
+  receiptIds: [],
+  lotCount: 0,
+  ...over,
+});
+
+describe('buildCategoryRollForward', () => {
+  it('pairs each category with its prior-month beginning', () => {
+    const prior = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 800 })];
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, receiptIds: ['r1', 'r2'], lotCount: 2 }),
+    ];
+    const rows = buildCategoryRollForward(current, prior);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].beginning).toBe(800);
+    expect(rows[0].ending).toBe(1000);
+    expect(rows[0].receiptIds).toEqual(['r1', 'r2']);
+    expect(rows[0].lotCount).toBe(2);
+  });
+
+  it('treats a category absent last month as beginning at zero', () => {
+    const prior = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 800 })];
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 50 })];
+    const rows = buildCategoryRollForward(current, prior);
+    expect(rows.find((r) => r.qbCategory === 'Lab Supplies')?.beginning).toBe(0);
+  });
+
+  it('leaves beginning null at the window start (no prior month at all)', () => {
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows[0].beginning).toBeNull();
+  });
+
+  it('keeps locations separate for the same category name', () => {
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 100 }),
+      clv({ location: 'MedRock TN', qbCategory: 'Commercial Rx', endingValue: 200 }),
+    ];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.location === 'MedRock TN')?.ending).toBe(200);
+  });
+
+  it('sorts by descending ending value so the material categories read first', () => {
+    const current = [
+      clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 50 }),
+      clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 9000 }),
+    ];
+    const rows = buildCategoryRollForward(current, null);
+    expect(rows.map((r) => r.qbCategory)).toEqual(['Compound Ingredient', 'Lab Supplies']);
+  });
+});
+
+describe('buildCategoryJE', () => {
+  const accountNums: Record<string, string> = {
+    'Inventory Asset': '1220',
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+    'Inventory Asset:Compound Ingredient Inventory': '1220.10',
+  };
+  const bsAccounts = [
+    { name: '1220.05 Commercial Rx Inventory', value: 900 },
+    { name: '1220.10 Compound Ingredient Inventory', value: 5000 },
+  ];
+
+  it('computes a per-category adjustment against that sub-account balance', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, lotCount: 3 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines).toHaveLength(1);
+    expect(je.lines[0].inventoryAccount).toBe('Inventory Asset:Commercial Rx Inventory');
+    expect(je.lines[0].cogsAccount).toBe('Cost of Goods Sold:Commercial RX');
+    expect(je.lines[0].qbBookBalance).toBe(900);
+    expect(je.lines[0].adjustment).toBe(100); // 1000 − 900
+    expect(je.lines[0].direction).toBe('debit-inventory');
+    expect(je.lines[0].mapped).toBe(true);
+  });
+
+  it('sums the location total from its category lines', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.fifoTarget).toBe(5000);
+    expect(je.adjustment).toBe(100 + -1000); // (1000−900) + (4000−5000)
+  });
+
+  it('routes an unmapped category to the parent accounts and reports it', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 300 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines[0].mapped).toBe(false);
+    expect(je.lines[0].inventoryAccount).toBe('Inventory Asset');
+    expect(je.lines[0].cogsAccount).toBe('Cost of Goods Sold');
+    expect(je.unmappedCategories).toEqual(['Uncoded']);
+  });
+
+  it('treats a sub-account with no balance-sheet row as a zero book balance, not null', () => {
+    // A never-funded sub-account is legitimately $0 — the whole FIFO value is the
+    // adjustment. Only a MISSING BALANCE SHEET (bookAvailable=false) is unknown.
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 700 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.lines[0].qbBookBalance).toBe(0);
+    expect(je.lines[0].adjustment).toBe(700);
+  });
+
+  it('marks every adjustment null when the realm gave no balance sheet', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], accountNums, false);
+    expect(je.bookAvailable).toBe(false);
+    expect(je.lines[0].qbBookBalance).toBeNull();
+    expect(je.lines[0].adjustment).toBeNull();
+    expect(je.lines[0].direction).toBeNull();
+  });
+
+  it('keeps locations separate: a multi-location rows array yields only that location\'s lines', () => {
+    // computeClose passes the FULL multi-location categoryRollForward array into
+    // buildCategoryJE once per location — this filter is what keeps one location's
+    // JE from absorbing every other location's categories.
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock TN', qbCategory: 'Commercial Rx', endingValue: 2000 }),
+        clv({ location: 'MedRock TX', qbCategory: 'Compound Ingredient', endingValue: 300 }),
+      ],
+      null,
+    );
+    const tnJe = buildCategoryJE('MedRock TN', rows, bsAccounts, accountNums, true);
+    expect(tnJe.lines).toHaveLength(1);
+    expect(tnJe.lines.every((l) => l.qbCategory === 'Commercial Rx')).toBe(true);
+    expect(tnJe.fifoTarget).toBe(2000);
+  });
+});
+
+describe('categoryJournalEntryLines', () => {
+  const accountNums: Record<string, string> = {
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+    'Inventory Asset:Compound Ingredient Inventory': '1220.10',
+  };
+  const bsAccounts = [
+    { name: '1220.05 Commercial Rx Inventory', value: 900 },
+    { name: '1220.10 Compound Ingredient Inventory', value: 5000 },
+  ];
+
+  it('emits Dr Inventory / Cr COGS on the category sub-accounts for a positive adjustment', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, receiptIds: ['r1'] })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({
+      account: 'Inventory Asset:Commercial Rx Inventory',
+      debit: 100,
+      credit: null,
+    });
+    expect(lines[1]).toMatchObject({
+      account: 'Cost of Goods Sold:Commercial RX',
+      debit: null,
+      credit: 100,
+    });
+    expect(lines[0].memo).toContain('Commercial Rx');
+    expect(lines[0].memo).toContain('2026-03-31');
+  });
+
+  it('reverses to Dr COGS / Cr Inventory for a negative adjustment', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines[0]).toMatchObject({ account: 'Cost of Goods Sold:Compound Ingredient', debit: 1000 });
+    expect(lines[1]).toMatchObject({ account: 'Inventory Asset:Compound Ingredient Inventory', credit: 1000 });
+  });
+
+  it('skips categories whose adjustment is exactly zero', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 900 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(categoryJournalEntryLines(je, '2026-03-31')).toEqual([]);
+  });
+
+  it('always balances: total debits equal total credits', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    const debits = lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+    const credits = lines.reduce((s, l) => s + (l.credit ?? 0), 0);
+    expect(Math.round(debits * 100)).toBe(Math.round(credits * 100));
+  });
+
+  it('flags a residual (unmapped) category in the memo so it is never mistaken for a real category', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 300 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], { 'Inventory Asset': '1220' }, true);
+    const lines = categoryJournalEntryLines(je, '2026-03-31');
+    expect(lines[0].memo).toContain('needs drug coding');
+  });
+
+  it('emits nothing when the book balance is unavailable', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], accountNums, false);
+    expect(categoryJournalEntryLines(je, '2026-03-31')).toEqual([]);
+  });
+
+  it('mapped categories carry their own receiptIds on their own sub-accounts', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, receiptIds: ['c1', 'c2'] }),
+        clv({ location: 'MedRock FL', qbCategory: 'Compound Ingredient', endingValue: 4000, receiptIds: ['i1'] }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    const rx = lines.find((l) => l.account === 'Inventory Asset:Commercial Rx Inventory');
+    const ing = lines.find((l) => l.account === 'Inventory Asset:Compound Ingredient Inventory');
+    expect(rx?.receiptIds).toEqual(['c1', 'c2']);
+    expect(ing?.receiptIds).toEqual(['i1']);
+    expect(rx?.mapped).toBe(true);
+  });
+
+  it('delegates: the plain JeLine form is the sourced form with the extras dropped', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 1000, receiptIds: ['u1'] })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, [], {}, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    const plain = categoryJournalEntryLines(je, '2026-03-31');
+    expect(plain).toEqual(lines.map(({ account, debit, credit, memo }) => ({ account, debit, credit, memo })));
+  });
+});
+
+/**
+ * The residual (unmapped) categories all fall back to the SAME parent accounts.
+ * Emitting a pair each makes every one of them subtract the whole parent book
+ * balance B — `Σfifo − n·B` where the truth is `Σfifo − B`. That is inert only
+ * while the parent has no balance-sheet row of its own, and this close's own
+ * residual posting is precisely what gives it one. Every case below therefore
+ * uses a NON-ZERO parent balance: under the pre-fix per-category behavior they
+ * fail (two pairs, and a total of Σfifo − 2B).
+ */
+describe('categoryJournalEntryLines — aggregated residual', () => {
+  const accountNums: Record<string, string> = {
+    'Inventory Asset': '1220',
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+  };
+  // The parent now carries a real balance — what a previous residual post creates.
+  const PARENT_BALANCE = 400;
+  const bsAccounts = [
+    { name: '1220 Inventory Asset', value: PARENT_BALANCE },
+    { name: '1220.05 Commercial Rx Inventory', value: 900 },
+  ];
+  const twoResiduals = () =>
+    buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 1000, receiptIds: ['u1', 'u2'], lotCount: 2 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 500, receiptIds: ['ob1'], lotCount: 1 }),
+      ],
+      null,
+    );
+
+  it('emits exactly ONE inventory line and ONE COGS line for two unmapped categories', () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    expect(lines).toHaveLength(2); // one pair, not two
+    expect(lines.filter((l) => l.account === INVENTORY_ACCOUNT)).toHaveLength(1);
+    expect(lines.filter((l) => l.account === COGS_ACCOUNT)).toHaveLength(1);
+  });
+
+  it('subtracts the parent balance ONCE: (fifo_U + fifo_OB) − B, never − 2B', () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    const expected = 1000 + 500 - PARENT_BALANCE; // 1100
+    const doubleSubtracted = 1000 + 500 - 2 * PARENT_BALANCE; // 700 — the bug
+    expect(expected).not.toBe(doubleSubtracted); // the fixture actually discriminates
+    const dr = lines.find((l) => l.debit !== null);
+    expect(dr?.account).toBe(INVENTORY_ACCOUNT);
+    expect(dr?.debit).toBe(expected);
+    expect(je.residualBookBalance).toBe(PARENT_BALANCE);
+  });
+
+  it("the location total equals what the entry posts (Σfifo − B), so the card's totals row ties", () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    expect(je.fifoTarget).toBe(1500);
+    expect(je.adjustment).toBe(1100); // 1500 − 400, NOT 1500 − 800
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    const net = lines.reduce((s, l) => s + (l.debit ?? 0) - (l.credit ?? 0), 0);
+    expect(Math.abs(net)).toBe(0); // balanced
+    const drInventory = lines.find((l) => l.account === INVENTORY_ACCOUNT && l.debit !== null);
+    expect(drInventory?.debit).toBe(je.adjustment);
+  });
+
+  it("unions the residual categories' receiptIds onto the one line", () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    for (const l of lines) expect(l.receiptIds).toEqual(['u1', 'u2', 'ob1']);
+  });
+
+  it('names every category it covers, sorted, and still flags it as needing drug coding', () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    expect(lines[0].qbCategory).toBe('Opening Balance + Uncoded');
+    expect(lines[0].mapped).toBe(false);
+    expect(lines[0].memo).toContain('Opening Balance + Uncoded');
+    expect(lines[0].memo).toContain('needs drug coding');
+  });
+
+  it('leaves mapped categories on their own sub-accounts, one pair each, untouched', () => {
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 800 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 500 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    const rx = lines.filter((l) => l.account === 'Inventory Asset:Commercial Rx Inventory');
+    expect(rx).toHaveLength(1);
+    expect(rx[0].debit).toBe(100); // 1000 − 900, its own sub-account balance
+    expect(rx[0].qbCategory).toBe('Commercial Rx');
+    // …and one aggregated residual pair alongside it: (800 + 500) − 400.
+    const residualDr = lines.find((l) => l.account === INVENTORY_ACCOUNT && l.debit !== null);
+    expect(residualDr?.debit).toBe(900);
+    expect(lines).toHaveLength(4);
+  });
+
+  it('skips the residual pair entirely when the combined adjustment nets to zero', () => {
+    // TX 2026-03 in miniature: residual FIFO exactly equals the parent balance.
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 400 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 0 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(categoryJournalEntryLinesWithSources(je, '2026-03-31')).toEqual([]);
+  });
+
+  it('reverses the aggregated pair when the residual FIFO is below the parent balance', () => {
+    const rows = buildCategoryRollForward(
+      [clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 150 })],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+    expect(lines[0]).toMatchObject({ account: COGS_ACCOUNT, debit: 250 }); // 400 − 150
+    expect(lines[1]).toMatchObject({ account: INVENTORY_ACCOUNT, credit: 250 });
+  });
+
+  it('claims the parent balance on exactly one comparison row so the rows foot to the pair', () => {
+    const je = buildCategoryJE('MedRock FL', twoResiduals(), bsAccounts, accountNums, true);
+    const residualRows = je.lines.filter((l) => !l.mapped);
+    expect(residualRows.map((l) => l.qbBookBalance)).toEqual([PARENT_BALANCE, 0]);
+    const footed = residualRows.reduce((s, l) => s + (l.adjustment ?? 0), 0);
+    expect(footed).toBe(1100);
   });
 });
