@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
-import { closeDisplayLines, closeJeSheetNote, findCloseHeader } from '@/lib/inventory/monthly-close';
+import { categoryKey, closeDisplayLines, closeJeSheetNote, findCloseHeader } from '@/lib/inventory/monthly-close';
 import { computeClose, loadStoredDrafts, monthEndDate } from '@/lib/inventory/close-server';
 import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/inventory';
 
@@ -30,6 +30,7 @@ const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): Mont
   linesById: {},
   categoryRollForward: [],
   categoryJournalEntries: [],
+  categoryUnavailable: null,
 });
 
 export async function GET(request: NextRequest) {
@@ -163,22 +164,51 @@ function closeWorkbook(
 
   const beginningByKey = new Map<string, number | null>();
   for (const r of body.categoryRollForward) {
-    beginningByKey.set(`${r.location}\u0000${r.qbCategory}`, r.beginning);
+    beginningByKey.set(categoryKey(r.location, r.qbCategory), r.beginning);
   }
-  const categoryRows: Record<string, CellValue>[] = body.categoryJournalEntries.flatMap((je) =>
-    je.lines.map((l) => ({
+  // `.has` rather than a bare `?? null`: a genuine window-start null and a join
+  // miss are different facts, and collapsing them makes a future key mismatch
+  // silent — the whole Beginning column would just go blank with no signal.
+  const beginningFor = (location: string, qbCategory: string): number | null => {
+    const key = categoryKey(location, qbCategory);
+    if (!beginningByKey.has(key)) {
+      console.warn(
+        `[inventory/monthly-close] no category roll-forward row for ${location} / ${qbCategory}` +
+          ' — Beginning left blank in the export',
+      );
+      return null;
+    }
+    return beginningByKey.get(key) ?? null;
+  };
+
+  const categoryRows: Record<string, CellValue>[] = body.categoryJournalEntries.flatMap((je) => [
+    ...je.lines.map((l) => ({
       location: je.location,
       category: l.qbCategory,
       inventoryAccount: l.inventoryAccount,
       cogsAccount: l.cogsAccount,
-      beginning: beginningByKey.get(`${je.location}\u0000${l.qbCategory}`) ?? null,
+      beginning: beginningFor(je.location, l.qbCategory),
       fifoTarget: l.fifoTarget,
       qbBookBalance: l.qbBookBalance,
       adjustment: l.adjustment,
       lotCount: l.lotCount,
       note: l.mapped ? '' : 'residual — no QB category account, needs drug coding',
     })),
-  );
+    // The figure that actually posts, as a total — a reader should never have to
+    // add the category rows up by hand to find the entry they are substantiating.
+    {
+      location: je.location,
+      category: 'TOTAL',
+      inventoryAccount: '',
+      cogsAccount: '',
+      beginning: null,
+      fifoTarget: je.fifoTarget,
+      qbBookBalance: null,
+      adjustment: je.adjustment,
+      lotCount: je.lines.reduce((s, l) => s + l.lotCount, 0),
+      note: 'categorized total — this is what the draft posts for this location',
+    },
+  ]);
 
   const filename = `inventory-close_${month}_${basis}`;
   const packageNote =
@@ -196,7 +226,11 @@ function closeWorkbook(
       name: 'Journal-Entries',
       columns: JE_COLUMNS,
       rows: jeRows,
-      note: `${packageNote} ${closeJeSheetNote(body.journalEntries, body.headers, month)}`,
+      note:
+        `${packageNote} ${closeJeSheetNote(body.journalEntries, body.headers, month)} ` +
+        'WHERE NO DRAFT EXISTS these rows are the single-pair BACKWARD-ROLLBACK suggestion ' +
+        '(a different valuation method, shown for reference) — the Category-Detail sheet is what ' +
+        'the drafts generate from.',
     },
   ];
   if (categoryRows.length > 0) {
@@ -206,8 +240,10 @@ function closeWorkbook(
       rows: categoryRows,
       note:
         `${packageNote} Category values are summed from the lot-depletion ledger — this is what the ` +
-        'drafts generate from. The Roll-Forward sheet is the backward-rollback reconstruction, a ' +
-        'different method shown for reference. Drill to individual lots on the Inventory (FIFO) page.',
+        'drafts generate from. The Roll-Forward and Journal-Entries sheets are the backward-rollback ' +
+        'reconstruction, a different method shown for reference. Unmapped categories (Uncoded, ' +
+        'Opening Balance) are listed separately here but post as ONE combined residual line. ' +
+        'Drill to individual lots on the Inventory (FIFO) page.',
     });
   }
   return xlsxResponse(sheets, filename, packageNote);
