@@ -19,6 +19,7 @@ import type {
   QbAccountLine,
   RollForwardRow,
 } from '@/types/inventory';
+import { INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
 /** Minimal per-(month, location) value shape the roll-forward needs. */
 export interface RollbackMonthValue {
@@ -155,15 +156,10 @@ export function buildLocationJE(
   };
 }
 
-/**
- * QB account names as the Account entity reports them (FullyQualifiedName) —
- * the ONLY form `buildJePayload` can resolve (`refs.accounts` is keyed by it).
- * The BalanceSheet report calls this same account '1220 Inventory Asset'; that
- * string resolves to nothing and made every close JE throw `unresolved account`
- * at post AND dry-run time. Never put a balance-sheet-style name here.
- */
-export const INVENTORY_ACCOUNT = 'Inventory Asset';
-export const COGS_ACCOUNT = 'Cost of Goods Sold';
+// INVENTORY_ACCOUNT / COGS_ACCOUNT now live in ./category-accounts (that module
+// is their natural home, and monthly-close needs to depend on category-accounts
+// without a cycle). Re-exported here so existing importers keep working.
+export { INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
 
 /** 'MedRock Florida' → 'FL' — mirrors the End of Month tab's SHORT_ENT labels. */
 export function shortInventoryLocation(location: string): string {
