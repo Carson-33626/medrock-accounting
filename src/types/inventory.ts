@@ -155,8 +155,14 @@ export interface CategoryRollForwardRow {
   lotCount: number;
 }
 
-/** One category's adjusting pair within a location's entry. */
-export interface CategoryJELine {
+/**
+ * One category's COMPARISON row (FIFO vs. book) within a location's entry — the
+ * on-screen/workbook table grain. NOT a posting line: unmapped categories share
+ * one aggregated posting pair (see `CategoryPostingLine` in lib/inventory/
+ * monthly-close), so these rows and the emitted JE lines are 1:1 only for
+ * mapped categories.
+ */
+export interface CategoryComparisonRow {
   qbCategory: string;
   /** QB FullyQualifiedName of the inventory-asset account this line adjusts. */
   inventoryAccount: string;
@@ -165,7 +171,15 @@ export interface CategoryJELine {
   /** false when the category fell back to the parent accounts (residual line). */
   mapped: boolean;
   fifoTarget: number;
-  /** Book balance of `inventoryAccount`; null when unavailable/never funded. */
+  /**
+   * Book balance of `inventoryAccount`; null when unavailable/never funded.
+   *
+   * RESIDUAL ROWS: every unmapped category resolves to the SAME parent account,
+   * so the parent balance is not attributable per category. It is claimed ONCE,
+   * by the first (largest) residual row; the rest read $0. That keeps the rows
+   * footing exactly to the single aggregated residual pair that actually posts —
+   * see `categoryJournalEntryLinesWithSources`.
+   */
   qbBookBalance: number | null;
   adjustment: number | null; // fifoTarget − qbBookBalance
   direction: 'debit-inventory' | 'credit-inventory' | 'none' | null;
@@ -176,15 +190,22 @@ export interface CategoryJELine {
 /** A location's category-grain entry — the sum of its category lines. */
 export interface CategoryJE {
   location: string;
-  lines: CategoryJELine[];
+  lines: CategoryComparisonRow[];
   /** Σ line.fifoTarget — what the categorized entry brings the books to. */
   fifoTarget: number;
-  /** Σ line.adjustment (skipping nulls). */
+  /** Σ line.adjustment (skipping nulls) — equals what the emitted JE posts. */
   adjustment: number;
   /** false when the QB realm gave no balance sheet at all. */
   bookAvailable: boolean;
   /** Categories that fell back to parent accounts, for the warnings banner. */
   unmappedCategories: string[];
+  /**
+   * The parent inventory account's book balance, read ONCE for the whole
+   * location. The aggregated residual pair is compared against this — two
+   * unmapped categories each subtracting it would double-count the parent
+   * balance. null when the balance sheet is unavailable.
+   */
+  residualBookBalance: number | null;
 }
 
 export interface MonthlyCloseResponse {
@@ -203,6 +224,13 @@ export interface MonthlyCloseResponse {
   categoryRollForward: CategoryRollForwardRow[];
   /** Category-grain entries — what actually generates/posts as of 2026-08-24. */
   categoryJournalEntries: CategoryJE[];
+  /**
+   * Non-null when the category grain FAILED (QB/ledger error) rather than being
+   * legitimately empty. Empty `categoryJournalEntries` with this null means the
+   * month genuinely has no categories; with a message it means the read broke —
+   * generate must then refuse to delete existing drafts and must say why.
+   */
+  categoryUnavailable: string | null;
 }
 
 export interface LotRow {

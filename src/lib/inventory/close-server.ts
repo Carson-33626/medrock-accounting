@@ -165,6 +165,7 @@ export async function computeClose(
   Pick<MonthlyCloseResponse, 'purchasesAvailable' | 'rollForward' | 'journalEntries'> & {
     categoryRollForward: CategoryRollForwardRow[];
     categoryJournalEntries: CategoryJE[];
+    categoryUnavailable: string | null;
   }
 > {
   const pool = getRdsPool();
@@ -179,6 +180,7 @@ export async function computeClose(
       journalEntries: [],
       categoryRollForward: [],
       categoryJournalEntries: [],
+      categoryUnavailable: null,
     };
   }
 
@@ -226,6 +228,7 @@ export async function computeClose(
       journalEntries: [],
       categoryRollForward: [],
       categoryJournalEntries: [],
+      categoryUnavailable: null,
     };
   }
 
@@ -248,11 +251,17 @@ export async function computeClose(
   );
 
   // ---- Category grain (lot-ledger sourced) -------------------------------
-  // Best-effort: a category-side failure must never take down the location-grain
-  // close that has been shipping since July. The prior month is read from the
-  // ledger itself (it has every month, unlike the rollback table).
+  // Best-effort for the READ path: a category-side failure must never take down
+  // the location-grain close that has been shipping since July. But the WRITE
+  // path (generateInvCloseDrafts) now generates from these entries, so a swallowed
+  // failure there would delete every unposted draft and create none. The reason is
+  // therefore REPORTED, not just logged — `categoryUnavailable` distinguishes
+  // "the read broke" from "this month genuinely has no categories".
+  // The prior month is read from the ledger itself (it has every month, unlike the
+  // rollback table).
   let categoryRollForward: CategoryRollForwardRow[] = [];
   let categoryJournalEntries: CategoryJE[] = [];
+  let categoryUnavailable: string | null = null;
   try {
     const priorLedgerRes = await pool.query<{ as_of_month: string }>(
       `SELECT as_of_month FROM inventory.lot_depletion_ledger
@@ -277,8 +286,10 @@ export async function computeClose(
         // Two QB reads per location: the balance sheet (per-sub-account balances,
         // named '1220.05 …') and the dimensions (FullyQualifiedName -> AcctNum),
         // which is the only way to bridge those two naming conventions.
+        // BOTH catch: one location's realm rejecting must degrade THAT location to
+        // bookAvailable=false, not reject the Promise.all and blank all three.
         const [book, refs] = await Promise.all([
-          getBalanceSheetInventory(qbLocation, monthEnd),
+          getBalanceSheetInventory(qbLocation, monthEnd).catch(() => null),
           fetchDimensions(qbLocation).catch(() => null),
         ]);
         if (book === null || refs === null) {
@@ -288,13 +299,21 @@ export async function computeClose(
       }),
     );
   } catch (categoryErr) {
-    console.warn(
-      '[inventory/close-server] category grain skipped:',
-      categoryErr instanceof Error ? categoryErr.message : categoryErr,
-    );
+    categoryUnavailable = categoryErr instanceof Error ? categoryErr.message : String(categoryErr);
+    // A partial build must not look like a complete one — drop it entirely.
+    categoryRollForward = [];
+    categoryJournalEntries = [];
+    console.warn('[inventory/close-server] category grain skipped:', categoryUnavailable);
   }
 
-  return { purchasesAvailable, rollForward, journalEntries, categoryRollForward, categoryJournalEntries };
+  return {
+    purchasesAvailable,
+    rollForward,
+    journalEntries,
+    categoryRollForward,
+    categoryJournalEntries,
+    categoryUnavailable,
+  };
 }
 
 /** Stored drafts for the month, shaped for the client. */
@@ -345,6 +364,22 @@ export async function generateInvCloseDrafts(
   }
 
   const close = await computeClose(month, basis, monthEnd);
+
+  // The category read FAILED (as opposed to this month genuinely having no
+  // categories). Generating from an empty list would save nothing and then hand
+  // deleteUnpostedInvCloseHeaders an empty keep-list — wiping every non-posted
+  // header for the month, APPROVED ones included, with nothing on screen to say
+  // why. Refuse to touch stored drafts and report the reason instead.
+  if (close.categoryUnavailable !== null) {
+    return {
+      savedEntities: [],
+      warnings: [
+        `Category detail could not be read (${close.categoryUnavailable}) — nothing was generated and ` +
+          'existing drafts were left untouched. Retry once QuickBooks / the lot ledger is reachable.',
+      ],
+    };
+  }
+
   const warnings: string[] = [];
   const savedEntities: Entity[] = [];
   const payDate = isoToAdp(monthEnd);
@@ -361,16 +396,22 @@ export async function generateInvCloseDrafts(
       warnings.push(`${je.location}: QB book balance unavailable — no draft generated`);
       continue;
     }
-    if (je.unmappedCategories.length > 0) {
-      warnings.push(
-        `${je.location}: ${je.unmappedCategories.join(', ')} have no QuickBooks category account — ` +
-          'posted to the parent Inventory Asset / Cost of Goods Sold as a residual line (assign drug codes to clear)',
-      );
-    }
     const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
     if (jeLines.length === 0) {
       warnings.push(`${je.location}: no adjustment needed (FIFO ties to book) — no draft generated`);
       continue;
+    }
+    // Gate on a residual line HAVING BEEN EMITTED, not on unmappedCategories
+    // being non-empty: an unmapped category whose combined adjustment nets to zero
+    // (TX 'Uncoded' in 2026-03 — every remaining_value NULL) posts nothing, and
+    // claiming otherwise sends the accountant looking for a line that isn't there.
+    const residualLine = jeLines.find((l) => !l.mapped);
+    if (residualLine) {
+      warnings.push(
+        `${je.location}: ${je.unmappedCategories.join(', ')} have no QuickBooks category account — ` +
+          'posted to the parent Inventory Asset / Cost of Goods Sold as ONE combined residual line ' +
+          '(assign drug codes to clear)',
+      );
     }
     const lines: JournalLine[] = jeLines.map((l) => ({
       postingType: l.debit !== null ? 'Debit' : 'Credit',

@@ -221,8 +221,10 @@ export function InventoryCloseTab() {
         <p>
           <strong>Floor vs. full-coverage:</strong> the receipt-priced floor counts only stock traceable
           to a priced purchase receipt (conservative); the full-coverage estimate counts everything on
-          LifeFile&rsquo;s lot report, with estimated prices where a receipt is missing. Accounting picks
-          which basis becomes official; the point-in-time values behind both live on the{' '}
+          LifeFile&rsquo;s lot report, with estimated prices where a receipt is missing. The switch moves
+          the <em>roll-forward and the rollback reference figures only</em> — the generated entry is
+          built from the lot ledger, which has one value per category, so it is the same either way. The
+          point-in-time values behind both live on the{' '}
           <a href="/inventory/as-of" className="underline">
             As-of Value
           </a>{' '}
@@ -252,8 +254,8 @@ export function InventoryCloseTab() {
           </select>
         </label>
         <HelpTip
-          label="Floor vs. full-coverage"
-          text="Which ending value the roll-forward and journal entry are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt."
+          label="Floor vs. full-coverage — affects the REFERENCE figures only"
+          text="Which ending value the roll-forward and the rollback reference numbers are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt. It does NOT change what Generate drafts produces — the entry is summed from the lot-depletion ledger, which carries a single value per category (opening-balance estimates already resolved into their own category), so the generated entry is identical on either setting."
         />
         <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
           <button
@@ -303,6 +305,25 @@ export function InventoryCloseTab() {
           {generateLabel}
         </button>
       </div>
+
+      {/* A FAILED category read (as opposed to a month with genuinely no
+          categories) must be visible here, not only in the server log: it is the
+          state in which Generate refuses to run and nothing on the page would
+          otherwise explain the empty category table. */}
+      {closeReady && monthlyClose?.categoryUnavailable && (
+        <div
+          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+            darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+          <p>
+            <strong>Category detail unavailable</strong> — {monthlyClose.categoryUnavailable}. The
+            roll-forward and rollback reference figures below are still valid, but drafts cannot be
+            generated and existing drafts will not be touched until this clears.
+          </p>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div
