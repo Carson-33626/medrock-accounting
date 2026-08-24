@@ -8,16 +8,22 @@
  * (roll-forward math, JE lines, doc numbers) stay in ./monthly-close so client
  * components can share them.
  */
+import type { Pool } from 'pg';
 import { createHash } from 'node:crypto';
 import { getRdsPool } from '../rds';
 import { getBalanceSheetInventory } from '../quickbooks-multi';
 import { QB_LOCATIONS, QB_TO_RDS_LOCATION } from '../qb-links';
+import { fetchDimensions } from '../payroll/qb-journal';
 import {
   buildRollForward,
   buildLocationJE,
   journalEntryLines,
   invCloseDocNumber,
+  buildCategoryRollForward,
+  buildCategoryJE,
+  categoryJournalEntryLines,
   type RollbackMonthValue,
+  type CategoryLedgerValue,
 } from './monthly-close';
 import {
   saveDraft,
@@ -28,6 +34,8 @@ import {
 } from '../payroll/store';
 import type { Entity, JournalDraft, JournalLine } from '../payroll/types';
 import type {
+  CategoryJE,
+  CategoryRollForwardRow,
   CloseBasis,
   InvCloseHeader,
   InvCloseLine,
@@ -105,19 +113,74 @@ export async function deleteUnpostedInvCloseHeaders(
   return rowCount ?? 0;
 }
 
+interface CategoryLedgerQueryRow {
+  location: string;
+  qb_category: string;
+  ending_value: number;
+  receipt_ids: string[];
+  lot_count: number;
+}
+
+/**
+ * Ending value per (location, category) for one month, out of the lot-depletion
+ * ledger. Mirrors the grouping in api/inventory/lots' lotRowsCte one level up
+ * (category rather than product), so the close and the Inventory Valuation page
+ * are reading the same rows — a category total here always equals the sum of the
+ * lots the drill-down shows for that same filter.
+ *
+ * COALESCE on qb_category matches the lots route exactly: a lot with no category
+ * is an opening balance.
+ */
+export async function fetchCategoryLedgerValues(
+  pool: Pool,
+  month: string,
+): Promise<CategoryLedgerValue[]> {
+  const { rows } = await pool.query<CategoryLedgerQueryRow>(
+    `SELECT l.location,
+            COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
+            COALESCE(sum(l.remaining_value), 0)::float8 AS ending_value,
+            array_agg(DISTINCT l.receipt_id) AS receipt_ids,
+            count(*)::int AS lot_count
+     FROM inventory.lot_depletion_ledger l
+     LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
+     WHERE l.as_of_month = $1
+     GROUP BY l.location, COALESCE(p.qb_category, 'Opening Balance')
+     ORDER BY l.location, qb_category`,
+    [month],
+  );
+  return rows.map((r) => ({
+    location: r.location,
+    qbCategory: r.qb_category,
+    endingValue: r.ending_value,
+    receiptIds: r.receipt_ids,
+    lotCount: r.lot_count,
+  }));
+}
+
 /** The close computation without stored drafts — shared by GET and generate. */
 export async function computeClose(
   month: string,
   basis: CloseBasis,
   monthEnd: string,
-): Promise<Pick<MonthlyCloseResponse, 'purchasesAvailable' | 'rollForward' | 'journalEntries'>> {
+): Promise<
+  Pick<MonthlyCloseResponse, 'purchasesAvailable' | 'rollForward' | 'journalEntries'> & {
+    categoryRollForward: CategoryRollForwardRow[];
+    categoryJournalEntries: CategoryJE[];
+  }
+> {
   const pool = getRdsPool();
 
   const exists = await pool.query<{ regclass: string | null }>(
     `SELECT to_regclass('inventory.fifo_rollback_valuation')::text AS regclass`,
   );
   if (!exists.rows[0]?.regclass) {
-    return { purchasesAvailable: false, rollForward: [], journalEntries: [] };
+    return {
+      purchasesAvailable: false,
+      rollForward: [],
+      journalEntries: [],
+      categoryRollForward: [],
+      categoryJournalEntries: [],
+    };
   }
 
   const cols = await pool.query<{ column_name: string }>(
@@ -158,7 +221,13 @@ export async function computeClose(
     : null;
 
   if (currentRows.length === 0) {
-    return { purchasesAvailable, rollForward: [], journalEntries: [] };
+    return {
+      purchasesAvailable,
+      rollForward: [],
+      journalEntries: [],
+      categoryRollForward: [],
+      categoryJournalEntries: [],
+    };
   }
 
   const rollForward = buildRollForward(currentRows, priorRows, basis, purchasesAvailable);
@@ -179,7 +248,54 @@ export async function computeClose(
     }),
   );
 
-  return { purchasesAvailable, rollForward, journalEntries };
+  // ---- Category grain (lot-ledger sourced) -------------------------------
+  // Best-effort: a category-side failure must never take down the location-grain
+  // close that has been shipping since July. The prior month is read from the
+  // ledger itself (it has every month, unlike the rollback table).
+  let categoryRollForward: CategoryRollForwardRow[] = [];
+  let categoryJournalEntries: CategoryJE[] = [];
+  try {
+    const priorLedgerRes = await pool.query<{ as_of_month: string }>(
+      `SELECT as_of_month FROM inventory.lot_depletion_ledger
+       WHERE as_of_month < $1
+       ORDER BY as_of_month DESC
+       LIMIT 1`,
+      [month],
+    );
+    const priorLedgerMonth = priorLedgerRes.rows[0]?.as_of_month ?? null;
+
+    const currentCats = await fetchCategoryLedgerValues(pool, month);
+    const priorCats = priorLedgerMonth ? await fetchCategoryLedgerValues(pool, priorLedgerMonth) : null;
+    categoryRollForward = buildCategoryRollForward(currentCats, priorCats);
+
+    const locations = [...new Set(categoryRollForward.map((r) => r.location))];
+    categoryJournalEntries = await Promise.all(
+      locations.map(async (location) => {
+        const qbLocation = QB_LOCATIONS.find((qb) => QB_TO_RDS_LOCATION[qb] === location);
+        if (qbLocation === undefined) {
+          return buildCategoryJE(location, categoryRollForward, [], {}, false);
+        }
+        // Two QB reads per location: the balance sheet (per-sub-account balances,
+        // named '1220.05 …') and the dimensions (FullyQualifiedName -> AcctNum),
+        // which is the only way to bridge those two naming conventions.
+        const [book, refs] = await Promise.all([
+          getBalanceSheetInventory(qbLocation, monthEnd),
+          fetchDimensions(qbLocation).catch(() => null),
+        ]);
+        if (book === null || refs === null) {
+          return buildCategoryJE(location, categoryRollForward, [], {}, false);
+        }
+        return buildCategoryJE(location, categoryRollForward, book.accounts, refs.accountNums ?? {}, true);
+      }),
+    );
+  } catch (categoryErr) {
+    console.warn(
+      '[inventory/close-server] category grain skipped:',
+      categoryErr instanceof Error ? categoryErr.message : categoryErr,
+    );
+  }
+
+  return { purchasesAvailable, rollForward, journalEntries, categoryRollForward, categoryJournalEntries };
 }
 
 /** Stored drafts for the month, shaped for the client. */

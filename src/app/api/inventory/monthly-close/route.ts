@@ -28,6 +28,8 @@ const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): Mont
   journalEntries: [],
   headers: [],
   linesById: {},
+  categoryRollForward: [],
+  categoryJournalEntries: [],
 });
 
 export async function GET(request: NextRequest) {

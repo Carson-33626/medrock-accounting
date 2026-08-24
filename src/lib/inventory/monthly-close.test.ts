@@ -433,6 +433,24 @@ describe('buildCategoryJE', () => {
     expect(je.lines[0].adjustment).toBeNull();
     expect(je.lines[0].direction).toBeNull();
   });
+
+  it('keeps locations separate: a multi-location rows array yields only that location\'s lines', () => {
+    // computeClose passes the FULL multi-location categoryRollForward array into
+    // buildCategoryJE once per location — this filter is what keeps one location's
+    // JE from absorbing every other location's categories.
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000 }),
+        clv({ location: 'MedRock TN', qbCategory: 'Commercial Rx', endingValue: 2000 }),
+        clv({ location: 'MedRock TX', qbCategory: 'Compound Ingredient', endingValue: 300 }),
+      ],
+      null,
+    );
+    const tnJe = buildCategoryJE('MedRock TN', rows, bsAccounts, accountNums, true);
+    expect(tnJe.lines).toHaveLength(1);
+    expect(tnJe.lines.every((l) => l.qbCategory === 'Commercial Rx')).toBe(true);
+    expect(tnJe.fifoTarget).toBe(2000);
+  });
 });
 
 describe('categoryJournalEntryLines', () => {
