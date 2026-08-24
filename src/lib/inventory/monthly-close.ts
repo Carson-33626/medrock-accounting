@@ -377,30 +377,54 @@ export function buildCategoryJE(
   };
 }
 
+/** A category's JE line plus the receipts that produced it — the drill-down key set. */
+export interface CategoryJeLine extends JeLine {
+  qbCategory: string;
+  receiptIds: string[];
+}
+
 /**
- * The balanced Dr/Cr pairs for a location's categorized entry — one pair per
- * category with a nonzero adjustment, each on that category's own sub-accounts.
- * Returns [] when the book balance is unavailable (nothing to compare against).
+ * As `categoryJournalEntryLines`, but each line carries the receipt ids of the
+ * category that produced it. Two categories can legitimately share one account
+ * (Uncoded and Opening Balance both fall back to the parent accounts), so the
+ * source ids can only be attached while the emitting category is still in hand —
+ * a later lookup keyed by account name collapses them.
  */
-export function categoryJournalEntryLines(je: CategoryJE, monthEnd: string): JeLine[] {
+export function categoryJournalEntryLinesWithSources(je: CategoryJE, monthEnd: string): CategoryJeLine[] {
   if (!je.bookAvailable) return [];
-  const out: JeLine[] = [];
+  const out: CategoryJeLine[] = [];
 
   for (const line of je.lines) {
     if (line.adjustment === null || line.adjustment === 0) continue;
     const amount = round2(Math.abs(line.adjustment));
     const residual = line.mapped ? '' : ' — residual, needs drug coding';
     const memo = `Adjust ${line.qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}${residual}`;
+    const qbCategory = line.qbCategory;
+    const receiptIds = line.receiptIds;
 
     if (line.adjustment > 0) {
       // Inventory understated on the books → increase Inventory, relieve COGS.
-      out.push({ account: line.inventoryAccount, debit: amount, credit: null, memo });
-      out.push({ account: line.cogsAccount, debit: null, credit: amount, memo });
+      out.push({ account: line.inventoryAccount, debit: amount, credit: null, memo, qbCategory, receiptIds });
+      out.push({ account: line.cogsAccount, debit: null, credit: amount, memo, qbCategory, receiptIds });
     } else {
       // Inventory overstated on the books → reduce Inventory, charge COGS.
-      out.push({ account: line.cogsAccount, debit: amount, credit: null, memo });
-      out.push({ account: line.inventoryAccount, debit: null, credit: amount, memo });
+      out.push({ account: line.cogsAccount, debit: amount, credit: null, memo, qbCategory, receiptIds });
+      out.push({ account: line.inventoryAccount, debit: null, credit: amount, memo, qbCategory, receiptIds });
     }
   }
   return out;
+}
+
+/**
+ * The balanced Dr/Cr pairs for a location's categorized entry — one pair per
+ * category with a nonzero adjustment, each on that category's own sub-accounts.
+ * Returns [] when the book balance is unavailable (nothing to compare against).
+ */
+export function categoryJournalEntryLines(je: CategoryJE, monthEnd: string): JeLine[] {
+  return categoryJournalEntryLinesWithSources(je, monthEnd).map(({ account, debit, credit, memo }) => ({
+    account,
+    debit,
+    credit,
+    memo,
+  }));
 }

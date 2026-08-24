@@ -20,7 +20,7 @@ import {
   invCloseDocNumber,
   buildCategoryRollForward,
   buildCategoryJE,
-  categoryJournalEntryLines,
+  categoryJournalEntryLinesWithSources,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
@@ -367,17 +367,10 @@ export async function generateInvCloseDrafts(
           'posted to the parent Inventory Asset / Cost of Goods Sold as a residual line (assign drug codes to clear)',
       );
     }
-    const jeLines = categoryJournalEntryLines(je, monthEnd);
+    const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
     if (jeLines.length === 0) {
       warnings.push(`${je.location}: no adjustment needed (FIFO ties to book) — no draft generated`);
       continue;
-    }
-    // receiptIds per category, aligned to the Dr/Cr pair emitted for it — this is
-    // what the UI drill-down and the post route's rowKeys read.
-    const receiptsByAccount = new Map<string, string[]>();
-    for (const line of je.lines) {
-      receiptsByAccount.set(line.inventoryAccount, line.receiptIds);
-      receiptsByAccount.set(line.cogsAccount, line.receiptIds);
     }
     const lines: JournalLine[] = jeLines.map((l) => ({
       postingType: l.debit !== null ? 'Debit' : 'Credit',
@@ -388,7 +381,7 @@ export async function generateInvCloseDrafts(
       memo: l.memo,
       creditBucket: null,
       origin: 'generated',
-      sourceRowKeys: receiptsByAccount.get(l.account) ?? [],
+      sourceRowKeys: l.receiptIds,
     }));
     const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
     const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));

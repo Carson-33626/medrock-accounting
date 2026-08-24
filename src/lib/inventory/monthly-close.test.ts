@@ -11,6 +11,7 @@ import {
   buildCategoryRollForward,
   buildCategoryJE,
   categoryJournalEntryLines,
+  categoryJournalEntryLinesWithSources,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
@@ -537,5 +538,37 @@ describe('categoryJournalEntryLines', () => {
     );
     const je = buildCategoryJE('MedRock FL', rows, [], accountNums, false);
     expect(categoryJournalEntryLines(je, '2026-03-31')).toEqual([]);
+  });
+
+  it('regression: two unmapped categories sharing the parent accounts keep their own receiptIds', () => {
+    // Uncoded and Opening Balance both fall back to Inventory Asset / Cost of
+    // Goods Sold (accountsForCategory has no dedicated pair for either) — live on
+    // FL/TN for 2026-03. A lookup keyed by account name after the fact collapses
+    // the two categories' receiptIds onto whichever line was emitted last; the
+    // ids must instead travel with the line at construction time.
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 1000, receiptIds: ['u1', 'u2'] }),
+        clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 500, receiptIds: ['ob1'] }),
+      ],
+      null,
+    );
+    // No balance-sheet row for either → both book balances are $0, so both
+    // adjustments are nonzero (1000 and 500) and both lines are emitted.
+    const je = buildCategoryJE('MedRock FL', rows, [], {}, true);
+    const lines = categoryJournalEntryLinesWithSources(je, '2026-03-31');
+
+    const inventoryLines = lines.filter((l) => l.account === INVENTORY_ACCOUNT);
+    expect(inventoryLines).toHaveLength(2);
+    const uncoded = inventoryLines.find((l) => l.qbCategory === 'Uncoded');
+    const opening = inventoryLines.find((l) => l.qbCategory === 'Opening Balance');
+    expect(uncoded?.receiptIds).toEqual(['u1', 'u2']);
+    expect(opening?.receiptIds).toEqual(['ob1']);
+    expect(uncoded?.receiptIds).not.toEqual(opening?.receiptIds);
+
+    // categoryJournalEntryLines (the plain JeLine form) must still delegate to
+    // the same construction, unaffected by the fix.
+    const plain = categoryJournalEntryLines(je, '2026-03-31');
+    expect(plain).toEqual(lines.map(({ account, debit, credit, memo }) => ({ account, debit, credit, memo })));
   });
 });
