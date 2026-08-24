@@ -228,8 +228,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           the <em>roll-forward and the rollback reference figures only</em> — the generated entry is
           built from the lot ledger, which has one value per category, so it is the same either way. The
           point-in-time values behind both live on the{' '}
-          <a href="/inventory/as-of" className="underline">
-            As-of Value
+          <a href="/inventory" className="underline">
+            Inventory Valuation
           </a>{' '}
           page.
         </p>

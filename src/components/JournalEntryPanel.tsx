@@ -19,17 +19,17 @@ const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
- * Deep link into the Point-in-Time Inventory Value page, scoped to exactly the
- * cell that was clicked. That page reads the same lot-ledger grain this entry
- * posts from, so the figure a reviewer lands on is the figure they left — the
- * link is only worth having as long as that stays true.
+ * Deep link into the Inventory Valuation page, scoped to exactly the cell that
+ * was clicked. That page reads the same lot-ledger grain this entry posts from,
+ * so the figure a reviewer lands on is the figure they left — the link is only
+ * worth having as long as that stays true.
  *
  * `from=close` makes the destination offer a way back here.
  */
 function asOfHref(month: string, location: string, category?: string): string {
   const q = new URLSearchParams({ month, location, from: 'close' });
   if (category) q.set('category', category);
-  return `/inventory/as-of?${q.toString()}`;
+  return `/inventory?${q.toString()}`;
 }
 
 /** Local mirror of qb-journal's QbJournalEntryPayload — that module pulls in the

@@ -5,6 +5,8 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import Explainer from './Explainer';
 import HelpTip from './HelpTip';
 import FifoQueue from './FifoQueue';
+import { monthDates } from '@/lib/inventory/month-dates';
+import { shortInventoryLocation } from '@/lib/inventory/monthly-close';
 import {
   LineChart,
   Line,
@@ -14,14 +16,17 @@ import {
   Legend,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import type {
+  AsOfResponse,
   Basis,
   LotsResponse,
   ProductDetailResponse,
   ProductGroupRow,
+  RollbackResponse,
+  RollbackValuationRow,
   SummaryResponse,
-  ValuationSummaryRow,
 } from '@/types/inventory';
 
 const PAGE_SIZE = 50;
@@ -46,6 +51,17 @@ function categoryColor(category: string): string {
 type SortDir = 'asc' | 'desc';
 
 const BRAND_PURPLE = '#5e3b8d';
+
+/** One (month, location, category) cell, normalized so nothing downstream
+ *  branches on which basis it came from. */
+interface Cell {
+  month: string;
+  location: string;
+  qbCategory: string;
+  value: number;
+  /** null on cash basis, which has no lot grain. */
+  lotCount: number | null;
+}
 
 function DownloadIcon() {
   return (
@@ -108,13 +124,28 @@ const LOT_COLUMNS: LotColumn[] = [
   },
 ];
 
+/**
+ * FIFO inventory valuation for ANY month-end — one page, driven by the month
+ * picker at the top.
+ *
+ * This used to be two screens: this one, pinned to the latest month, and a
+ * separate "Point-in-Time" page for everything earlier. They read different
+ * tables and disagreed, and the split invited exactly the comparison that made
+ * that visible: a $1.9M figure on one against $1.0M on the other, which turned
+ * out to be two different months AND two different methods. Now every figure —
+ * headline, breakdowns, trend, product table, receipts — comes off the same lot
+ * ledger for whichever month is selected, and moving the picker moves all of it.
+ */
 export default function InventoryValuation() {
   const { darkMode } = useDarkMode();
 
   const [basis, setBasis] = useState<Basis>('accrual');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [asOf, setAsOf] = useState<AsOfResponse | null>(null);
+  const [rollbackRows, setRollbackRows] = useState<RollbackValuationRow[]>([]);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
+  const [month, setMonth] = useState<string | null>(null);
   const [location, setLocation] = useState<string>('all');
   const [category, setCategory] = useState<string>('all');
   const [status, setStatus] = useState<string>('all');
@@ -123,6 +154,8 @@ export default function InventoryValuation() {
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  /** Set when we arrived from the Inventory Close tab, so we can offer a way back. */
+  const [fromClose, setFromClose] = useState(false);
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -132,14 +165,75 @@ export default function InventoryValuation() {
   const [detail, setDetail] = useState<ProductDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Deep link, read post-hydration so the server and first client render agree.
+  // This is what the close's category rows link to:
+  // /inventory?month=2026-03&location=MedRock%20Florida&category=Commercial%20Rx&from=close
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const m = q.get('month');
+    const loc = q.get('location');
+    const cat = q.get('category');
+    const st = q.get('status');
+    const s = q.get('search');
+    if (m) setMonth(m);
+    if (loc) setLocation(loc);
+    if (cat) setCategory(cat);
+    if (st) setStatus(st);
+    if (s) {
+      setSearch(s);
+      setDebouncedSearch(s);
+    }
+    if (q.get('from') === 'close') setFromClose(true);
+  }, []);
+
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(search), 350);
     return () => window.clearTimeout(t);
   }, [search]);
 
+  // The whole ledger history in one call — the month picker then re-cuts what is
+  // already here rather than refetching per step.
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/inventory/summary?basis=${basis}&location=${encodeURIComponent(location)}`)
+    fetch('/api/inventory/as-of')
+      .then((r) => r.json() as Promise<AsOfResponse | { error: string }>)
+      .then((data) => {
+        if (cancelled) return;
+        if ('error' in data) setSummaryError(data.error);
+        else {
+          setAsOf(data);
+          setMonth((prev) => prev ?? data.latestMonth);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setSummaryError(e instanceof Error ? e.message : 'Failed to load valuation');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/inventory/rollback')
+      .then((r) => r.json() as Promise<RollbackResponse | { error: string }>)
+      .then((data) => {
+        if (cancelled) return;
+        if ('rows' in data) setRollbackRows(data.rows);
+      })
+      .catch(() => {
+        // Non-fatal: the reconstruction is a cross-check, not the figure itself.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Summary supplies the selector lists, the anchored-month badges, and the CASH
+  // figures (the lot ledger has no basis dimension). Never the accrual numbers.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/inventory/summary?basis=${basis}&location=all`)
       .then((r) => r.json() as Promise<SummaryResponse | { error: string }>)
       .then((data) => {
         if (cancelled) return;
@@ -155,7 +249,131 @@ export default function InventoryValuation() {
     return () => {
       cancelled = true;
     };
-  }, [basis, location]);
+  }, [basis]);
+
+  const selectedMonth = month ?? asOf?.latestMonth ?? null;
+
+  // Keep the address bar in step so any view here is linkable and refreshable.
+  // replaceState, not pushState: Back must return to whatever sent us here
+  // (often the close tab), not walk backwards through filter changes.
+  useEffect(() => {
+    if (!selectedMonth) return;
+    const q = new URLSearchParams();
+    q.set('month', selectedMonth);
+    if (location !== 'all') q.set('location', location);
+    if (category !== 'all') q.set('category', category);
+    if (status !== 'all') q.set('status', status);
+    if (debouncedSearch) q.set('search', debouncedSearch);
+    if (fromClose) q.set('from', 'close');
+    window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+  }, [selectedMonth, location, category, status, debouncedSearch, fromClose]);
+
+  /**
+   * ONE SOURCE FOR EVERY FIGURE ON THIS PAGE — read this before repointing anything.
+   *
+   * Accrual cells come from /api/inventory/as-of, which reads the same module the
+   * month-end close builds its category lines from (lib/inventory/ledger-values).
+   * Not a second query that ought to agree — the same one. `fifo_valuation_summary`
+   * is NOT interchangeable: it ties on the total but not per category, and it
+   * holds an accrual and a cash row per cell. See ledger-values.ts.
+   *
+   * Cash is the one exception, labelled as such on screen: no basis dimension in
+   * the ledger, so it falls back to the summary table, does not tie to the close,
+   * and carries no lot counts.
+   */
+  const allCells = useMemo<Cell[]>(() => {
+    if (basis === 'accrual') {
+      return (asOf?.rows ?? []).map((r) => ({
+        month: r.month,
+        location: r.location,
+        qbCategory: r.qbCategory,
+        value: r.value,
+        lotCount: r.lotCount,
+      }));
+    }
+    return (summary?.rows ?? []).map((r) => ({
+      month: r.as_of_month,
+      location: r.location,
+      qbCategory: r.qb_category,
+      value: r.on_hand_value_fifo,
+      lotCount: null,
+    }));
+  }, [basis, asOf, summary]);
+
+  /** True when every figure on screen is the one the close posts from. */
+  const drillable = basis === 'accrual';
+
+  const scopedCells = useMemo(
+    () => allCells.filter((c) => (location === 'all' || c.location === location)),
+    [allCells, location],
+  );
+
+  const monthCells = useMemo(
+    () => scopedCells.filter((c) => c.month === selectedMonth),
+    [scopedCells, selectedMonth],
+  );
+
+  const view = useMemo(() => {
+    // Round at the CELL, then aggregate in integer cents. Rounding once at the
+    // end instead lets two groupings of the same cells land a cent apart, and
+    // the by-location table then fails to foot to the headline above it. One
+    // cell is one (location, category), which is also one line of the close, so
+    // its rounding matches the close's line for line.
+    const locCents = new Map<string, number>();
+    const catCents = new Map<string, number>();
+    const lotsByCategory = new Map<string, number>();
+    let totalCents = 0;
+    for (const c of monthCells) {
+      const cents = Math.round(c.value * 100);
+      totalCents += cents;
+      locCents.set(c.location, (locCents.get(c.location) ?? 0) + cents);
+      catCents.set(c.qbCategory, (catCents.get(c.qbCategory) ?? 0) + cents);
+      if (c.lotCount !== null) {
+        lotsByCategory.set(c.qbCategory, (lotsByCategory.get(c.qbCategory) ?? 0) + c.lotCount);
+      }
+    }
+    const toDollars = (m: Map<string, number>): Map<string, number> =>
+      new Map([...m].map(([k, cents]) => [k, cents / 100]));
+    return {
+      total: totalCents / 100,
+      byLocation: toDollars(locCents),
+      byCategory: toDollars(catCents),
+      lotsByCategory,
+    };
+  }, [monthCells]);
+
+  const months = asOf?.months ?? [];
+  const allCategories = useMemo(
+    () => [...new Set(allCells.map((c) => c.qbCategory))].sort(),
+    [allCells],
+  );
+
+  const chartData = useMemo(() => {
+    const byMonth = new Map<string, Record<string, number | string>>();
+    for (const c of scopedCells) {
+      const entry = byMonth.get(c.month) ?? { month: c.month, Total: 0 };
+      entry[c.qbCategory] = ((entry[c.qbCategory] as number | undefined) ?? 0) + c.value;
+      entry.Total = (entry.Total as number) + c.value;
+      byMonth.set(c.month, entry);
+    }
+    return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
+  }, [scopedCells]);
+
+  // The backward reconstruction, kept as a CROSS-CHECK only. It has no category
+  // or lot dimension, so nothing on it can be traced to a receipt — but it is
+  // built backward from LifeFile's lot report, so a wide gap is the honest signal
+  // that a month's forward simulation is running high.
+  const rollbackTotal = useMemo(() => {
+    const rows = selectedMonth
+      ? rollbackRows.filter(
+          (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
+        )
+      : [];
+    return { has: rows.length > 0, value: rows.reduce((s, r) => s + (r.value_full ?? 0), 0) };
+  }, [rollbackRows, selectedMonth, location]);
+
+  const anchored = !!(summary && selectedMonth && summary.anchoredMonths.includes(selectedMonth));
+  const dates = selectedMonth ? monthDates(selectedMonth) : null;
 
   const lotsQuery = useMemo(() => {
     const params = new URLSearchParams({
@@ -165,13 +383,14 @@ export default function InventoryValuation() {
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
     });
+    if (selectedMonth) params.set('month', selectedMonth);
     if (debouncedSearch) params.set('search', debouncedSearch);
     if (sortKey) {
       params.set('sort', sortKey);
       params.set('dir', sortDir);
     }
     return params.toString();
-  }, [location, category, status, debouncedSearch, page, sortKey, sortDir]);
+  }, [location, category, status, selectedMonth, debouncedSearch, page, sortKey, sortDir]);
 
   const handleSort = useCallback(
     (column: LotColumn) => {
@@ -187,6 +406,9 @@ export default function InventoryValuation() {
   );
 
   useEffect(() => {
+    // Don't fetch a page of lots for "no month yet" — that would answer for the
+    // latest month and then be replaced, flashing the wrong figures.
+    if (!selectedMonth) return;
     let cancelled = false;
     setLotsLoading(true);
     fetch(`/api/inventory/lots?${lotsQuery}`)
@@ -208,7 +430,15 @@ export default function InventoryValuation() {
     return () => {
       cancelled = true;
     };
-  }, [lotsQuery]);
+  }, [lotsQuery, selectedMonth]);
+
+  // An open product's receipts are as-of a month; changing the month (or the
+  // scope that produced the row) must close it rather than leave last month's
+  // FIFO queue open under this month's numbers.
+  useEffect(() => {
+    setExpandedKey(null);
+    setDetail(null);
+  }, [selectedMonth, location, category, status, debouncedSearch]);
 
   const toggleExpand = useCallback(
     (row: ProductGroupRow) => {
@@ -221,55 +451,17 @@ export default function InventoryValuation() {
       setExpandedKey(key);
       setDetail(null);
       setDetailLoading(true);
-      fetch(`/api/inventory/product?key=${encodeURIComponent(key)}&location=${encodeURIComponent(location)}`)
+      const params = new URLSearchParams({ key, location });
+      if (selectedMonth) params.set('month', selectedMonth);
+      fetch(`/api/inventory/product?${params.toString()}`)
         .then((r) => r.json() as Promise<ProductDetailResponse | { error: string }>)
         .then((data) => {
           if (!('error' in data)) setDetail(data);
         })
         .finally(() => setDetailLoading(false));
     },
-    [expandedKey, location],
+    [expandedKey, location, selectedMonth],
   );
-
-  const latestMonth = summary?.latestMonth ?? null;
-
-  const currentMonthRows = useMemo<ValuationSummaryRow[]>(
-    () => (summary && latestMonth ? summary.rows.filter((r) => r.as_of_month === latestMonth) : []),
-    [summary, latestMonth],
-  );
-
-  const totals = useMemo(() => {
-    const total = currentMonthRows.reduce((s, r) => s + r.on_hand_value_fifo, 0);
-    const ob = currentMonthRows.reduce((s, r) => s + r.opening_balance_value, 0);
-    const shortfalls = currentMonthRows.reduce((s, r) => s + r.shortfall_count, 0);
-    const cashEstimated = currentMonthRows.reduce((s, r) => s + (r.cash_estimated_value ?? 0), 0);
-    const byCategory = new Map<string, number>();
-    for (const r of currentMonthRows) {
-      byCategory.set(r.qb_category, (byCategory.get(r.qb_category) ?? 0) + r.on_hand_value_fifo);
-    }
-    return { total, ob, shortfalls, cashEstimated, byCategory };
-  }, [currentMonthRows]);
-
-  // Categories present anywhere in the summary, ordered by current-month value
-  const allCategories = useMemo(() => {
-    if (!summary) return [];
-    const present = new Set(summary.rows.map((r) => r.qb_category));
-    return [...present].sort(
-      (a, b) => (totals.byCategory.get(b) ?? 0) - (totals.byCategory.get(a) ?? 0),
-    );
-  }, [summary, totals]);
-
-  const chartData = useMemo(() => {
-    if (!summary) return [];
-    const byMonth = new Map<string, Record<string, number | string>>();
-    for (const r of summary.rows) {
-      const entry = byMonth.get(r.as_of_month) ?? { month: r.as_of_month, Total: 0 };
-      entry[r.qb_category] = ((entry[r.qb_category] as number | undefined) ?? 0) + r.on_hand_value_fifo;
-      entry.Total = (entry.Total as number) + r.on_hand_value_fifo;
-      byMonth.set(r.as_of_month, entry);
-    }
-    return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  }, [summary]);
 
   const exportHref = useCallback(
     (kind: 'summary' | 'lots', format: 'csv' | 'xlsx'): string => {
@@ -277,6 +469,7 @@ export default function InventoryValuation() {
         return `/api/inventory/summary?basis=${basis}&location=${encodeURIComponent(location)}&format=${format}`;
       }
       const params = new URLSearchParams({ location, category, status, format });
+      if (selectedMonth) params.set('month', selectedMonth);
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (sortKey) {
         params.set('sort', sortKey);
@@ -284,7 +477,7 @@ export default function InventoryValuation() {
       }
       return `/api/inventory/lots?${params.toString()}`;
     },
-    [basis, location, category, status, debouncedSearch, sortKey, sortDir],
+    [basis, location, category, status, selectedMonth, debouncedSearch, sortKey, sortDir],
   );
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
@@ -303,6 +496,17 @@ export default function InventoryValuation() {
   return (
     <div className={`min-h-screen ${pageBg} p-4 md:p-8`}>
       <div className="max-w-screen-2xl mx-auto space-y-6">
+        {fromClose && selectedMonth && (
+          <a
+            href={`/payroll?tab=inventoryclose&month=${encodeURIComponent(selectedMonth)}`}
+            className={`inline-flex items-center gap-1.5 text-sm font-medium underline ${
+              darkMode ? 'text-blue-300' : 'text-blue-600'
+            }`}
+          >
+            ← Back to the {selectedMonth} inventory close
+          </a>
+        )}
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
@@ -310,16 +514,14 @@ export default function InventoryValuation() {
               Inventory Valuation (FIFO)
             </h1>
             <p className={`text-sm ${subText}`}>
-              Lot-level purchases depleted first-in-first-out, valued at actual purchase price.
-              {latestMonth ? ` Data as of ${latestMonth} (nightly Data Loader run).` : ''}
+              Lot-level purchases depleted first-in-first-out, valued at actual purchase price, as of any month-end.
             </p>
           </div>
 
-          {/* Basis toggle */}
           <div className="flex items-center gap-3">
             <HelpTip
               label="Accrual vs. cash basis"
-              text="Accrual counts a purchase when the goods were received. Cash re-times it to the date QuickBooks shows the bill was paid — it un-grays once receipts are linked to QB payments on the QB Links page."
+              text="Accrual counts a purchase when the goods were received. Cash re-times it to the date QuickBooks shows the bill was paid — it un-grays once receipts are linked to QB payments on the QB Links page. The month-end close posts on the accrual basis, so only accrual ties to it."
             />
             <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
               <button
@@ -327,7 +529,7 @@ export default function InventoryValuation() {
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   basis === 'accrual' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
                 }`}
-                style={basis === 'accrual' ? { backgroundColor: '#5e3b8d' } : undefined}
+                style={basis === 'accrual' ? { backgroundColor: BRAND_PURPLE } : undefined}
               >
                 Accrual
               </button>
@@ -336,7 +538,7 @@ export default function InventoryValuation() {
                 onClick={() => setBasis('cash')}
                 title={
                   summary?.hasCashBasis
-                    ? 'Receipts re-timed to QuickBooks payment dates'
+                    ? 'Receipts re-timed to QuickBooks payment dates — does not tie to the close, and has no receipt-level detail'
                     : 'Un-grays once QB purchase links are synced and the loader ships cash-basis rows — see QB Links'
                 }
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -348,19 +550,14 @@ export default function InventoryValuation() {
                         : 'text-slate-600'
                     : `cursor-not-allowed ${darkMode ? 'text-slate-600' : 'text-slate-400'}`
                 }`}
-                style={basis === 'cash' && summary?.hasCashBasis ? { backgroundColor: '#5e3b8d' } : undefined}
+                style={basis === 'cash' && summary?.hasCashBasis ? { backgroundColor: BRAND_PURPLE } : undefined}
               >
                 Cash
               </button>
             </div>
-            <div className="flex gap-2">
-              <a href="/inventory/as-of" className={navBtnCls} style={navBtnStyle}>
-                As-of Value
-              </a>
-              <a href="/inventory/qb-links" className={navBtnCls} style={navBtnStyle}>
-                QB Links
-              </a>
-            </div>
+            <a href="/inventory/qb-links" className={navBtnCls} style={navBtnStyle}>
+              QB Links
+            </a>
           </div>
         </div>
 
@@ -372,15 +569,23 @@ export default function InventoryValuation() {
             this page.
           </p>
           <p>
-            <strong>Only the latest month is reconciled to LifeFile.</strong> The current month is checked lot-by-lot
-            against LifeFile&rsquo;s live lot report; earlier months come from a usage simulation over incomplete
-            historical records and <em>overstate</em> inventory — that is why the trend chart climbs. For defensible
-            month-end numbers, use the <strong>As-of Value</strong> page.
+            <strong>The month picker drives everything below it.</strong> Total, locations, categories, the trend
+            line, the product table and the purchase receipts inside it all restate as of the month-end you choose.
+            Click a location or a category to narrow the detail; click a product for the individual receipts behind
+            it.
           </p>
           <p>
-            <strong>Accrual vs. Cash:</strong> accrual counts a purchase when the goods were received; cash re-times
-            it to the date QuickBooks shows the bill was paid. Cash stays grayed out until receipts are linked to QB
-            payments on the QB Links page.
+            <strong>Every accrual figure here is the one the month-end journal entry posts from</strong>, so an entry
+            can be traced from the posted amount down to the document. The close itself lives on the{' '}
+            <strong>Journal Entries page</strong> under <strong>Inventory Close</strong>.
+          </p>
+          <p>
+            <strong>Only the most recent month is reconciled to LifeFile.</strong> It is checked lot-by-lot against
+            LifeFile&rsquo;s live lot report; earlier months come from a usage simulation over incomplete historical
+            records and <em>overstate</em> inventory — that is why the trend climbs and then drops sharply at the end.
+            The <strong>reconstruction cross-check</strong> below the breakdowns is a second, independent estimate
+            built backward from that lot report; when it sits far below the headline, treat the headline as traceable
+            rather than settled.
           </p>
           <p>
             <strong>Badges you will see:</strong> <span className="font-semibold">OB</span> = includes an opening
@@ -401,71 +606,215 @@ export default function InventoryValuation() {
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* The month picker — the control this whole page hangs off */}
+        <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-3 ${cardBg}`}>
+          <label className="text-sm font-semibold">As of end of</label>
+          {/* Newest first — recent months are what anyone comes here for. The API
+              ships `months` oldest-first, so reversing is display-only. */}
+          <select
+            value={selectedMonth ?? ''}
+            onChange={(e) => {
+              setMonth(e.target.value);
+              setPage(0);
+            }}
+            className={inputCls}
+          >
+            {[...months].reverse().map((m) => (
+              <option key={m} value={m}>
+                {m} (close {monthDates(m).asOf})
+              </option>
+            ))}
+          </select>
+          <select
+            value={location}
+            onChange={(e) => {
+              setLocation(e.target.value);
+              setPage(0);
+            }}
+            className={inputCls}
+          >
+            <option value="all">All locations</option>
+            {(summary?.locations ?? []).map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <span className={`text-xs ${subText}`}>
+            {months.length > 0
+              ? `${months.length} months available (${months[0]} – ${months[months.length - 1]})`
+              : ''}
+          </span>
+        </div>
+
+        {/* Headline */}
+        {dates && (
+          <div className={`rounded-2xl shadow-sm p-6 md:p-8 ${cardBg}`}>
+            <p className={`text-sm ${subText}`}>
+              On <strong>{dates.openingLong}</strong> (close of business {dates.asOf}),{' '}
+              {location === 'all'
+                ? 'total inventory value is'
+                : `${shortInventoryLocation(location)} inventory value is`}
+            </p>
+            <p className="text-4xl md:text-5xl font-bold mt-2">{usd.format(view.total)}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {drillable ? (
+                <span
+                  title="This is the figure the inventory-close journal entry posts from, summed from the same lot ledger — every dollar traces to a purchase receipt"
+                  className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
+                >
+                  ✓ Ties to the month-end journal entry
+                </span>
+              ) : (
+                <span
+                  title="Cash basis re-times purchases to their QuickBooks payment date. The close posts on the accrual basis, so this figure does not tie to it and has no receipt-level drill-down."
+                  className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
+                >
+                  ⚠ Cash basis — does not tie to the close
+                </span>
+              )}
+              {anchored ? (
+                <span
+                  title="This month's remaining quantities were checked lot-by-lot against LifeFile's live lot report"
+                  className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
+                >
+                  ✓ LifeFile-reconciled
+                </span>
+              ) : (
+                <span
+                  title="This month's quantities come from the forward usage simulation over incomplete historical records, which overstates. Compare against the reconstruction cross-check below."
+                  className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
+                >
+                  ⚠ Simulated — not reconciled to LifeFile
+                </span>
+              )}
+              <span className={`text-xs ${subText}`}>{basis === 'accrual' ? 'Accrual basis' : 'Cash basis'}</span>
+            </div>
+            <p className={`text-xs mt-3 ${subText}`}>
+              Stock on hand at month end, valued at what each lot actually cost — with an estimated cost only where the
+              purchase receipt is missing.
+            </p>
+          </div>
+        )}
+
+        {/* Breakdowns — clicking a row narrows the detail below, so these are the
+            navigation as well as the summary. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className={`text-xs uppercase tracking-wide flex items-center gap-1.5 ${subText}`}>
-              Total On-Hand Value
-              <HelpTip
-                label="Total on-hand value"
-                text="Everything still on hand in the latest month, priced at what each lot actually cost when it was received. Includes the estimated opening balance shown below."
-              />
-            </p>
-            <p className="text-2xl font-bold mt-1">{usd0.format(totals.total)}</p>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-sm font-semibold">By location</p>
+              {location !== 'all' && (
+                <button
+                  onClick={() => {
+                    setLocation('all');
+                    setPage(0);
+                  }}
+                  className={`text-xs underline ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <BreakdownTable
+              rows={[...view.byLocation.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .map(([key, value]) => ({ key, label: shortInventoryLocation(key), value, lots: null }))}
+              total={view.total}
+              selected={location === 'all' ? null : location}
+              onSelect={(key) => {
+                setLocation((prev) => (prev === key ? 'all' : key));
+                setPage(0);
+              }}
+              rowBorder={rowBorder}
+              subText={subText}
+              darkMode={darkMode}
+            />
+          </div>
+
+          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-sm font-semibold">By QuickBooks category</p>
+              {category !== 'all' && (
+                <button
+                  onClick={() => {
+                    setCategory('all');
+                    setPage(0);
+                  }}
+                  className={`text-xs underline ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <BreakdownTable
+              rows={[...view.byCategory.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .map(([key, value]) => ({
+                  key,
+                  label: key,
+                  value,
+                  lots: view.lotsByCategory.get(key) ?? null,
+                  color: categoryColor(key),
+                }))}
+              total={view.total}
+              selected={category === 'all' ? null : category}
+              onSelect={(key) => {
+                setCategory((prev) => (prev === key ? 'all' : key));
+                setPage(0);
+              }}
+              rowBorder={rowBorder}
+              subText={subText}
+              darkMode={darkMode}
+            />
+          </div>
+        </div>
+
+        {/* Reconstruction cross-check */}
+        {drillable && rollbackTotal.has && (
+          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+            <p className="text-sm font-semibold">Reconstruction cross-check</p>
             <p className={`text-xs mt-1 ${subText}`}>
-              incl. {usd0.format(totals.ob)} estimated opening balance
+              An independent estimate built backward from LifeFile&rsquo;s lot report, for the same month and scope.
+              It has no category or lot detail, so it cannot be traced to receipts and is not what the journal entry
+              posts.
             </p>
-            {basis === 'cash' && totals.cashEstimated > 0 && (
+            <div className="mt-3 flex flex-wrap items-end gap-6">
+              <div>
+                <p className={`text-xs ${subText}`}>Reconstruction</p>
+                <p className="text-xl font-bold tabular-nums">{usd.format(rollbackTotal.value)}</p>
+              </div>
+              <div>
+                <p className={`text-xs ${subText}`}>Variance vs. the figure above</p>
+                <p className="text-xl font-bold tabular-nums" style={{ color: '#2563eb' }}>
+                  {usd.format(rollbackTotal.value - view.total)}
+                </p>
+              </div>
+            </div>
+            {Math.abs(rollbackTotal.value - view.total) > 0.25 * Math.max(Math.abs(view.total), 1) && (
               <p
-                className={`text-xs mt-0.5 ${subText}`}
-                title="Receipts without a QB payment link (plus opening balances) are recognized at their received date — link more receipts on the QB Links page to shrink this"
+                className={`text-xs mt-3 px-2 py-1.5 rounded border ${
+                  darkMode
+                    ? 'bg-amber-950/30 border-amber-800 text-amber-200'
+                    : 'bg-amber-50 border-amber-300 text-amber-800'
+                }`}
               >
-                {usd0.format(totals.cashEstimated)} at estimated payment timing
+                These are far apart. Months that LifeFile has not anchored are simulated forward over incomplete
+                purchase records and tend to run high, so treat the figure above as the traceable number rather than
+                the settled one, and expect the adjusting entry to be large.
               </p>
             )}
           </div>
-          {allCategories.map((cat) => (
-            <div key={cat} className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-              <p className={`text-xs uppercase tracking-wide flex items-center gap-1.5 ${subText}`}>
-                {cat}
-                <HelpTip
-                  label={`${cat} value`}
-                  text={
-                    cat === 'Uncoded'
-                      ? 'Purchases not yet mapped to a QuickBooks category. Assign drug codes to move this value into the right bucket.'
-                      : `Portion of the on-hand total whose purchases are coded to “${cat}” in QuickBooks.`
-                  }
-                />
-              </p>
-              <p className="text-2xl font-bold mt-1" style={{ color: categoryColor(cat) }}>
-                {usd0.format(totals.byCategory.get(cat) ?? 0)}
-              </p>
-              {cat === 'Uncoded' && (totals.byCategory.get(cat) ?? 0) > 0 && (
-                <p className={`text-xs mt-1 ${subText}`}>needs drug coding</p>
-              )}
-            </div>
-          ))}
-        </div>
+        )}
 
-        {/* Summary export */}
-        <div className="flex flex-wrap items-center justify-end gap-2 -mt-2">
-          <span className={`text-sm font-medium ${subText}`}>Export summary:</span>
-          <a href={exportHref('summary', 'csv')} className={exportBtnCls} style={exportBtnStyle}>
-            <DownloadIcon /> CSV
-          </a>
-          <a href={exportHref('summary', 'xlsx')} className={exportBtnCls} style={exportBtnStyle}>
-            <DownloadIcon /> Excel
-          </a>
-        </div>
-
-        {/* Trend chart */}
+        {/* Trend */}
         {chartData.length > 1 && (
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
             <p className="text-sm font-semibold mb-3 flex items-center gap-1.5">
               On-Hand Value by Month
+              {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
               <HelpTip
                 label="How to read this chart"
-                text="Month-end on-hand value by category. Only the latest month is reconciled against LifeFile’s live lot report — earlier months come from the usage simulation over incomplete historical records and run high. Don’t read the historical slope as real growth."
+                text="Month-end on-hand value by category, for the current location scope. The dashed line marks the month selected above — click any point's month in the picker to restate the whole page. Only the most recent month is reconciled against LifeFile's live lot report; earlier months come from the usage simulation over incomplete historical records and run high, which is why the line climbs and then falls away sharply at the end. Don't read the historical slope as real growth."
               />
             </p>
             <div className="h-64">
@@ -481,6 +830,9 @@ export default function InventoryValuation() {
                   />
                   <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} />
                   <Legend />
+                  {selectedMonth && (
+                    <ReferenceLine x={selectedMonth} stroke="#2563eb" strokeDasharray="4 4" />
+                  )}
                   <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
                   {allCategories.map((cat) => (
                     <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
@@ -491,7 +843,7 @@ export default function InventoryValuation() {
           </div>
         )}
 
-        {/* Filters + lot table */}
+        {/* Filters + product table */}
         <div className={`rounded-xl shadow-sm ${cardBg}`}>
           <div className="p-4 flex flex-wrap items-center gap-3 border-b border-inherit">
             <input
@@ -504,21 +856,6 @@ export default function InventoryValuation() {
               className={`${inputCls} w-64`}
             />
             <select
-              value={location}
-              onChange={(e) => {
-                setLocation(e.target.value);
-                setPage(0);
-              }}
-              className={inputCls}
-            >
-              <option value="all">All Locations</option>
-              {(summary?.locations ?? []).map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-            <select
               value={category}
               onChange={(e) => {
                 setCategory(e.target.value);
@@ -527,12 +864,11 @@ export default function InventoryValuation() {
               className={inputCls}
             >
               <option value="all">All Categories</option>
-              {(summary?.categories ?? []).map((c) => (
+              {allCategories.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
-              <option value="Opening Balance">Opening Balance</option>
             </select>
             <select
               value={status}
@@ -546,12 +882,24 @@ export default function InventoryValuation() {
               <option value="open">Open (qty remaining)</option>
               <option value="fully_used">Fully Used</option>
             </select>
+            <span className={`text-xs ${subText}`}>
+              as of {selectedMonth ?? '—'}
+              {location === 'all' ? '' : ` · ${shortInventoryLocation(location)}`}
+            </span>
             <div className="ml-auto flex gap-2">
               <a href={exportHref('lots', 'csv')} className={exportBtnCls} style={exportBtnStyle}>
                 <DownloadIcon /> Export CSV
               </a>
               <a href={exportHref('lots', 'xlsx')} className={exportBtnCls} style={exportBtnStyle}>
                 <DownloadIcon /> Export Excel
+              </a>
+              <a
+                href={exportHref('summary', 'xlsx')}
+                title="Every month's summary rows, not just the selected month"
+                className={`${exportBtnCls} opacity-80`}
+                style={exportBtnStyle}
+              >
+                <DownloadIcon /> All months
               </a>
             </div>
           </div>
@@ -642,8 +990,94 @@ export default function InventoryValuation() {
             </div>
           </div>
         </div>
+
+        <p className={`text-sm ${subText}`}>
+          Looking for the roll-forward &amp; suggested journal entry? The monthly close lives on the{' '}
+          <a
+            href={`/payroll?tab=inventoryclose${selectedMonth ? `&month=${encodeURIComponent(selectedMonth)}` : ''}`}
+            className="underline font-medium"
+          >
+            Journal Entries page → Inventory Close
+          </a>
+          .
+        </p>
       </div>
     </div>
+  );
+}
+
+interface BreakdownRow {
+  key: string;
+  label: string;
+  value: number;
+  lots: number | null;
+  color?: string;
+}
+
+/** A breakdown that is also a filter: clicking a row scopes the detail below,
+ *  clicking the selected row again clears it. */
+function BreakdownTable({
+  rows,
+  total,
+  selected,
+  onSelect,
+  rowBorder,
+  subText,
+  darkMode,
+}: {
+  rows: BreakdownRow[];
+  total: number;
+  selected: string | null;
+  onSelect: (key: string) => void;
+  rowBorder: string;
+  subText: string;
+  darkMode: boolean;
+}) {
+  if (rows.length === 0) return <p className={`text-sm ${subText}`}>No data for this month.</p>;
+  return (
+    <table className="w-full text-sm">
+      <tbody>
+        {rows.map((r) => {
+          const isSelected = selected === r.key;
+          return (
+            <tr
+              key={r.key}
+              onClick={() => onSelect(r.key)}
+              title={isSelected ? 'Click again to clear this filter' : `Show only ${r.label}`}
+              className={`border-t cursor-pointer ${rowBorder} ${
+                isSelected
+                  ? darkMode
+                    ? 'bg-slate-700/60'
+                    : 'bg-blue-50'
+                  : darkMode
+                    ? 'hover:bg-slate-700/40'
+                    : 'hover:bg-slate-50'
+              }`}
+            >
+              <td className="py-2">
+                <span className="flex items-center gap-2">
+                  {r.color && (
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: r.color }}
+                      aria-hidden
+                    />
+                  )}
+                  <span className={isSelected ? 'font-semibold' : ''}>{r.label}</span>
+                </span>
+              </td>
+              <td className={`py-2 text-right tabular-nums ${subText} w-20`}>
+                {r.lots === null ? '' : `${r.lots.toLocaleString()} lots`}
+              </td>
+              <td className="py-2 text-right tabular-nums font-medium">{usd.format(r.value)}</td>
+              <td className={`py-2 text-right tabular-nums ${subText} w-16`}>
+                {total > 0 ? `${Math.round((r.value / total) * 100)}%` : '—'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

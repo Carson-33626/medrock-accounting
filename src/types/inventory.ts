@@ -308,10 +308,11 @@ export interface ProductDetailResponse {
 
 /**
  * One (location, category) cell of the point-in-time value, at the SAME grain
- * the inventory-close JE posts — see api/inventory/as-of/route.ts for why this
+ * the inventory-close JE posts — see lib/inventory/ledger-values.ts for why this
  * cannot be read off `fifo_valuation_summary`.
  */
 export interface AsOfCategoryRow {
+  month: string;
   location: string;
   qbCategory: string;
   value: number;
@@ -320,9 +321,10 @@ export interface AsOfCategoryRow {
 }
 
 export interface AsOfResponse {
-  /** null only when the ledger is empty. */
-  month: string | null;
   /** Every month the lot ledger holds, ascending. */
   months: string[];
+  /** null only when the ledger is empty. */
+  latestMonth: string | null;
+  /** The whole history — the page cuts it per month client-side. */
   rows: AsOfCategoryRow[];
 }

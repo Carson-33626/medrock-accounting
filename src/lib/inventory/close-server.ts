@@ -24,6 +24,7 @@ import {
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
+import { fetchCategoryLedgerValues } from './ledger-values';
 import {
   saveDraft,
   loadDraft,
@@ -112,49 +113,10 @@ export async function deleteUnpostedInvCloseHeaders(
   return rowCount ?? 0;
 }
 
-interface CategoryLedgerQueryRow {
-  location: string;
-  qb_category: string;
-  ending_value: number;
-  receipt_ids: string[];
-  lot_count: number;
-}
-
-/**
- * Ending value per (location, category) for one month, out of the lot-depletion
- * ledger. Mirrors the grouping in api/inventory/lots' lotRowsCte one level up
- * (category rather than product), so the close and the Inventory Valuation page
- * are reading the same rows — a category total here always equals the sum of the
- * lots the drill-down shows for that same filter.
- *
- * COALESCE on qb_category matches the lots route exactly: a lot with no category
- * is an opening balance.
- */
-export async function fetchCategoryLedgerValues(
-  pool: Pool,
-  month: string,
-): Promise<CategoryLedgerValue[]> {
-  const { rows } = await pool.query<CategoryLedgerQueryRow>(
-    `SELECT l.location,
-            COALESCE(p.qb_category, 'Opening Balance') AS qb_category,
-            COALESCE(sum(l.remaining_value), 0)::float8 AS ending_value,
-            array_agg(DISTINCT l.receipt_id) AS receipt_ids,
-            count(*)::int AS lot_count
-     FROM inventory.lot_depletion_ledger l
-     LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
-     WHERE l.as_of_month = $1
-     GROUP BY l.location, COALESCE(p.qb_category, 'Opening Balance')
-     ORDER BY l.location, qb_category`,
-    [month],
-  );
-  return rows.map((r) => ({
-    location: r.location,
-    qbCategory: r.qb_category,
-    endingValue: r.ending_value,
-    receiptIds: r.receipt_ids,
-    lotCount: r.lot_count,
-  }));
-}
+// The ledger read moved to ./ledger-values so the close and the FIFO valuation
+// page share ONE definition of the category grain rather than two queries that
+// merely ought to agree. Re-exported here for existing importers.
+export { fetchCategoryLedgerValues };
 
 /** The close computation without stored drafts — shared by GET and generate. */
 export async function computeClose(
