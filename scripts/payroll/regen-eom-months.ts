@@ -13,7 +13,8 @@ import { createHash } from 'node:crypto';
 import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '../../src/lib/payroll/revenue-rule';
 import { fetchAllocationPool, type PoolLine } from '../../src/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
-import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '../../src/lib/payroll/eom-store';
+import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders, listPostedCsAlloHeaders } from '../../src/lib/payroll/eom-store';
+import { excludeCsLines } from '../../src/lib/payroll/cs-catchup';
 import { saveDraft, type JsonValue } from '../../src/lib/payroll/store';
 import type { Month } from '../../src/lib/payroll/month';
 
@@ -37,7 +38,18 @@ async function runMonth(month: string): Promise<void> {
   }
 
   const revenueTest: RevenueTest = await fetchRevenuePresence(m);
-  const { pool, attention } = await fetchAllocationPool(m);
+  const poolResult = await fetchAllocationPool(m);
+  let pool = poolResult.pool;
+  const attention = poolResult.attention;
+  // HARD RULE: months whose CS is already allocated by posted CS Allo entries exclude the
+  // Customer-Service pool slice — see cs-catchup.excludeCsLines.
+  const csHeaders = await listPostedCsAlloHeaders(m);
+  const csAlloDocs = csHeaders.map((h) => h.qb_doc_number ?? `#${h.id}`);
+  if (csHeaders.length > 0) {
+    const { kept, cs } = excludeCsLines(pool);
+    pool = kept;
+    console.log(`  CS allocated separately (${csAlloDocs.join(', ')}) — ${cs.length} CS lines excluded, ${money(cs.reduce((s, l) => s + l.amount, 0))}`);
+  }
   const draftLines = pool.filter((l) => l.txnType === 'DraftJE');
   console.log(`  pool: ${pool.length} lines (${draftLines.length} from local payroll drafts, ${money(draftLines.reduce((s, l) => s + l.amount, 0))}); attention: ${attention.length}`);
   // Revenue true-up visibility: the class-split deposit lines this regen scoops (2026-08-19).
@@ -53,7 +65,7 @@ async function runMonth(month: string): Promise<void> {
   }
   console.log(`  shares: ${EOM_ENTITIES.map((e) => `${e.slice(-2)} ${shares[e].toFixed(2)}%`).join(' / ')}`);
 
-  const drafts = buildMonthEndAllocation(pool, shares, m);
+  const drafts = buildMonthEndAllocation(pool, shares, m, { csAlloDocs });
   for (const d of drafts) {
     console.log(`  draft ${d.docNumber}: ${d.lines.length} lines, Dr=${money(d.totalDebits)} Cr=${money(d.totalCredits)} var=${d.variance}`);
   }
@@ -69,7 +81,7 @@ async function runMonth(month: string): Promise<void> {
   await saveEomRun({
     month,
     pool: toJson<PoolLine[]>(pool),
-    revenue: toJson({ test: revenueTest, shares }),
+    revenue: toJson({ test: revenueTest, shares, csAlloDocs }),
     attention: toJson<PoolLine[]>(attention),
   });
   console.log(`  run snapshot saved`);

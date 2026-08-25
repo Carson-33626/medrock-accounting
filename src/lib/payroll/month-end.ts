@@ -37,12 +37,20 @@ export function usesRevenueRule(m: Month): boolean {
  *  the note asserted a revenue split that was never performed. It now prints the real
  *  revenue weights, and says which pool they applied to (per Ash 2026-08-25: CS by
  *  revenue, Admin/Accounting a third each, marketing stays with its employer). */
-export function eomPrivateNote(shares: Record<EomEntity, number>, m: Month): string {
+export function eomPrivateNote(
+  shares: Record<EomEntity, number>, m: Month, csAlloDocs?: readonly string[],
+): string {
+  // When the month's Customer Service is already allocated by posted CS Allo entries, this
+  // entry deliberately excludes it — say so on the entry, naming the docs that carry it.
+  const csSuffix = csAlloDocs !== undefined && csAlloDocs.length > 0
+    ? ` Customer Service labor is EXCLUDED here — already allocated by ${csAlloDocs.join(', ')}.`
+    : '';
   if (!usesRevenueRule(m)) {
     return (
       `Month-end allocation — ${longMonthName(m)} ${m.year}. ` +
       `Pooled shared labor and costs split 1/3 each (pre-April 2026 rule; the CS revenue ` +
-      `split begins April 2026). Directed costs (50/50 and passthrough) follow their class tag.`
+      `split begins April 2026). Directed costs (50/50 and passthrough) follow their class tag.` +
+      csSuffix
     );
   }
   const pct = EOM_ENTITIES.map((e) => `${SHORT_ENT[e]} ${shares[e].toFixed(2)}%`).join(' / ');
@@ -50,7 +58,8 @@ export function eomPrivateNote(shares: Record<EomEntity, number>, m: Month): str
     `Month-end allocation — ${longMonthName(m)} ${m.year}. ` +
     `Customer Service labor allocated as a % of revenue: ${pct}. ` +
     `Admin and Accounting labor split 1/3 each. ` +
-    `Directed costs (50/50 and passthrough) follow their class tag.`
+    `Directed costs (50/50 and passthrough) follow their class tag.` +
+    csSuffix
   );
 }
 
@@ -75,6 +84,7 @@ function signedLine(c: number, acct: string, memo: string, side: 'source' | 'rec
 
 export function buildMonthEndAllocation(
   pool: PoolLine[], shares: Record<EomEntity, number>, m: Month,
+  opts?: { csAlloDocs?: readonly string[] },
 ): JournalDraft[] {
   // 1-2. Net cents per (entity, account, rule, counterparty)
   const groups = new Map<string, { entity: Entity; accountName: string; rule: string; counterparty: Entity | null; cents: number }>();
@@ -151,7 +161,7 @@ export function buildMonthEndAllocation(
       entity, kind: 'allocation', payDate: monthEndAdp(m), payGroup: 'EOM',
       periodStart: `${String(m.month).padStart(2, '0')}/01/${m.year}`, periodEnd: monthEndAdp(m),
       periodSegment: '', docNumber: eomDocNumber(entity, m), txnDate: monthEndIso(m),
-      privateNote: eomPrivateNote(shares, m),
+      privateNote: eomPrivateNote(shares, m, opts?.csAlloDocs),
       lines, totalDebits: dr, totalCredits: cr, variance, rowKeys: [],
     });
   }

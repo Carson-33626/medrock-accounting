@@ -48,6 +48,23 @@ export async function listEomHeaders(m: Month): Promise<PayrollHeader[]> {
   return rows.map(toHeader);
 }
 
+/** POSTED CS-only catch-up entries for the month — pay_group 'CS ALLO' plus its top-up
+ *  groups ('CS ALLO 2', ...). Their existence is the trigger for the hard rule: the full
+ *  month-end excludes the Customer-Service pool slice for such a month (see
+ *  cs-catchup.excludeCsLines) because those dollars are already allocated in QuickBooks. */
+export async function listPostedCsAlloHeaders(m: Month): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash,
+            qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
+     FROM accounting.payroll_journal_headers
+     WHERE pay_group LIKE 'CS ALLO%' AND kind = 'allocation' AND status = 'posted' AND pay_date = $1
+     ORDER BY entity, pay_group`,
+    [monthEndAdp(m)],
+  );
+  return rows.map(toHeader);
+}
+
 /** Regeneration replace-semantics: drop unposted drafts for entities the rebuild no
  *  longer produces. Posted headers are never deleted (lines cascade via FK). */
 export async function deleteUnpostedEomHeaders(m: Month, keepEntities: Entity[]): Promise<number> {

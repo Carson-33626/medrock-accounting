@@ -16,7 +16,10 @@ vi.mock('@/lib/payroll/revenue-rule', () => ({
 }));
 
 const fetchAllocationPool = vi.fn(async (..._a: unknown[]) => ({ pool: [] as PoolLine[], attention: [] as PoolLine[] }));
-vi.mock('@/lib/payroll/qb-pool', () => ({
+// Keep the REAL classifier exports (cs-catchup.excludeCsLines reads isCsPoolLine) — only the
+// QuickBooks fetch is stubbed.
+vi.mock('@/lib/payroll/qb-pool', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/payroll/qb-pool')>()),
   fetchAllocationPool: (...a: unknown[]) => fetchAllocationPool(...a),
 }));
 
@@ -28,10 +31,12 @@ vi.mock('@/lib/payroll/month-end', () => ({
 const saveEomRun = vi.fn(async (..._a: unknown[]) => undefined);
 const listEomHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 const deleteUnpostedEomHeaders = vi.fn(async (..._a: unknown[]) => 0);
+const listPostedCsAlloHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 vi.mock('@/lib/payroll/eom-store', () => ({
   saveEomRun: (...a: unknown[]) => saveEomRun(...a),
   listEomHeaders: (...a: unknown[]) => listEomHeaders(...a),
   deleteUnpostedEomHeaders: (...a: unknown[]) => deleteUnpostedEomHeaders(...a),
+  listPostedCsAlloHeaders: (...a: unknown[]) => listPostedCsAlloHeaders(...a),
 }));
 
 const saveDraft = vi.fn(async (..._a: unknown[]) => 1);
@@ -117,6 +122,7 @@ beforeEach(() => {
   buildMonthEndAllocation.mockReset();
   saveEomRun.mockReset();
   listEomHeaders.mockReset();
+  listPostedCsAlloHeaders.mockReset();
   deleteUnpostedEomHeaders.mockReset();
   saveDraft.mockReset();
   loadDraft.mockReset();
@@ -127,6 +133,7 @@ beforeEach(() => {
   fetchAllocationPool.mockResolvedValue({ pool: [], attention: [] });
   buildMonthEndAllocation.mockReturnValue([]);
   listEomHeaders.mockResolvedValue([]);
+  listPostedCsAlloHeaders.mockResolvedValue([]);
   deleteUnpostedEomHeaders.mockResolvedValue(0);
   saveDraft.mockResolvedValue(1);
   loadDraft.mockResolvedValue(null);
@@ -176,7 +183,32 @@ describe('POST /api/payroll/eom/generate', () => {
       [],
       { 'MedRock FL': 0, 'MedRock TN': 0, 'MedRock TX': 0 },
       { year: 2026, month: 7 },
+      { csAlloDocs: [] },
     );
+  });
+
+  it('HARD RULE: a month with posted CS Allo entries excludes the CS pool slice and names the docs', async () => {
+    const csLine: PoolLine = { ...revenuePoolLine, ownedPayroll: true };
+    const adminLine: PoolLine = {
+      ...revenuePoolLine, rule: 'thirds', className: 'Allocate - SplitX3',
+      accountName: 'Payroll Expense -:Administrative Wages',
+    };
+    fetchAllocationPool.mockResolvedValueOnce({ pool: [csLine, adminLine], attention: [] });
+    listPostedCsAlloHeaders.mockResolvedValueOnce([
+      { ...postedHeader, pay_group: 'CS ALLO', qb_doc_number: 'FL CS Allo 2026.07' },
+    ]);
+
+    const res = await POST(req({ month: '2026-07' }));
+    expect(res.status).toBe(200);
+    expect(buildMonthEndAllocation).toHaveBeenCalledWith(
+      [adminLine],
+      sharesFixture,
+      { year: 2026, month: 7 },
+      { csAlloDocs: ['FL CS Allo 2026.07'] },
+    );
+    const body = (await res.json()) as { csAlloDocs: string[]; csExcludedCount: number };
+    expect(body.csAlloDocs).toEqual(['FL CS Allo 2026.07']);
+    expect(body.csExcludedCount).toBe(1);
   });
 
   it('happy path: saveDraft per draft, then deleteUnpostedEomHeaders, then saveEomRun (in that order)', async () => {

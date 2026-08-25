@@ -81,6 +81,20 @@ export function isMarketingStayHomeLine(l: PoolLine): boolean {
     /marketing|commission wages/i.test(l.accountName);
 }
 
+/** The Customer-Service slice of the pool — what the CS-only catch-up allocates by revenue,
+ *  and what the full month-end must EXCLUDE for a month whose CS is already posted
+ *  separately (see eom-store.listPostedCsAlloHeaders). Three sources, three trust levels:
+ *  ownedPayroll lines and DraftJE lines carry exact per-pay-period cost-center attribution,
+ *  so rule='revenue' IS Customer Service (admin derives SplitX3, marketing never pools);
+ *  external QB JEs follow the accountant's tag-everything-'%' convention — and her
+ *  recurring re-class JEs carry 'PR'-prefixed docs — so only Customer-Service-named
+ *  accounts are accepted from them. */
+export function isCsPoolLine(l: PoolLine): boolean {
+  if (l.rule !== 'revenue') return false;
+  if (l.ownedPayroll === true || l.txnType === 'DraftJE') return true;
+  return l.txnType === 'JournalEntry' && /^PR /.test(l.docNumber ?? '') && /customer service/i.test(l.accountName);
+}
+
 /**
  * QBO sometimes bakes the account NUMBER into a transaction line's AccountRef.name
  * ("6820.15 Telecommunications & Data -:Phone Expense") while the Account entity's

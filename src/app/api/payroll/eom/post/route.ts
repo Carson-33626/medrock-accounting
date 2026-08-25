@@ -44,6 +44,15 @@ function readShares(revenue: JsonValue): Record<EomEntity, number> | null {
   return out;
 }
 
+/** The posted CS Allo doc numbers stored with the run (empty for months without the CS
+ *  catch-up) — the rebuilt private note must keep naming them at post time. */
+function readCsAlloDocs(revenue: JsonValue): string[] {
+  if (typeof revenue !== 'object' || revenue === null || Array.isArray(revenue)) return [];
+  const docs = revenue.csAlloDocs;
+  if (!Array.isArray(docs)) return [];
+  return docs.filter((d): d is string => typeof d === 'string');
+}
+
 /**
  * POST /api/payroll/eom/post { headerId, mode } — two-step QuickBooks posting for
  * month-end allocation JEs, mirroring /api/payroll/post's gate/audit discipline
@@ -131,7 +140,7 @@ export async function POST(request: NextRequest) {
     const run = await getEomRun(month);
     if (run) {
       const shares = readShares(run.revenue);
-      if (shares) privateNote = eomPrivateNote(shares, m);
+      if (shares) privateNote = eomPrivateNote(shares, m, readCsAlloDocs(run.revenue));
     }
 
     const draft: JournalDraft = {
