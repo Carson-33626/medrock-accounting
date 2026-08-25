@@ -8,11 +8,11 @@ import type { Refs } from '@/lib/payroll/qb-journal';
 vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
 
 const fetchRevenuePresence = vi.fn(async (..._a: unknown[]) => ({}) as RevenueTest);
-const sharesFromPresence = vi.fn((..._a: unknown[]) => ({}) as Record<string, number> | null);
+const sharesFromRevenue = vi.fn((..._a: unknown[]) => ({}) as Record<string, number> | null);
 vi.mock('@/lib/payroll/revenue-rule', () => ({
   EOM_ENTITIES: ['MedRock FL', 'MedRock TN', 'MedRock TX'],
   fetchRevenuePresence: (...a: unknown[]) => fetchRevenuePresence(...a),
-  sharesFromPresence: (...a: unknown[]) => sharesFromPresence(...a),
+  sharesFromRevenue: (...a: unknown[]) => sharesFromRevenue(...a),
 }));
 
 const fetchAllocationPool = vi.fn(async (..._a: unknown[]) => ({ pool: [] as PoolLine[], attention: [] as PoolLine[] }));
@@ -112,7 +112,7 @@ function req(body: unknown): NextRequest {
 
 beforeEach(() => {
   fetchRevenuePresence.mockReset();
-  sharesFromPresence.mockReset();
+  sharesFromRevenue.mockReset();
   fetchAllocationPool.mockReset();
   buildMonthEndAllocation.mockReset();
   saveEomRun.mockReset();
@@ -123,7 +123,7 @@ beforeEach(() => {
   fetchDimensions.mockReset();
 
   fetchRevenuePresence.mockResolvedValue(revenueTestFixture);
-  sharesFromPresence.mockReturnValue(sharesFixture);
+  sharesFromRevenue.mockReturnValue(sharesFixture);
   fetchAllocationPool.mockResolvedValue({ pool: [], attention: [] });
   buildMonthEndAllocation.mockReturnValue([]);
   listEomHeaders.mockResolvedValue([]);
@@ -159,7 +159,7 @@ describe('POST /api/payroll/eom/generate', () => {
   });
 
   it('422s when shares are null and the pool has a revenue-rule line', async () => {
-    sharesFromPresence.mockReturnValueOnce(null);
+    sharesFromRevenue.mockReturnValueOnce(null);
     fetchAllocationPool.mockResolvedValueOnce({ pool: [revenuePoolLine], attention: [] });
     const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(422);
@@ -168,7 +168,7 @@ describe('POST /api/payroll/eom/generate', () => {
   });
 
   it('falls back to zero shares (no 422) when shares are null but no revenue-rule line exists', async () => {
-    sharesFromPresence.mockReturnValueOnce(null);
+    sharesFromRevenue.mockReturnValueOnce(null);
     fetchAllocationPool.mockResolvedValueOnce({ pool: [], attention: [] });
     const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(200);

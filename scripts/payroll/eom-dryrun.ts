@@ -3,7 +3,7 @@
 // prints the drafts that WOULD be generated. Read-only — no DB writes, no QB writes.
 import '../lib/load-env';
 import { fetchAllocationPool } from '../../src/lib/payroll/qb-pool';
-import { fetchRevenuePresence, sharesFromPresence, EOM_ENTITIES, type EomEntity } from '../../src/lib/payroll/revenue-rule';
+import { fetchRevenuePresence, sharesFromRevenue, EOM_ENTITIES, type EomEntity } from '../../src/lib/payroll/revenue-rule';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
 
 async function main(): Promise<void> {
@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   const m = { year: Number(match[1]), month: Number(match[2]) };
 
   const revenue = await fetchRevenuePresence(m);
-  const shares = sharesFromPresence(revenue) ?? ({ 'MedRock FL': 0, 'MedRock TN': 0, 'MedRock TX': 0 } as Record<EomEntity, number>);
+  const shares = sharesFromRevenue(revenue) ?? ({ 'MedRock FL': 0, 'MedRock TN': 0, 'MedRock TX': 0 } as Record<EomEntity, number>);
   console.log(`\n=== Revenue test ${revenue.month} (Accrual) ===`);
   for (const e of EOM_ENTITIES) console.log(`  ${e}: income $${revenue.income[e].toFixed(2)} -> share ${shares[e].toFixed(2)}%`);
 

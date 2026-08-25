@@ -10,7 +10,7 @@
 // constants, and tsx hoists imports above inline statements.
 import './load-env-vercel-first';
 import { createHash } from 'node:crypto';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromPresence, type EomEntity, type RevenueTest } from '../../src/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '../../src/lib/payroll/revenue-rule';
 import { fetchAllocationPool, type PoolLine } from '../../src/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
 import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '../../src/lib/payroll/eom-store';
@@ -46,7 +46,7 @@ async function runMonth(month: string): Promise<void> {
     console.log(`  deposit passthrough: ${depositLines.length} lines, net ${money(depositLines.reduce((s, l) => s + l.amount, 0))}`);
   }
 
-  let shares = sharesFromPresence(revenueTest);
+  let shares = sharesFromRevenue(revenueTest);
   if (shares === null) {
     if (pool.some((l) => l.rule === 'revenue')) { console.log(`  SKIP: no location has revenue for ${month}`); return; }
     shares = Object.fromEntries(EOM_ENTITIES.map((e) => [e, 0])) as Record<EomEntity, number>;

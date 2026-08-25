@@ -23,9 +23,17 @@ const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3'
 export function eomDocNumber(entity: Entity, m: Month): string {
   return `${SHORT_ENT[entity]} % Allo ${monthTag(m)}`;
 }
+/** Names the basis on the entry itself. The old text said "Revenue rule: FL 33.33% / TN
+ *  33.33% / TX 33.33%" every single month — the presence rule always returned thirds, so
+ *  the note asserted a revenue split that was never performed. It now prints the real
+ *  revenue weights, and says which pool they applied to. */
 export function eomPrivateNote(shares: Record<EomEntity, number>, m: Month): string {
   const pct = EOM_ENTITIES.map((e) => `${SHORT_ENT[e]} ${shares[e].toFixed(2)}%`).join(' / ');
-  return `Month-end allocation — ${longMonthName(m)} ${m.year}. Revenue rule: ${pct}`;
+  return (
+    `Month-end allocation — ${longMonthName(m)} ${m.year}. ` +
+    `Shared Admin, Accounting and Customer Service labor allocated as a % of revenue: ${pct}. ` +
+    `Directed costs (50/50 and passthrough) follow their class tag.`
+  );
 }
 
 const leaf = (account: string): string => account.split(':').pop()?.trim() ?? account;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { requireAdmin } from '@/lib/auth';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromPresence, type EomEntity, type RevenueTest } from '@/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '@/lib/payroll/revenue-rule';
 import { fetchAllocationPool, type PoolLine } from '@/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '@/lib/payroll/month-end';
 import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '@/lib/payroll/eom-store';
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 502 });
     }
 
-    let shares = sharesFromPresence(revenueTest);
+    let shares = sharesFromRevenue(revenueTest);
     if (shares === null) {
       if (pool.some((l) => l.rule === 'revenue')) {
         return NextResponse.json({ error: `no location has revenue for ${month}` }, { status: 422 });

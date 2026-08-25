@@ -15,7 +15,7 @@
 import './load-env-vercel-first';
 import { Pool } from 'pg';
 import { RDS_SSL } from '../../src/lib/rds-ssl';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromPresence, type EomEntity } from '../../src/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity } from '../../src/lib/payroll/revenue-rule';
 import { poolLineFromLocalDraftRow, isPooledLine, type LocalDraftLineRow, type PoolLine } from '../../src/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
 import { postJournalEntry } from '../../src/lib/payroll/qb-journal';
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   if (pool.length === 0) throw new Error('no Allocate-tagged lines found — nothing to allocate');
 
   const revenueTest = await fetchRevenuePresence(MARCH);
-  let shares = sharesFromPresence(revenueTest);
+  let shares = sharesFromRevenue(revenueTest);
   if (shares === null) {
     if (pool.some((l) => l.rule === 'revenue')) throw new Error('no location has March revenue — cannot run the revenue rule');
     shares = Object.fromEntries(EOM_ENTITIES.map((e: EomEntity) => [e, 0])) as Record<EomEntity, number>;
