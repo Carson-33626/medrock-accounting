@@ -7,6 +7,8 @@ import {
   poolLinesFromDeposit,
   poolLineFromLocalDraftRow,
   isExternallyPostedDoc,
+  poolLineFromPostedOwnedRow,
+  type PostedOwnedLineRow,
   isPooledLine,
   type PoolLine,
   type RawDeposit,
@@ -248,5 +250,81 @@ describe('isExternallyPostedDoc', () => {
 
   it('empty QB month keeps every draft', () => {
     expect(isExternallyPostedDoc('PR 2026.03.13B', 'pay_date', qb())).toBe(false);
+  });
+});
+
+/** Re-tagging posted-by-our-tool payroll from source rows — the April 2026 cases: CS wages
+ *  were posted UNTAGGED (invisible to the pool) while a promoted employee's shipping lines
+ *  were posted with a stale Allocate tag. */
+describe('poolLineFromPostedOwnedRow', () => {
+  const row = (over: Partial<PostedOwnedLineRow>): PostedOwnedLineRow => ({
+    entity: 'MedRock FL', kind: 'pay_date', qb_doc_number: 'PR 2026.04.10B', qb_entry_id: '5150',
+    txn_date: '2026-04-10', posting_type: 'Debit', amount: '1000.00',
+    account_name: 'Payroll Expense -:Customer Service Wages', department_name: null,
+    class_name: null, memo: 'CSR Wages', depts: ['CS-Customer Service'],
+    ...over,
+  });
+
+  it('untagged CS debit joins the pool on the revenue rule', () => {
+    const pl = poolLineFromPostedOwnedRow(row({}));
+    expect(pl).toMatchObject({ rule: 'revenue', className: 'Allocate - %', departmentName: '% Allocation', amount: 1000 });
+    expect(pl?.docNumber).toBe('PR 2026.04.10B');
+  });
+
+  it('a stale Allocate tag on a SHIPPING pay period is stripped — the line stays out', () => {
+    const pl = poolLineFromPostedOwnedRow(row({
+      account_name: 'Payroll Expense -:Shipping Wages', memo: 'Shipping Wages',
+      class_name: 'Allocate - %', depts: ['SHIP-Shipping'],
+    }));
+    expect(pl).toBeNull();
+  });
+
+  it("the frozen '% Allocation' DEPARTMENT alone cannot re-admit a shipping line", () => {
+    // The April 2026 leak: class stripped, but the stored dept slipped the line back in.
+    const pl = poolLineFromPostedOwnedRow(row({
+      account_name: 'Payroll Expense -:Shipping Wages', memo: 'Shipping Wages',
+      class_name: null, department_name: '% Allocation', depts: ['SHIP-Shipping'],
+    }));
+    expect(pl).toBeNull();
+  });
+
+  it('dept-only MARKET lines keep their status quo (pending Ash) — still pooled via the dept', () => {
+    const pl = poolLineFromPostedOwnedRow(row({
+      account_name: 'Payroll Expense -:Marketing Wages - Base', memo: 'Marketing Wages',
+      class_name: null, department_name: '% Allocation', depts: ['MARKET-Marketing'],
+    }));
+    expect(pl).toMatchObject({ rule: 'revenue', departmentName: '% Allocation' });
+  });
+
+  it('ADMIN and ACCOUN pool; LAB / PHARM / RD / DATA never do', () => {
+    expect(poolLineFromPostedOwnedRow(row({ depts: ['ADMIN-Administration'] }))?.rule).toBe('revenue');
+    expect(poolLineFromPostedOwnedRow(row({ depts: ['ACCOUN-Accounting'] }))?.rule).toBe('revenue');
+    for (const d of ['LAB-Lab', 'PHARM-Pharmacy', 'RD-Research', 'DATA-Data Entry']) {
+      expect(poolLineFromPostedOwnedRow(row({ depts: [d] }))).toBeNull();
+    }
+  });
+
+  it('pay_date credits never pool (withholdings / net pay side)', () => {
+    expect(poolLineFromPostedOwnedRow(row({ posting_type: 'Credit' }))).toBeNull();
+  });
+
+  it('a reversal pools its CREDIT lines, entering negative — and skips its debits', () => {
+    const pl = poolLineFromPostedOwnedRow(row({ kind: 'reversal', posting_type: 'Credit', qb_doc_number: 'PR Accru 2026.03R' }));
+    expect(pl?.amount).toBe(-1000);
+    expect(poolLineFromPostedOwnedRow(row({ kind: 'reversal', posting_type: 'Debit' }))).toBeNull();
+  });
+
+  it('mixed cost centers on one line -> skipped, never guessed', () => {
+    expect(poolLineFromPostedOwnedRow(row({ depts: ['CS-Customer Service', 'ADMIN-Administration'] }))).toBeNull();
+    expect(poolLineFromPostedOwnedRow(row({ depts: [] }))).toBeNull();
+    expect(poolLineFromPostedOwnedRow(row({ depts: null }))).toBeNull();
+  });
+
+  it('a directed class survives re-tagging and routes as passthrough', () => {
+    const pl = poolLineFromPostedOwnedRow(row({
+      class_name: 'Allocate - TX', depts: ['MARKET-Marketing'],
+      account_name: 'Payroll Expense -:Marketing Wages - Base', memo: 'Marketing Wages',
+    }));
+    expect(pl).toMatchObject({ rule: 'passthrough', counterparty: 'MedRock TX', className: 'Allocate - TX' });
   });
 });

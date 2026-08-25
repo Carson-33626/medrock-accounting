@@ -12,6 +12,8 @@ import { getRdsPool } from '../rds';
 import { monthEndIso, type Month } from './month';
 import { deriveJeIdentity } from './je-identity';
 import { EOM_ENTITIES } from './revenue-rule';
+import { allocateClassFor } from './mapping';
+import { costCenterFor } from './cost-center';
 
 export type PoolRule = 'revenue' | 'thirds' | 'fifty' | 'passthrough' | 'unknown';
 
@@ -304,6 +306,104 @@ async function fetchLocalDraftPool(
   return out;
 }
 
+// ── Posted-by-our-tool payroll: re-derive tags from source data ──
+// A posted JE's Allocate tags are FROZEN at post time. April–July 2026 payroll was posted
+// before CS/ADMIN/ACCOUN tagging derived from the pay-period cost center, so the QB copies
+// carry stale tags: CS wages untagged (an entire month of CS labor invisible to the pool)
+// while a promoted employee's shipping lines stayed wrongly tagged. Rather than reading the
+// frozen tags, headers OUR tool posted are re-attributed here from their lines' source
+// payroll rows — home_department is per pay period, so the attribution is always what the
+// CURRENT mapping rules say. Their QB copies are suppressed from the QB extraction (matched
+// on the header's stored qb_doc_number) so nothing counts twice. Manually-posted entries
+// (Barbara's) have no local lines and keep flowing through their QB tags.
+
+export interface PostedOwnedLineRow {
+  entity: Entity;
+  kind: string;
+  qb_doc_number: string;
+  qb_entry_id: string | null;
+  txn_date: string | null;
+  posting_type: 'Debit' | 'Credit';
+  amount: string;
+  account_name: string;
+  department_name: string | null;
+  class_name: string | null;
+  memo: string | null;
+  /** DISTINCT home_department values of the line's source payroll rows. */
+  depts: string[] | null;
+}
+
+/**
+ * Posted-owned line -> PoolLine, re-tagged from the pay-period cost center (null when the
+ * line does not belong in the pool). Sign follows double-entry structure per kind:
+ * pay_date/accrual JEs carry allocated cost on their DEBIT lines (credits are withholdings /
+ * net pay / the accrual's liability credit — never pool those); a reversal JE carries it on
+ * its CREDIT lines, entering negative. A line whose source rows span more than one cost
+ * center is skipped — attribution would be a guess, and the grouping memo convention makes
+ * this rare.
+ */
+export function poolLineFromPostedOwnedRow(r: PostedOwnedLineRow): PoolLine | null {
+  const wantPosting = r.kind === 'reversal' ? 'Credit' : 'Debit';
+  if (r.posting_type !== wantPosting) return null;
+  const ccs = [...new Set((r.depts ?? []).map((d) => costCenterFor(d)))];
+  if (ccs.length !== 1) return null;
+  const cc = ccs[0];
+  const derivedClass = allocateClassFor(cc, r.class_name);
+  // The stored DEPARTMENT is frozen tagging too: a stale `Allocate - %` came paired with the
+  // `% Allocation` dept, and the bare dept alone re-admits a line to the pool. Reconstruct it
+  // like the class — pair it with a derived `Allocate - %`, keep it for MARKET (the dept-only
+  // marketers' status quo, pending Ash), and strip it everywhere else.
+  const dept = derivedClass === 'Allocate - %' ? '% Allocation'
+    : r.department_name === '% Allocation' && cc !== 'MARKET' ? null
+    : r.department_name;
+  const cls = classifyAllocateFlag(derivedClass, dept, r.entity);
+  if (!cls) return null;
+  const sign = r.posting_type === 'Credit' ? -1 : 1;
+  return {
+    entity: r.entity, txnType: 'JournalEntry', txnId: r.qb_entry_id ?? '', txnDate: r.txn_date ?? '',
+    docNumber: r.qb_doc_number, accountName: normalizeAccountName(r.account_name),
+    className: derivedClass, departmentName: dept, memo: r.memo,
+    amount: sign * Number(r.amount), rule: cls.rule, counterparty: cls.counterparty,
+  };
+}
+
+/** Pool lines for POSTED payroll headers our tool wrote to QB, re-tagged from source rows,
+ *  plus the per-entity set of their QB DocNumbers (for suppressing the QB copies). */
+async function fetchPostedOwnedPool(
+  start: string, end: string,
+): Promise<{ lines: PoolLine[]; ownedDocs: Map<Entity, Set<string>> }> {
+  const { rows } = await getRdsPool().query<PostedOwnedLineRow>(
+    `WITH owned AS (
+       SELECT id, entity, kind, qb_doc_number, qb_entry_id, txn_date
+       FROM accounting.payroll_journal_headers
+       WHERE status = 'posted' AND kind IN ('pay_date', 'accrual', 'reversal')
+         AND qb_doc_number IS NOT NULL
+         AND entity = ANY($1::text[])
+         AND txn_date >= $2::date AND txn_date <= $3::date
+     )
+     SELECT o.entity, o.kind, o.qb_doc_number, o.qb_entry_id, o.txn_date::text AS txn_date,
+            l.posting_type, l.amount::text AS amount, l.account_name, l.department_name,
+            l.class_name, l.memo,
+            (SELECT array_agg(DISTINCT ph.home_department)
+               FROM source.payroll_history ph
+              WHERE ph.row_key = ANY(l.source_row_keys)) AS depts
+       FROM accounting.payroll_journal_lines l
+       JOIN owned o ON o.id = l.header_id
+      WHERE l.origin = 'generated' AND cardinality(l.source_row_keys) > 0`,
+    [EOM_ENTITIES, start, end],
+  );
+  const lines: PoolLine[] = [];
+  const ownedDocs = new Map<Entity, Set<string>>();
+  for (const r of rows) {
+    const docs = ownedDocs.get(r.entity) ?? new Set<string>();
+    docs.add(r.qb_doc_number.trim());
+    ownedDocs.set(r.entity, docs);
+    const pl = poolLineFromPostedOwnedRow(r);
+    if (pl) lines.push(pl);
+  }
+  return { lines, ownedDocs };
+}
+
 /** Pull the month's pool from all three companies + local unposted payroll drafts. Throws
  *  when any company is disconnected (partial pools would silently under-allocate). */
 export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[]; attention: PoolLine[] }> {
@@ -311,6 +411,10 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
   const end = monthEndIso(m);
   const where = `WHERE TxnDate >= '${start}' AND TxnDate <= '${end}'`;
   const all: PoolLine[] = [];
+  // Headers our tool posted: their pool lines come re-tagged from source rows, and their
+  // QB copies are skipped below (frozen tags would double-count or mis-tag them).
+  const { lines: postedOwned, ownedDocs } = await fetchPostedOwnedPool(start, end);
+  all.push(...postedOwned);
   // Every QB JE DocNumber seen this month, per entity — the externally-posted guard's
   // input: a local draft whose run is already live in QB (Barbara posted it herself)
   // must not ALSO contribute its lines. See isExternallyPostedDoc.
@@ -318,6 +422,7 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
   for (const entity of EOM_ENTITIES) {
     const qbDocs = new Set<string>();
     qbJeDocsByEntity.set(entity, qbDocs);
+    const owned = ownedDocs.get(entity);
     const [jes, purchases, bills, vendorCredits, deposits] = [
       await qbQueryAll<RawJournalEntry>(entity, 'JournalEntry', where),
       await qbQueryAll<RawExpenseTxn>(entity, 'Purchase', where),
@@ -326,7 +431,11 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
       await qbQueryAll<RawDeposit>(entity, 'Deposit', where),
     ];
     for (const je of jes) {
-      if (je.DocNumber) qbDocs.add(je.DocNumber.trim());
+      const doc = je.DocNumber?.trim();
+      if (doc) qbDocs.add(doc);
+      // Our posted copy of this JE is already in the pool, re-tagged from source rows —
+      // reading the QB copy's frozen tags on top would double-count it.
+      if (doc && owned?.has(doc)) continue;
       all.push(...poolLinesFromJournalEntry(je, entity));
     }
     for (const p of purchases) all.push(...poolLinesFromExpenseTxn(p, entity, 'Purchase'));
