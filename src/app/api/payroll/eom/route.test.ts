@@ -7,9 +7,11 @@ vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
 
 const getEomRun = vi.fn(async (..._a: unknown[]) => null as EomRun | null);
 const listEomHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
+const listPostedCsAlloHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 vi.mock('@/lib/payroll/eom-store', () => ({
   getEomRun: (...a: unknown[]) => getEomRun(...a),
   listEomHeaders: (...a: unknown[]) => listEomHeaders(...a),
+  listPostedCsAlloHeaders: (...a: unknown[]) => listPostedCsAlloHeaders(...a),
 }));
 
 const loadDraft = vi.fn(async (..._a: unknown[]) => null as { header: PayrollHeader; lines: JournalDraft['lines'] } | null);
@@ -51,7 +53,7 @@ describe('GET /api/payroll/eom', () => {
     const res = await GET(req('?month=2026-03'));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { run: unknown; headers: unknown[]; lines: Record<string, unknown> };
-    expect(body).toEqual({ run: null, headers: [], lines: {} });
+    expect(body).toEqual({ run: null, headers: [], lines: {}, csAllo: { headers: [], lines: {} } });
   });
 
   it('maps headers to their persisted lines by header id', async () => {

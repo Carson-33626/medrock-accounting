@@ -89,6 +89,10 @@ interface EomGetResponse {
   run: EomRun | null;
   headers: PayrollHeader[];
   lines: Record<string, JournalLine[]>;
+  /** Posted CS-only catch-up entries (pay_group 'CS ALLO%'). When present, the pool and
+   *  drafts EXCLUDE Customer Service for this month — the generate hard rule defers to
+   *  these entries, and the tab must say so or CS looks like it silently vanished. */
+  csAllo?: { headers: PayrollHeader[]; lines: Record<string, JournalLine[]> };
 }
 
 interface EomGenerateResponse {
@@ -440,6 +444,16 @@ export function EndOfMonthTab() {
         </div>
       )}
 
+      {(data?.csAllo?.headers.length ?? 0) > 0 && data?.csAllo && (
+        <CsAlloCard
+          darkMode={darkMode}
+          cardBg={cardBg}
+          subText={subText}
+          headers={data.csAllo.headers}
+          lines={data.csAllo.lines}
+        />
+      )}
+
       {loading && !data ? (
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
           <Loader2 className="w-5 h-5 animate-spin inline mr-2" aria-hidden />
@@ -554,6 +568,113 @@ export function EndOfMonthTab() {
 }
 
 // ── Sub-components ──────────────────────────────────────────────────────────
+
+/**
+ * Posted CS-only catch-up entries for the month (`CS Allo YYYY.MM`, Aug 2026 catch-up).
+ * These months' pools and drafts EXCLUDE Customer Service — the generate hard rule defers
+ * to the entries shown here — so the card exists to say where CS went. Each row expands to
+ * the entry's lines, mirroring the draft cards.
+ */
+function CsAlloCard({
+  darkMode,
+  cardBg,
+  subText,
+  headers,
+  lines,
+}: {
+  darkMode: boolean;
+  cardBg: string;
+  subText: string;
+  headers: PayrollHeader[];
+  lines: Record<string, JournalLine[]>;
+}) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const total = round2(headers.reduce((s, h) => s + h.total_debits, 0));
+  const rowBorder = darkMode ? 'border-emerald-900/60' : 'border-emerald-100';
+  return (
+    <div
+      className={`rounded-xl shadow-sm border-2 ${cardBg} ${
+        darkMode ? 'border-emerald-800' : 'border-emerald-300'
+      }`}
+    >
+      <div className="p-4 flex items-start gap-3">
+        <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-emerald-500" aria-hidden />
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">
+            Customer Service — already allocated for this month ({fmtMoney(total)} across {headers.length}{' '}
+            posted entr{headers.length === 1 ? 'y' : 'ies'})
+          </h3>
+          <p className={`text-xs mt-1 ${subText}`}>
+            CS labor was split by revenue % in the posted CS Allo entries below (the August 2026 catch-up).
+            The pool and drafts on this page therefore EXCLUDE Customer Service — regenerating will not
+            re-allocate it, and it is not missing. Re-doing CS for this month means superseding these
+            entries first.
+          </p>
+        </div>
+      </div>
+      <div className="px-4 pb-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className={`text-left text-xs uppercase tracking-wide ${subText}`}>
+              <th className="py-1.5 pr-3" />
+              <th className="py-1.5 pr-3">Entry</th>
+              <th className="py-1.5 pr-3">Date</th>
+              <th className="py-1.5 pr-3">Status</th>
+              <th className="py-1.5 text-right">Total (Dr)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {headers.map((h) => {
+              const open = openId === h.id;
+              const hLines = lines[String(h.id)] ?? [];
+              return (
+                <Fragment key={h.id}>
+                  <tr
+                    className={`border-t ${rowBorder} cursor-pointer`}
+                    onClick={() => setOpenId(open ? null : h.id)}
+                  >
+                    <td className="py-2 pr-1 w-6">
+                      {open ? (
+                        <ChevronDown className="w-4 h-4" aria-hidden />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" aria-hidden />
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 font-medium whitespace-nowrap">{h.qb_doc_number ?? `#${h.id}`}</td>
+                    <td className={`py-2 pr-3 whitespace-nowrap ${subText}`}>{h.txn_date ?? '—'}</td>
+                    <td className="py-2 pr-3">
+                      <StatusBadge darkMode={darkMode} status={h.status} />
+                    </td>
+                    <td className="py-2 text-right font-medium whitespace-nowrap">{fmtMoney(h.total_debits)}</td>
+                  </tr>
+                  {open && hLines.length > 0 && (
+                    <tr className={`border-t ${rowBorder}`}>
+                      <td />
+                      <td colSpan={4} className="py-2">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {hLines.map((l, i) => (
+                              <tr key={i}>
+                                <td className="py-0.5 pr-2 w-8">{l.postingType === 'Debit' ? 'Dr' : 'Cr'}</td>
+                                <td className="py-0.5 pr-3 text-right whitespace-nowrap w-28">{fmtMoney(l.amount)}</td>
+                                <td className="py-0.5 pr-3">{l.accountName}</td>
+                                <td className={`py-0.5 ${subText}`}>{l.memo}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function RevenueCard({
   darkMode,

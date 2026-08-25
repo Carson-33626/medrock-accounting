@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { getEomRun, listEomHeaders } from '@/lib/payroll/eom-store';
+import { getEomRun, listEomHeaders, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
 import { loadDraft } from '@/lib/payroll/store';
 import type { JournalLine } from '@/lib/payroll/types';
 import type { Month } from '@/lib/payroll/month';
@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
     }
     const { month, m } = parsed;
 
-    const [run, headers] = await Promise.all([getEomRun(month), listEomHeaders(m)]);
+    const [run, headers, csAlloHeaders] = await Promise.all([
+      getEomRun(month), listEomHeaders(m), listPostedCsAlloHeaders(m),
+    ]);
 
     const lines: Record<string, JournalLine[]> = {};
     for (const header of headers) {
@@ -40,7 +42,16 @@ export async function GET(request: NextRequest) {
       lines[String(header.id)] = loaded ? loaded.lines : [];
     }
 
-    return NextResponse.json({ run, headers, lines });
+    // Posted CS-only catch-up entries (pay_group 'CS ALLO%'). Rendered as their own card:
+    // for these months the pool and drafts EXCLUDE Customer Service (the generate hard
+    // rule), so without this the tab would look like CS was simply missing.
+    const csAlloLines: Record<string, JournalLine[]> = {};
+    for (const header of csAlloHeaders) {
+      const loaded = await loadDraft(header.id);
+      csAlloLines[String(header.id)] = loaded ? loaded.lines : [];
+    }
+
+    return NextResponse.json({ run, headers, lines, csAllo: { headers: csAlloHeaders, lines: csAlloLines } });
   } catch (error) {
     console.error('[payroll/eom GET]', error);
     const message = error instanceof Error ? error.message : 'Failed to load month-end allocation run';
