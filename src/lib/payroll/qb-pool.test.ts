@@ -6,6 +6,7 @@ import {
   poolLinesFromExpenseTxn,
   poolLinesFromDeposit,
   poolLineFromLocalDraftRow,
+  isExternallyPostedDoc,
   isPooledLine,
   type PoolLine,
   type RawDeposit,
@@ -207,5 +208,45 @@ describe('poolLinesFromExpenseTxn', () => {
   it('unflagged header + unflagged lines -> nothing', () => {
     const plain: RawExpenseTxn = { Id: '1', TxnDate: '2026-03-01', Line: [{ Id: '1', Amount: 5, AccountBasedExpenseLineDetail: { AccountRef: { value: '3', name: 'Office' } } }] };
     expect(poolLinesFromExpenseTxn(plain, 'MedRock FL', 'Purchase')).toHaveLength(0);
+  });
+});
+
+/** The externally-posted guard. The first three cases are the exact March 2026 collisions
+ *  that double-counted $36,314.06: Barbara's posted docs vs our derived draft docs. */
+describe('isExternallyPostedDoc', () => {
+  const qb = (...docs: string[]): ReadonlySet<string> => new Set(docs);
+
+  it('exact match drops the draft, any kind', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.13', 'pay_date', qb('PR 2026.03.13'))).toBe(true);
+    expect(isExternallyPostedDoc('PR Accru 2026.03', 'accrual', qb('PR Accru 2026.03'))).toBe(true);
+  });
+
+  it('March collision 1: split piece B vs the combined posted run', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.13B', 'pay_date', qb('PR 2026.03.13'))).toBe(true);
+  });
+
+  it('March collision 2: derived doc vs the annotated posted off-cycle', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.09', 'pay_date', qb('PR 2026.03.09 OffCycl'))).toBe(true);
+  });
+
+  it('piece A posted says NOTHING about piece B', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.13B', 'pay_date', qb('PR 2026.03.13A'))).toBe(false);
+  });
+
+  it('a different pay date never matches', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.27', 'pay_date', qb('PR 2026.03.13', 'PR 2026.03.13 OffCycl'))).toBe(false);
+  });
+
+  it('an accrual does NOT match its posted reversal (or vice versa) — one trailing letter apart, different JEs', () => {
+    expect(isExternallyPostedDoc('PR Accru 2026.03', 'accrual', qb('PR Accru 2026.03R'))).toBe(false);
+    expect(isExternallyPostedDoc('PR Accru 2026.03R', 'reversal', qb('PR Accru 2026.03'))).toBe(false);
+  });
+
+  it('base-stripping is pay_date-only: no fuzzy matching for accrual/reversal kinds', () => {
+    expect(isExternallyPostedDoc('PR Accru 2026.03', 'accrual', qb('PR Accru 2026.03 v2'))).toBe(false);
+  });
+
+  it('empty QB month keeps every draft', () => {
+    expect(isExternallyPostedDoc('PR 2026.03.13B', 'pay_date', qb())).toBe(false);
   });
 });

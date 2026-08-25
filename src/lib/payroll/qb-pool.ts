@@ -211,6 +211,34 @@ export function poolLineFromLocalDraftRow(r: LocalDraftLineRow, docNumber?: stri
   };
 }
 
+/**
+ * True when a local draft's derived DocNumber is already represented among the month's
+ * posted QB journal entries for its entity — the accountant posted this payroll outside
+ * the tool, so the draft's lines would count the same wages twice.
+ *
+ * Exact equality is not enough (found 2026-08-25: $36,314.06 double-counted in March's
+ * pool). Barbara posts a month-crossing run as ONE combined JE (`PR 2026.03.13`) while the
+ * local run is split into suffixed pieces (`PR 2026.03.13A`/`B`), and she annotates
+ * off-cycle runs (`PR 2026.03.09 OffCycl`) where the derivation says `PR 2026.03.09`.
+ * For pay_date drafts the match is therefore on the run's BASE doc — the derived doc with
+ * any trailing split letter stripped — accepting a QB doc equal to that base or extending
+ * it with a space-separated annotation. A QB doc extending the base with a DIFFERENT split
+ * letter does not match: piece A being posted says nothing about piece B.
+ *
+ * Accrual/reversal docs stay exact-match only: `PR Accru 2026.03` and its reversal
+ * `PR Accru 2026.03R` differ by one trailing letter and are different journal entries.
+ */
+export function isExternallyPostedDoc(derivedDoc: string, kind: string, qbDocs: ReadonlySet<string>): boolean {
+  if (qbDocs.has(derivedDoc)) return true;
+  if (kind !== 'pay_date') return false;
+  const base = derivedDoc.replace(/[A-Z]$/, '');
+  if (base !== derivedDoc && qbDocs.has(base)) return true;
+  for (const qb of qbDocs) {
+    if (qb.startsWith(`${base} `)) return true;
+  }
+  return false;
+}
+
 interface LocalDraftQueryRow extends LocalDraftLineRow {
   kind: string;
   pay_group: string;
@@ -225,11 +253,13 @@ interface LocalDraftQueryRow extends LocalDraftLineRow {
 /** Tagged lines from UNPOSTED local payroll drafts dated in the month. Posted headers are
  *  excluded because their live QB JEs already arrive via the QB queries — including both
  *  would double-count the month the accountant posts payroll. The same guard covers MANUAL
- *  posting (Barbara importing the QBO CSV herself): an import keeps the CSV's JournalNo, so
- *  any local draft whose derived DocNumber already exists among the month's QB journal
- *  entries for that entity is dropped as externally posted.
- *  `qbJeDocNumbers` keys are `entity¦DocNumber`, collected from the month's QB JE fetch. */
-async function fetchLocalDraftPool(start: string, end: string, qbJeDocNumbers: Set<string>): Promise<PoolLine[]> {
+ *  posting (Barbara keying or importing the JE herself): a draft whose derived DocNumber is
+ *  already represented in QB for its entity is dropped as externally posted — see
+ *  isExternallyPostedDoc for what "represented" means beyond exact equality.
+ *  `qbJeDocsByEntity` holds the month's QB JE DocNumbers per entity. */
+async function fetchLocalDraftPool(
+  start: string, end: string, qbJeDocsByEntity: ReadonlyMap<Entity, ReadonlySet<string>>,
+): Promise<PoolLine[]> {
   // seg_index/seg_count over ALL siblings of a run (not just the month's) so a straddling
   // run's pieces derive the same suffixed DocNumbers the export and post routes use.
   const { rows } = await getRdsPool().query<LocalDraftQueryRow>(
@@ -266,7 +296,8 @@ async function fetchLocalDraftPool(start: string, end: string, qbJeDocNumbers: S
       ).docNumber;
       docByHeader.set(r.header_id, doc);
     }
-    if (qbJeDocNumbers.has(`${r.entity}¦${doc}`)) continue; // externally posted — QB copy already in the pool
+    const qbDocs = qbJeDocsByEntity.get(r.entity);
+    if (qbDocs && isExternallyPostedDoc(doc, r.kind, qbDocs)) continue; // externally posted — QB copy already in the pool
     const pl = poolLineFromLocalDraftRow(r, doc);
     if (pl) out.push(pl);
   }
@@ -280,11 +311,13 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
   const end = monthEndIso(m);
   const where = `WHERE TxnDate >= '${start}' AND TxnDate <= '${end}'`;
   const all: PoolLine[] = [];
-  // Every QB JE DocNumber seen this month, keyed entity¦doc — the externally-posted guard:
-  // a local draft whose derived DocNumber is already live in QB (Barbara imported the CSV
-  // herself) must not ALSO contribute its lines.
-  const qbJeDocNumbers = new Set<string>();
+  // Every QB JE DocNumber seen this month, per entity — the externally-posted guard's
+  // input: a local draft whose run is already live in QB (Barbara posted it herself)
+  // must not ALSO contribute its lines. See isExternallyPostedDoc.
+  const qbJeDocsByEntity = new Map<Entity, Set<string>>();
   for (const entity of EOM_ENTITIES) {
+    const qbDocs = new Set<string>();
+    qbJeDocsByEntity.set(entity, qbDocs);
     const [jes, purchases, bills, vendorCredits, deposits] = [
       await qbQueryAll<RawJournalEntry>(entity, 'JournalEntry', where),
       await qbQueryAll<RawExpenseTxn>(entity, 'Purchase', where),
@@ -293,7 +326,7 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
       await qbQueryAll<RawDeposit>(entity, 'Deposit', where),
     ];
     for (const je of jes) {
-      if (je.DocNumber) qbJeDocNumbers.add(`${entity}¦${je.DocNumber}`);
+      if (je.DocNumber) qbDocs.add(je.DocNumber.trim());
       all.push(...poolLinesFromJournalEntry(je, entity));
     }
     for (const p of purchases) all.push(...poolLinesFromExpenseTxn(p, entity, 'Purchase'));
@@ -301,7 +334,7 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
     for (const v of vendorCredits) all.push(...poolLinesFromExpenseTxn(v, entity, 'VendorCredit'));
     for (const dep of deposits) all.push(...poolLinesFromDeposit(dep, entity));
   }
-  all.push(...await fetchLocalDraftPool(start, end, qbJeDocNumbers));
+  all.push(...await fetchLocalDraftPool(start, end, qbJeDocsByEntity));
   const pool = all.filter(isPooledLine);
   const attention = all.filter((l) => !isPooledLine(l) && (l.rule === 'passthrough' || l.rule === 'unknown'));
   return { pool, attention };
