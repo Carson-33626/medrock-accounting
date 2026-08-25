@@ -20,6 +20,7 @@ interface SummaryQueryRow {
   shortfall_count: number;
   lifefile_qty_left_total: number | null;
   cash_estimated_value: number | null;
+  pre_floor_collapsed_value: number | null;
 }
 
 const EXPORT_COLUMNS: ExportColumn[] = [
@@ -35,6 +36,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'Shortfall Count', key: 'shortfall_count' },
   { header: 'LifeFile Qty Left', key: 'lifefile_qty_left_total' },
   { header: 'Estimated-Timing Value (Cash)', key: 'cash_estimated_value', currency: true },
+  { header: 'Excluded Pre-Conversion Value', key: 'pre_floor_collapsed_value', currency: true },
 ];
 
 // Rollback (backward) valuation bases — the As-of page's headline numbers.
@@ -72,7 +74,8 @@ export async function GET(request: NextRequest) {
               opening_balance_value::float8 AS opening_balance_value,
               shortfall_count,
               lifefile_qty_left_total::float8 AS lifefile_qty_left_total,
-              cash_estimated_value::float8 AS cash_estimated_value
+              cash_estimated_value::float8 AS cash_estimated_value,
+              pre_floor_collapsed_value::float8 AS pre_floor_collapsed_value
        FROM inventory.fifo_valuation_summary
        WHERE ${where}
        ORDER BY as_of_month, location, qb_category`,

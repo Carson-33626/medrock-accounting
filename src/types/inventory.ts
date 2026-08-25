@@ -19,6 +19,13 @@ export interface ValuationSummaryRow {
   lifefile_qty_left_total: number | null;
   /** Cash-basis rows only: on-hand value recognized at estimated dates (unlinked receipts + OB) */
   cash_estimated_value: number | null;
+  /**
+   * Purchases made before this (location x slice)'s usage floor, held OUT of
+   * valuation as an auditable bucket (Florida's Pioneer-era compounding, mainly).
+   * Written on every month from the group's floor forward; null before the
+   * floor and on rows written before the 2026-08-25 floors rebuild.
+   */
+  pre_floor_collapsed_value: number | null;
 }
 
 export interface SummaryResponse {

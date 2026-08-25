@@ -419,6 +419,22 @@ export default function InventoryValuation() {
   const anchored = !!(summary && selectedMonth && summary.anchoredMonths.includes(selectedMonth));
   const dates = selectedMonth ? monthDates(selectedMonth) : null;
 
+  // Purchases made before a location's reliable-usage floor (Florida's
+  // Pioneer-era compounding, mainly) are held OUT of the valuation as an
+  // auditable bucket rather than silently deleted. The dollars are real money
+  // spent, so the page must say where they went — this sums the excluded value
+  // for the selected month and scope.
+  const preFloorExcluded = useMemo(() => {
+    if (!summary || !selectedMonth) return 0;
+    return summary.rows
+      .filter(
+        (r) =>
+          r.as_of_month === selectedMonth &&
+          (location === 'all' || r.location === location),
+      )
+      .reduce((s, r) => s + (r.pre_floor_collapsed_value ?? 0), 0);
+  }, [summary, selectedMonth, location]);
+
   const lotsQuery = useMemo(() => {
     const params = new URLSearchParams({
       location,
@@ -847,6 +863,27 @@ export default function InventoryValuation() {
                 the settled one, and expect the adjusting entry to be large.
               </p>
             )}
+          </div>
+        )}
+
+        {/* Excluded pre-conversion history */}
+        {drillable && preFloorExcluded > 0 && (
+          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              Excluded pre-conversion history
+              <HelpTip
+                label="What this bucket is"
+                text="Purchases made before a location's usage records become reliable — mainly Florida's compounding era on the Pioneer system, before its LifeFile conversion. Pioneer's own fill records corroborate that this stock was consumed then, so it is held out of the valuation as a flagged, auditable bucket rather than inflating on-hand value. It is not part of the figure above and no journal entry posts from it."
+              />
+            </p>
+            <div className="mt-3">
+              <p className={`text-xs ${subText}`}>Held out of the valuation above</p>
+              <p className="text-xl font-bold tabular-nums">{usd.format(preFloorExcluded)}</p>
+            </div>
+            <p className={`text-xs mt-2 ${subText}`}>
+              Every excluded lot keeps its receipt in the ledger, flagged — nothing is deleted, and the
+              exclusion is reversible if better period records ever surface.
+            </p>
           </div>
         )}
 
