@@ -23,15 +23,33 @@ const RULE_LABEL: Record<string, string> = { revenue: 'revenue %', thirds: '1/3'
 export function eomDocNumber(entity: Entity, m: Month): string {
   return `${SHORT_ENT[entity]} % Allo ${monthTag(m)}`;
 }
+
+/** Hard rule cutoff (Ash via Carson, 2026-08-25): the CS revenue split applies from
+ *  April 2026 forward. Before that, EVERYTHING pooled splits 1/3 — which is also what the
+ *  posted pre-April history actually did, so regenerated early months tie to the books. */
+export const CS_REVENUE_FROM: Month = { year: 2026, month: 4 };
+export function usesRevenueRule(m: Month): boolean {
+  return m.year > CS_REVENUE_FROM.year ||
+    (m.year === CS_REVENUE_FROM.year && m.month >= CS_REVENUE_FROM.month);
+}
 /** Names the basis on the entry itself. The old text said "Revenue rule: FL 33.33% / TN
  *  33.33% / TX 33.33%" every single month — the presence rule always returned thirds, so
  *  the note asserted a revenue split that was never performed. It now prints the real
- *  revenue weights, and says which pool they applied to. */
+ *  revenue weights, and says which pool they applied to (per Ash 2026-08-25: CS by
+ *  revenue, Admin/Accounting a third each, marketing stays with its employer). */
 export function eomPrivateNote(shares: Record<EomEntity, number>, m: Month): string {
+  if (!usesRevenueRule(m)) {
+    return (
+      `Month-end allocation — ${longMonthName(m)} ${m.year}. ` +
+      `Pooled shared labor and costs split 1/3 each (pre-April 2026 rule; the CS revenue ` +
+      `split begins April 2026). Directed costs (50/50 and passthrough) follow their class tag.`
+    );
+  }
   const pct = EOM_ENTITIES.map((e) => `${SHORT_ENT[e]} ${shares[e].toFixed(2)}%`).join(' / ');
   return (
     `Month-end allocation — ${longMonthName(m)} ${m.year}. ` +
-    `Shared Admin, Accounting and Customer Service labor allocated as a % of revenue: ${pct}. ` +
+    `Customer Service labor allocated as a % of revenue: ${pct}. ` +
+    `Admin and Accounting labor split 1/3 each. ` +
     `Directed costs (50/50 and passthrough) follow their class tag.`
   );
 }
@@ -86,15 +104,19 @@ export function buildMonthEndAllocation(
 
   for (const g of groups.values()) {
     if (g.cents === 0) continue;
+    // The hard cutoff: before April 2026 the revenue rule did not exist — every pooled
+    // cost (CS included, and Barbara's mixed 'Allocate - %' tags on posted early months)
+    // splits 1/3, matching what the books did all along.
+    const rule = g.rule === 'revenue' && !usesRevenueRule(m) ? 'thirds' : g.rule;
     const weights = EOM_ENTITIES.map((e) => {
-      if (g.rule === 'revenue') return shares[e];
-      if (g.rule === 'thirds') return 1;
-      if (g.rule === 'passthrough') return e === g.counterparty ? 1 : 0; // 100% to the named entity
+      if (rule === 'revenue') return shares[e];
+      if (rule === 'thirds') return 1;
+      if (rule === 'passthrough') return e === g.counterparty ? 1 : 0; // 100% to the named entity
       return e === g.entity || e === g.counterparty ? 1 : 0; // fifty
     });
     const sign = g.cents >= 0 ? 1 : -1;
     const split = largestRemainderCents(Math.abs(g.cents), weights);
-    const memo = `Allocation of ${leaf(g.accountName)} — ${RULE_LABEL[g.rule]} split`;
+    const memo = `Allocation of ${leaf(g.accountName)} — ${RULE_LABEL[rule]} split`;
     let sourceMoved = 0; // net cents shed by the holder across all receivers -> one source line
     EOM_ENTITIES.forEach((receiver, i) => {
       if (receiver === g.entity) return;

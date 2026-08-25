@@ -5,15 +5,16 @@ export type Resolution = { targets: ResolvedTarget[] } | { unmapped: 'column' };
 
 /**
  * Cost centers whose labor is SHARED across the pharmacies and therefore enters the
- * month-end pool on the revenue rule. Confirmed by Chris 2026-08-24 ("Admin (including
- * Accounting) and CS wages should be allocated as a percentage of revenue") and by Amy's
- * own 2025 entries, whose memos read "Allocation of FL Admin expenses as % of Revenue" and
- * "Allocation of FL CSR expenses as % of Revenue".
+ * month-end pool — split into the two rules Ash confirmed 2026-08-25 ("Allocated by
+ * revenue for CS, everything else is by 1/3 for those splitters"): Customer Service
+ * follows the revenue % rule, Admin and Accounting split a third each.
  *
- * Everything absent from this set — SHIP, LAB, PHARM, RD, DATA — is location-owned and must
- * never be pooled.
+ * Marketing never pools ("marketing is already going to where they're employed so
+ * marketing does not need to be split" — same answer), and everything absent from both
+ * sets — SHIP, LAB, PHARM, RD, DATA, MARKET — is location-owned and must never be pooled.
  */
-const ALLOCATED_COST_CENTERS: readonly string[] = ['CS', 'ADMIN', 'ACCOUN'];
+const REVENUE_POOL_COST_CENTERS: readonly string[] = ['CS'];
+const THIRDS_POOL_COST_CENTERS: readonly string[] = ['ADMIN', 'ACCOUN'];
 
 /** Directed Allocate classes name a specific counterparty, which no cost center can express:
  *  `Allocate - TX` (100% passthrough) and `Allocate - Split TN50` (50/50). These stay under
@@ -32,14 +33,23 @@ const DIRECTED_CLASS_RE = /^Allocate - (?:(?:FL|TN|TX)|Split (?:FL|TN|TX)50)$/;
  * that class of error impossible: SHIP is not an allocated cost center, in any month.
  *
  * A directed class on the employee map still wins (see DIRECTED_CLASS_RE) — those encode a
- * routing decision, not a department. A bare '% Allocation' department with no class (how
- * the marketers are mapped) is left alone too, pending Ash's answer on marketing.
+ * routing decision, not a department. Ash confirmed 2026-08-25 the five directed marketers
+ * (`Allocate - TX`) keep their routing; the dept-only marketers stay with their employer
+ * (handled in resolveLine, which strips the bare '% Allocation' department when no pool
+ * class is derived here).
  */
 export function allocateClassFor(costCenter: string, mappedClass: string | null): string | null {
   if (mappedClass !== null && DIRECTED_CLASS_RE.test(mappedClass)) return mappedClass;
-  if (ALLOCATED_COST_CENTERS.includes(costCenter)) return 'Allocate - %';
+  if (REVENUE_POOL_COST_CENTERS.includes(costCenter)) return 'Allocate - %';
+  if (THIRDS_POOL_COST_CENTERS.includes(costCenter)) return 'Allocate - SplitX3';
   // Not a shared cost center: drop any general Allocate class the roster still carries.
   return mappedClass !== null && mappedClass.startsWith('Allocate') ? null : mappedClass;
+}
+
+/** The two classes allocateClassFor derives for pooled cost centers — the spellings the
+ *  month-end pool classifies as 'revenue' and 'thirds' respectively. */
+export function isPoolClass(className: string | null): boolean {
+  return className === 'Allocate - %' || className === 'Allocate - SplitX3';
 }
 
 export function resolveLine(
@@ -61,10 +71,16 @@ export function resolveLine(
 
   const emp = employeeMap.find((e) => e.positionId === row.position_id);
   const empClass = allocateClassFor(cc, emp?.className ?? null);
-  // Amy's pool convention: an Allocate - % class always pairs with the '% Allocation'
-  // department so the month-end allocation pool picks the line up (spec §4.7). The
-  // cost-center label stays in the memo — dollars and memos are unchanged.
-  const dept = empClass === 'Allocate - %' ? '% Allocation' : emp?.departmentName ?? null;
+  // Amy's pool convention: a pool class (Allocate - % / SplitX3) always pairs with the
+  // '% Allocation' department so the month-end allocation pool picks the line up (spec
+  // §4.7). The cost-center label stays in the memo — dollars and memos are unchanged.
+  // The reverse also holds: a bare '% Allocation' department with NO pool class (how the
+  // dept-only marketers are mapped) is stripped — the dept alone would re-admit the line
+  // to the pool, and Ash confirmed 2026-08-25 marketing stays with the employing entity.
+  const mappedDept = emp?.departmentName ?? null;
+  const dept = isPoolClass(empClass) ? '% Allocation'
+    : mappedDept === '% Allocation' ? null
+    : mappedDept;
   // An Allocate flag marks a COST to redistribute, so it rides expense debits only. Amy
   // never tagged the credit side (net pay, withholdings) — and qb-pool reads credits as
   // negatives, so a tagged credit would net the employee's wages out of the EOM pool.

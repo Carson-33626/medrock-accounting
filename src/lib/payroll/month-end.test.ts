@@ -5,6 +5,9 @@ import type { PoolLine } from './qb-pool';
 import type { Entity, JournalDraft } from './types';
 
 const M = { year: 2026, month: 3 };
+// First month of the CS revenue rule (Ash's hard cutoff): revenue-rule behavior is
+// asserted here; March asserts the pre-cutoff thirds conversion instead.
+const M4 = { year: 2026, month: 4 };
 const THIRDS: Record<EomEntity, number> = { 'MedRock FL': 100 / 3, 'MedRock TN': 100 / 3, 'MedRock TX': 100 / 3 };
 const FL_TN: Record<EomEntity, number> = { 'MedRock FL': 50, 'MedRock TN': 50, 'MedRock TX': 0 };
 
@@ -81,11 +84,20 @@ describe('buildMonthEndAllocation', () => {
     for (const d of drafts) expect(d.variance).toBe(0);
   });
 
-  it('entity with a zero-revenue share receives nothing under the revenue rule', () => {
-    const drafts = buildMonthEndAllocation([pl('MedRock FL', 'Wages', 1000, 'revenue')], FL_TN, M);
+  it('entity with a zero-revenue share receives nothing under the revenue rule (post-cutoff month)', () => {
+    const drafts = buildMonthEndAllocation([pl('MedRock FL', 'Wages', 1000, 'revenue')], FL_TN, M4);
     expect(drafts.find((d) => d.entity === 'MedRock TX')).toBeUndefined();
     const tn = drafts.find((d) => d.entity === 'MedRock TN') as JournalDraft;
     expect(tn.lines.some((l) => l.amount === 500)).toBe(true);
+  });
+
+  it('HARD CUTOFF: a revenue-rule line in March 2026 splits 1/3 — shares are ignored pre-April', () => {
+    const drafts = buildMonthEndAllocation([pl('MedRock FL', 'Wages', 900, 'revenue')], FL_TN, M);
+    // Under FL_TN shares TX would get nothing; under the pre-cutoff thirds conversion it gets 300.
+    const tx = drafts.find((d) => d.entity === 'MedRock TX') as JournalDraft;
+    expect(tx.lines.some((l) => l.accountName === 'Wages' && l.postingType === 'Debit' && l.amount === 300)).toBe(true);
+    const fl = drafts.find((d) => d.entity === 'MedRock FL') as JournalDraft;
+    expect(fl.lines.some((l) => l.memo?.includes('1/3 split') === true)).toBe(true);
   });
 
   it('empty pool -> no drafts', () => {
@@ -117,7 +129,13 @@ describe('buildMonthEndAllocation', () => {
 
   it('doc number and note formats', () => {
     expect(eomDocNumber('MedRock TX', M)).toBe('TX % Allo 2026.03');
+    // Pre-cutoff months state the 1/3 rule and print no revenue percentages.
     expect(eomPrivateNote(THIRDS, M)).toContain('March 2026');
-    expect(eomPrivateNote(THIRDS, M)).toContain('FL 33.33%');
+    expect(eomPrivateNote(THIRDS, M)).toContain('1/3');
+    expect(eomPrivateNote(THIRDS, M)).not.toContain('FL 33.33%');
+    // Post-cutoff months name the CS revenue split with the real weights.
+    expect(eomPrivateNote(THIRDS, M4)).toContain('April 2026');
+    expect(eomPrivateNote(THIRDS, M4)).toContain('FL 33.33%');
+    expect(eomPrivateNote(THIRDS, M4)).toContain('Customer Service');
   });
 });

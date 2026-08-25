@@ -140,8 +140,8 @@ describe('classifyAllocateFlag', () => {
     expect(classifyAllocateFlag('Allocate - Split FL50', null, 'MedRock TN')).toEqual({ rule: 'fifty', counterparty: 'MedRock FL' });
     expect(classifyAllocateFlag('Allocate - TX', null, 'MedRock FL')).toEqual({ rule: 'passthrough', counterparty: 'MedRock TX' });
   });
-  it('dept-only flag (no class) is the revenue pool', () => {
-    expect(classifyAllocateFlag(null, '% Allocation', 'MedRock TN')).toEqual({ rule: 'revenue', counterparty: null });
+  it('dept-only flag (no class) pools on THIRDS — only CS follows revenue (Ash 2026-08-25)', () => {
+    expect(classifyAllocateFlag(null, '% Allocation', 'MedRock TN')).toEqual({ rule: 'thirds', counterparty: null });
   });
   it('unrecognized Allocate-prefixed class -> unknown (surfaced, never silently split)', () => {
     expect(classifyAllocateFlag('Allocate - Mystery', null, 'MedRock FL')).toEqual({ rule: 'unknown', counterparty: null });
@@ -288,17 +288,17 @@ describe('poolLineFromPostedOwnedRow', () => {
     expect(pl).toBeNull();
   });
 
-  it('dept-only MARKET lines keep their status quo (pending Ash) — still pooled via the dept', () => {
+  it('dept-only MARKET lines stay OUT of the pool — marketing stays with its employer (Ash 2026-08-25)', () => {
     const pl = poolLineFromPostedOwnedRow(row({
       account_name: 'Payroll Expense -:Marketing Wages - Base', memo: 'Marketing Wages',
       class_name: null, department_name: '% Allocation', depts: ['MARKET-Marketing'],
     }));
-    expect(pl).toMatchObject({ rule: 'revenue', departmentName: '% Allocation' });
+    expect(pl).toBeNull();
   });
 
-  it('ADMIN and ACCOUN pool; LAB / PHARM / RD / DATA never do', () => {
-    expect(poolLineFromPostedOwnedRow(row({ depts: ['ADMIN-Administration'] }))?.rule).toBe('revenue');
-    expect(poolLineFromPostedOwnedRow(row({ depts: ['ACCOUN-Accounting'] }))?.rule).toBe('revenue');
+  it('ADMIN and ACCOUN pool on THIRDS (Ash 2026-08-25); LAB / PHARM / RD / DATA never pool', () => {
+    expect(poolLineFromPostedOwnedRow(row({ depts: ['ADMIN-Administration'] }))?.rule).toBe('thirds');
+    expect(poolLineFromPostedOwnedRow(row({ depts: ['ACCOUN-Accounting'] }))?.rule).toBe('thirds');
     for (const d of ['LAB-Lab', 'PHARM-Pharmacy', 'RD-Research', 'DATA-Data Entry']) {
       expect(poolLineFromPostedOwnedRow(row({ depts: [d] }))).toBeNull();
     }

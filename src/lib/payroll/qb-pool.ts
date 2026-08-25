@@ -12,7 +12,7 @@ import { getRdsPool } from '../rds';
 import { monthEndIso, type Month } from './month';
 import { deriveJeIdentity } from './je-identity';
 import { EOM_ENTITIES } from './revenue-rule';
-import { allocateClassFor } from './mapping';
+import { allocateClassFor, isPoolClass } from './mapping';
 import { costCenterFor } from './cost-center';
 
 export type PoolRule = 'revenue' | 'thirds' | 'fifty' | 'passthrough' | 'unknown';
@@ -30,6 +30,12 @@ export interface PoolLine {
   amount: number; // signed dollars: costs +, refunds/credits -
   rule: PoolRule;
   counterparty: Entity | null; // fifty: the 50/50 partner; passthrough: the 100% target
+  /** True only for lines re-derived from OUR posted payroll's source rows
+   *  (poolLineFromPostedOwnedRow) — their cost-center attribution is exact, unlike QB
+   *  extraction lines, whose frozen tags follow the accountant's tag-everything-'%'
+   *  convention. Consumers that need per-cost-center precision (the CS-only catch-up)
+   *  key on this. */
+  ownedPayroll?: boolean;
 }
 
 const ALLOC_DEPT = '% Allocation';
@@ -56,8 +62,23 @@ export function classifyAllocateFlag(
     }
     if (className.startsWith('Allocate')) return { rule: 'unknown', counterparty: null };
   }
-  if (departmentName === ALLOC_DEPT) return { rule: 'revenue', counterparty: null };
+  // A bare '% Allocation' department with no class: shared cost, but not Customer Service —
+  // and per Ash (2026-08-25) only CS follows revenue; "everything else is by 1/3".
+  if (departmentName === ALLOC_DEPT) return { rule: 'thirds', counterparty: null };
   return null;
+}
+
+/** Dept-only MARKETING lines (Barbara's convention put marketers under the '% Allocation'
+ *  department with no class). Ash 2026-08-25: "marketing is already going to where they're
+ *  employed so marketing does not need to be split" — these lines are already booked at the
+ *  right entity and must not enter the pool OR the attention list. Directed marketer classes
+ *  (`Allocate - TX`) are untouched: those encode an explicit routing decision and keep
+ *  working as passthrough. */
+export function isMarketingStayHomeLine(l: PoolLine): boolean {
+  // Commission Wages is a marketer-only account (sales reps): Barbara books marketer
+  // commissions dept-only the same way as their base wages.
+  return l.className === null && l.departmentName === ALLOC_DEPT &&
+    /marketing|commission wages/i.test(l.accountName);
 }
 
 /**
@@ -351,10 +372,11 @@ export function poolLineFromPostedOwnedRow(r: PostedOwnedLineRow): PoolLine | nu
   const derivedClass = allocateClassFor(cc, r.class_name);
   // The stored DEPARTMENT is frozen tagging too: a stale `Allocate - %` came paired with the
   // `% Allocation` dept, and the bare dept alone re-admits a line to the pool. Reconstruct it
-  // like the class — pair it with a derived `Allocate - %`, keep it for MARKET (the dept-only
-  // marketers' status quo, pending Ash), and strip it everywhere else.
-  const dept = derivedClass === 'Allocate - %' ? '% Allocation'
-    : r.department_name === '% Allocation' && cc !== 'MARKET' ? null
+  // like the class — pair it with a derived pool class, strip it everywhere else. That
+  // includes MARKET: Ash confirmed 2026-08-25 marketing stays with the employing entity, so
+  // the dept-only marketers' frozen `% Allocation` dept no longer pools their lines.
+  const dept = isPoolClass(derivedClass) ? '% Allocation'
+    : r.department_name === '% Allocation' ? null
     : r.department_name;
   const cls = classifyAllocateFlag(derivedClass, dept, r.entity);
   if (!cls) return null;
@@ -364,6 +386,7 @@ export function poolLineFromPostedOwnedRow(r: PostedOwnedLineRow): PoolLine | nu
     docNumber: r.qb_doc_number, accountName: normalizeAccountName(r.account_name),
     className: derivedClass, departmentName: dept, memo: r.memo,
     amount: sign * Number(r.amount), rule: cls.rule, counterparty: cls.counterparty,
+    ownedPayroll: true,
   };
 }
 
@@ -444,7 +467,9 @@ export async function fetchAllocationPool(m: Month): Promise<{ pool: PoolLine[];
     for (const dep of deposits) all.push(...poolLinesFromDeposit(dep, entity));
   }
   all.push(...await fetchLocalDraftPool(start, end, qbJeDocsByEntity));
-  const pool = all.filter(isPooledLine);
-  const attention = all.filter((l) => !isPooledLine(l) && (l.rule === 'passthrough' || l.rule === 'unknown'));
+  // Marketing stays with its employer (Ash 2026-08-25) — see isMarketingStayHomeLine.
+  const kept = all.filter((l) => !isMarketingStayHomeLine(l));
+  const pool = kept.filter(isPooledLine);
+  const attention = kept.filter((l) => !isPooledLine(l) && (l.rule === 'passthrough' || l.rule === 'unknown'));
   return { pool, attention };
 }

@@ -19,7 +19,7 @@ describe('resolveLine', () => {
     expect(res.targets).toHaveLength(1);
     expect(res.targets[0]).toMatchObject({
       accountName: 'Payroll Expense -:Administrative Wages',
-      className: 'Allocate - %',
+      className: 'Allocate - SplitX3',
       postingType: 'Debit',
     });
   });
@@ -115,7 +115,7 @@ describe('resolveLine Allocate - % department override', () => {
     expect(res.targets[0]).toMatchObject({
       accountName: 'Payroll Expense -:Administrative Wages',
       departmentName: '% Allocation',
-      className: 'Allocate - %',
+      className: 'Allocate - SplitX3',
     });
   });
 
@@ -149,7 +149,7 @@ describe('resolveLine Allocate - % department override', () => {
     if (!('targets' in res)) throw new Error('expected targets');
     const debit = res.targets.find((t) => t.postingType === 'Debit');
     const credit = res.targets.find((t) => t.postingType === 'Credit');
-    expect(debit).toMatchObject({ departmentName: '% Allocation', className: 'Allocate - %' });
+    expect(debit).toMatchObject({ departmentName: '% Allocation', className: 'Allocate - SplitX3' });
     expect(credit).toMatchObject({ departmentName: null, className: null });
   });
 
@@ -166,7 +166,7 @@ describe('resolveLine Allocate - % department override', () => {
     expect(res.targets[0]).toMatchObject({ postingType: 'Credit', departmentName: null, className: null });
   });
 
-  it('strips the % Allocation DEPARTMENT from Credit targets too (marketers mapped by dept, no class)', () => {
+  it('strips the % Allocation DEPARTMENT from BOTH directions for dept-only marketers (Ash 2026-08-25)', () => {
     const accountMap: AccountMapRule[] = [
       { entity: 'MedRock FL', adpColumn: 'REGULAR PAY - EARNING', costCenter: 'MARKET', accountName: 'Payroll Expense:Marketing Wages - Base', postingType: 'Debit', isCogs: false, creditBucket: null, active: true },
       { entity: 'MedRock FL', adpColumn: 'NET PAY', costCenter: '*', accountName: 'Payroll Withholdings', postingType: 'Credit', isCogs: false, creditBucket: 'Net Pay', active: true },
@@ -178,7 +178,7 @@ describe('resolveLine Allocate - % department override', () => {
     const wages = resolveLine(marketRow, 'REGULAR PAY - EARNING', accountMap, empMap);
     const net = resolveLine(marketRow, 'NET PAY', accountMap, empMap);
     if (!('targets' in wages) || !('targets' in net)) throw new Error('expected targets');
-    expect(wages.targets[0]).toMatchObject({ postingType: 'Debit', departmentName: '% Allocation' });
+    expect(wages.targets[0]).toMatchObject({ postingType: 'Debit', departmentName: null, className: null });
     expect(net.targets[0]).toMatchObject({ postingType: 'Credit', departmentName: null, className: null });
   });
 
@@ -224,14 +224,19 @@ describe('resolveLine allocation flag derives from the cost center', () => {
   const rowIn = (dept: string): PayrollRow =>
     ({ position_id: '3001', home_department: dept }) as unknown as PayrollRow;
 
-  it.each([
-    ['CS-Customer Service', 'CS', 'Payroll Expense -:Customer Service Wages'],
-    ['ADMIN-Administration', 'ADMIN', 'Payroll Expense -:Administrative Wages'],
-    ['ACCOUN-Accounting', 'ACCOUN', 'Payroll Expense -:Administrative Wages'],
-  ])('%s pools on the revenue rule with NO employee-map row at all', (dept, cc, account) => {
-    const res = resolveLine(rowIn(dept), 'REGULAR PAY - EARNING', [wageRule(cc, account)], []);
+  it('CS pools on the revenue rule with NO employee-map row at all', () => {
+    const res = resolveLine(rowIn('CS-Customer Service'), 'REGULAR PAY - EARNING', [wageRule('CS', 'Payroll Expense -:Customer Service Wages')], []);
     if (!('targets' in res)) throw new Error('expected targets');
     expect(res.targets[0]).toMatchObject({ className: 'Allocate - %', departmentName: '% Allocation' });
+  });
+
+  it.each([
+    ['ADMIN-Administration', 'ADMIN', 'Payroll Expense -:Administrative Wages'],
+    ['ACCOUN-Accounting', 'ACCOUN', 'Payroll Expense -:Administrative Wages'],
+  ])('%s pools on the thirds rule (Ash 2026-08-25) with NO employee-map row at all', (dept, cc, account) => {
+    const res = resolveLine(rowIn(dept), 'REGULAR PAY - EARNING', [wageRule(cc, account)], []);
+    if (!('targets' in res)) throw new Error('expected targets');
+    expect(res.targets[0]).toMatchObject({ className: 'Allocate - SplitX3', departmentName: '% Allocation' });
   });
 
   it.each([
@@ -267,7 +272,7 @@ describe('resolveLine allocation flag derives from the cost center', () => {
       rowIn('ADMIN-Administration'), 'REGULAR PAY - EARNING', [wageRule('ADMIN', 'Payroll Expense -:Administrative Wages')], stillTagged,
     );
     if (!('targets' in adminMonth)) throw new Error('expected targets');
-    expect(adminMonth.targets[0].className).toBe('Allocate - %');
+    expect(adminMonth.targets[0].className).toBe('Allocate - SplitX3');
   });
 
   it('a directed class outranks the cost center — marketing passthrough survives', () => {
@@ -288,12 +293,12 @@ describe('resolveLine allocation flag derives from the cost center', () => {
     expect(res.targets[0].className).toBe('Allocate - Split TN50');
   });
 
-  it('a bare % Allocation department with no class is left alone (marketers, pending Ash)', () => {
+  it('a bare % Allocation department with no class is STRIPPED — marketing stays with its employer (Ash 2026-08-25)', () => {
     const empMap: EmployeeMapRule[] = [
       { entity: 'MedRock FL', positionId: '3001', departmentName: '% Allocation', className: null, cogsOverride: null, active: true },
     ];
     const res = resolveLine(rowIn('MARKET-Marketing'), 'REGULAR PAY - EARNING', [wageRule('MARKET', 'Payroll Expense -:Marketing Wages - Base')], empMap);
     if (!('targets' in res)) throw new Error('expected targets');
-    expect(res.targets[0]).toMatchObject({ className: null, departmentName: '% Allocation' });
+    expect(res.targets[0]).toMatchObject({ className: null, departmentName: null });
   });
 });
