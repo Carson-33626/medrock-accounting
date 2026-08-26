@@ -215,6 +215,54 @@ export interface CategoryJE {
   residualBookBalance: number | null;
 }
 
+/**
+ * OPENING CORRECTION (2026-08-26) — the one-time cutover JE that trues the QB
+ * inventory sub-accounts to the FIFO opening at the settled stop point
+ * (2026-03-01), per docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md.
+ * Rendered as a card on the Inventory Close tab when the cutover month is
+ * selected; same Generate → Approve → Post workflow, pay_group 'INV OPEN'.
+ */
+export interface OpeningCorrectionRowView {
+  /** FIFO category behind the row; null for a book-only account being zeroed. */
+  qbCategory: string | null;
+  /** QB FullyQualifiedName of the inventory account this row sets. */
+  account: string;
+  /** Book balance as of the stop-point eve (2026-02-28). */
+  book: number;
+  /** FIFO opening (prior-month ledger ending). */
+  fifo: number;
+  /** fifo − book. Negative → credit inventory (write-down). */
+  adjustment: number;
+  /** false = the aggregated residual row on the parent account. */
+  mapped: boolean;
+}
+
+export interface OpeningCorrectionLocation {
+  /** RDS naming ('MedRock Florida'). */
+  location: string;
+  bookAvailable: boolean;
+  /** true when the offset account exists in this company's chart. */
+  offsetFound: boolean;
+  rows: OpeningCorrectionRowView[];
+  /** Σ row.adjustment — the net write-down (negative) this JE books. */
+  netAdjustment: number;
+}
+
+export interface OpeningCorrection {
+  /** 'YYYY-MM' the correction belongs to (the cutover month). */
+  cutoverMonth: string;
+  /** JE date — first day of the open period, never inside settled months. */
+  openingDate: string;
+  /** The book-balance as-of date (stop-point eve). */
+  bookAsOf: string;
+  /** QB FullyQualifiedName of the offset account (Kristi's §4 decision). */
+  offsetAccount: string;
+  locations: OpeningCorrectionLocation[];
+  /** Stored correction drafts (pay_group 'INV OPEN'). */
+  headers: InvCloseHeader[];
+  linesById: Record<string, InvCloseLine[]>;
+}
+
 export interface MonthlyCloseResponse {
   month: string; // 'YYYY-MM'
   monthEnd: string; // 'YYYY-MM-DD' (last day of month)
@@ -238,6 +286,11 @@ export interface MonthlyCloseResponse {
    * generate must then refuse to delete existing drafts and must say why.
    */
   categoryUnavailable: string | null;
+  /**
+   * The one-time cutover correction — present only when the selected month IS
+   * the cutover month (2026-03); null/absent otherwise.
+   */
+  openingCorrection?: OpeningCorrection | null;
 }
 
 export interface LotRow {

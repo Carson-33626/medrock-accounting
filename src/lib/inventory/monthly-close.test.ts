@@ -14,10 +14,13 @@ import {
   categoryJournalEntryLinesWithSources,
   sumCents,
   wasteShrinkPostingLines,
+  buildOpeningCorrectionRows,
+  openingCorrectionLines,
+  openingCorrectionDocNumber,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
-import { WASTE_ACCOUNT } from './category-accounts';
+import { WASTE_ACCOUNT, CORRECTION_ACCOUNT, INVENTORY_ACCOUNT as PARENT_INV } from './category-accounts';
 import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
 const mv = (over: Partial<RollbackMonthValue> & { location: string }): RollbackMonthValue => ({
@@ -767,5 +770,83 @@ describe('wasteShrinkPostingLines — the dedicated 5000.55 line (DS sec 17.4 / 
       expect(l.account).toBe(WASTE_ACCOUNT);
       expect(l.account).not.toBe(COGS_ACCOUNT);
     }
+  });
+});
+
+describe('opening correction — the one-time cutover JE (proposal 2026-08-26)', () => {
+  const cat = (
+    location: string,
+    qbCategory: string,
+    endingValue: number,
+    receiptIds: string[] = [],
+  ): CategoryLedgerValue => ({ location, qbCategory, endingValue, receiptIds, lotCount: receiptIds.length });
+
+  // FL-shaped fixture: book carries 4 in-scope sub-accounts; FIFO has values for
+  // 2 of them plus an unmapped residual; Lab Supplies is book-only (zeroes out).
+  const BS = [
+    { name: '1220.05 Commercial Rx Inventory', value: 83529.07 },
+    { name: '1220.10 Compound Ingredient Inventory', value: 569037.57 },
+    { name: '1220.15 Compound Packaging Inventory', value: 127327.18 },
+    { name: '1220.20 Lab Supplies Inventory', value: 6301.61 },
+    { name: '1220.25 OTC Items Inventory', value: -436.75 }, // out of scope — must never appear
+  ];
+  const NUMS: Record<string, string> = {
+    'Inventory Asset:Commercial Rx Inventory': '1220.05',
+    'Inventory Asset:Compound Ingredient Inventory': '1220.10',
+    'Inventory Asset:Compound Packaging Inventory': '1220.15',
+    'Inventory Asset:Lab Supplies Inventory': '1220.20',
+    'Inventory Asset': '1220',
+  };
+  const CATS = [
+    cat('MedRock Florida', 'Commercial Rx', 12683.67, ['r1']),
+    cat('MedRock Florida', 'Compound Ingredient', 103996.67, ['r2', 'r3']),
+    cat('MedRock Florida', 'Uncoded', 12.41, ['r4']),
+    cat('MedRock Tennessee', 'Commercial Rx', 999999), // other location — must be ignored
+  ];
+
+  it('sets every in-scope account to its FIFO opening, including book-only accounts', () => {
+    const rows = buildOpeningCorrectionRows('MedRock Florida', CATS, BS, NUMS);
+    const byAccount = new Map(rows.map((r) => [r.account, r]));
+    expect(byAccount.get('Inventory Asset:Commercial Rx Inventory')?.adjustment).toBe(-70845.4);
+    expect(byAccount.get('Inventory Asset:Compound Ingredient Inventory')?.adjustment).toBe(-465040.9);
+    // Book-only accounts zero out; FIFO-absent is 0, not skipped.
+    expect(byAccount.get('Inventory Asset:Compound Packaging Inventory')?.adjustment).toBe(-127327.18);
+    expect(byAccount.get('Inventory Asset:Lab Supplies Inventory')?.adjustment).toBe(-6301.61);
+    // The residual (Uncoded) lands on the parent.
+    const residual = rows.find((r) => !r.mapped);
+    expect(residual?.account).toBe(PARENT_INV);
+    expect(residual?.adjustment).toBe(12.41);
+    // Out-of-scope sub-accounts are never mentioned.
+    expect(rows.some((r) => r.account.includes('OTC'))).toBe(false);
+    // Other locations' categories are ignored.
+    expect(rows.some((r) => r.fifo === 999999)).toBe(false);
+  });
+
+  it('emits a balanced JE with one offset line carrying the net', () => {
+    const rows = buildOpeningCorrectionRows('MedRock Florida', CATS, BS, NUMS);
+    const lines = openingCorrectionLines(rows, CORRECTION_ACCOUNT, '2026-02-28');
+    const debits = sumCents(lines.filter((l) => l.debit !== null).map((l) => l.debit ?? 0));
+    const credits = sumCents(lines.filter((l) => l.credit !== null).map((l) => l.credit ?? 0));
+    expect(debits).toBe(credits);
+    // The net write-down (FL proposal figure) lands as ONE debit on the offset.
+    const offset = lines.filter((l) => l.account === CORRECTION_ACCOUNT);
+    expect(offset).toHaveLength(1);
+    expect(offset[0]?.debit).toBe(669502.68);
+    // Row evidence rides along.
+    const ci = lines.find((l) => l.account === 'Inventory Asset:Compound Ingredient Inventory');
+    expect(ci?.credit).toBe(465040.9);
+    expect(ci?.receiptIds).toEqual(['r2', 'r3']);
+  });
+
+  it('returns [] when the books already tie', () => {
+    const tied = [cat('MedRock Florida', 'Commercial Rx', 83529.07)];
+    const bs = [{ name: '1220.05 Commercial Rx Inventory', value: 83529.07 }];
+    const nums = { 'Inventory Asset:Commercial Rx Inventory': '1220.05' };
+    const rows = buildOpeningCorrectionRows('MedRock Florida', tied, bs, nums);
+    expect(openingCorrectionLines(rows, CORRECTION_ACCOUNT, '2026-02-28')).toEqual([]);
+  });
+
+  it('doc number is Inv Open, never colliding with the monthly Inv Adj', () => {
+    expect(openingCorrectionDocNumber('MedRock Florida', '2026-03')).toBe('FL Inv Open 2026.03');
   });
 });

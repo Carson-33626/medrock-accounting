@@ -21,9 +21,13 @@ import {
   buildCategoryRollForward,
   buildCategoryJE,
   categoryJournalEntryLinesWithSources,
+  buildOpeningCorrectionRows,
+  openingCorrectionLines,
+  openingCorrectionDocNumber,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
+import { CORRECTION_ACCOUNT } from './category-accounts';
 import { fetchCategoryLedgerValues } from './ledger-values';
 import {
   saveDraft,
@@ -40,6 +44,8 @@ import type {
   InvCloseHeader,
   InvCloseLine,
   MonthlyCloseResponse,
+  OpeningCorrection,
+  OpeningCorrectionLocation,
 } from '@/types/inventory';
 
 /** One draft set per month — the conflict key (entity, pay_date, INV CLOSE, '')
@@ -410,5 +416,200 @@ export async function generateInvCloseDrafts(
   }
 
   await deleteUnpostedInvCloseHeaders(monthEnd, savedEntities);
+  return { savedEntities, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// OPENING CORRECTION — the one-time cutover JE (Carson's 2026-08-26 ruling:
+// 2026-03 forward runs on the FIFO system). Book balances read at the settled
+// stop point's eve; FIFO opening read from the prior month's lot ledger; drafts
+// stored under pay_group 'INV OPEN' with pay_date 2026-03-01 so they never
+// collide with the monthly close's month-end drafts.
+// ---------------------------------------------------------------------------
+
+export const CUTOVER_MONTH = '2026-03';
+const CUTOVER_PRIOR_MONTH = '2026-02';
+const OPENING_DATE = '2026-03-01';
+const BOOK_AS_OF = '2026-02-28';
+export const INV_OPEN_PAY_GROUP = 'INV OPEN';
+
+export async function listOpeningCorrectionHeaders(): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `${HEADER_SELECT}
+     WHERE pay_group = $1 AND kind = 'inventory' AND pay_date = $2
+     ORDER BY entity`,
+    [INV_OPEN_PAY_GROUP, isoToAdp(OPENING_DATE)],
+  );
+  return rows.map(toHeader);
+}
+
+interface CorrectionComputation {
+  locations: OpeningCorrectionLocation[];
+  /** Server-side detail generation needs (per RDS location). */
+  detail: Map<
+    string,
+    { rows: ReturnType<typeof buildOpeningCorrectionRows>; bookAvailable: boolean; offsetFound: boolean }
+  >;
+}
+
+async function computeCorrectionLocations(): Promise<CorrectionComputation> {
+  const pool = getRdsPool();
+  const categoryValues: CategoryLedgerValue[] = await fetchCategoryLedgerValues(pool, CUTOVER_PRIOR_MONTH);
+
+  const locations: OpeningCorrectionLocation[] = [];
+  const detail: CorrectionComputation['detail'] = new Map();
+  for (const qbLocation of QB_LOCATIONS) {
+    const rdsLocation = QB_TO_RDS_LOCATION[qbLocation];
+    const [book, refs] = await Promise.all([
+      getBalanceSheetInventory(qbLocation, BOOK_AS_OF).catch(() => null),
+      fetchDimensions(qbLocation).catch(() => null),
+    ]);
+    const bookAvailable = book !== null && refs !== null;
+    const accountNums = refs?.accountNums ?? {};
+    const rows = bookAvailable
+      ? buildOpeningCorrectionRows(rdsLocation, categoryValues, book.accounts, accountNums)
+      : [];
+    const offsetFound = CORRECTION_ACCOUNT in accountNums;
+    detail.set(rdsLocation, { rows, bookAvailable, offsetFound });
+    locations.push({
+      location: rdsLocation,
+      bookAvailable,
+      offsetFound,
+      rows: rows.map(({ qbCategory, account, book: b, fifo, adjustment, mapped }) => ({
+        qbCategory,
+        account,
+        book: b,
+        fifo,
+        adjustment,
+        mapped,
+      })),
+      netAdjustment: round2(rows.reduce((s, r) => s + r.adjustment, 0)),
+    });
+  }
+  return { locations, detail };
+}
+
+/** The correction card's data: computed rows + stored drafts. */
+export async function computeOpeningCorrection(): Promise<OpeningCorrection> {
+  const { locations } = await computeCorrectionLocations();
+  const stored = await listOpeningCorrectionHeaders();
+  const headers: InvCloseHeader[] = stored.map((h) => ({
+    id: h.id,
+    entity: h.entity,
+    status: h.status,
+    qb_doc_number: h.qb_doc_number,
+    txn_date: h.txn_date,
+    total_debits: h.total_debits,
+    total_credits: h.total_credits,
+    variance: h.variance,
+  }));
+  const linesById: Record<string, InvCloseLine[]> = {};
+  for (const h of stored) {
+    const loaded = await loadDraft(h.id);
+    linesById[String(h.id)] = (loaded?.lines ?? []).map((l) => ({
+      postingType: l.postingType,
+      amount: l.amount,
+      accountName: l.accountName,
+      memo: l.memo,
+    }));
+  }
+  return {
+    cutoverMonth: CUTOVER_MONTH,
+    openingDate: OPENING_DATE,
+    bookAsOf: BOOK_AS_OF,
+    offsetAccount: CORRECTION_ACCOUNT,
+    locations,
+    headers,
+    linesById,
+  };
+}
+
+/**
+ * Generate (or regenerate) the opening-correction drafts. Locked once any
+ * correction has posted (a posted cutover is final — un-post in QuickBooks
+ * first). A company whose chart lacks the offset account gets a warning and no
+ * draft: without it the post would throw `unresolved account` anyway, and a
+ * draft that cannot post is a trap for the reviewer.
+ */
+export async function generateOpeningCorrectionDrafts(): Promise<
+  { savedEntities: Entity[]; warnings: string[] } | { locked: string }
+> {
+  const existing = await listOpeningCorrectionHeaders();
+  const posted = existing.filter((h) => h.status === 'posted');
+  if (posted.length > 0) {
+    const docNumbers = posted.map((h) => h.qb_doc_number ?? `#${h.id}`).join(', ');
+    return { locked: `the opening correction has posted — regeneration locked (${docNumbers})` };
+  }
+
+  const { detail } = await computeCorrectionLocations();
+  const warnings: string[] = [];
+  const savedEntities: Entity[] = [];
+  const payDate = isoToAdp(OPENING_DATE);
+
+  for (const qbLocation of QB_LOCATIONS) {
+    const rdsLocation = QB_TO_RDS_LOCATION[qbLocation];
+    const d = detail.get(rdsLocation);
+    if (!d || !d.bookAvailable) {
+      warnings.push(`${rdsLocation}: QB book balance unavailable — no correction draft generated`);
+      continue;
+    }
+    if (!d.offsetFound) {
+      warnings.push(
+        `${rdsLocation}: offset account "${CORRECTION_ACCOUNT}" not found in the chart of accounts — ` +
+          'create it (proposal §4) before generating this correction',
+      );
+      continue;
+    }
+    const jeLines = openingCorrectionLines(d.rows, CORRECTION_ACCOUNT, BOOK_AS_OF);
+    if (jeLines.length === 0) {
+      warnings.push(`${rdsLocation}: book already ties to the FIFO opening — no correction needed`);
+      continue;
+    }
+    const lines: JournalLine[] = jeLines.map((l) => ({
+      postingType: l.debit !== null ? 'Debit' : 'Credit',
+      amount: round2(l.debit ?? l.credit ?? 0),
+      accountName: l.account,
+      departmentName: null,
+      className: null,
+      memo: l.memo,
+      creditBucket: null,
+      origin: 'generated',
+      sourceRowKeys: l.receiptIds,
+    }));
+    const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
+    const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
+    const snapshotHash = createHash('sha256')
+      .update(JSON.stringify({ correction: rdsLocation, rows: d.rows }))
+      .digest('hex');
+    const draft: JournalDraft = {
+      entity: qbLocation,
+      kind: 'inventory',
+      payDate,
+      payGroup: INV_OPEN_PAY_GROUP,
+      periodStart: OPENING_DATE,
+      periodEnd: OPENING_DATE,
+      periodSegment: '',
+      docNumber: openingCorrectionDocNumber(rdsLocation, CUTOVER_MONTH),
+      txnDate: OPENING_DATE,
+      privateNote:
+        'Opening inventory correction to FIFO method — one-time cutover (2026-03-01). ' +
+        'See docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md.',
+      lines,
+      totalDebits,
+      totalCredits,
+      variance: round2(totalDebits - totalCredits),
+      rowKeys: [],
+    };
+    await saveDraft(draft, snapshotHash);
+    savedEntities.push(qbLocation);
+  }
+
+  // Replace-semantics mirror of deleteUnpostedInvCloseHeaders, on the INV OPEN key.
+  await getRdsPool().query(
+    `DELETE FROM accounting.payroll_journal_headers
+     WHERE pay_group = $1 AND kind = 'inventory' AND pay_date = $2
+       AND status <> 'posted' AND NOT (entity = ANY($3::text[]))`,
+    [INV_OPEN_PAY_GROUP, isoToAdp(OPENING_DATE), savedEntities],
+  );
   return { savedEntities, warnings };
 }

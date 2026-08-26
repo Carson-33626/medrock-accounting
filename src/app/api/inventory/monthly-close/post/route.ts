@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
-import { invCloseDocNumber } from '@/lib/inventory/monthly-close';
+import { invCloseDocNumber, openingCorrectionDocNumber } from '@/lib/inventory/monthly-close';
+import { INV_OPEN_PAY_GROUP } from '@/lib/inventory/close-server';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
 
@@ -87,6 +88,11 @@ export async function POST(request: NextRequest) {
 
     const month = monthFromPayDate(header.pay_date);
 
+    // The opening correction (pay_group 'INV OPEN') shares this route's gates
+    // and audit but carries its own doc-number/note scheme — 'FL Inv Open
+    // 2026.03', never the monthly 'Inv Adj', so the two are distinct in QB.
+    const isOpeningCorrection = header.pay_group === INV_OPEN_PAY_GROUP;
+
     const draft: JournalDraft = {
       entity: header.entity,
       kind: 'inventory',
@@ -95,10 +101,14 @@ export async function POST(request: NextRequest) {
       periodStart: header.period_start ?? '',
       periodEnd: header.period_end ?? '',
       periodSegment: header.period_segment,
-      docNumber: invCloseDocNumber(header.entity, month),
+      docNumber: isOpeningCorrection
+        ? openingCorrectionDocNumber(header.entity, month)
+        : invCloseDocNumber(header.entity, month),
       txnDate: header.txn_date ?? undefined,
       // The stored line memos carry the basis + as-of date; the note stays stable.
-      privateNote: `Inventory FIFO close adjustment — ${month}`,
+      privateNote: isOpeningCorrection
+        ? 'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)'
+        : `Inventory FIFO close adjustment — ${month}`,
       lines,
       totalDebits: header.total_debits,
       totalCredits: header.total_credits,

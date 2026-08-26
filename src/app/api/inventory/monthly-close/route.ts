@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
 import { categoryKey, closeDisplayLines, closeJeSheetNote, findCloseHeader } from '@/lib/inventory/monthly-close';
-import { computeClose, loadStoredDrafts, monthEndDate } from '@/lib/inventory/close-server';
+import {
+  computeClose,
+  computeOpeningCorrection,
+  loadStoredDrafts,
+  monthEndDate,
+  CUTOVER_MONTH,
+} from '@/lib/inventory/close-server';
 import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -48,12 +54,23 @@ export async function GET(request: NextRequest) {
     const close = await computeClose(month, basis, monthEnd);
     const stored = await loadStoredDrafts(monthEnd);
 
+    // The one-time cutover card, only on the cutover month. Best-effort: a
+    // correction-side failure must never take down the monthly close view.
+    let openingCorrection = null;
+    if (month === CUTOVER_MONTH) {
+      openingCorrection = await computeOpeningCorrection().catch((e: unknown) => {
+        console.warn('[inventory/monthly-close] opening correction skipped:', e);
+        return null;
+      });
+    }
+
     const body: MonthlyCloseResponse = {
       month,
       monthEnd,
       basis,
       ...close,
       ...stored,
+      openingCorrection,
     };
 
     if (format === 'xlsx') return closeWorkbook(body, month, basis, monthEnd);

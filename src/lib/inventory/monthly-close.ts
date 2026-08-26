@@ -25,6 +25,7 @@ import type {
 import {
   accountsForCategory,
   matchBalanceSheetAccount,
+  CATEGORY_ACCOUNT_MAP,
   INVENTORY_ACCOUNT,
   COGS_ACCOUNT,
   WASTE_ACCOUNT,
@@ -593,4 +594,129 @@ export function categoryJournalEntryLines(je: CategoryJE, monthEnd: string): JeL
     credit,
     memo,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// OPENING CORRECTION (2026-08-26) — the one-time cutover JE. Pure derivations;
+// the server orchestration lives in close-server.ts. See
+// docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md.
+// ---------------------------------------------------------------------------
+
+/** 'MedRock Florida' + '2026-03' → 'FL Inv Open 2026.03' — distinct from the
+ *  monthly close's 'FL Inv Adj 2026.03' so the two never collide in QB search. */
+export function openingCorrectionDocNumber(location: string, month: string): string {
+  return `${shortInventoryLocation(location)} Inv Open ${month.replace('-', '.')}`;
+}
+
+/** One computed correction row plus its evidence (server-side superset of the
+ *  client's OpeningCorrectionRowView). */
+export interface OpeningCorrectionRowCalc {
+  qbCategory: string | null;
+  account: string;
+  book: number;
+  fifo: number;
+  adjustment: number;
+  mapped: boolean;
+  receiptIds: string[];
+}
+
+/**
+ * The correction rows for one location: every MAPPED category account is set to
+ * its FIFO opening (including book-only accounts the FIFO ledger has no value
+ * for — those zero out), and every residual category (Uncoded etc.) aggregates
+ * to ONE parent-account row, same single-parent-balance discipline as
+ * `buildCategoryJE`. Out-of-scope sub-accounts (OTC, Shipping, Suspense) are
+ * simply never mentioned — untouched by construction, not by filtering.
+ */
+export function buildOpeningCorrectionRows(
+  location: string,
+  categoryValues: CategoryLedgerValue[],
+  bsAccounts: ReadonlyArray<{ name: string; value: number }>,
+  accountNums: Record<string, string>,
+): OpeningCorrectionRowCalc[] {
+  const mine = categoryValues.filter((c) => c.location === location);
+  const rows: OpeningCorrectionRowCalc[] = [];
+
+  for (const [qbCategory, pair] of Object.entries(CATEGORY_ACCOUNT_MAP)) {
+    const book = round2(matchBalanceSheetAccount(pair.inventory, accountNums, bsAccounts) ?? 0);
+    const cat = mine.find((c) => c.qbCategory === qbCategory);
+    const fifo = round2(cat?.endingValue ?? 0);
+    if (book === 0 && fifo === 0) continue;
+    rows.push({
+      qbCategory,
+      account: pair.inventory,
+      book,
+      fifo,
+      adjustment: round2(fifo - book),
+      mapped: true,
+      receiptIds: cat?.receiptIds ?? [],
+    });
+  }
+
+  const residual = mine.filter((c) => !accountsForCategory(c.qbCategory).mapped);
+  if (residual.length > 0) {
+    const fifo = round2(residual.reduce((s, c) => s + c.endingValue, 0));
+    const book = round2(matchBalanceSheetAccount(INVENTORY_ACCOUNT, accountNums, bsAccounts) ?? 0);
+    if (fifo !== 0 || book !== 0) {
+      rows.push({
+        qbCategory: [...new Set(residual.map((c) => c.qbCategory))].sort().join(' + '),
+        account: INVENTORY_ACCOUNT,
+        book,
+        fifo,
+        adjustment: round2(fifo - book),
+        mapped: false,
+        receiptIds: [...new Set(residual.flatMap((c) => c.receiptIds))],
+      });
+    }
+  }
+
+  return rows;
+}
+
+export interface CorrectionPostingLine extends JeLine {
+  receiptIds: string[];
+}
+
+/**
+ * The balanced correction JE for one location: each row's inventory account is
+ * set to its FIFO opening (Dr when FIFO exceeds book, Cr when below), with ONE
+ * offset line to the correction account for the net. Returns [] when nothing
+ * adjusts. Amounts are rounded per row and the offset is the sum of the rounded
+ * rows, so the entry balances to the cent by construction.
+ */
+export function openingCorrectionLines(
+  rows: OpeningCorrectionRowCalc[],
+  offsetAccount: string,
+  bookAsOf: string,
+): CorrectionPostingLine[] {
+  const out: CorrectionPostingLine[] = [];
+  let net = 0;
+  for (const row of rows) {
+    if (row.adjustment === 0) continue;
+    net = round2(net + row.adjustment);
+    const amount = round2(Math.abs(row.adjustment));
+    const label = row.qbCategory ?? row.account;
+    const memo =
+      `Set ${label} to FIFO opening $${row.fifo.toFixed(2)} ` +
+      `(book $${row.book.toFixed(2)} as of ${bookAsOf}) — one-time cutover`;
+    out.push({
+      account: row.account,
+      debit: row.adjustment > 0 ? amount : null,
+      credit: row.adjustment < 0 ? amount : null,
+      memo,
+      receiptIds: row.receiptIds,
+    });
+  }
+  if (out.length === 0) return [];
+  const offsetAmount = round2(Math.abs(net));
+  if (offsetAmount !== 0) {
+    out.push({
+      account: offsetAccount,
+      debit: net < 0 ? offsetAmount : null,
+      credit: net > 0 ? offsetAmount : null,
+      memo: 'Opening inventory correction to FIFO method — one-time cutover offset',
+      receiptIds: [],
+    });
+  }
+  return out;
 }
