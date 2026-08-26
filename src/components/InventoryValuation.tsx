@@ -7,6 +7,7 @@ import HelpTip from './HelpTip';
 import FifoQueue from './FifoQueue';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { shortInventoryLocation } from '@/lib/inventory/monthly-close';
+import { InventoryMethodology } from '@/app/payroll/components/InventoryMethodology';
 import {
   LineChart,
   Line,
@@ -160,6 +161,9 @@ export default function InventoryValuation() {
   const [chartRange, setChartRange] = useState<'90d' | 'all'>('90d');
   /** Chart series toggled OFF (the legend chips are the toggles). */
   const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(new Set());
+  /** Sub-tabs: the valuation itself vs. the same Methodology & evidence view the
+   *  Inventory Close tab shows — ONE component, referenced from both sides. */
+  const [pageTab, setPageTab] = useState<'valuation' | 'method'>('valuation');
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -659,6 +663,32 @@ export default function InventoryValuation() {
           </div>
         </div>
 
+        {/* Sub-tabs: valuation vs. the shared Methodology & evidence view. */}
+        <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${rowBorder}`}>
+          <button
+            onClick={() => setPageTab('valuation')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              pageTab === 'valuation' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}
+            style={pageTab === 'valuation' ? { backgroundColor: BRAND_PURPLE } : undefined}
+          >
+            Valuation
+          </button>
+          <button
+            onClick={() => setPageTab('method')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              pageTab === 'method' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}
+            style={pageTab === 'method' ? { backgroundColor: BRAND_PURPLE } : undefined}
+          >
+            Methodology &amp; evidence
+          </button>
+        </div>
+
+        {pageTab === 'method' ? (
+          <InventoryMethodology darkMode={darkMode} />
+        ) : (
+        <>
         <Explainer id="inventory-valuation" title="What am I looking at?">
           <p>
             Every purchase entered into LifeFile becomes a <strong>lot</strong> — a batch of stock with the date,
@@ -1245,6 +1275,8 @@ export default function InventoryValuation() {
           </a>
           .
         </p>
+        </>
+        )}
       </div>
     </div>
   );
