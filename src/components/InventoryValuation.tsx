@@ -159,8 +159,10 @@ export default function InventoryValuation() {
   /** Trend window: focused on the last 90 days by default; 'all' shows the full
    *  history including the pre-anchor era and its discharge step. */
   const [chartRange, setChartRange] = useState<'90d' | 'all'>('90d');
-  /** Chart series toggled OFF (the legend chips are the toggles). */
-  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(new Set());
+  /** Chart series the user has toggled AWAY from their default visibility.
+   *  Defaults: Total, Reconstruction and the three location lines ON (the
+   *  comparison view); category lines OFF until toggled — they are the clutter. */
+  const [toggledSeries, setToggledSeries] = useState<ReadonlySet<string>>(new Set());
   /** Sub-tabs: the valuation itself vs. the same Methodology & evidence view the
    *  Inventory Close tab shows — ONE component, referenced from both sides. */
   const [pageTab, setPageTab] = useState<'valuation' | 'method'>('valuation');
@@ -375,6 +377,15 @@ export default function InventoryValuation() {
       entry.Total = (entry.Total as number) + c.value;
       byMonth.set(c.month, entry);
     }
+    // The three location lines, ALWAYS company-wide (from the unfiltered cells)
+    // so the comparison view survives a location filter — Total still follows
+    // the filter, the location lines are the constant reference.
+    for (const c of allCells) {
+      const entry = byMonth.get(c.month) ?? { month: c.month, Total: 0 };
+      const key = shortInventoryLocation(c.location);
+      entry[key] = ((entry[key] as number | undefined) ?? 0) + c.value;
+      byMonth.set(c.month, entry);
+    }
     // The reconstruction rides alongside the simulated total so the divergence is
     // the visible story. Without it the series reads as four years of growth
     // followed by an inexplicable collapse; with it, it reads as what it is —
@@ -387,7 +398,27 @@ export default function InventoryValuation() {
       }
     }
     return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  }, [scopedCells, rollbackByMonth, basis]);
+  }, [scopedCells, allCells, rollbackByMonth, basis]);
+
+  /** Default-visible series; a chip click flips a key away from its default. */
+  const DEFAULT_VISIBLE = useMemo(() => new Set(['Total', 'Reconstruction', 'FL', 'TN', 'TX']), []);
+  const seriesVisible = useCallback(
+    (key: string): boolean => DEFAULT_VISIBLE.has(key) !== toggledSeries.has(key),
+    [DEFAULT_VISIBLE, toggledSeries],
+  );
+  const toggleSeries = useCallback((key: string) => {
+    setToggledSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const LOCATION_LINE_COLORS: Record<string, string> = useMemo(
+    () => ({ FL: '#0284c7', TN: '#ea580c', TX: '#db2777' }),
+    [],
+  );
 
   /**
    * The windowed view: months whose month-end falls within 90 days of the
@@ -1019,34 +1050,6 @@ export default function InventoryValuation() {
                   All time
                 </button>
               </div>
-              <span className={`mx-1 h-5 border-l ${rowBorder}`} aria-hidden />
-              {[
-                { key: 'Total', color: '#16a34a' },
-                { key: 'Reconstruction', color: '#dc2626' },
-                ...allCategories.map((c) => ({ key: c, color: categoryColor(c) })),
-              ].map(({ key, color }) => {
-                const hidden = hiddenSeries.has(key);
-                return (
-                  <button
-                    key={key}
-                    onClick={() =>
-                      setHiddenSeries((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(key)) next.delete(key);
-                        else next.add(key);
-                        return next;
-                      })
-                    }
-                    title={hidden ? `Show ${key}` : `Hide ${key}`}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-opacity ${rowBorder} ${
-                      hidden ? 'opacity-40 line-through' : ''
-                    } ${darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
-                    {key}
-                  </button>
-                );
-              })}
             </div>
 
             {/* The shape of this chart is a data problem, not a design one, and
@@ -1089,13 +1092,13 @@ export default function InventoryValuation() {
                   {selectedMonth && (
                     <ReferenceLine x={selectedMonth} stroke="#2563eb" strokeDasharray="4 4" />
                   )}
-                  {!hiddenSeries.has('Total') && (
+                  {seriesVisible('Total') && (
                     <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
                   )}
                   {/* connectNulls: the reconstruction only covers the months the
                       rollback table holds, and a straight line drawn across the
                       gap would invent values it does not have. */}
-                  {!hiddenSeries.has('Reconstruction') && (
+                  {seriesVisible('Reconstruction') && (
                     <Line
                       type="monotone"
                       dataKey="Reconstruction"
@@ -1106,13 +1109,66 @@ export default function InventoryValuation() {
                       connectNulls={false}
                     />
                   )}
+                  {(['FL', 'TN', 'TX'] as const)
+                    .filter((loc) => seriesVisible(loc))
+                    .map((loc) => (
+                      <Line
+                        key={loc}
+                        type="monotone"
+                        dataKey={loc}
+                        stroke={LOCATION_LINE_COLORS[loc]}
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    ))}
                   {allCategories
-                    .filter((cat) => !hiddenSeries.has(cat))
+                    .filter((cat) => seriesVisible(cat))
                     .map((cat) => (
                       <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
                     ))}
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+
+            {/* The legend IS the control: click an entry to show/hide its line.
+                Dimmed entries are off — categories start off so the default
+                view stays the Total / locations / reconstruction comparison. */}
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+              {[
+                { key: 'Total', color: '#16a34a', desc: 'On-hand value for the current filter scope' },
+                { key: 'Reconstruction', color: '#dc2626', desc: 'Independent backward cross-check (dashed)' },
+                { key: 'FL', color: LOCATION_LINE_COLORS.FL, desc: 'Florida — company-wide, ignores the location filter' },
+                { key: 'TN', color: LOCATION_LINE_COLORS.TN, desc: 'Tennessee — company-wide, ignores the location filter' },
+                { key: 'TX', color: LOCATION_LINE_COLORS.TX, desc: 'Texas — company-wide, ignores the location filter' },
+                ...allCategories.map((c) => ({
+                  key: c,
+                  color: categoryColor(c),
+                  desc:
+                    c === 'Uncoded'
+                      ? 'Purchases awaiting drug coding'
+                      : c === 'Opening Balance'
+                        ? 'Stock predating our receipt history'
+                        : `${c} category cut of the scoped total`,
+                })),
+              ].map(({ key, color, desc }) => {
+                const visible = seriesVisible(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleSeries(key)}
+                    title={visible ? `Hide ${key}` : `Show ${key}`}
+                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-opacity ${rowBorder} ${
+                      visible ? '' : 'opacity-40'
+                    } ${darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}
+                  >
+                    <span className="w-2 h-2 mt-1 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-semibold ${visible ? '' : 'line-through'}`}>{key}</span>
+                      <span className={`block text-[11px] leading-tight ${subText}`}>{desc}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
