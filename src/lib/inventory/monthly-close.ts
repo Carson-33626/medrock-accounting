@@ -22,7 +22,13 @@ import type {
   QbAccountLine,
   RollForwardRow,
 } from '@/types/inventory';
-import { accountsForCategory, matchBalanceSheetAccount, INVENTORY_ACCOUNT, COGS_ACCOUNT } from './category-accounts';
+import {
+  accountsForCategory,
+  matchBalanceSheetAccount,
+  INVENTORY_ACCOUNT,
+  COGS_ACCOUNT,
+  WASTE_ACCOUNT,
+} from './category-accounts';
 
 /** Minimal per-(month, location) value shape the roll-forward needs. */
 export interface RollbackMonthValue {
@@ -226,6 +232,63 @@ export function journalEntryLines(je: LocationJE, basis: CloseBasis, monthEnd: s
     { account: COGS_ACCOUNT, debit: amount, credit: null, memo },
     { account: INVENTORY_ACCOUNT, debit: null, credit: amount, memo },
   ];
+}
+
+/**
+ * The waste/shrink write-down lines for one inventory account, once the loader's
+ * `waste_value_in_month` / `shrink_value_in_month` columns exist (DS sec 21.2 —
+ * queued behind the adjustment-feed build). Grain-agnostic: the caller passes
+ * whichever inventory account matches the columns' grain (per-category
+ * sub-account or the parent) when the wiring lands.
+ *
+ * Shape per the sec 17.4 / 23.1 rulings: BOTH amounts hit the dedicated
+ * WASTE_ACCOUNT (never a usage-COGS account), as two debit lines with distinct
+ * memos — one JE account, two evidence trails (documented disposal vs count
+ * residual) — against a single combined credit to inventory. Amounts are the
+ * transform's already-clamped columns: shrink is never negative here (a negative
+ * plug routes to counter-direction instrumentation upstream, sec 23.1), so a
+ * negative input is a data defect and throws rather than silently netting.
+ */
+export function wasteShrinkPostingLines(
+  inventoryAccount: string,
+  wasteValue: number,
+  shrinkValue: number,
+  monthEnd: string,
+): JeLine[] {
+  if (wasteValue < 0 || shrinkValue < 0) {
+    throw new Error(
+      `waste/shrink must be non-negative (clamped upstream): waste=${wasteValue} shrink=${shrinkValue}`,
+    );
+  }
+  const waste = round2(wasteValue);
+  const shrink = round2(shrinkValue);
+  const total = round2(waste + shrink);
+  if (total === 0) return [];
+
+  const lines: JeLine[] = [];
+  if (waste > 0) {
+    lines.push({
+      account: WASTE_ACCOUNT,
+      debit: waste,
+      credit: null,
+      memo: `Documented drug disposal (lot adjustments) for month ending ${monthEnd}`,
+    });
+  }
+  if (shrink > 0) {
+    lines.push({
+      account: WASTE_ACCOUNT,
+      debit: shrink,
+      credit: null,
+      memo: `Inventory shrink — count residual for month ending ${monthEnd}`,
+    });
+  }
+  lines.push({
+    account: inventoryAccount,
+    debit: null,
+    credit: total,
+    memo: `Waste & shrink write-down for month ending ${monthEnd}`,
+  });
+  return lines;
 }
 
 /** Display labels for the stored-draft workflow states. */

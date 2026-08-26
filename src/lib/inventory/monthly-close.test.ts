@@ -13,9 +13,11 @@ import {
   categoryJournalEntryLines,
   categoryJournalEntryLinesWithSources,
   sumCents,
+  wasteShrinkPostingLines,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
+import { WASTE_ACCOUNT } from './category-accounts';
 import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
 const mv = (over: Partial<RollbackMonthValue> & { location: string }): RollbackMonthValue => ({
@@ -728,5 +730,42 @@ describe('sumCents — the point-in-time page and the close must state one numbe
     // Two rows that each display as $0.01 must total $0.02, not the $0.03 a
     // sum-then-round would produce from their raw values.
     expect(sumCents([0.014, 0.014])).toBe(0.02);
+  });
+});
+
+describe('wasteShrinkPostingLines — the dedicated 5000.55 line (DS sec 17.4 / 23.1)', () => {
+  it('posts waste and shrink as separate debits to WASTE_ACCOUNT against one inventory credit', () => {
+    const lines = wasteShrinkPostingLines('Inventory Asset', 3673.4, 62972.6, '2026-03-31');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({ account: WASTE_ACCOUNT, debit: 3673.4, credit: null });
+    expect(lines[0]?.memo).toContain('Documented drug disposal');
+    expect(lines[1]).toMatchObject({ account: WASTE_ACCOUNT, debit: 62972.6, credit: null });
+    expect(lines[1]?.memo).toContain('count residual');
+    expect(lines[2]).toMatchObject({ account: 'Inventory Asset', debit: null, credit: 66646 });
+    // Balanced: debits equal the single credit.
+    expect(sumCents(lines.filter((l) => l.debit !== null).map((l) => l.debit ?? 0))).toBe(66646);
+  });
+
+  it('omits a zero component and returns [] when both are zero', () => {
+    const wasteOnly = wasteShrinkPostingLines('Inventory Asset', 100, 0, '2026-04-30');
+    expect(wasteOnly).toHaveLength(2);
+    expect(wasteOnly[0]?.memo).toContain('Documented drug disposal');
+    const shrinkOnly = wasteShrinkPostingLines('Inventory Asset', 0, 250.5, '2026-04-30');
+    expect(shrinkOnly).toHaveLength(2);
+    expect(shrinkOnly[0]?.memo).toContain('count residual');
+    expect(wasteShrinkPostingLines('Inventory Asset', 0, 0, '2026-04-30')).toEqual([]);
+  });
+
+  it('throws on a negative input — the clamp lives upstream and a negative here is a defect', () => {
+    expect(() => wasteShrinkPostingLines('Inventory Asset', -1, 0, '2026-05-31')).toThrow(/non-negative/);
+    expect(() => wasteShrinkPostingLines('Inventory Asset', 0, -0.01, '2026-05-31')).toThrow(/non-negative/);
+  });
+
+  it('never posts waste/shrink to a usage-COGS account', () => {
+    const lines = wasteShrinkPostingLines('Inventory Asset:Compound Ingredient Inventory', 10, 20, '2026-06-30');
+    for (const l of lines.filter((x) => x.debit !== null)) {
+      expect(l.account).toBe(WASTE_ACCOUNT);
+      expect(l.account).not.toBe(COGS_ACCOUNT);
+    }
   });
 });

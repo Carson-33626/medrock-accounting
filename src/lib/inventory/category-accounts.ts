@@ -29,6 +29,15 @@
 export const INVENTORY_ACCOUNT = 'Inventory Asset';
 export const COGS_ACCOUNT = 'Cost of Goods Sold';
 
+/**
+ * The dedicated line waste/shrink write-downs post to — NEVER commingled with
+ * usage-driven COGS (close-package-method-note.md sec 2.4). Created in FL/TN/TX
+ * 2026-08-26 (Ids 312/392/286) by scripts/create-qb-waste-accounts.ts; FOCAS has
+ * no inventory operations and deliberately lacks it. Distinct from
+ * '5000.43 Product Losses' (shipping) and TN's dead '6999.33 (DO NOT USE)'.
+ */
+export const WASTE_ACCOUNT = 'Cost of Goods Sold:Drug Waste & Shrinkage';
+
 export interface CategoryAccounts {
   /** Inventory-asset account (FullyQualifiedName) this category adjusts. */
   inventory: string;
