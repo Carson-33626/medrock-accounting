@@ -29,6 +29,16 @@ import type { CategoryLedgerValue } from './monthly-close';
  */
 const CATEGORY_EXPR = `COALESCE(p.qb_category, 'Opening Balance')`;
 
+/**
+ * Collapsed pre-conversion lots (Florida's Pioneer era, mainly) are EXCLUDED
+ * from valuation in every month — they are disclosed as their own bucket, never
+ * summed into on-hand value. Without this filter they carried $33K–$745K of
+ * transitional remaining_value in historical months (2023-07 → 2025-02), which
+ * put two false spikes on the valuation page's trend chart. Close months carry
+ * $0.00 flagged value, so the close was never affected — verified 2026-08-26.
+ */
+const NOT_COLLAPSED = `COALESCE(l.pre_floor_collapsed, false) = false`;
+
 /** One month's cells, with the receipt ids the close needs to substantiate a line. */
 export async function fetchCategoryLedgerValues(
   pool: Pool,
@@ -48,7 +58,7 @@ export async function fetchCategoryLedgerValues(
             count(*)::int AS lot_count
      FROM inventory.lot_depletion_ledger l
      LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
-     WHERE l.as_of_month = $1
+     WHERE l.as_of_month = $1 AND ${NOT_COLLAPSED}
      GROUP BY l.location, ${CATEGORY_EXPR}
      ORDER BY l.location, qb_category`,
     [month],
@@ -94,6 +104,7 @@ export async function fetchCategoryLedgerSeries(pool: Pool): Promise<LedgerSerie
             count(*)::int AS lot_count
      FROM inventory.lot_depletion_ledger l
      LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
+     WHERE ${NOT_COLLAPSED}
      GROUP BY l.as_of_month, l.location, ${CATEGORY_EXPR}
      ORDER BY l.as_of_month, l.location, qb_category`,
   );

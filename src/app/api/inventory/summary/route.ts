@@ -118,17 +118,22 @@ export async function GET(request: NextRequest) {
     const hasCashBasis = basisRes.rows[0]?.has_cash ?? false;
 
     // Which months are anchored to LifeFile actuals — the current month lot-by-lot
-    // (lot_anchored ledger rows) plus every count-anchored month-end (the last
-    // FIFO_ANCHOR_MONTHS, recognizable by a written waste/shrink figure). Lets an
-    // as-of value be badged reconciled vs. simulation-only history.
+    // (lot_anchored ledger rows) plus every count-anchored month-end. The test is
+    // SHRINK, not waste: waste is a dated feed and writes into pre-window months
+    // too (2025-11 carries $6K of it), while a shrink figure exists only where a
+    // count was applied. Every count-anchored month from the anchoring boundary
+    // forward counts, including zero-shrink months between anchored neighbors.
     const anchoredRes = await pool.query<{ as_of_month: string }>(
       hasWasteShrink
         ? `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true
            UNION
            SELECT as_of_month FROM inventory.fifo_valuation_summary
            WHERE basis = 'accrual'
+             AND as_of_month >= (
+               SELECT MIN(as_of_month) FROM inventory.fifo_valuation_summary
+               WHERE basis = 'accrual' AND COALESCE(shrink_value_in_month, 0) > 0
+             )
            GROUP BY as_of_month
-           HAVING SUM(COALESCE(waste_value_in_month, 0) + COALESCE(shrink_value_in_month, 0)) > 0
            ORDER BY as_of_month`
         : `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true ORDER BY as_of_month`,
     );
