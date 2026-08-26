@@ -400,8 +400,20 @@ export default function InventoryValuation() {
     return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
   }, [scopedCells, allCells, rollbackByMonth, basis]);
 
-  /** Default-visible series; a chip click flips a key away from its default. */
-  const DEFAULT_VISIBLE = useMemo(() => new Set(['Total', 'Reconstruction', 'FL', 'TN', 'TX']), []);
+  /** Default-visible series; a legend click flips a key away from its default.
+   *  Location lines follow the page's location filter: filtering to Florida
+   *  auto-hides TN and TX (no clicks needed); 'all' shows all three. */
+  const DEFAULT_VISIBLE = useMemo(() => {
+    const base = new Set(['Total', 'Reconstruction']);
+    if (location === 'all') {
+      base.add('FL');
+      base.add('TN');
+      base.add('TX');
+    } else {
+      base.add(shortInventoryLocation(location));
+    }
+    return base;
+  }, [location]);
   const seriesVisible = useCallback(
     (key: string): boolean => DEFAULT_VISIBLE.has(key) !== toggledSeries.has(key),
     [DEFAULT_VISIBLE, toggledSeries],
@@ -414,6 +426,14 @@ export default function InventoryValuation() {
       return next;
     });
   }, []);
+  // A location change re-derives the location lines' defaults; stale manual
+  // toggles on FL/TN/TX would invert the new defaults, so drop just those.
+  useEffect(() => {
+    setToggledSeries((prev) => {
+      const next = new Set([...prev].filter((k) => k !== 'FL' && k !== 'TN' && k !== 'TX'));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [location]);
 
   const LOCATION_LINE_COLORS: Record<string, string> = useMemo(
     () => ({ FL: '#0284c7', TN: '#ea580c', TX: '#db2777' }),
