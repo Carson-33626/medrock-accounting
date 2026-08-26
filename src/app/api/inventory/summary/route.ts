@@ -21,6 +21,8 @@ interface SummaryQueryRow {
   lifefile_qty_left_total: number | null;
   cash_estimated_value: number | null;
   pre_floor_collapsed_value: number | null;
+  waste_value_in_month: number | null;
+  shrink_value_in_month: number | null;
 }
 
 const EXPORT_COLUMNS: ExportColumn[] = [
@@ -37,14 +39,16 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { header: 'LifeFile Qty Left', key: 'lifefile_qty_left_total' },
   { header: 'Estimated-Timing Value (Cash)', key: 'cash_estimated_value', currency: true },
   { header: 'Excluded Pre-Conversion Value', key: 'pre_floor_collapsed_value', currency: true },
+  { header: 'Waste (Month)', key: 'waste_value_in_month', currency: true },
+  { header: 'Shrink (Month)', key: 'shrink_value_in_month', currency: true },
 ];
 
-// Rollback (backward) valuation bases — the As-of page's headline numbers.
+// Rollback (backward) reconstruction — the independent cross-check, on the
+// settled receipt-priced methodology.
 const ROLLBACK_COLUMNS: ExportColumn[] = [
   { header: 'Month', key: 'as_of_month' },
   { header: 'Location', key: 'location' },
-  { header: 'Receipt-Priced Floor', key: 'value_floor', currency: true },
-  { header: 'Full-Coverage Estimate', key: 'value_full', currency: true },
+  { header: 'Reconstruction (Receipt-Priced)', key: 'value_floor', currency: true },
   { header: 'On-Hand Qty', key: 'on_hand_qty' },
   { header: 'Uncosted Qty', key: 'uncosted_qty' },
   { header: 'OOS Ratio', key: 'oos_ratio' },
@@ -65,6 +69,17 @@ export async function GET(request: NextRequest) {
       where += ` AND location = $${params.length}`;
     }
 
+    // waste/shrink arrived with the 2026-08-26 adjustment-feed deploy; guard so a
+    // pre-feed environment degrades to nulls instead of a 500.
+    const wsCols = await pool.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'inventory' AND table_name = 'fifo_valuation_summary'
+         AND column_name IN ('waste_value_in_month', 'shrink_value_in_month')`,
+    );
+    const hasWasteShrink = wsCols.rows.length === 2;
+    const wasteExpr = hasWasteShrink ? 'waste_value_in_month::float8' : 'NULL::float8';
+    const shrinkExpr = hasWasteShrink ? 'shrink_value_in_month::float8' : 'NULL::float8';
+
     const result = await pool.query<SummaryQueryRow>(
       `SELECT as_of_month, location, qb_category, basis,
               on_hand_qty::float8 AS on_hand_qty,
@@ -75,7 +90,9 @@ export async function GET(request: NextRequest) {
               shortfall_count,
               lifefile_qty_left_total::float8 AS lifefile_qty_left_total,
               cash_estimated_value::float8 AS cash_estimated_value,
-              pre_floor_collapsed_value::float8 AS pre_floor_collapsed_value
+              pre_floor_collapsed_value::float8 AS pre_floor_collapsed_value,
+              ${wasteExpr} AS waste_value_in_month,
+              ${shrinkExpr} AS shrink_value_in_month
        FROM inventory.fifo_valuation_summary
        WHERE ${where}
        ORDER BY as_of_month, location, qb_category`,
@@ -100,10 +117,20 @@ export async function GET(request: NextRequest) {
     );
     const hasCashBasis = basisRes.rows[0]?.has_cash ?? false;
 
-    // Which months are anchored to LifeFile actuals (any lot_anchored ledger row) — lets
-    // an as-of value be badged reconciled vs. estimate. Today only the current month qualifies.
+    // Which months are anchored to LifeFile actuals — the current month lot-by-lot
+    // (lot_anchored ledger rows) plus every count-anchored month-end (the last
+    // FIFO_ANCHOR_MONTHS, recognizable by a written waste/shrink figure). Lets an
+    // as-of value be badged reconciled vs. simulation-only history.
     const anchoredRes = await pool.query<{ as_of_month: string }>(
-      `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true ORDER BY as_of_month`,
+      hasWasteShrink
+        ? `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true
+           UNION
+           SELECT as_of_month FROM inventory.fifo_valuation_summary
+           WHERE basis = 'accrual'
+           GROUP BY as_of_month
+           HAVING SUM(COALESCE(waste_value_in_month, 0) + COALESCE(shrink_value_in_month, 0)) > 0
+           ORDER BY as_of_month`
+        : `SELECT DISTINCT as_of_month FROM inventory.lot_depletion_ledger WHERE lot_anchored = true ORDER BY as_of_month`,
     );
     const anchoredMonths = anchoredRes.rows.map((r) => r.as_of_month);
 
@@ -123,7 +150,6 @@ export async function GET(request: NextRequest) {
             as_of_month: r.as_of_month,
             location: r.location,
             value_floor: r.value_floor,
-            value_full: r.value_full,
             on_hand_qty: r.on_hand_qty,
             uncosted_qty: r.uncosted_qty,
             oos_ratio: r.oos_ratio,
@@ -140,14 +166,14 @@ export async function GET(request: NextRequest) {
           csvResponse(ROLLBACK_COLUMNS, rollbackRows, filename).text(),
         ]);
         return new NextResponse(
-          `${body}\r\n\r\nRollback bases (receipt-priced floor vs full-coverage estimate)\r\n${rollbackBody}`,
+          `${body}\r\n\r\nRollback reconstruction (receipt-priced cross-check)\r\n${rollbackBody}`,
           { headers: res.headers },
         );
       }
       const note = `FIFO Inventory Valuation Summary — basis: ${basis}, generated ${new Date().toISOString()} (data as of nightly Data Loader run)`;
       const sheets = [{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }];
       if (rollbackRows.length > 0) {
-        sheets.push({ name: 'Rollback Bases', columns: ROLLBACK_COLUMNS, rows: rollbackRows });
+        sheets.push({ name: 'Rollback Cross-Check', columns: ROLLBACK_COLUMNS, rows: rollbackRows });
       }
       return xlsxResponse(sheets, filename, note);
     }

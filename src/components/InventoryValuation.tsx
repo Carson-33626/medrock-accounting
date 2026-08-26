@@ -348,12 +348,13 @@ export default function InventoryValuation() {
     [allCells],
   );
 
-  /** The reconstruction totalled per month for the current location scope. */
+  /** The reconstruction totalled per month for the current location scope —
+   *  receipt-priced, the settled methodology (2026-08-26). */
   const rollbackByMonth = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of rollbackRows) {
       if (location !== 'all' && r.location !== location) continue;
-      m.set(r.as_of_month, (m.get(r.as_of_month) ?? 0) + (r.value_full ?? 0));
+      m.set(r.as_of_month, (m.get(r.as_of_month) ?? 0) + (r.value_floor ?? 0));
     }
     return m;
   }, [rollbackRows, location]);
@@ -381,26 +382,22 @@ export default function InventoryValuation() {
   }, [scopedCells, rollbackByMonth, basis]);
 
   /**
-   * The simulated series accumulates stock it never draws down, so it climbs for
-   * years and then collapses the moment LifeFile anchors it. Detected rather than
-   * hardcoded — the drop is real in the data and the page should say so where the
-   * shape is visible, not only in the cross-check card further up.
-   *
-   * Measured on 2026-08: the anchor consumed $7.18M against $247k of receipts,
-   * writing off four years of accumulation in one month. $5.32M of that was
-   * Compound Ingredient, whose all-time consumed/received ratio is 0.17 — the
-   * depletion feed carries dispensing, not compounding usage.
+   * The pre-anchor history accumulates unrecorded shrink for years, and all of
+   * it discharges at the FIRST anchored month-end — the first date with a real
+   * count to write down against. By design that month sits BEFORE the postable
+   * window, so the step never lands in a journal entry. Detected rather than
+   * hardcoded, so the banner disappears if the shape ever does.
    */
   const anchorDrop = useMemo(() => {
     const anchoredMonths = summary?.anchoredMonths ?? [];
     if (anchoredMonths.length === 0 || chartData.length < 2) return null;
-    const last = anchoredMonths[anchoredMonths.length - 1];
-    const i = chartData.findIndex((d) => d.month === last);
+    const first = anchoredMonths[0];
+    const i = chartData.findIndex((d) => d.month === first);
     if (i < 1) return null;
     const before = chartData[i - 1].Total as number;
     const after = chartData[i].Total as number;
     if (before <= 0 || after >= before * 0.75) return null;
-    return { month: last, before, after };
+    return { month: first, before, after };
   }, [summary, chartData]);
 
   // The backward reconstruction, kept as a CROSS-CHECK only. It has no category
@@ -413,7 +410,7 @@ export default function InventoryValuation() {
           (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
         )
       : [];
-    return { has: rows.length > 0, value: rows.reduce((s, r) => s + (r.value_full ?? 0), 0) };
+    return { has: rows.length > 0, value: rows.reduce((s, r) => s + (r.value_floor ?? 0), 0) };
   }, [rollbackRows, selectedMonth, location]);
 
   const anchored = !!(summary && selectedMonth && summary.anchoredMonths.includes(selectedMonth));
@@ -434,6 +431,29 @@ export default function InventoryValuation() {
       )
       .reduce((s, r) => s + (r.pre_floor_collapsed_value ?? 0), 0);
   }, [summary, selectedMonth, location]);
+
+  /**
+   * The selected month's movement, from the SAME summary rows the close's
+   * monthly statement is built from — purchases in, usage-driven COGS out,
+   * waste and shrink to the dedicated 5000.55 line. COGS is consumption minus
+   * the waste+shrink the columns carry (they sum to the JE line by
+   * construction). Null when the month predates the adjustment-feed columns.
+   */
+  const monthMovement = useMemo(() => {
+    if (basis !== 'accrual' || !summary || !selectedMonth) return null;
+    const rows = summary.rows.filter(
+      (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
+    );
+    if (rows.length === 0) return null;
+    if (!rows.some((r) => r.waste_value_in_month !== null || r.shrink_value_in_month !== null)) return null;
+    const sum = (f: (r: (typeof rows)[number]) => number): number =>
+      rows.reduce((s, r) => s + Math.round(f(r) * 100), 0) / 100;
+    const purchases = sum((r) => r.receipts_value_in_month);
+    const consumed = sum((r) => r.consumed_value_in_month);
+    const waste = sum((r) => r.waste_value_in_month ?? 0);
+    const shrink = sum((r) => r.shrink_value_in_month ?? 0);
+    return { purchases, cogs: consumed - waste - shrink, waste, shrink };
+  }, [basis, summary, selectedMonth, location]);
 
   const lotsQuery = useMemo(() => {
     const params = new URLSearchParams({
@@ -640,12 +660,14 @@ export default function InventoryValuation() {
             <strong>Journal Entries page</strong> under <strong>Inventory Close</strong>.
           </p>
           <p>
-            <strong>Only the most recent month is reconciled to LifeFile.</strong> It is checked lot-by-lot against
-            LifeFile&rsquo;s live lot report; earlier months come from a usage simulation over incomplete historical
-            records and <em>overstate</em> inventory — that is why the trend climbs and then drops sharply at the end.
-            The <strong>reconstruction cross-check</strong> below the breakdowns is a second, independent estimate
-            built backward from that lot report; when it sits far below the headline, treat the headline as traceable
-            rather than settled.
+            <strong>Recent months are anchored to real counts.</strong> Every month-end in the anchor window (late
+            2025 forward) is pinned to LifeFile&rsquo;s Balance-On-Hand count for that date: recorded usage and the
+            documented disposal log deplete the lots first, and any remaining gap against the count is written down
+            in that month as shrink — write-down only, never written up. The current month is additionally checked
+            lot-by-lot against the live lot report. Months <em>before</em> the anchor window are simulation-only
+            history: they exist to walk the lots forward to a defensible opening and never receive journal entries.
+            The <strong>reconstruction cross-check</strong> below the breakdowns is a second, independent valuation
+            built backward from the lot report — the two methods agreeing is the page&rsquo;s standing control.
           </p>
           <p>
             <strong>Badges you will see:</strong> <span className="font-semibold">OB</span> = includes an opening
@@ -655,8 +677,10 @@ export default function InventoryValuation() {
             remaining quantity is pinned to LifeFile&rsquo;s report rather than simulated.
           </p>
           <p>
-            These figures are best-available estimates built from pharmacy records — a consistent, reproducible
-            method, not an audited count.
+            Every figure is receipt-priced and reproducible: purchases at actual invoice cost, usage and disposal
+            from the pharmacy system&rsquo;s own records, endings tied to dated counts. The full method — with
+            definitions and data sources — lives on the Journal Entries page under{' '}
+            <strong>Inventory Close → Methodology &amp; evidence</strong>.
           </p>
         </Explainer>
 
@@ -735,17 +759,17 @@ export default function InventoryValuation() {
               )}
               {anchored ? (
                 <span
-                  title="This month's remaining quantities were checked lot-by-lot against LifeFile's live lot report"
+                  title="This month-end is anchored to LifeFile's dated Balance-On-Hand count (the current month additionally lot-by-lot against the live lot report) — its ending carries its own measured waste and shrink"
                   className="text-xs px-2 py-1 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold cursor-help"
                 >
-                  ✓ LifeFile-reconciled
+                  ✓ Anchored to a dated count
                 </span>
               ) : (
                 <span
-                  title="This month's quantities come from the forward usage simulation over incomplete historical records, which overstates. Compare against the reconstruction cross-check below."
+                  title="This month predates the anchor window: no count exists to write it down against, so it carries accumulated unrecorded shrink and runs high. Simulation-only history — no journal entry ever posts from it."
                   className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200 font-semibold cursor-help"
                 >
-                  ⚠ Simulated — not reconciled to LifeFile
+                  ⚠ Pre-anchor history — never posted
                 </span>
               )}
               <span className={`text-xs ${subText}`}>{basis === 'accrual' ? 'Accrual basis' : 'Cash basis'}</span>
@@ -753,6 +777,43 @@ export default function InventoryValuation() {
             <p className={`text-xs mt-3 ${subText}`}>
               Stock on hand at month end, valued at what each lot actually cost — with an estimated cost only where the
               purchase receipt is missing.
+            </p>
+          </div>
+        )}
+
+        {/* The month's movement — the same figures the close's monthly statement
+            posts, cut to the current scope. */}
+        {monthMovement && anchored && (
+          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              This month&rsquo;s movement
+              <HelpTip
+                label="Where these figures go"
+                text="Purchases at actual invoice cost flow in; usage-driven COGS posts to each category's COGS account; waste (the documented disposal log) and shrink (the count residual) post together to the dedicated 5000.55 Drug Waste & Shrinkage line. These are the same numbers the month's close JE is built from — the Inventory Close tab shows the identical statement."
+              />
+            </p>
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className={`text-xs ${subText}`}>Purchases</p>
+                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.purchases)}</p>
+              </div>
+              <div>
+                <p className={`text-xs ${subText}`}>COGS (usage)</p>
+                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.cogs)}</p>
+              </div>
+              <div>
+                <p className={`text-xs ${subText}`}>Waste (documented)</p>
+                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.waste)}</p>
+              </div>
+              <div>
+                <p className={`text-xs ${subText}`}>Shrink (count residual)</p>
+                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.shrink)}</p>
+              </div>
+            </div>
+            <p className={`text-xs mt-3 ${subText}`}>
+              Beginning + Purchases − COGS − Waste − Shrink = the ending value above, to the cent. Waste and
+              shrink post to <strong>5000.55 Drug Waste &amp; Shrinkage</strong>, never commingled with
+              operating COGS.
             </p>
           </div>
         )}
@@ -858,9 +919,10 @@ export default function InventoryValuation() {
                     : 'bg-amber-50 border-amber-300 text-amber-800'
                 }`}
               >
-                These are far apart. Months that LifeFile has not anchored are simulated forward over incomplete
-                purchase records and tend to run high, so treat the figure above as the traceable number rather than
-                the settled one, and expect the adjusting entry to be large.
+                These are far apart — which means the selected month predates the anchor window. Pre-anchor months
+                carry accumulated unrecorded shrink (no count exists to write them down against) and run high. They
+                are simulation-only history: no journal entry ever posts from them. Anchored months agree with this
+                cross-check within the posting gate.
               </p>
             )}
           </div>
@@ -911,15 +973,16 @@ export default function InventoryValuation() {
                 }`}
               >
                 <span className="font-semibold">
-                  The climb and the drop at {anchorDrop.month} are both artifacts — inventory did not grow for four
-                  years and then fall {Math.round((1 - anchorDrop.after / anchorDrop.before) * 100)}% in a month.
+                  The climb and the {Math.round((1 - anchorDrop.after / anchorDrop.before) * 100)}% step at{' '}
+                  {anchorDrop.month} are the pre-anchor history correcting itself — inventory did not grow for years
+                  and then vanish in a month.
                 </span>{' '}
-                Lots are drawn down by dispensing records, which do not include compounding usage — so ingredient
-                purchases accumulate instead of depleting (Compound Ingredient has consumed just{' '}
-                <strong>17%</strong> of everything ever received; Lab Supplies and Compound Packaging, effectively
-                nothing). {anchorDrop.month} is the one month reconciled against LifeFile&rsquo;s live lot report, and
-                that reconciliation writes the accumulation off in a single step. Read the red reconstruction line as
-                the more plausible level for the months in between.
+                Months before {anchorDrop.month} have no count to write down against, so years of unrecorded shrink
+                accumulate in the line; {anchorDrop.month} is the first month-end with a real count, and the whole
+                accumulation discharges there in one step — deliberately <em>before</em> the postable window, so no
+                journal entry ever carries it. From {anchorDrop.month} forward every month is anchored to its own
+                count and carries only its own measured waste and shrink; the green and red lines run together from
+                there, which is the two methods agreeing.
               </div>
             )}
             <div className="h-64">

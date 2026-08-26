@@ -26,6 +26,13 @@ export interface ValuationSummaryRow {
    * floor and on rows written before the 2026-08-25 floors rebuild.
    */
   pre_floor_collapsed_value: number | null;
+  /**
+   * The month's documented-disposal write-off (the deducted portion of the lot
+   * adjustment log) and count-residual shrink — together the 5000.55 JE line.
+   * Null on rows written before the 2026-08-26 adjustment-feed deploy.
+   */
+  waste_value_in_month: number | null;
+  shrink_value_in_month: number | null;
 }
 
 export interface SummaryResponse {
@@ -38,9 +45,10 @@ export interface SummaryResponse {
   /** true once the Data Loader writes basis='cash' rows (Phase 4 QB linkage) */
   hasCashBasis: boolean;
   /**
-   * Months whose ledger is anchored to LifeFile actuals (vs. raw usage simulation).
-   * Today only the current month is anchored (Phase 2b/2c); historical months become
-   * anchored once Phase 2d lands. Used to badge an as-of value as reconciled vs. estimate.
+   * Months whose ledger is anchored to LifeFile actuals: the current month
+   * lot-by-lot, plus every count-anchored month-end in the anchor window
+   * (2026-08-26 model — recognizable by a written waste/shrink figure). Months
+   * outside this list are simulation-only history and never receive entries.
    */
   anchoredMonths: string[];
 }
