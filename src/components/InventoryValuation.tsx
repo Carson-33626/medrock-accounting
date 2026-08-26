@@ -8,6 +8,7 @@ import FifoQueue from './FifoQueue';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { shortInventoryLocation } from '@/lib/inventory/monthly-close';
 import { InventoryMethodology } from '@/app/payroll/components/InventoryMethodology';
+import { InventoryDecisions } from '@/app/payroll/components/InventoryDecisions';
 import {
   LineChart,
   Line,
@@ -165,7 +166,7 @@ export default function InventoryValuation() {
   const [toggledSeries, setToggledSeries] = useState<ReadonlySet<string>>(new Set());
   /** Sub-tabs: the valuation itself vs. the same Methodology & evidence view the
    *  Inventory Close tab shows — ONE component, referenced from both sides. */
-  const [pageTab, setPageTab] = useState<'valuation' | 'method'>('valuation');
+  const [pageTab, setPageTab] = useState<'valuation' | 'method' | 'decisions'>('valuation');
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -734,10 +735,21 @@ export default function InventoryValuation() {
           >
             Methodology &amp; evidence
           </button>
+          <button
+            onClick={() => setPageTab('decisions')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              pageTab === 'decisions' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}
+            style={pageTab === 'decisions' ? { backgroundColor: BRAND_PURPLE } : undefined}
+          >
+            Decisions
+          </button>
         </div>
 
         {pageTab === 'method' ? (
           <InventoryMethodology darkMode={darkMode} />
+        ) : pageTab === 'decisions' ? (
+          <InventoryDecisions darkMode={darkMode} />
         ) : (
         <>
         <Explainer id="inventory-valuation" title="What am I looking at?">
