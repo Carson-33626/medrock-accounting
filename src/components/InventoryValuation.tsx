@@ -1108,7 +1108,12 @@ export default function InventoryValuation() {
                     stroke={darkMode ? '#94a3b8' : '#64748b'}
                     width={90}
                   />
-                  <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} />
+                  {/* itemSorter: rank the hovered month's entries by value so the
+                      readout is a leaderboard, not the series render order. */}
+                  <Tooltip
+                    formatter={(v: number | undefined) => usd.format(v ?? 0)}
+                    itemSorter={(item) => -(typeof item.value === 'number' ? item.value : 0)}
+                  />
                   {selectedMonth && (
                     <ReferenceLine x={selectedMonth} stroke="#2563eb" strokeDasharray="4 4" />
                   )}
