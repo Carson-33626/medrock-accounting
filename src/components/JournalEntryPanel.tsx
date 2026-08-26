@@ -501,7 +501,7 @@ function DraftCard({
                 FIFO target
                 <HelpTip
                   label="FIFO target"
-                  text="What this close is bringing the books to: month-end stock valued at the actual purchase price of the lots it sits in, on the selected basis (receipt-priced floor or full-coverage estimate)."
+                  text="What this close is bringing the books to: month-end stock valued at the actual purchase price of the lots it sits in (receipt-priced)."
                 />
               </p>
               <p className="text-lg font-bold tabular-nums">{usd.format(je.fifoTarget)}</p>

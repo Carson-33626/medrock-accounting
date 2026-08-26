@@ -49,10 +49,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   // who drilled into March's category detail lands back on March's close rather
   // than on the newest month.
   const [month, setMonth] = useState<string | null>(initialMonth ?? null);
-  // Receipt-priced floor ONLY (Carson, 2026-08-26): with receipt coverage at
-  // >99.4% of value the full-coverage estimate converged to within 0.6% of the
-  // floor and the toggle became reviewer noise — the conservative basis is the
-  // one accounting reads. The API still accepts basis for history/export.
+  // Receipt-priced floor is THE methodology (Carson, 2026-08-26) — not user
+  // selectable. The API still accepts a basis param for compatibility.
   const closeBasis: CloseBasis = 'floor';
   const [monthlyClose, setMonthlyClose] = useState<MonthlyCloseResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -255,10 +253,9 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           entry that brings the QuickBooks inventory-asset balance to the FIFO figure.
         </p>
         <p>
-          <strong>Basis:</strong> everything here is the conservative <em>receipt-priced floor</em> —
-          only stock traceable to an actual priced purchase receipt is valued. Receipt coverage now
-          exceeds 99.4% of on-hand value, so the former full-coverage estimate converged to within 0.6%
-          and was retired (2026-08-26). The point-in-time values behind these figures live on the{' '}
+          <strong>Basis:</strong> stock is valued at the actual purchase price of the lots it sits in —
+          only stock traceable to a priced purchase receipt is counted (over 99.4% of on-hand value).
+          The point-in-time values behind these figures live on the{' '}
           <a href="/inventory" className="underline">
             Inventory Valuation
           </a>{' '}
@@ -320,8 +317,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           </select>
         </label>
         <HelpTip
-          label="Basis: receipt-priced floor"
-          text="Every reference figure here is the conservative receipt-priced basis: only stock traceable to an actual priced purchase receipt is valued (over 99.4% of on-hand value). The former full-coverage estimate converged to within 0.6% of this and was retired 2026-08-26 — the generated entry was never affected either way, since it sums from the lot-depletion ledger."
+          label="Basis: receipt-priced"
+          text="All figures value stock at the actual purchase price of the lots it sits in; only stock traceable to a priced purchase receipt is counted — over 99.4% of on-hand value. The generated entry sums from the lot-depletion ledger on the same basis."
         />
         {selectedMonth && (
           <a
