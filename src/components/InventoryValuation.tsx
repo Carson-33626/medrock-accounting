@@ -156,6 +156,9 @@ export default function InventoryValuation() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   /** Set when we arrived from the Inventory Close tab, so we can offer a way back. */
   const [fromClose, setFromClose] = useState(false);
+  /** Trend window: focused on the last 90 days by default; 'all' shows the full
+   *  history including the pre-anchor era and its discharge step. */
+  const [chartRange, setChartRange] = useState<'90d' | 'all'>('90d');
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -380,6 +383,20 @@ export default function InventoryValuation() {
     }
     return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
   }, [scopedCells, rollbackByMonth, basis]);
+
+  /**
+   * The windowed view: months whose month-end falls within 90 days of the
+   * selected month's. Monthly grain, so that is the selected month and the two
+   * before it — focused on now, with the y-axis rescaled to the recent level
+   * instead of the historical peak. 'all' shows the full history.
+   */
+  const windowedChartData = useMemo(() => {
+    if (chartRange === 'all' || !selectedMonth || chartData.length === 0) return chartData;
+    const end = new Date(`${selectedMonth}-01T00:00:00Z`);
+    const start = new Date(end.getTime() - 90 * 86_400_000);
+    const floor = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`;
+    return chartData.filter((d) => String(d.month) >= floor && String(d.month) <= selectedMonth);
+  }, [chartRange, chartData, selectedMonth]);
 
   /**
    * The pre-anchor history accumulates unrecorded shrink for years, and all of
@@ -952,19 +969,42 @@ export default function InventoryValuation() {
         {/* Trend */}
         {chartData.length > 1 && (
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className="text-sm font-semibold mb-3 flex items-center gap-1.5">
-              On-Hand Value by Month
-              {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
-              <HelpTip
-                label="How to read this chart"
-                text="Month-end on-hand value by category, for the current location scope. The vertical dashed line marks the month selected above. The red dashed line is the reconstruction — an independent estimate built backward from LifeFile's lot report — shown so the two methods can be compared directly rather than one being taken on faith. Don't read the green line's historical slope as real growth: it is stock the usage simulation never drew down."
-              />
-            </p>
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                On-Hand Value by Month
+                {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
+                <HelpTip
+                  label="How to read this chart"
+                  text="Month-end on-hand value by category, for the current location scope. The default view is the last 90 days ending at the selected month; All time shows the full history, including the pre-anchor era and its one-time discharge step. The red dashed line is the reconstruction — an independent valuation built backward from LifeFile's lot report — shown so the two methods can be compared directly."
+                />
+              </p>
+              <div className={`ml-auto inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
+                <button
+                  onClick={() => setChartRange('90d')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    chartRange === '90d' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+                  }`}
+                  style={chartRange === '90d' ? { backgroundColor: BRAND_PURPLE } : undefined}
+                >
+                  Last 90 days
+                </button>
+                <button
+                  onClick={() => setChartRange('all')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    chartRange === 'all' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+                  }`}
+                  style={chartRange === 'all' ? { backgroundColor: BRAND_PURPLE } : undefined}
+                >
+                  All time
+                </button>
+              </div>
+            </div>
 
             {/* The shape of this chart is a data problem, not a design one, and
                 the explanation belongs next to it — the climb-then-collapse is
-                the first thing anyone asks about. */}
-            {anchorDrop && (
+                the first thing anyone asks about. Only on the all-time view:
+                the 90-day window never shows the discharge step. */}
+            {chartRange === 'all' && anchorDrop && (
               <div
                 className={`mb-3 rounded-lg border px-3 py-2 text-xs ${
                   darkMode
@@ -987,7 +1027,7 @@ export default function InventoryValuation() {
             )}
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={windowedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke={darkMode ? '#94a3b8' : '#64748b'} />
                   <YAxis
