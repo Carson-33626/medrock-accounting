@@ -9,6 +9,7 @@ import RollForward from '@/components/RollForward';
 import JournalEntryPanel, { type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
+import { InventoryMethodology } from './InventoryMethodology';
 import type {
   CloseBasis,
   InvCloseHeader,
@@ -108,6 +109,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   }, [selectedMonth, closeBasis, loadClose]);
 
   const [generatingCorrection, setGeneratingCorrection] = useState(false);
+  // Sub-tabs: the JE workflow vs. the shareable methodology/evidence breakdown.
+  const [subTab, setSubTab] = useState<'close' | 'method'>('close');
 
   const handleGenerateCorrection = useCallback(async () => {
     if (!selectedMonth) return;
@@ -266,6 +269,38 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         </p>
       </Explainer>
 
+      {/* Sub-tabs: the working JE surface vs. the shareable methodology breakdown. */}
+      <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
+        <button
+          onClick={() => setSubTab('close')}
+          className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+            subTab === 'close'
+              ? 'bg-indigo-600 text-white'
+              : darkMode
+                ? 'text-slate-300 hover:bg-slate-700'
+                : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Close JEs
+        </button>
+        <button
+          onClick={() => setSubTab('method')}
+          className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+            subTab === 'method'
+              ? 'bg-indigo-600 text-white'
+              : darkMode
+                ? 'text-slate-300 hover:bg-slate-700'
+                : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Methodology &amp; evidence
+        </button>
+      </div>
+
+      {subTab === 'method' ? (
+        <InventoryMethodology darkMode={darkMode} />
+      ) : (
+        <>
       {/* Controls — mirrors the End of Month tab's month/action row. */}
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -434,6 +469,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         <div className={`rounded-xl shadow-sm p-10 ${cardBg} text-center text-sm ${subText}`}>
           Loading monthly close…
         </div>
+      )}
+        </>
       )}
     </div>
   );
