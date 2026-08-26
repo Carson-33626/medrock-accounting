@@ -13,7 +13,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   CartesianGrid,
   ReferenceLine,
@@ -159,6 +158,8 @@ export default function InventoryValuation() {
   /** Trend window: focused on the last 90 days by default; 'all' shows the full
    *  history including the pre-anchor era and its discharge step. */
   const [chartRange, setChartRange] = useState<'90d' | 'all'>('90d');
+  /** Chart series toggled OFF (the legend chips are the toggles). */
+  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(new Set());
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -694,6 +695,13 @@ export default function InventoryValuation() {
             remaining quantity is pinned to LifeFile&rsquo;s report rather than simulated.
           </p>
           <p>
+            <strong>One standing exclusion:</strong> purchases from Florida&rsquo;s pre-conversion compounding era
+            (the Pioneer system, before LifeFile{preFloorExcluded > 0 ? ` — ${usd.format(preFloorExcluded)} for the current scope` : ''}) are
+            held out of every figure here as a flagged, auditable bucket. Pioneer&rsquo;s own fill records
+            corroborate that stock was consumed in its era; nothing is deleted, no entry posts from it, and the
+            exclusion is reversible if better period records ever surface.
+          </p>
+          <p>
             Every figure is receipt-priced and reproducible: purchases at actual invoice cost, usage and disposal
             from the pharmacy system&rsquo;s own records, endings tied to dated counts. The full method — with
             definitions and data sources — lives on the Journal Entries page under{' '}
@@ -945,40 +953,23 @@ export default function InventoryValuation() {
           </div>
         )}
 
-        {/* Excluded pre-conversion history */}
-        {drillable && preFloorExcluded > 0 && (
-          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className="text-sm font-semibold flex items-center gap-1.5">
-              Excluded pre-conversion history
-              <HelpTip
-                label="What this bucket is"
-                text="Purchases made before a location's usage records become reliable — mainly Florida's compounding era on the Pioneer system, before its LifeFile conversion. Pioneer's own fill records corroborate that this stock was consumed then, so it is held out of the valuation as a flagged, auditable bucket rather than inflating on-hand value. It is not part of the figure above and no journal entry posts from it."
-              />
-            </p>
-            <div className="mt-3">
-              <p className={`text-xs ${subText}`}>Held out of the valuation above</p>
-              <p className="text-xl font-bold tabular-nums">{usd.format(preFloorExcluded)}</p>
-            </div>
-            <p className={`text-xs mt-2 ${subText}`}>
-              Every excluded lot keeps its receipt in the ledger, flagged — nothing is deleted, and the
-              exclusion is reversible if better period records ever surface.
-            </p>
-          </div>
-        )}
-
         {/* Trend */}
         {chartData.length > 1 && (
           <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <div className="flex flex-wrap items-center gap-3 mb-3">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
               <p className="text-sm font-semibold flex items-center gap-1.5">
                 On-Hand Value by Month
                 {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
                 <HelpTip
                   label="How to read this chart"
-                  text="Month-end on-hand value by category, for the current location scope. The default view is the last 90 days ending at the selected month; All time shows the full history, including the pre-anchor era and its one-time discharge step. The red dashed line is the reconstruction — an independent valuation built backward from LifeFile's lot report — shown so the two methods can be compared directly."
+                  text="Month-end on-hand value by category, for the current location scope. The default view is the last 90 days ending at the selected month; All time shows the full history, including the pre-anchor era and its one-time discharge step. The red dashed line is the reconstruction — an independent valuation built backward from LifeFile's lot report — shown so the two methods can be compared directly. Click a series chip to hide or show its line; the axis rescales to what is visible."
                 />
               </p>
-              <div className={`ml-auto inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
+            </div>
+
+            {/* ONE control row: the window toggle and the line toggles together. */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
                 <button
                   onClick={() => setChartRange('90d')}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -998,6 +989,34 @@ export default function InventoryValuation() {
                   All time
                 </button>
               </div>
+              <span className={`mx-1 h-5 border-l ${rowBorder}`} aria-hidden />
+              {[
+                { key: 'Total', color: '#16a34a' },
+                { key: 'Reconstruction', color: '#dc2626' },
+                ...allCategories.map((c) => ({ key: c, color: categoryColor(c) })),
+              ].map(({ key, color }) => {
+                const hidden = hiddenSeries.has(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      setHiddenSeries((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key);
+                        else next.add(key);
+                        return next;
+                      })
+                    }
+                    title={hidden ? `Show ${key}` : `Hide ${key}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-opacity ${rowBorder} ${
+                      hidden ? 'opacity-40 line-through' : ''
+                    } ${darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
+                    {key}
+                  </button>
+                );
+              })}
             </div>
 
             {/* The shape of this chart is a data problem, not a design one, and
@@ -1037,26 +1056,31 @@ export default function InventoryValuation() {
                     width={90}
                   />
                   <Tooltip formatter={(v: number | undefined) => usd.format(v ?? 0)} />
-                  <Legend />
                   {selectedMonth && (
                     <ReferenceLine x={selectedMonth} stroke="#2563eb" strokeDasharray="4 4" />
                   )}
-                  <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
+                  {!hiddenSeries.has('Total') && (
+                    <Line type="monotone" dataKey="Total" stroke="#16a34a" strokeWidth={2} dot={false} />
+                  )}
                   {/* connectNulls: the reconstruction only covers the months the
                       rollback table holds, and a straight line drawn across the
                       gap would invent values it does not have. */}
-                  <Line
-                    type="monotone"
-                    dataKey="Reconstruction"
-                    stroke="#dc2626"
-                    strokeWidth={2}
-                    strokeDasharray="5 3"
-                    dot={false}
-                    connectNulls={false}
-                  />
-                  {allCategories.map((cat) => (
-                    <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
-                  ))}
+                  {!hiddenSeries.has('Reconstruction') && (
+                    <Line
+                      type="monotone"
+                      dataKey="Reconstruction"
+                      stroke="#dc2626"
+                      strokeWidth={2}
+                      strokeDasharray="5 3"
+                      dot={false}
+                      connectNulls={false}
+                    />
+                  )}
+                  {allCategories
+                    .filter((cat) => !hiddenSeries.has(cat))
+                    .map((cat) => (
+                      <Line key={cat} type="monotone" dataKey={cat} stroke={categoryColor(cat)} dot={false} />
+                    ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
