@@ -49,7 +49,11 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   // who drilled into March's category detail lands back on March's close rather
   // than on the newest month.
   const [month, setMonth] = useState<string | null>(initialMonth ?? null);
-  const [closeBasis, setCloseBasis] = useState<CloseBasis>('floor');
+  // Receipt-priced floor ONLY (Carson, 2026-08-26): with receipt coverage at
+  // >99.4% of value the full-coverage estimate converged to within 0.6% of the
+  // floor and the toggle became reviewer noise — the conservative basis is the
+  // one accounting reads. The API still accepts basis for history/export.
+  const closeBasis: CloseBasis = 'floor';
   const [monthlyClose, setMonthlyClose] = useState<MonthlyCloseResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -251,12 +255,10 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           entry that brings the QuickBooks inventory-asset balance to the FIFO figure.
         </p>
         <p>
-          <strong>Floor vs. full-coverage:</strong> the receipt-priced floor counts only stock traceable
-          to a priced purchase receipt (conservative); the full-coverage estimate counts everything on
-          LifeFile&rsquo;s lot report, with estimated prices where a receipt is missing. The switch moves
-          the <em>roll-forward and the rollback reference figures only</em> — the generated entry is
-          built from the lot ledger, which has one value per category, so it is the same either way. The
-          point-in-time values behind both live on the{' '}
+          <strong>Basis:</strong> everything here is the conservative <em>receipt-priced floor</em> —
+          only stock traceable to an actual priced purchase receipt is valued. Receipt coverage now
+          exceeds 99.4% of on-hand value, so the former full-coverage estimate converged to within 0.6%
+          and was retired (2026-08-26). The point-in-time values behind these figures live on the{' '}
           <a href="/inventory" className="underline">
             Inventory Valuation
           </a>{' '}
@@ -318,35 +320,9 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           </select>
         </label>
         <HelpTip
-          label="Floor vs. full-coverage — affects the REFERENCE figures only"
-          text="Which ending value the roll-forward and the rollback reference numbers are built from: the conservative receipt-priced floor, or the full-coverage estimate that includes estimated prices for stock without a matching receipt. It does NOT change what Generate drafts produces — the entry is summed from the lot-depletion ledger, which carries a single value per category (opening-balance estimates already resolved into their own category), so the generated entry is identical on either setting."
+          label="Basis: receipt-priced floor"
+          text="Every reference figure here is the conservative receipt-priced basis: only stock traceable to an actual priced purchase receipt is valued (over 99.4% of on-hand value). The former full-coverage estimate converged to within 0.6% of this and was retired 2026-08-26 — the generated entry was never affected either way, since it sums from the lot-depletion ledger."
         />
-        <div className={`inline-flex rounded-xl border p-1 ${cardBg} ${border}`}>
-          <button
-            onClick={() => setCloseBasis('floor')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
-              closeBasis === 'floor'
-                ? 'bg-blue-600 text-white'
-                : darkMode
-                  ? 'text-slate-300 hover:bg-slate-700'
-                  : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Receipt-priced floor
-          </button>
-          <button
-            onClick={() => setCloseBasis('full')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
-              closeBasis === 'full'
-                ? 'bg-blue-600 text-white'
-                : darkMode
-                  ? 'text-slate-300 hover:bg-slate-700'
-                  : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Full-coverage estimate
-          </button>
-        </div>
         {selectedMonth && (
           <a
             href={`/api/inventory/monthly-close?month=${encodeURIComponent(selectedMonth)}&basis=${closeBasis}&format=xlsx`}
