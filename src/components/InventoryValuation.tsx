@@ -314,9 +314,17 @@ export default function InventoryValuation() {
   /** True when every figure on screen is the one the close posts from. */
   const drillable = basis === 'accrual';
 
+  // Location AND category scope every value surface (headline, movement,
+  // breakdowns, trend). Search and lot-status are product-grain and scope the
+  // product table — the summary cells have no product/status dimension.
   const scopedCells = useMemo(
-    () => allCells.filter((c) => (location === 'all' || c.location === location)),
-    [allCells, location],
+    () =>
+      allCells.filter(
+        (c) =>
+          (location === 'all' || c.location === location) &&
+          (category === 'all' || c.qbCategory === category),
+      ),
+    [allCells, location, category],
   );
 
   const monthCells = useMemo(
@@ -392,14 +400,14 @@ export default function InventoryValuation() {
     // followed by an inexplicable collapse; with it, it reads as what it is —
     // one line drifting away from the other and then being pulled back.
     // Accrual only: the reconstruction has no cash basis.
-    if (basis === 'accrual') {
+    if (basis === 'accrual' && category === 'all') {
       for (const [m, value] of rollbackByMonth) {
         const entry = byMonth.get(m);
         if (entry) entry.Reconstruction = value;
       }
     }
     return [...byMonth.values()].sort((a, b) => String(a.month).localeCompare(String(b.month)));
-  }, [scopedCells, allCells, rollbackByMonth, basis]);
+  }, [scopedCells, allCells, rollbackByMonth, basis, category]);
 
   /** Default-visible series; a legend click flips a key away from its default.
    *  Location lines follow the page's location filter: filtering to Florida
@@ -479,13 +487,17 @@ export default function InventoryValuation() {
   // built backward from LifeFile's lot report, so a wide gap is the honest signal
   // that a month's forward simulation is running high.
   const rollbackTotal = useMemo(() => {
-    const rows = selectedMonth
-      ? rollbackRows.filter(
-          (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
-        )
-      : [];
+    // No category grain in the reconstruction: comparing it against a
+    // category-scoped headline would be apples to oranges, so the cross-check
+    // stands down while a category filter is active.
+    const rows =
+      selectedMonth && category === 'all'
+        ? rollbackRows.filter(
+            (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
+          )
+        : [];
     return { has: rows.length > 0, value: rows.reduce((s, r) => s + (r.value_floor ?? 0), 0) };
-  }, [rollbackRows, selectedMonth, location]);
+  }, [rollbackRows, selectedMonth, location, category]);
 
   const anchored = !!(summary && selectedMonth && summary.anchoredMonths.includes(selectedMonth));
   const dates = selectedMonth ? monthDates(selectedMonth) : null;
@@ -501,10 +513,11 @@ export default function InventoryValuation() {
       .filter(
         (r) =>
           r.as_of_month === selectedMonth &&
-          (location === 'all' || r.location === location),
+          (location === 'all' || r.location === location) &&
+          (category === 'all' || r.qb_category === category),
       )
       .reduce((s, r) => s + (r.pre_floor_collapsed_value ?? 0), 0);
-  }, [summary, selectedMonth, location]);
+  }, [summary, selectedMonth, location, category]);
 
   /**
    * The selected month's movement, from the SAME summary rows the close's
@@ -516,7 +529,10 @@ export default function InventoryValuation() {
   const monthMovement = useMemo(() => {
     if (basis !== 'accrual' || !summary || !selectedMonth) return null;
     const rows = summary.rows.filter(
-      (r) => r.as_of_month === selectedMonth && (location === 'all' || r.location === location),
+      (r) =>
+        r.as_of_month === selectedMonth &&
+        (location === 'all' || r.location === location) &&
+        (category === 'all' || r.qb_category === category),
     );
     if (rows.length === 0) return null;
     if (!rows.some((r) => r.waste_value_in_month !== null || r.shrink_value_in_month !== null)) return null;
@@ -527,7 +543,7 @@ export default function InventoryValuation() {
     const waste = sum((r) => r.waste_value_in_month ?? 0);
     const shrink = sum((r) => r.shrink_value_in_month ?? 0);
     return { purchases, cogs: consumed - waste - shrink, waste, shrink };
-  }, [basis, summary, selectedMonth, location]);
+  }, [basis, summary, selectedMonth, location, category]);
 
   const lotsQuery = useMemo(() => {
     const params = new URLSearchParams({
@@ -844,6 +860,44 @@ export default function InventoryValuation() {
               </option>
             ))}
           </select>
+          <select
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setPage(0);
+            }}
+            className={inputCls}
+          >
+            <option value="all">All Categories</option>
+            {allCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(0);
+            }}
+            className={inputCls}
+            title="Lot status is product-grain — it filters the product table below"
+          >
+            <option value="all">All Lots</option>
+            <option value="open">Open (qty remaining)</option>
+            <option value="fully_used">Fully Used</option>
+          </select>
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search product, NDC, or lot #"
+            className={`${inputCls} w-64`}
+            title="Search is product-grain — it filters the product table below"
+          />
           <span className={`text-xs ${subText}`}>
             {months.length > 0
               ? `${months.length} months available (${months[0]} – ${months[months.length - 1]})`
@@ -1215,45 +1269,13 @@ export default function InventoryValuation() {
         {/* Filters + product table */}
         <div className={`rounded-xl shadow-sm ${cardBg}`}>
           <div className="p-4 flex flex-wrap items-center gap-3 border-b border-inherit">
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Search product, NDC, or lot #"
-              className={`${inputCls} w-64`}
-            />
-            <select
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setPage(0);
-              }}
-              className={inputCls}
-            >
-              <option value="all">All Categories</option>
-              {allCategories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(0);
-              }}
-              className={inputCls}
-            >
-              <option value="all">All Lots</option>
-              <option value="open">Open (qty remaining)</option>
-              <option value="fully_used">Fully Used</option>
-            </select>
             <span className={`text-xs ${subText}`}>
               as of {selectedMonth ?? '—'}
               {location === 'all' ? '' : ` · ${shortInventoryLocation(location)}`}
+              {category === 'all' ? '' : ` · ${category}`}
+              {status === 'all' ? '' : ` · ${status === 'open' ? 'open lots' : 'fully used'}`}
+              {debouncedSearch ? ` · “${debouncedSearch}”` : ''}
+              {' — filters live in the bar at the top'}
             </span>
             <div className="ml-auto flex gap-2">
               <a href={exportHref('lots', 'csv')} className={exportBtnCls} style={exportBtnStyle}>
