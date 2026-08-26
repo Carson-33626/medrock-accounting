@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRdsPool } from '@/lib/rds';
 import { csvResponse, xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
 import { fetchRollbackRows } from '@/lib/inventory-rollback';
+import { GLOSSARY } from '@/lib/inventory/glossary';
 import type { Basis, SummaryResponse, ValuationSummaryRow } from '@/types/inventory';
 
 export const dynamic = 'force-dynamic';
@@ -175,10 +176,91 @@ export async function GET(request: NextRequest) {
           { headers: res.headers },
         );
       }
-      const note = `FIFO Inventory Valuation Summary — basis: ${basis}, generated ${new Date().toISOString()} (data as of nightly Data Loader run)`;
-      const sheets = [{ name: 'Valuation Summary', columns: EXPORT_COLUMNS, rows: exportRows }];
+      const note = `FIFO Inventory Valuation — basis: ${basis}, generated ${new Date().toISOString()} (data as of nightly Data Loader run)`;
+
+      // Workbook layout (Carson, 2026-08-26): 1. Definitions, 2. Totals &
+      // Summary, then one tab per location, with the reconstruction cross-check
+      // at the end. The flat CSV export keeps the old single-table shape.
+      const definitionRows: Record<string, CellValue>[] = GLOSSARY.map(([term, definition, source]) => ({
+        term,
+        definition,
+        source,
+      }));
+
+      const monthlyTotals = new Map<
+        string,
+        { on_hand: number; receipts: number; consumed: number; waste: number; shrink: number }
+      >();
+      for (const r of rows) {
+        const t = monthlyTotals.get(r.as_of_month) ?? { on_hand: 0, receipts: 0, consumed: 0, waste: 0, shrink: 0 };
+        t.on_hand += r.on_hand_value_fifo;
+        t.receipts += r.receipts_value_in_month;
+        t.consumed += r.consumed_value_in_month;
+        t.waste += r.waste_value_in_month ?? 0;
+        t.shrink += r.shrink_value_in_month ?? 0;
+        monthlyTotals.set(r.as_of_month, t);
+      }
+      const reconstructionByMonth = new Map<string, number>();
+      for (const r of rollbackRows) {
+        const m = String(r.as_of_month);
+        reconstructionByMonth.set(m, (reconstructionByMonth.get(m) ?? 0) + Number(r.value_floor ?? 0));
+      }
+      const totalsRows: Record<string, CellValue>[] = [...monthlyTotals.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([m, t]) => ({
+          as_of_month: m,
+          on_hand: t.on_hand,
+          receipts: t.receipts,
+          cogs_usage: t.consumed - t.waste - t.shrink,
+          waste: t.waste,
+          shrink: t.shrink,
+          reconstruction: reconstructionByMonth.get(m) ?? null,
+        }));
+
+      const perLocationColumns = EXPORT_COLUMNS.filter((c) => c.key !== 'location');
+      const exportLocations = [...new Set(rows.map((r) => r.location))].sort();
+
+      const sheets = [
+        {
+          name: 'Definitions',
+          columns: [
+            { header: 'Term', key: 'term' },
+            { header: 'Definition', key: 'definition' },
+            { header: 'Data Source', key: 'source' },
+          ] as ExportColumn[],
+          rows: definitionRows,
+          note: 'What each term on the other sheets means, and where its number comes from.',
+        },
+        {
+          name: 'Totals & Summary',
+          columns: [
+            { header: 'Month', key: 'as_of_month' },
+            { header: 'On-Hand Value', key: 'on_hand', currency: true },
+            { header: 'Purchases (Month)', key: 'receipts', currency: true },
+            { header: 'COGS — Usage (Month)', key: 'cogs_usage', currency: true },
+            { header: 'Waste (Month)', key: 'waste', currency: true },
+            { header: 'Shrink (Month)', key: 'shrink', currency: true },
+            { header: 'Reconstruction Cross-Check', key: 'reconstruction', currency: true },
+          ] as ExportColumn[],
+          rows: totalsRows,
+          note:
+            `${note} Company-wide by month. COGS is usage-driven consumption; waste and shrink post to ` +
+            'the dedicated 5000.55 line. The reconstruction is the independent backward valuation.',
+        },
+        ...exportLocations.map((loc) => ({
+          name: loc.slice(0, 31),
+          columns: perLocationColumns,
+          rows: exportRows.filter((r) => r.location === loc).map(({ location: _loc, ...rest }) => rest),
+          note: `${loc} — every month at (month × category) grain.`,
+        })),
+      ];
       if (rollbackRows.length > 0) {
-        sheets.push({ name: 'Rollback Cross-Check', columns: ROLLBACK_COLUMNS, rows: rollbackRows });
+        sheets.push({
+          name: 'Rollback Cross-Check',
+          columns: ROLLBACK_COLUMNS,
+          rows: rollbackRows,
+          note: 'The independent backward valuation, per location and month — the standing control.',
+        });
       }
       return xlsxResponse(sheets, filename, note);
     }

@@ -620,7 +620,9 @@ export default function InventoryValuation() {
   const exportHref = useCallback(
     (kind: 'summary' | 'lots', format: 'csv' | 'xlsx'): string => {
       if (kind === 'summary') {
-        return `/api/inventory/summary?basis=${basis}&location=${encodeURIComponent(location)}&format=${format}`;
+        // Always company-wide: the workbook carries one tab per location, so a
+        // page filter must not produce a one-tab book.
+        return `/api/inventory/summary?basis=${basis}&location=all&format=${format}`;
       }
       const params = new URLSearchParams({ location, category, status, format });
       if (selectedMonth) params.set('month', selectedMonth);
