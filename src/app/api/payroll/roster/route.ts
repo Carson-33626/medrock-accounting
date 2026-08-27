@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 import { loadDraft } from '@/lib/payroll/store';
 import { costCenterFor, deptLabelFor } from '@/lib/payroll/cost-center';
@@ -57,8 +57,8 @@ interface ApiErrorBody {
  * never returns dollar amounts. Mirrors the plaintext discipline of /api/payroll/marketers.
  */
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const headerIdParam = request.nextUrl.searchParams.get('headerId');

@@ -3,7 +3,8 @@
  *
  * Wrap your app with AuthProvider, then use useAuth() in components.
  *
- * MedRock Auth Integration Package 1.3.0 — canonical (direct) flow.
+ * MedRock Auth Integration Package 1.8.0 — canonical (direct) flow.
+ * (Hook logic unchanged since 1.3.0; version bumped to track the vendored package.)
  * Calls the auth host directly with `credentials: 'include'`; the shared
  * `.medrockpharmacy.com` session cookie travels cross-origin, so no local
  * proxy routes are needed. (This app previously forked to a /api/auth/* proxy

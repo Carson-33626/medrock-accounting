@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PayrollHeader } from '@/lib/payroll/store';
 import type { JournalLine } from '@/lib/payroll/types';
 
-vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
+vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 
 const loadDraft = vi.fn(async (..._a: unknown[]) => null as { header: PayrollHeader; lines: JournalLine[] } | null);
 const listSiblings = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);

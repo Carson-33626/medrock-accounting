@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { splitStraddle } from '@/lib/payroll/split';
@@ -36,8 +36,8 @@ interface RouteContext {
  * saveDraft C1 gate would skip it anyway) and a closed period.
  */
 export async function POST(_request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;

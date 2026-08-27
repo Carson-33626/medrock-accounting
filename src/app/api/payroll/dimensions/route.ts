@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
 import type { Entity } from '@/lib/payroll/types';
@@ -17,8 +17,8 @@ function isEntity(value: string): value is Entity {
  * fetchDimensions failure is reported as 502 (bad upstream) rather than 500.
  */
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   const entity = request.nextUrl.searchParams.get('entity');
   if (!entity || !isEntity(entity)) {

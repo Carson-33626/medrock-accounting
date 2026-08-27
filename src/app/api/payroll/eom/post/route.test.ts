@@ -4,7 +4,7 @@ import type { JournalLine } from '@/lib/payroll/types';
 import type { PostResult } from '@/lib/payroll/qb-journal';
 import type { EomRun } from '@/lib/payroll/eom-store';
 
-vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
+vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 
 const loadDraft = vi.fn(async (..._a: unknown[]) => null as { header: PayrollHeader; lines: JournalLine[] } | null);
 const insertAudit = vi.fn(async (..._a: unknown[]) => undefined);

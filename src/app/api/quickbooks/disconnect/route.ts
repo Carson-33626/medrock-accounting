@@ -3,7 +3,7 @@
  *
  * Removes QB tokens for a specific location from the database.
  *
- * SECURITY (2026-08-10): gated behind `requireAdmin()` alongside authorize/callback. Dropping a
+ * SECURITY (2026-08-10): gated behind `requireManager()` alongside authorize/callback. Dropping a
  * company's tokens breaks every payroll post, allocation pull and account lookup for that entity
  * until someone reconnects, so it is an admin action — not something any accounting-app user
  * should be able to trigger, and not something that should rely on middleware alone
@@ -11,15 +11,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { disconnect, LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { searchParams } = new URL(request.url);

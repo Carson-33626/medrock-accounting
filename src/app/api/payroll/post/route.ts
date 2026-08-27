@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
@@ -40,8 +40,8 @@ interface PostRequestBody {
  * Every attempt (dry_run and live, success, failure, and blocked) is audited.
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   let headerId: number | null = null;
   let mode: 'dry_run' | 'live' = 'dry_run';

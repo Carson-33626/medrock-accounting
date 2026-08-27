@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { loadDraft, listSiblings, setHeaderDocNumber, insertAudit } from '@/lib/payroll/store';
 import { deriveJeIdentity } from '@/lib/payroll/je-identity';
 import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
@@ -78,8 +78,8 @@ async function derivedDocNumber(headerId: number): Promise<
  * is what `nextFreeDocNumber` needs to avoid renaming into a second collision.
  */
 export async function GET(_request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;
@@ -153,8 +153,8 @@ interface PatchBody {
  *   - a posted header is refused (setHeaderDocNumber), and so is a closed period.
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;

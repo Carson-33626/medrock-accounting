@@ -1,5 +1,5 @@
 import { LocationAnalytics } from '@/components/LocationAnalytics';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export const metadata = {
 
 export default async function LocationAnalyticsPage() {
   // Financial P&L — admin only (redirects non-admins).
-  await requireAdmin();
+  await requireManager();
 
   return <LocationAnalytics />;
 }

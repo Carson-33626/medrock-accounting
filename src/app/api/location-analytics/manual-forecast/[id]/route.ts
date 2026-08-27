@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { validateManualForecastInput } from '@/lib/forecast/manual-forecast-validate';
 import {
   deleteManualForecast,
@@ -27,8 +27,8 @@ function parseId(raw: string): number | null {
 
 /** GET /api/location-analytics/manual-forecast/[id] — load one manual forecast. */
 export async function GET(_request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;
@@ -52,8 +52,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
 /** PUT /api/location-analytics/manual-forecast/[id] — replace a manual forecast. */
 export async function PUT(request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;
@@ -89,8 +89,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
 /** DELETE /api/location-analytics/manual-forecast/[id] — remove a manual forecast. */
 export async function DELETE(_request: NextRequest, context: RouteContext) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { id } = await context.params;

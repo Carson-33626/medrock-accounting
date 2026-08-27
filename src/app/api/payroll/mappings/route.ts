@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import {
   getAccountMap,
   getEmployeeMap,
@@ -56,8 +56,8 @@ function accountRuleError(rule: AccountMapRule): string | null {
 
 /** GET /api/payroll/mappings?entity= — list account + employee mapping rules for one entity. */
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const entity = request.nextUrl.searchParams.get('entity');
@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
  * natural-key upsert is used (idempotent seed path for brand-new rules).
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const body = (await request.json()) as MappingsPostBody;
@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
 
 /** DELETE /api/payroll/mappings { kind, id } — delete one account or employee mapping rule by surrogate id. */
 export async function DELETE(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const body = (await request.json()) as MappingsDeleteBody;

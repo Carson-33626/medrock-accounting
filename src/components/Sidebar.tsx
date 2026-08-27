@@ -24,7 +24,7 @@ const navigation = [
   { name: 'Deposit Review', href: '/deposit-review', icon: ListCheckIcon },
 ];
 
-// Admin-only navigation. These pages enforce an admin role server-side (requireAdmin),
+// Admin-only navigation. These pages enforce an admin role server-side (requireManager),
 // so they're hidden from non-admins here to avoid the bounce-back-to-home trap.
 // (User management lives in the central auth system.)
 const adminNavigation = [

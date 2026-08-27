@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { invCloseDocNumber, openingCorrectionDocNumber } from '@/lib/inventory/monthly-close';
@@ -32,8 +32,8 @@ function monthFromPayDate(payDate: string): string {
  * Every attempt (dry_run and live; blocked, preview, posted, error) is audited.
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   let headerId: number | null = null;
   let mode: 'dry_run' | 'live' = 'dry_run';

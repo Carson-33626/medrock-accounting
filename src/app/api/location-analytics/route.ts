@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { computeLocationAnalytics } from '@/lib/location-analytics';
 import { csvResponse, xlsxResponse, type CellValue, type ExportColumn } from '@/lib/inventory-export';
 import type { Basis } from '@/types/location-analytics';
@@ -26,8 +26,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
 ];
 
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const sp = request.nextUrl.searchParams;

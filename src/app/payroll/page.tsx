@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { PayrollTabs } from './components/PayrollTabs';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function PayrollPage() {
-  await requireAdmin();
+  await requireManager();
 
   return <PayrollTabs />;
 }

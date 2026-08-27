@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
 import { buildJournal, mergeRebuiltLines } from '@/lib/payroll/build-je';
@@ -47,8 +47,8 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
  * reflected in the balance. The updated draft (header + lines) rides back in `rebuiltDraft`.
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const body = (await request.json()) as ReconcileRequestBody;

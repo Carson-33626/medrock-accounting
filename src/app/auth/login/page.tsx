@@ -18,10 +18,13 @@ function LoginRedirect() {
   const redirectUrl = searchParams.get('redirect') || '/';
 
   useEffect(() => {
+    // `redirect` may already be absolute (the middleware passes full URLs). Resolving it
+    // against the current origin handles both forms — blindly concatenating produced
+    // "https://apphttps://app/page" for the absolute case.
+    const absoluteRedirect = new URL(redirectUrl, window.location.origin).toString();
+
     // Redirect to centralized auth service
-    const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(
-      window.location.origin + redirectUrl
-    )}`;
+    const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(absoluteRedirect)}`;
     window.location.href = loginUrl;
   }, [redirectUrl]);
 

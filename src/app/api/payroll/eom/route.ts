@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { getEomRun, listEomHeaders, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
 import { loadDraft } from '@/lib/payroll/store';
 import type { JournalLine } from '@/lib/payroll/types';
@@ -22,8 +22,8 @@ function parseMonthParam(raw: string | null): { month: string; m: Month } | null
  * returns `run: null, headers: []` rather than 404 — the tab renders a "generate" prompt.
  */
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const parsed = parseMonthParam(request.nextUrl.searchParams.get('month'));

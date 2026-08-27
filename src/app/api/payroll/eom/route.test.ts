@@ -3,7 +3,7 @@ import type { EomRun } from '@/lib/payroll/eom-store';
 import type { PayrollHeader } from '@/lib/payroll/store';
 import type { JournalDraft } from '@/lib/payroll/types';
 
-vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
+vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 
 const getEomRun = vi.fn(async (..._a: unknown[]) => null as EomRun | null);
 const listEomHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);

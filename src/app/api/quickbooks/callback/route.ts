@@ -7,7 +7,7 @@
  * SECURITY (2026-08-10): this route writes the tokens that every later QuickBooks read and write
  * runs against, so the location it binds them to now comes ONLY from a verified state:
  *
- *  - `requireAdmin()` before anything else.
+ *  - `requireManager()` before anything else.
  *  - `verifyOAuthState` checks the HMAC (we minted it), the expiry, and that the nonce matches the
  *    httpOnly cookie set when the flow started (same browser started it). The location is read out
  *    of that verified payload — it is never taken from an unauthenticated query param again.
@@ -18,7 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { exchangeCodeForTokens, fetchCompanyName, storeTokens } from '@/lib/quickbooks-multi';
 import { OAUTH_STATE_COOKIE, STATE_FAILURE_MESSAGE, verifyOAuthState } from '@/lib/quickbooks-oauth-state';
 
@@ -36,8 +36,8 @@ function redirectClearingState(request: NextRequest, target: string): NextRespon
 }
 
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { searchParams } = new URL(request.url);

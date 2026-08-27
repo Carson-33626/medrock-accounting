@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { computeOpeningCorrection, generateOpeningCorrectionDrafts } from '@/lib/inventory/close-server';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,8 @@ export const maxDuration = 120;
  * is locked once any correction has posted.
  */
 export async function POST() {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const result = await generateOpeningCorrectionDrafts();

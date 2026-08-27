@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { getRdsPool } from '@/lib/rds';
 
 export const dynamic = 'force-dynamic';
@@ -23,8 +23,8 @@ interface ApiErrorBody {
  * Uses each position's most recent name (people can be renamed / re-keyed over time).
  */
 export async function GET() {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { rows } = await getRdsPool().query<NameRow>(

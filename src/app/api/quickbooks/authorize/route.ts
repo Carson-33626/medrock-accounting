@@ -6,7 +6,7 @@
  * SECURITY (2026-08-10): this route decides which of our four QuickBooks slots a realm will be
  * bound into, so it is gated twice.
  *
- *  - `requireAdmin()` — the middleware already demands a valid session with the `accounting` app
+ *  - `requireManager()` — the middleware already demands a valid session with the `accounting` app
  *    slug, but that is every accounting user. Binding a company's books is an admin action, and
  *    the route must not depend on middleware alone (DEV_SKIP_AUTH bypasses it wholesale).
  *  - A signed, single-use `state` (see quickbooks-oauth-state.ts). The nonce inside it is also
@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { getAuthorizationUrl, LOCATION_MAPPING, type Location } from '@/lib/quickbooks-multi';
 import { createOAuthState, OAUTH_STATE_COOKIE } from '@/lib/quickbooks-oauth-state';
 
@@ -24,8 +24,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const { searchParams } = new URL(request.url);

@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 import { Loader2, CheckCircle2, XCircle, ExternalLink, AlertCircle } from 'lucide-react';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { QuickBooksConnectionManager } from '@/components/admin/QuickBooksConnectionManager';
 
 export const dynamic = 'force-dynamic';
 
 export default async function QuickBooksAdminPage() {
-  await requireAdmin(); // Restrict to admin and super_admin only
+  await requireManager(); // Restrict to admin and super_admin only
 
   return (
     <div className="p-8">

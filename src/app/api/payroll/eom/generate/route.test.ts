@@ -5,7 +5,7 @@ import type { JournalDraft } from '@/lib/payroll/types';
 import type { PayrollHeader } from '@/lib/payroll/store';
 import type { Refs } from '@/lib/payroll/qb-journal';
 
-vi.mock('@/lib/auth', () => ({ requireAdmin: vi.fn(async () => undefined) }));
+vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 
 const fetchRevenuePresence = vi.fn(async (..._a: unknown[]) => ({}) as RevenueTest);
 const sharesFromRevenue = vi.fn((..._a: unknown[]) => ({}) as Record<string, number> | null);

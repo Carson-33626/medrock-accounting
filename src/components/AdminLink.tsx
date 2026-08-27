@@ -106,14 +106,21 @@ export function AdminLink({
 }
 
 /**
- * useIsAdmin hook - Check if current user is an admin
+ * useIsAdmin hook - Check the current user's role tier
+ *
+ * ⚠️ Tier reminder: the role string `'admin'` is the MANAGER tier; the admin tier is
+ * `'super_admin'`. Gate admin-only features on `isSuperAdmin`, manager features on
+ * `isManager`.
  *
  * Usage:
  * ```tsx
- * const { isAdmin, isSuperAdmin, loading } = useIsAdmin();
+ * const { isSuperAdmin, isManager, loading } = useIsAdmin();
  *
  * if (isSuperAdmin) {
  *   // Show admin features
+ * }
+ * if (isManager) {
+ *   // Show supervisor features (managers + admins)
  * }
  * ```
  */
@@ -121,8 +128,12 @@ export function useIsAdmin() {
   const { user, loading } = useAuth();
 
   return {
-    isAdmin: authClient.isAdmin(user),
+    /** True for the admin tier (`super_admin`). */
     isSuperAdmin: authClient.isSuperAdmin(user),
+    /** True for the manager tier (`admin`) and above. */
+    isManager: authClient.isManager(user),
+    /** @deprecated Alias of `isSuperAdmin` since 1.6.0. Use `isSuperAdmin` or `isManager`. */
+    isAdmin: authClient.isSuperAdmin(user),
     loading,
     user,
   };

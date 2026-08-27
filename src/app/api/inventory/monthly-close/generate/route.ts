@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { generateInvCloseDrafts, loadStoredDrafts, monthEndDate } from '@/lib/inventory/close-server';
 import type { CloseBasis } from '@/types/inventory';
 
@@ -20,8 +20,8 @@ interface GenerateRequestBody {
  * once any draft for the month has posted, mirroring the EOM generate gate.
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const body = (await request.json()) as GenerateRequestBody;

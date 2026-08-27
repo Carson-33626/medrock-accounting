@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { validateManualForecastInput } from '@/lib/forecast/manual-forecast-validate';
 import { createManualForecast, listManualForecasts } from '@/lib/forecast/manual-forecast-repo';
 
@@ -14,8 +14,8 @@ function isPgError(error: unknown): error is { code: string; message?: string } 
 
 /** GET /api/location-analytics/manual-forecast — list all manual forecasts. */
 export async function GET() {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const data = await listManualForecasts();
@@ -29,8 +29,8 @@ export async function GET() {
 
 /** POST /api/location-analytics/manual-forecast — create a manual forecast. */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  const admin = await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  const admin = await requireManager();
 
   try {
     const body: unknown = await request.json();

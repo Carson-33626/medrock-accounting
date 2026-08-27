@@ -120,17 +120,42 @@ function getSupabase() {
   });
 }
 
+/**
+ * Role tiers — these MUST match the auth host's `src/lib/role-predicates.ts`.
+ *
+ *   'user'        → standard employee
+ *   'admin'       → MANAGER tier. Gates auth.medrockpharmacy.com/manager and /api/manager/*
+ *   'super_admin' → ADMIN tier. Gates auth.medrockpharmacy.com/admin and /api/admin/*
+ *
+ * ⚠️ Read that twice: the stored role string `'admin'` is the **manager** tier, NOT the
+ * admin tier. Anything the auth host calls "admin" is `super_admin`. If you gate a
+ * sensitive surface on `role === 'admin' || role === 'super_admin'` you are granting it
+ * to every manager. Use `isSuperAdminRole()` / `requireSuperAdmin()` instead.
+ */
+export type UserRole = 'user' | 'admin' | 'super_admin';
+
+/** True only for the admin tier (`super_admin`). Mirrors the host's `isAdminRole`. */
+export function isSuperAdminRole(role: string | null | undefined): boolean {
+  return role === 'super_admin';
+}
+
+/** True for the manager tier (`admin`) and above (`super_admin`). Mirrors the host's `isManagerRole`. */
+export function isManagerRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'super_admin';
+}
+
 export interface AuthUser {
   id: string;
   email: string;
   first_name: string | null;
   last_name: string | null;
   full_name: string | null;
-  role: 'user' | 'admin' | 'super_admin';
+  /** See {@link UserRole} — `'admin'` is the MANAGER tier, `'super_admin'` is the admin tier. */
+  role: UserRole;
   regions?: string[];
   departments?: string[];
-  /** Single-valued office location (FL | TN | TX) for Task System grouping. */
-  location?: 'FL' | 'TN' | 'TX' | null;
+  /** Single-valued office location (FL | TN | TX | FOCAS) for Task System grouping. */
+  location?: 'FL' | 'TN' | 'TX' | 'FOCAS' | null;
   /** Single-valued canonical department for Task System grouping. */
   department?: string | null;
 }
@@ -267,29 +292,44 @@ export async function requireAuth(): Promise<AuthUser> {
 }
 
 /**
- * Require admin role - redirects if not admin
+ * Require the manager tier (`admin` or `super_admin`) — redirects home if not.
+ *
+ * This is the tier the auth host uses to gate /manager. Use it for supervisor-level
+ * surfaces (team rosters, department reports), NOT for admin-only surfaces.
  */
-export async function requireAdmin(): Promise<AuthUser> {
+export async function requireManager(): Promise<AuthUser> {
   const user = await requireAuth();
 
-  if (user.role !== 'admin' && user.role !== 'super_admin') {
-    redirect('/'); // Redirect to home if not admin
+  if (!isManagerRole(user.role)) {
+    redirect('/'); // Redirect to home if not a manager
   }
 
   return user;
 }
 
 /**
- * Require super admin role - redirects if not super admin
+ * Require the admin tier (`super_admin`) — redirects home if not.
  */
 export async function requireSuperAdmin(): Promise<AuthUser> {
   const user = await requireAuth();
 
-  if (user.role !== 'super_admin') {
+  if (!isSuperAdminRole(user.role)) {
     redirect('/'); // Redirect to home if not super admin
   }
 
   return user;
+}
+
+/**
+ * @deprecated Ambiguous since 1.6.0 — the role string `'admin'` is the MANAGER tier.
+ *
+ * Prior to 1.6.0 this accepted `'admin' || 'super_admin'`, which silently granted
+ * admin surfaces to every manager. It is now an alias of {@link requireSuperAdmin}.
+ * Call `requireSuperAdmin()` for admin surfaces or `requireManager()` for manager
+ * surfaces and delete your use of this function.
+ */
+export async function requireAdmin(): Promise<AuthUser> {
+  return requireSuperAdmin();
 }
 
 /**

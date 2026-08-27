@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { loadDraft, listSiblings } from '@/lib/payroll/store';
 import { buildJeExportSheet, buildRunJeExportWorkbook, type JeExportPiece } from '@/lib/payroll/je-export';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
@@ -28,8 +28,8 @@ export const runtime = 'nodejs';
  * best-effort: if QuickBooks is unreachable the export still streams, just with blank Account #.
  */
 export async function GET(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const headerId = Number(request.nextUrl.searchParams.get('headerId'));

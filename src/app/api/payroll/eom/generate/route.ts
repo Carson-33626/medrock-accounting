@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
-import { requireAdmin } from '@/lib/auth';
+import { requireManager } from '@/lib/auth';
 import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '@/lib/payroll/revenue-rule';
 import { fetchAllocationPool, type PoolLine } from '@/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '@/lib/payroll/month-end';
@@ -43,8 +43,8 @@ const toJson = <T,>(value: T): JsonValue => JSON.parse(JSON.stringify(value)) as
  * accountant must un-post in QuickBooks first rather than silently orphaning a live JE.
  */
 export async function POST(request: NextRequest) {
-  // requireAdmin redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
-  await requireAdmin();
+  // requireManager redirects (throws NEXT_REDIRECT) — must run outside the try so Next handles it.
+  await requireManager();
 
   try {
     const body = (await request.json()) as GenerateRequestBody;
