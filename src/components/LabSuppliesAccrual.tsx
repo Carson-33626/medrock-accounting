@@ -21,6 +21,13 @@ const METHOD = [
   'month nobody has entered yet accrues the full average, and the accrual shrinks to nothing as ',
   'the real bills arrive — it reverses itself rather than standing as a permanent estimate.',
   '\n\n',
+  'It credits 2011 Accrued Expenses, not the 1220.20 inventory account. An accrual covers ',
+  'supplies received where no bill has been keyed at all, so nothing has landed in 1220.20 for ',
+  'it and there is no asset to relieve — crediting one anyway would drive it negative every ',
+  'month. Relieving the inventory that HAS been keyed is a separate entry the FIFO close already ',
+  'posts on its own. The accrual is dated month-end and reverses on the first of the next month, ',
+  'so once the real bills arrive and the close expenses them the cost is not counted twice.',
+  '\n\n',
   'Completeness is the LOWER of two measures: (1) how complete a month this old usually is, from ',
   'a curve fitted on months old enough to have settled; and (2) how many documents have actually ',
   'been entered, against that location’s normal monthly count. The second exists because the ',
@@ -86,7 +93,8 @@ export default function LabSuppliesAccrual({
       <p className={`text-xs mt-1 ${subText}`}>
         This category was cleared out of FIFO because the purchasing never routes through LifeFile.
         These are the accrual amounts that replace it — posted as{' '}
-        <span className="font-medium">Dr 5000.25 Lab Supplies / Cr 1220.20 Lab Supplies Inventory</span>.
+        <span className="font-medium">Dr 5000.25 Lab Supplies / Cr 2011 Accrued Expenses</span>,
+        reversing on the first of the following month.
       </p>
 
       {loading && <p className={`text-xs mt-3 ${subText}`}>Reading QuickBooks…</p>}
