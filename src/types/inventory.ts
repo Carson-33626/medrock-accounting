@@ -166,9 +166,29 @@ export interface CategoryCogsSeriesRow {
   cogs: number;
 }
 
-/** `/api/inventory/cogs` — the whole COGS history plus the cutover marker. */
+/**
+ * One (month, location, category) cell of the ledger movement series — every
+ * month's ending value, purchases and consumption at once.
+ *
+ * A month's BEGINNING is not a column here: it is the prior month's `endingValue`,
+ * read off the same series. Storing it twice is how two figures that are the same
+ * number by definition start disagreeing.
+ */
+export interface CategoryLedgerMovementRow {
+  month: string;
+  location: string;
+  qbCategory: string;
+  /** `remaining_value` at that month end. */
+  endingValue: number;
+  /** Lots received IN that month, at cost. */
+  purchasesValue: number;
+  /** `qty_consumed x unit_cost` for the month. $0 for opening-balance lots. */
+  consumedValue: number;
+}
+
+/** `/api/inventory/cogs` — the whole movement history plus the cutover marker. */
 export interface CogsSeriesResponse {
-  rows: CategoryCogsSeriesRow[];
+  rows: CategoryLedgerMovementRow[];
   firstAnchoredMonth: string | null;
 }
 
