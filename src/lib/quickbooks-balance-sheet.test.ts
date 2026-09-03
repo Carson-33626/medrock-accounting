@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseInventoryAssetSection } from './quickbooks-multi';
+import { buildBalanceSheetEndpoint, parseInventoryAssetSection } from './quickbooks-multi';
 
 /**
  * Fixture modeled on the real QB BalanceSheet report tree (single end_date, so
@@ -94,5 +94,43 @@ describe('parseInventoryAssetSection', () => {
 
   it('returns null for an empty report', () => {
     expect(parseInventoryAssetSection({})).toBeNull();
+  });
+});
+
+/**
+ * Regression guard for the 2026-09-03 bug: QuickBooks silently ignores `end_date`
+ * on the BalanceSheet report unless `start_date` is also sent. It still answers
+ * 200 with a well-formed report, so the close page happily computed six different
+ * months' adjustments against ONE set of balances (TN qbBookBalance 976,579.84 and
+ * 1220.10 Compound Ingredient 630,754.05 came back identically for month=2026-03
+ * and month=2026-06, while the FIFO target correctly moved 652,419.72 ->
+ * 830,532.09). There is no runtime signal for this, so the test is the guard.
+ */
+describe('buildBalanceSheetEndpoint', () => {
+  it('always sends start_date — without it QuickBooks ignores end_date', () => {
+    const endpoint = buildBalanceSheetEndpoint('2026-03-31');
+    expect(endpoint).toContain('start_date=');
+    const params = new URLSearchParams(endpoint.slice(endpoint.indexOf('?') + 1));
+    expect(params.get('start_date')).toBeTruthy();
+    expect(params.get('end_date')).toBe('2026-03-31');
+  });
+
+  it('keeps start_date at or before the requested as-of date for every month we close', () => {
+    // A start_date AFTER end_date is the one way this fix could silently break.
+    for (const asOf of ['2022-09-30', '2025-12-31', '2026-02-28', '2026-03-31', '2026-08-31']) {
+      const params = new URLSearchParams(
+        buildBalanceSheetEndpoint(asOf).slice(buildBalanceSheetEndpoint(asOf).indexOf('?') + 1),
+      );
+      const start = params.get('start_date') ?? '';
+      expect(start <= asOf).toBe(true);
+    }
+  });
+
+  it('still requests the accrual basis, pinned minor version, and distinct dates per month', () => {
+    const march = buildBalanceSheetEndpoint('2026-03-31');
+    const june = buildBalanceSheetEndpoint('2026-06-30');
+    expect(march).toContain('accounting_method=Accrual');
+    expect(march).toContain('minorversion=75');
+    expect(march).not.toBe(june);
   });
 });

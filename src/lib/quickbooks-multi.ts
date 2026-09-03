@@ -1197,6 +1197,40 @@ export function parseInventoryAssetSection(report: QbBalanceSheetReport): Invent
 }
 
 /**
+ * A `start_date` that predates every transaction in every realm.
+ *
+ * ⚠ NOT COSMETIC, AND NOT OPTIONAL. QuickBooks **silently ignores `end_date` on
+ * the BalanceSheet report when `start_date` is absent** and answers with its own
+ * default period instead. The request still returns 200 and a well-formed report,
+ * so nothing downstream can tell it got the wrong date — which is exactly how this
+ * went unnoticed: from 2026-03 through 2026-06 the close page asked for six
+ * different month-ends and QuickBooks returned the *same* balances every time
+ * (verified live 2026-09-03: TN `qbBookBalance` 976,579.84 and 1220.10 Compound
+ * Ingredient 630,754.05 for both `month=2026-03` and `month=2026-06`, while the
+ * FIFO target moved 652,419.72 → 830,532.09 as it should).
+ *
+ * The fix is to send a `start_date` — proven by `_sweep-L9-balance-sheet.ts`,
+ * which passes one and does get distinct, correct balances per date. A balance
+ * sheet is cumulative, so the start date does not affect the reported balances;
+ * it only makes QuickBooks honour `end_date`. Do not remove it, and do not
+ * "simplify" it away.
+ */
+const BALANCE_SHEET_EPOCH = '2000-01-01';
+
+/**
+ * The BalanceSheet report endpoint for an as-of date. Extracted and exported ONLY
+ * so the `start_date` above is covered by a test that fails loudly if anyone drops
+ * it — the live symptom is silent and looks like correct data.
+ */
+export function buildBalanceSheetEndpoint(asOfDate: string): string {
+  return (
+    `reports/BalanceSheet?start_date=${BALANCE_SHEET_EPOCH}` +
+    `&end_date=${encodeURIComponent(asOfDate)}` +
+    '&accounting_method=Accrual&minorversion=75'
+  );
+}
+
+/**
  * Read a location's inventory-asset book balance from QuickBooks as of a
  * month-end date (point-in-time BalanceSheet, Accrual). Returns null — never
  * throws — when the realm is disconnected or the section is missing, so callers
@@ -1213,9 +1247,7 @@ export async function getBalanceSheetInventory(
   if (!tokens) return null;
 
   try {
-    const endpoint = `reports/BalanceSheet?end_date=${encodeURIComponent(
-      asOfDate,
-    )}&accounting_method=Accrual&minorversion=75`;
+    const endpoint = buildBalanceSheetEndpoint(asOfDate);
     const report = await qbRequest<QbBalanceSheetReport>(endpoint, location, { method: 'GET' });
     return parseInventoryAssetSection(report);
   } catch (error) {
