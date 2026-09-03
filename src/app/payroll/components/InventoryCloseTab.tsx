@@ -441,6 +441,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           <JournalEntryPanel
             journalEntries={monthlyClose.journalEntries}
             categoryJournalEntries={monthlyClose.categoryJournalEntries}
+            categoryRollForward={monthlyClose.categoryRollForward}
             basis={monthlyClose.basis}
             monthEnd={monthlyClose.monthEnd}
             month={selectedMonth}

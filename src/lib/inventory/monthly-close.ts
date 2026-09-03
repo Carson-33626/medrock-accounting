@@ -366,6 +366,10 @@ export interface CategoryLedgerValue {
   location: string;
   qbCategory: string;
   endingValue: number;
+  /** Lots received IN this month, at cost. */
+  purchasesValue: number;
+  /** qty_consumed x unit_cost for the month. $0 for opening-balance lots (no unit cost). */
+  consumedValue: number;
   /** Distinct receipt_ids contributing — the drill-down key set. */
   receiptIds: string[];
   lotCount: number;
@@ -377,11 +381,25 @@ export interface CategoryLedgerValue {
 export const categoryKey = (location: string, qbCategory: string): string => `${location}\u0000${qbCategory}`;
 
 /**
- * Category-grain roll-forward for one month. Unlike the location-grain
- * `buildRollForward`, there is no Purchases column: the lot ledger carries
- * remaining value per lot, not a purchases roll — Beginning and Ending are the
- * defensible pair, and COGS at category grain would need a purchases cut the
- * loader does not emit. Rows sort by descending Ending.
+ * Category-grain roll-forward for one month: Beginning + Purchases - COGS = Ending.
+ *
+ * This DID once stop at Beginning and Ending, on the grounds that COGS at category
+ * grain needed a purchases cut the loader does not emit. That was wrong, and the
+ * accountants need the movement (Carson, 2026-09-03: "the exact COGS that moved
+ * from start to end broken down by category detail"). Purchases come from the
+ * receipt dates of the very lots behind Ending, and COGS from the ledger's own
+ * per-month `qty_consumed` — see `ledger-values.ts`.
+ *
+ * COGS IS TAKEN AS THE PLUG (`beginning + purchases - ending`), deliberately.
+ * Measured across 2026-03, -06 and -07: the plug equals the unit-cost derivation to
+ * the cent on 12 of 13 (location, category) cells. The one that differs every month
+ * is Florida's `Opening Balance` bucket — OB lots have no `unit_cost`, so the
+ * unit-cost term reads $0 while their remaining value genuinely declines ($220.38,
+ * $125.78, $176.25 in those months). Using the plug keeps the roll-forward footing
+ * by construction, which is the entire point of showing one; `consumedValue` is
+ * carried alongside so the two can be compared rather than silently reconciled.
+ *
+ * Rows sort by descending Ending.
  */
 export function buildCategoryRollForward(
   current: CategoryLedgerValue[],
@@ -399,6 +417,18 @@ export function buildCategoryRollForward(
       // A category present now but absent last month began at zero — distinct
       // from the window start, where there is no prior month to speak of at all.
       beginning: windowStart ? null : round2(priorByKey.get(categoryKey(c.location, c.qbCategory)) ?? 0),
+      purchases: round2(c.purchasesValue),
+      // Null at the window start: with no Beginning there is nothing to plug against,
+      // and a COGS figure invented from a missing opening is worse than a blank.
+      cogs: windowStart
+        ? null
+        : round2(
+            (priorByKey.get(categoryKey(c.location, c.qbCategory)) ?? 0) +
+              c.purchasesValue -
+              c.endingValue,
+          ),
+      /** The loader-consistent figure, for comparison — see the note above. */
+      consumed: round2(c.consumedValue),
       ending: round2(c.endingValue),
       receiptIds: c.receiptIds,
       lotCount: c.lotCount,

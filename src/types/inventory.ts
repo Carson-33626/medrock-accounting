@@ -163,6 +163,19 @@ export interface CategoryRollForwardRow {
   location: string;
   qbCategory: string;
   beginning: number | null; // null at the earliest month in the ledger
+  /** Lots received IN this month, at cost. */
+  purchases: number;
+  /**
+   * The movement the accountants asked for: beginning + purchases - ending.
+   * Null at the window start, where there is no beginning to plug against.
+   */
+  cogs: number | null;
+  /**
+   * The same figure derived from the ledger's per-month `qty_consumed x unit_cost`.
+   * Equals `cogs` everywhere a cost basis exists; reads $0 for opening-balance lots,
+   * which have none. Kept so the two can be compared, not silently reconciled.
+   */
+  consumed: number;
   ending: number;
   /** Distinct receipt_ids behind `ending` — the drill-down key set. */
   receiptIds: string[];

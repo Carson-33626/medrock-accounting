@@ -314,6 +314,8 @@ describe('QuickBooks account constants', () => {
 
 const clv = (over: Partial<CategoryLedgerValue> & { location: string; qbCategory: string }): CategoryLedgerValue => ({
   endingValue: 0,
+  purchasesValue: 0,
+  consumedValue: 0,
   receiptIds: [],
   lotCount: 0,
   ...over,
@@ -331,6 +333,45 @@ describe('buildCategoryRollForward', () => {
     expect(rows[0].ending).toBe(1000);
     expect(rows[0].receiptIds).toEqual(['r1', 'r2']);
     expect(rows[0].lotCount).toBe(2);
+  });
+
+  it('carries the movement: beginning + purchases - COGS = ending', () => {
+    // The accountants' ask (Carson 2026-09-03) — modelled on real TN 2026-03
+    // Compound Ingredient: 217,008.02 + 172,084.70 - 118,033.74 = 271,058.98.
+    const prior = [clv({ location: 'MedRock TN', qbCategory: 'Compound Ingredient', endingValue: 217008.02 })];
+    const current = [
+      clv({
+        location: 'MedRock TN',
+        qbCategory: 'Compound Ingredient',
+        endingValue: 271058.98,
+        purchasesValue: 172084.7,
+        consumedValue: 118033.74,
+      }),
+    ];
+    const [row] = buildCategoryRollForward(current, prior);
+    expect(row.purchases).toBe(172084.7);
+    expect(row.cogs).toBe(118033.74);
+    expect(row.consumed).toBe(118033.74);
+    // Foots by construction — that is the point of taking COGS as the plug.
+    expect(row.beginning! + row.purchases - row.cogs!).toBeCloseTo(row.ending, 2);
+  });
+
+  it('still foots when the unit-cost figure disagrees, as it does for FL opening balance', () => {
+    // OB lots carry no unit_cost, so consumedValue reads $0 while the value really
+    // does decline. cogs must follow the movement; consumed reports what it saw.
+    const prior = [clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 4432.38 })];
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 4212.0 })];
+    const [row] = buildCategoryRollForward(current, prior);
+    expect(row.cogs).toBe(220.38);
+    expect(row.consumed).toBe(0);
+  });
+
+  it('leaves cogs null at the window start rather than inventing one', () => {
+    const current = [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, purchasesValue: 40 })];
+    const [row] = buildCategoryRollForward(current, null);
+    expect(row.beginning).toBeNull();
+    expect(row.cogs).toBeNull();
+    expect(row.purchases).toBe(40);
   });
 
   it('treats a category absent last month as beginning at zero', () => {
@@ -779,7 +820,15 @@ describe('opening correction — the one-time cutover JE (proposal 2026-08-26)',
     qbCategory: string,
     endingValue: number,
     receiptIds: string[] = [],
-  ): CategoryLedgerValue => ({ location, qbCategory, endingValue, receiptIds, lotCount: receiptIds.length });
+  ): CategoryLedgerValue => ({
+    location,
+    qbCategory,
+    endingValue,
+    purchasesValue: 0,
+    consumedValue: 0,
+    receiptIds,
+    lotCount: receiptIds.length,
+  });
 
   // FL-shaped fixture: book carries 4 in-scope sub-accounts; FIFO has values for
   // 2 of them plus an unmapped residual; Lab Supplies is book-only (zeroes out).

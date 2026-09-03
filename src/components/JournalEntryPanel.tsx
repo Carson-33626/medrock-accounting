@@ -5,9 +5,17 @@ import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw,
 import HelpTip from './HelpTip';
 import QboImportGuide from './QboImportGuide';
 import CategoryLotDrilldown from './CategoryLotDrilldown';
-import type { CategoryJE, CloseBasis, InvCloseHeader, InvCloseLine, LocationJE } from '@/types/inventory';
+import type {
+  CategoryJE,
+  CategoryRollForwardRow,
+  CloseBasis,
+  InvCloseHeader,
+  InvCloseLine,
+  LocationJE,
+} from '@/types/inventory';
 import {
   CLOSE_STATUS_LABEL as STATUS_LABEL,
+  categoryKey,
   closeDisplayLines,
   findCloseHeader,
   invCloseDocNumber,
@@ -69,6 +77,7 @@ interface LocationView {
 export default function JournalEntryPanel({
   journalEntries,
   categoryJournalEntries,
+  categoryRollForward,
   basis,
   monthEnd,
   month,
@@ -83,6 +92,7 @@ export default function JournalEntryPanel({
 }: {
   journalEntries: LocationJE[];
   categoryJournalEntries: CategoryJE[];
+  categoryRollForward: CategoryRollForwardRow[];
   basis: CloseBasis;
   monthEnd: string;
   month: string;
@@ -169,6 +179,7 @@ export default function JournalEntryPanel({
           border={border}
           view={activeView}
           categoryJE={categoryJournalEntries.find((c) => c.location === activeView.je.location) ?? null}
+          categoryRollForward={categoryRollForward}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
@@ -229,6 +240,7 @@ function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: Location
  */
 function CategoryBreakdown({
   je,
+  categoryRollForward,
   month,
   darkMode,
   subText,
@@ -236,6 +248,7 @@ function CategoryBreakdown({
   hasDraft,
 }: {
   je: CategoryJE;
+  categoryRollForward: CategoryRollForwardRow[];
   month: string;
   darkMode: boolean;
   subText: string;
@@ -244,6 +257,12 @@ function CategoryBreakdown({
    *  draft while these numbers stay LIVE, and the two can legitimately disagree. */
   hasDraft: boolean;
 }) {
+  // (location, category) -> this month's movement. The comparison rows and the
+  // roll-forward rows are separate cuts of the same close, joined on the shared
+  // categoryKey rather than a second hand-rolled key format.
+  const movementByKey = new Map<string, CategoryRollForwardRow>();
+  for (const r of categoryRollForward) movementByKey.set(categoryKey(r.location, r.qbCategory), r);
+
   const [open, setOpen] = useState<string | null>(null);
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
   const categorizedTotal = sumCents(je.lines.map((l) => l.fifoTarget));
@@ -274,6 +293,11 @@ function CategoryBreakdown({
             <tr className={`border-b ${border}`}>
               <th className={th}>Category</th>
               <th className={th}>QB account</th>
+              <th className={`${th} text-right`}>Beginning</th>
+              <th className={`${th} text-right`}>Purchases</th>
+              <th className={`${th} text-right`} title="What moved from beginning to ending: beginning + purchases - ending">
+                COGS
+              </th>
               <th className={`${th} text-right`}>FIFO (lots)</th>
               <th className={`${th} text-right`}>QB book</th>
               <th className={`${th} text-right`}>Adjustment</th>
@@ -317,6 +341,22 @@ function CategoryBreakdown({
                     </a>
                   </td>
                   <td className={`px-2 py-1 text-xs ${subText}`}>{l.inventoryAccount}</td>
+                  {(() => {
+                    const mv = movementByKey.get(categoryKey(je.location, l.qbCategory));
+                    return (
+                      <>
+                        <td className={`px-2 py-1 text-right tabular-nums ${subText}`}>
+                          {mv?.beginning == null ? '—' : usd.format(mv.beginning)}
+                        </td>
+                        <td className={`px-2 py-1 text-right tabular-nums ${subText}`}>
+                          {mv === undefined ? '—' : usd.format(mv.purchases)}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums">
+                          {mv?.cogs == null ? '—' : usd.format(mv.cogs)}
+                        </td>
+                      </>
+                    );
+                  })()}
                   <td className="px-2 py-1 text-right tabular-nums">{usd.format(l.fifoTarget)}</td>
                   <td className="px-2 py-1 text-right tabular-nums">
                     {l.qbBookBalance === null ? '—' : usd.format(l.qbBookBalance)}
@@ -433,6 +473,7 @@ function DraftCard({
   border,
   view,
   categoryJE,
+  categoryRollForward,
   basis,
   month,
   monthEnd,
@@ -448,6 +489,7 @@ function DraftCard({
   border: string;
   view: LocationView;
   categoryJE: CategoryJE | null;
+  categoryRollForward: CategoryRollForwardRow[];
   basis: CloseBasis;
   month: string;
   monthEnd: string;
@@ -536,6 +578,7 @@ function DraftCard({
             <CategoryBreakdown
               key={categoryJE.location}
               je={categoryJE}
+              categoryRollForward={categoryRollForward}
               month={month}
               darkMode={darkMode}
               subText={subText}
