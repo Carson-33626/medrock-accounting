@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
+import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { invCloseDocNumber, openingCorrectionDocNumber } from '@/lib/inventory/monthly-close';
 import { INV_OPEN_PAY_GROUP } from '@/lib/inventory/close-server';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
@@ -135,7 +136,14 @@ export async function POST(request: NextRequest) {
       responseBody: result.response ?? null,
     });
 
-    return NextResponse.json(result);
+    // Attach the entry's own workbook — the posted lines plus the category bridge and lot
+    // detail behind them. A FOLLOW-ON STEP, NEVER A GATE (DS §3.3): the JE is already live in
+    // QuickBooks, so `attachJeWorkbook` records its own outcome and never throws.
+    const attachment = mode === 'live' && result.qbEntryId
+      ? await attachJeWorkbook({ ...header, status: 'posted' }, lines, { entryId: result.qbEntryId, docNumber: result.qbDocNumber })
+      : undefined;
+
+    return NextResponse.json({ ...result, attachment });
   } catch (error) {
     console.error('[inventory/monthly-close/post POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to post inventory-close journal entry';

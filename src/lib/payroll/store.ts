@@ -650,6 +650,30 @@ export async function insertAudit(entry: AuditEntry): Promise<void> {
 }
 
 /**
+ * Has this exact file already been attached to this header's QuickBooks entry?
+ *
+ * The idempotency check for JE attachments (DS §3.4). Retrying an attachment must not
+ * double-attach, and file names are deterministic (`<entity>-<docNumber>` + a fixed suffix),
+ * so a name match IS the check — no content hash needed.
+ *
+ * Read from our own audit table rather than by querying QBO's `Attachable` list: the audit
+ * row is written by the same transaction path that did the upload, needs no new API contract,
+ * and cannot be defeated by a QuickBooks query surface we have not verified. `je-attach` still
+ * asks QuickBooks as a second opinion, but this is the authority.
+ */
+export async function hasAttachedFile(headerId: number, fileName: string): Promise<boolean> {
+  const { rows } = await getRdsPool().query<{ n: string }>(
+    `SELECT count(*)::text AS n
+       FROM accounting.payroll_post_audit
+      WHERE header_id = $1
+        AND outcome = 'attached'
+        AND response_body ->> 'fileName' = $2`,
+    [headerId, fileName],
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
+
+/**
  * Pin the DocNumber this header will post under, without touching its status.
  *
  * The DocNumber-conflict rename (see doc-number-conflict.ts): the derived number is taken in

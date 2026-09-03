@@ -394,6 +394,122 @@ export async function qbPost<T>(
   return response.json();
 }
 
+// ── Attachments (POST /v3/company/{realmId}/upload) ─────────────────────────
+
+/** The `Attachable` QBO creates for an uploaded file, as much of it as we record. */
+export interface QbAttachable {
+  Id: string;
+  FileName?: string;
+  ContentType?: string;
+  Size?: number;
+  SyncToken?: string;
+}
+
+interface QbUploadItemResponse {
+  Attachable?: QbAttachable;
+  Fault?: { Error?: Array<{ Message?: string; Detail?: string; code?: string }> };
+}
+interface QbUploadResponse {
+  AttachableResponse?: QbUploadItemResponse[];
+}
+
+export interface QbUploadFile {
+  /** The name QuickBooks shows on the entry. Deterministic — it is our idempotency key. */
+  fileName: string;
+  contentType: string;
+  bytes: Buffer;
+  /** The record the file hangs off, e.g. `{ type: 'JournalEntry', value: '1234' }`. */
+  entityRef: { type: string; value: string };
+}
+
+/**
+ * Upload one file and attach it to one QBO record.
+ *
+ * The endpoint is multipart with PAIRED parts — `file_metadata_01` carrying the
+ * `Attachable` JSON and `file_content_01` carrying the bytes. The `_01` suffix pairs
+ * them; a batch would continue `_02`, `_03`. We upload one file per call because the
+ * failure policy is per-file: a rejected second file must not take the first one's
+ * success with it.
+ *
+ * `AttachableRef` is what makes this an attachment rather than a loose file in the
+ * Attachments list, so it is not optional here.
+ *
+ * Shares `qbPost`'s token refresh and 429 backoff. Deliberately does NOT set a
+ * Content-Type header: `FormData` generates the multipart boundary and setting the
+ * header by hand drops it, which QBO rejects as a malformed body.
+ */
+export async function qbUpload(
+  location: Location,
+  file: QbUploadFile,
+  retryCount = 0,
+): Promise<QbAttachable> {
+  const tokens = await getValidTokens(location);
+
+  if (!tokens) {
+    throw new Error(`QuickBooks not connected for location: ${location}. Please authorize first.`);
+  }
+
+  const metadata = {
+    FileName: file.fileName,
+    ContentType: file.contentType,
+    AttachableRef: [{ EntityRef: { type: file.entityRef.type, value: file.entityRef.value } }],
+  };
+
+  const form = new FormData();
+  form.append(
+    'file_metadata_01',
+    new Blob([JSON.stringify(metadata)], { type: 'application/json' }),
+    'metadata.json',
+  );
+  form.append(
+    'file_content_01',
+    new Blob([new Uint8Array(file.bytes)], { type: file.contentType }),
+    file.fileName,
+  );
+
+  const response = await fetch(`${QB_API_BASE}/company/${tokens.realm_id}/upload?minorversion=75`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  if (response.status === 429) {
+    const maxRetries = 3;
+    if (retryCount < maxRetries) {
+      const delayMs = Math.min(1000 * Math.pow(2, retryCount), 10000);
+      console.log(`Rate limited for ${location}, retrying upload in ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+      await sleep(delayMs);
+      return qbUpload(location, file, retryCount + 1);
+    }
+    throw new Error(`QB API rate limit exceeded for ${location}. Please try again in a few moments.`);
+  }
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`QB upload error for ${location}: ${response.status} ${error}`);
+  }
+
+  // The upload endpoint answers 200 with a per-file Fault when it accepts the request but
+  // rejects the file (an unsupported content type lands here, not on the HTTP status), so
+  // the body has to be read before this is called a success.
+  const body = (await response.json()) as QbUploadResponse;
+  const item = body.AttachableResponse?.[0];
+  const fault = item?.Fault?.Error?.[0];
+  if (fault) {
+    throw new Error(
+      `QB upload rejected for ${location}: ${fault.code ?? ''} ${fault.Message ?? ''} ${fault.Detail ?? ''}`.trim(),
+    );
+  }
+  const attachable = item?.Attachable;
+  if (!attachable?.Id) {
+    throw new Error(`QB upload for ${location} returned no Attachable id`);
+  }
+  return attachable;
+}
+
 /**
  * Run a QBO data query (SELECT * FROM <entity> ...), transparently paginating
  * via STARTPOSITION. The QueryResponse payload keys the entity list by the

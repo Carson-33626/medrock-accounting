@@ -41,17 +41,26 @@ export function csvResponse(
   });
 }
 
-export async function xlsxResponse(
-  sheets: Array<{
-    name: string;
-    columns: ExportColumn[];
-    rows: Record<string, CellValue>[];
-    /** Per-sheet note row; falls back to the workbook-level `note` when absent. */
-    note?: string;
-  }>,
-  filename: string,
+export interface ExportSheet {
+  name: string;
+  columns: ExportColumn[];
+  rows: Record<string, CellValue>[];
+  /** Per-sheet note row; falls back to the workbook-level `note` when absent. */
+  note?: string;
+}
+
+/**
+ * The workbook bytes, so the browser download and the QuickBooks attachment are the
+ * SAME file rather than two builders that merely ought to agree.
+ *
+ * `xlsxResponse` is a thin wrapper over this — the accountant who opens the download
+ * and the auditor who opens the attachment on the posted entry are looking at output
+ * from one code path, which is the only way that stays true as sheets get added.
+ */
+export async function buildXlsxBuffer(
+  sheets: readonly ExportSheet[],
   note: string,
-): Promise<NextResponse> {
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'MedRock Accounting';
 
@@ -78,10 +87,24 @@ export async function xlsxResponse(
     });
   }
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return new NextResponse(Buffer.from(buffer), {
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+/** The MIME type QuickBooks and browsers both use for .xlsx. */
+export const XLSX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export async function xlsxResponse(
+  sheets: readonly ExportSheet[],
+  filename: string,
+  note: string,
+): Promise<NextResponse> {
+  const buffer = await buildXlsxBuffer(sheets, note);
+  // Uint8Array, not the Buffer itself: BodyInit does not admit Node's Buffer type, and the
+  // view shares the same bytes rather than copying them.
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type': XLSX_CONTENT_TYPE,
       'Content-Disposition': `attachment; filename="${filename}.xlsx"`,
     },
   });

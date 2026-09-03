@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
 import { loadDraft, listSiblings } from '@/lib/payroll/store';
-import { buildJeExportSheet, buildRunJeExportWorkbook, type JeExportPiece } from '@/lib/payroll/je-export';
+import { buildRunJeExportWorkbook, type JeExportPiece } from '@/lib/payroll/je-export';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
-import { pieceDocNumber } from '@/lib/payroll/split';
+import { pieceDocNumber, pieceLabel } from '@/lib/payroll/split';
 import { deriveJeIdentity } from '@/lib/payroll/je-identity';
 import { buildQboImportRows, qboImportFilename, QBO_IMPORT_COLUMNS, type QboImportJe } from '@/lib/payroll/qbo-import-csv';
 import { POSTABLE_ENTITIES } from '@/lib/payroll/entity';
 import type { Entity } from '@/lib/payroll/types';
-import { csvResponse, xlsxResponse } from '@/lib/inventory-export';
+import { csvResponse, xlsxResponse, type ExportSheet } from '@/lib/inventory-export';
+import { buildJeSourceWorkbook } from '@/lib/payroll/je-workbook';
+import { fetchJeDetailSheets } from '@/lib/payroll/je-detail-fetch';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -90,21 +92,37 @@ export async function GET(request: NextRequest) {
 
     if (scope === 'run' && siblings.length > 1) {
       // Whole run: load every sibling piece so a split payroll exports complete, never half.
-      const pieces: JeExportPiece[] = await Promise.all(
-        siblings.map(async (s, i): Promise<JeExportPiece> => {
+      const loadedPieces = await Promise.all(
+        siblings.map(async (s) => {
           const piece = s.id === headerId ? loaded : await loadDraft(s.id);
           if (!piece) throw new Error(`split piece ${s.id} (${s.period_segment}) could not be loaded`);
-          return {
-            header: piece.header,
-            lines: piece.lines,
-            periodSegment: piece.header.period_segment,
-            docNumber: pieceDocNumber(header.pay_date, siblings.length, i),
-            txnDate: piece.header.txn_date ?? '',
-          };
+          return piece;
         }),
       );
+      const pieces: JeExportPiece[] = loadedPieces.map((piece, i) => ({
+        header: piece.header,
+        lines: piece.lines,
+        periodSegment: piece.header.period_segment,
+        docNumber: pieceDocNumber(header.pay_date, siblings.length, i),
+        txnDate: piece.header.txn_date ?? '',
+      }));
       const workbook = buildRunJeExportWorkbook(pieces, accountNums);
-      return xlsxResponse(workbook.sheets, workbook.filename, workbook.sheets[0].note);
+      // Each piece is its own postable JE, so each carries its own source detail — prefixed
+      // with the month so a two-month run's sheets stay distinguishable. Excel caps a tab
+      // name at 31 characters.
+      const pieceDetail: ExportSheet[] = [];
+      for (let i = 0; i < loadedPieces.length; i++) {
+        const p = loadedPieces[i];
+        const sheets = await fetchJeDetailSheets(
+          p.header,
+          p.lines,
+          `${p.header.entity} — ${pieces[i].docNumber} — ${pieces[i].txnDate}`,
+        );
+        for (const sheet of sheets) {
+          pieceDetail.push({ ...sheet, name: `${pieceLabel(p.header.period_segment)} ${sheet.name}`.slice(0, 31) });
+        }
+      }
+      return xlsxResponse([...workbook.sheets, ...pieceDetail], workbook.filename, workbook.sheets[0].note);
     }
 
     let overrides: { docNumber: string; txnDate: string } | undefined;
@@ -120,15 +138,24 @@ export async function GET(request: NextRequest) {
       overrides = { docNumber: id.docNumber, txnDate: id.txnDateIso };
     }
 
-    const sheet = buildJeExportSheet(header, lines, accountNums, overrides);
-    return xlsxResponse(
-      [{ name: 'Journal Entry', columns: sheet.columns, rows: sheet.rows }],
-      sheet.filename,
-      sheet.note,
-    );
+    // Ship the base data the entry was computed FROM in the same workbook (Carson,
+    // 2026-09-03 — "all journal entry pieces to attach the journal entry sheet plus all
+    // source details in an excel"). ALL THREE kinds now carry their detail: ADP columns
+    // behind a payroll entry, the pool and weights behind an allocation, lots behind an
+    // inventory close. Until now that evidence was reachable only from the close page, one
+    // category at a time, and not at all for the other two.
+    //
+    // Same assembler the QuickBooks attachment uses, so the file an accountant downloads and
+    // the file hanging off the posted entry are one artefact. Best-effort throughout: an
+    // unreachable source degrades to the single Journal Entry sheet rather than failing a
+    // download the accountant is waiting on.
+    const workbook = await buildJeSourceWorkbook(header, lines, { accountNums, overrides });
+
+    return xlsxResponse(workbook.sheets, workbook.filename, workbook.note);
   } catch (error) {
     console.error('[payroll/export GET]', error);
     const message = error instanceof Error ? error.message : 'Failed to export journal entry';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

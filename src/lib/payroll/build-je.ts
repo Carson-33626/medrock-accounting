@@ -62,7 +62,46 @@ function deriveMemo(t: ResolvedTarget): string {
   return dept ? `${base} - ${dept}` : base;
 }
 
-interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string; creditBucket: JournalLine['creditBucket']; pooled: boolean; rowKeys: Set<string>; }
+interface Bucket { postingType: 'Debit' | 'Credit'; amount: number; accountName: string; departmentName: string | null; className: string | null; memo: string; creditBucket: JournalLine['creditBucket']; pooled: boolean; rowKeys: Set<string>; columns: Map<string, ColumnAccum>; }
+interface ColumnAccum { amount: number; positions: Set<string> }
+
+/**
+ * What ONE JE line was built from, at ADP-column grain.
+ *
+ * `employees` is a HEADCOUNT, never a roster. Payroll detail is employee-level and
+ * QuickBooks attachments are visible to everyone with company access, so the count is
+ * the most granular thing that can safely leave this system (DS §8 q3). The names stay
+ * behind the existing decrypt gate on the drill-down.
+ */
+export interface LineSourceDetail {
+  /** The ADP report column, e.g. 'REGULAR EARNINGS' or 'FICA - EE'. */
+  column: string;
+  /** Dollars this column contributed to the line, 2dp, summing exactly to the line amount. */
+  amount: number;
+  /** Distinct people who carried it. */
+  employees: number;
+}
+
+/**
+ * Distribute a line's cents across its columns so the parts sum EXACTLY to the line.
+ *
+ * The parts start as the unrounded per-column dollars; the line amount has already been
+ * through `roundBucketAmounts`' largest-remainder settle, so up to a couple of cents can
+ * separate the two. The residual lands on the largest part — the same convention the
+ * bucket rounding uses, and the only one that keeps a detail sheet footing to the entry
+ * it substantiates.
+ */
+function settleColumnCents(targetCents: number, parts: { column: string; amount: number; employees: number }[]): LineSourceDetail[] {
+  if (parts.length === 0) return [];
+  const cents = parts.map((p) => Math.round(p.amount * 100));
+  const residual = targetCents - cents.reduce((s, c) => s + c, 0);
+  if (residual !== 0) {
+    let largest = 0;
+    for (let i = 1; i < cents.length; i++) if (Math.abs(cents[i]) > Math.abs(cents[largest])) largest = i;
+    cents[largest] += residual;
+  }
+  return parts.map((p, i) => ({ column: p.column, amount: cents[i] / 100, employees: p.employees }));
+}
 
 export interface ExcludedGroup { payGroup: string; reason: string; count: number; }
 
@@ -88,7 +127,12 @@ export function mergeRebuiltLines(existing: JournalLine[], rebuiltGenerated: Jou
 
 export function buildJournal(
   rows: PayrollRow[], accountMap: AccountMapRule[], employeeMap: EmployeeMapRule[],
-): { drafts: JournalDraft[]; unmappedColumns: string[]; unmappedColumnDetails: UnmappedColumnDetail[]; unmappedPositions: string[]; excluded: ExcludedGroup[] } {
+): {
+  drafts: JournalDraft[];
+  /** Per-ADP-column composition of every line, index-aligned with `drafts` then `drafts[i].lines`. */
+  draftSources: LineSourceDetail[][][];
+  unmappedColumns: string[]; unmappedColumnDetails: UnmappedColumnDetail[]; unmappedPositions: string[]; excluded: ExcludedGroup[];
+} {
   const unmappedColumns = new Set<string>();
   // Per unmapped column: running dollar total + the distinct people (rowKey -> name) who carried
   // it, so the "new columns detected" panel can show the amount and let an accountant jump to the
@@ -145,16 +189,23 @@ export function buildJournal(
         // cost-center-specific lines (whose rows all share one cc) are unaffected.
         const bkey = [t.accountName, t.departmentName ?? '', t.className ?? '', t.postingType, t.creditBucket ?? '', lineMemo, t.costCenter, t.pooled ? 'P' : 'S'].join('¦');
         let b = g.buckets.get(bkey);
-        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: lineMemo, creditBucket: t.creditBucket, pooled: t.pooled, rowKeys: new Set() }; g.buckets.set(bkey, b); }
+        if (!b) { b = { postingType: t.postingType, amount: 0, accountName: t.accountName, departmentName: t.departmentName, className: t.className, memo: lineMemo, creditBucket: t.creditBucket, pooled: t.pooled, rowKeys: new Set(), columns: new Map() }; g.buckets.set(bkey, b); }
         b.amount += val; b.rowKeys.add(row.row_key);
+        // Per-ADP-column composition of the bucket, for the JE's source-detail sheet.
+        // Positions (not names) so the sheet can state a headcount without carrying PHI.
+        let ca = b.columns.get(col);
+        if (!ca) { ca = { amount: 0, positions: new Set() }; b.columns.set(col, ca); }
+        ca.amount += val; ca.positions.add(row.position_id);
       }
     }
   }
 
   const drafts: JournalDraft[] = [];
+  const draftSources: LineSourceDetail[][][] = [];
   for (const g of groups.values()) {
     const bucketList = [...g.buckets.values()];
     const amounts = roundBucketAmounts(bucketList);
+    const sourcesByLine = new Map<JournalLine, LineSourceDetail[]>();
     const lines: JournalLine[] = bucketList.map((b) => {
       const amount = amounts.get(b) ?? round2(b.amount);
       // A bucket that nets NEGATIVE flips sides instead of carrying a negative amount:
@@ -162,12 +213,21 @@ export function buildJournal(
       // the grid can't render them honestly, and accountants can't edit generated lines
       // to fix it themselves (Barbara, TN 04/24/2026: WC - Admin netted -49.55).
       const flip = amount < 0;
-      return {
+      const line: JournalLine = {
         postingType: flip ? (b.postingType === 'Debit' ? 'Credit' as const : 'Debit' as const) : b.postingType,
         amount: flip ? round2(-amount) : amount, accountName: b.accountName,
         departmentName: b.departmentName, className: b.className,
         memo: b.memo, creditBucket: b.creditBucket, origin: 'generated', sourceRowKeys: [...b.rowKeys],
       };
+      // A flipped bucket posts the other side for its ABSOLUTE amount, so its column
+      // contributions flip with it — otherwise the detail would sum to the negative of
+      // the line it explains.
+      const sign = flip ? -1 : 1;
+      const parts = [...b.columns.entries()]
+        .map(([column, c]) => ({ column, amount: sign * c.amount, employees: c.positions.size }))
+        .sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount) || x.column.localeCompare(y.column));
+      sourcesByLine.set(line, settleColumnCents(Math.round(line.amount * 100), parts));
+      return line;
     });
     // Group lines by account then memo so same-account department lines (e.g. Admin/Accounting
     // Wages) sit adjacent instead of in arbitrary bucket-first-appearance order.
@@ -181,9 +241,11 @@ export function buildJournal(
       lines, totalDebits, totalCredits, variance: round2(totalDebits - totalCredits),
       rowKeys: [...new Set(lines.flatMap((l) => l.sourceRowKeys))],
     });
+    draftSources.push(lines.map((l) => sourcesByLine.get(l) ?? []));
   }
   return {
     drafts,
+    draftSources,
     unmappedColumns: [...unmappedColumns],
     unmappedColumnDetails: [...unmappedDetails.entries()].map(([column, d]) => ({
       column,

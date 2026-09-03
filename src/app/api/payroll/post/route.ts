@@ -3,6 +3,7 @@ import { requireManager } from '@/lib/auth';
 import { selectSource } from '@/lib/payroll/source-select';
 import { reconcile } from '@/lib/payroll/reconcile';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
+import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { buildJournal } from '@/lib/payroll/build-je';
 import { loadDraft, insertAudit, setHeaderStatus, listSiblings, getAccountMap, getEmployeeMap, sourceSnapshotHash } from '@/lib/payroll/store';
 import { decidePost } from '@/lib/payroll/post-guard';
@@ -248,7 +249,15 @@ export async function POST(request: NextRequest) {
       await setHeaderStatus(headerId, 'posted', { entryId: result.qbEntryId, docNumber: result.qbDocNumber });
     }
 
-    return NextResponse.json(result);
+    // Attach the entry's own workbook — the posted lines plus the ADP source detail behind
+    // them, aggregated to department/class. A FOLLOW-ON STEP, NEVER A GATE (DS §3.3): the JE
+    // is already live in QuickBooks, so `attachJeWorkbook` records its own outcome and never
+    // throws.
+    const attachment = mode === 'live' && result.qbEntryId
+      ? await attachJeWorkbook({ ...header, status: 'posted' }, lines, { entryId: result.qbEntryId, docNumber: result.qbDocNumber })
+      : undefined;
+
+    return NextResponse.json({ ...result, attachment });
   } catch (error) {
     console.error('[payroll/post POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to post payroll journal entry';

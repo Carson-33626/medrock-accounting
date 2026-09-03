@@ -6,7 +6,7 @@
  * credit their due-to. Pure — no I/O. See spec §4.3.
  */
 import type { Entity, JournalDraft, JournalLine, PostingType } from './types';
-import type { PoolLine } from './qb-pool';
+import type { PoolLine, PoolRule } from './qb-pool';
 import { largestRemainderCents } from './allocation';
 import { ieAccountFor } from './inter-entity';
 import { monthTag, monthEndIso, monthEndAdp, longMonthName, type Month } from './month';
@@ -82,22 +82,114 @@ function signedLine(c: number, acct: string, memo: string, side: 'source' | 'rec
   return line(posting, Math.abs(c), acct, memo);
 }
 
-export function buildMonthEndAllocation(
-  pool: PoolLine[], shares: Record<EomEntity, number>, m: Month,
-  opts?: { csAlloDocs?: readonly string[] },
-): JournalDraft[] {
-  // 1-2. Net cents per (entity, account, rule, counterparty)
-  const groups = new Map<string, { entity: Entity; accountName: string; rule: string; counterparty: Entity | null; cents: number }>();
+/**
+ * One pooled cost — netted across every QB line that carried it — and exactly how it was
+ * split. This is the BASIS: the driver value per cost centre and the resulting share, which
+ * is what the JE's source-detail sheet has to show (DS §3.3).
+ *
+ * Extracted so `buildMonthEndAllocation` and the detail sheet compute the split ONCE. Two
+ * implementations of a largest-remainder split that merely ought to agree is how a detail
+ * file ends up a cent away from the entry it substantiates.
+ */
+export interface AllocationBasisGroup {
+  /** The entity whose books the cost sat on before allocation. */
+  entity: Entity;
+  accountName: string;
+  /** The rule as tagged in QuickBooks. */
+  rule: PoolRule;
+  /** The rule actually applied — 'revenue' degrades to 'thirds' before April 2026. */
+  appliedRule: PoolRule;
+  ruleLabel: string;
+  counterparty: Entity | null;
+  memo: string;
+  /** How many QB lines netted into this group. */
+  poolLines: number;
+  /** Signed cents held before allocation: costs +, refunds/credits −. */
+  poolCents: number;
+  /** The driver each entity was weighted by — revenue % for 'revenue', else 1/0. */
+  weights: Record<EomEntity, number>;
+  /** Signed cents moved TO each entity. The holder's own entry is always 0. */
+  moved: Record<EomEntity, number>;
+  /** Total signed cents the holder shed across all receivers. */
+  sourceMovedCents: number;
+  /** What the holder keeps: `poolCents − sourceMovedCents`. */
+  retainedCents: number;
+}
+
+const emptyByEntity = (): Record<EomEntity, number> =>
+  Object.fromEntries(EOM_ENTITIES.map((e) => [e, 0])) as Record<EomEntity, number>;
+
+/**
+ * Net the pool per (entity, account, rule, counterparty) and split each group.
+ *
+ * Pure. Groups that net to zero are dropped — they move nothing and would otherwise show as
+ * a row of zeroes on the detail sheet.
+ */
+export function allocationBasis(
+  pool: readonly PoolLine[], shares: Record<EomEntity, number>, m: Month,
+): AllocationBasisGroup[] {
+  const groups = new Map<string, { entity: Entity; accountName: string; rule: PoolRule; counterparty: Entity | null; cents: number; lines: number }>();
   for (const l of pool) {
     // passthrough reaches here for Deposit/JournalEntry/DraftJE lines (qb-pool.isPooledLine) —
     // Bill/Purchase/VendorCredit passthrough is auto-booked by QBO Intercompany and must never re-move.
     if (l.rule !== 'revenue' && l.rule !== 'thirds' && l.rule !== 'fifty' && l.rule !== 'passthrough') continue;
     const key = [l.entity, l.accountName, l.rule, l.counterparty ?? ''].join('¦');
-    const g = groups.get(key) ?? { entity: l.entity, accountName: l.accountName, rule: l.rule, counterparty: l.counterparty, cents: 0 };
+    const g = groups.get(key) ?? { entity: l.entity, accountName: l.accountName, rule: l.rule, counterparty: l.counterparty, cents: 0, lines: 0 };
     g.cents += Math.round(l.amount * 100);
+    g.lines += 1;
     groups.set(key, g);
   }
 
+  const out: AllocationBasisGroup[] = [];
+  for (const g of groups.values()) {
+    if (g.cents === 0) continue;
+    // The hard cutoff: before April 2026 the revenue rule did not exist — every pooled
+    // cost (CS included, and Barbara's mixed 'Allocate - %' tags on posted early months)
+    // splits 1/3, matching what the books did all along.
+    const rule: PoolRule = g.rule === 'revenue' && !usesRevenueRule(m) ? 'thirds' : g.rule;
+    const weightList = EOM_ENTITIES.map((e) => {
+      if (rule === 'revenue') return shares[e];
+      if (rule === 'thirds') return 1;
+      if (rule === 'passthrough') return e === g.counterparty ? 1 : 0; // 100% to the named entity
+      return e === g.entity || e === g.counterparty ? 1 : 0; // fifty
+    });
+    const sign = g.cents >= 0 ? 1 : -1;
+    const split = largestRemainderCents(Math.abs(g.cents), weightList);
+
+    const weights = emptyByEntity();
+    const moved = emptyByEntity();
+    let sourceMovedCents = 0;
+    EOM_ENTITIES.forEach((e, i) => {
+      weights[e] = weightList[i];
+      if (e === g.entity) return;
+      const cents = sign * split[i];
+      moved[e] = cents;
+      sourceMovedCents += cents;
+    });
+
+    out.push({
+      entity: g.entity,
+      accountName: g.accountName,
+      rule: g.rule,
+      appliedRule: rule,
+      ruleLabel: RULE_LABEL[rule] ?? rule,
+      counterparty: g.counterparty,
+      memo: `Allocation of ${leaf(g.accountName)} — ${RULE_LABEL[rule]} split`,
+      poolLines: g.lines,
+      poolCents: g.cents,
+      weights,
+      moved,
+      sourceMovedCents,
+      retainedCents: g.cents - sourceMovedCents,
+    });
+  }
+  return out;
+}
+
+export function buildMonthEndAllocation(
+  pool: PoolLine[], shares: Record<EomEntity, number>, m: Month,
+  opts?: { csAlloDocs?: readonly string[] },
+): JournalDraft[] {
   // Per-entity accumulators: expense lines + net IE cents per counterparty
   const expenseLines = new Map<Entity, JournalLine[]>();
   const ieCents = new Map<Entity, Map<Entity, number>>(); // holder -> counterparty -> signed cents (+ = holder is owed)
@@ -112,33 +204,16 @@ export function buildMonthEndAllocation(
     expenseLines.set(e, arr);
   };
 
-  for (const g of groups.values()) {
-    if (g.cents === 0) continue;
-    // The hard cutoff: before April 2026 the revenue rule did not exist — every pooled
-    // cost (CS included, and Barbara's mixed 'Allocate - %' tags on posted early months)
-    // splits 1/3, matching what the books did all along.
-    const rule = g.rule === 'revenue' && !usesRevenueRule(m) ? 'thirds' : g.rule;
-    const weights = EOM_ENTITIES.map((e) => {
-      if (rule === 'revenue') return shares[e];
-      if (rule === 'thirds') return 1;
-      if (rule === 'passthrough') return e === g.counterparty ? 1 : 0; // 100% to the named entity
-      return e === g.entity || e === g.counterparty ? 1 : 0; // fifty
-    });
-    const sign = g.cents >= 0 ? 1 : -1;
-    const split = largestRemainderCents(Math.abs(g.cents), weights);
-    const memo = `Allocation of ${leaf(g.accountName)} — ${RULE_LABEL[rule]} split`;
-    let sourceMoved = 0; // net cents shed by the holder across all receivers -> one source line
-    EOM_ENTITIES.forEach((receiver, i) => {
-      if (receiver === g.entity) return;
-      const moved = sign * split[i];
-      if (moved === 0) return;
-      sourceMoved += moved;
-      addLine(receiver, signedLine(moved, g.accountName, memo, 'receiver'));
+  for (const g of allocationBasis(pool, shares, m)) {
+    for (const receiver of EOM_ENTITIES) {
+      const moved = g.moved[receiver];
+      if (moved === 0) continue;
+      addLine(receiver, signedLine(moved, g.accountName, g.memo, 'receiver'));
       // Source is owed `moved` by receiver; receiver owes `moved` to source.
       addIe(g.entity, receiver, moved);
       addIe(receiver, g.entity, -moved);
-    });
-    if (sourceMoved !== 0) addLine(g.entity, signedLine(sourceMoved, g.accountName, memo, 'source'));
+    }
+    if (g.sourceMovedCents !== 0) addLine(g.entity, signedLine(g.sourceMovedCents, g.accountName, g.memo, 'source'));
   }
 
   const drafts: JournalDraft[] = [];

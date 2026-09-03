@@ -3,6 +3,7 @@ import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { getEomRun } from '@/lib/payroll/eom-store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
+import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
 import { EOM_ENTITIES, type EomEntity } from '@/lib/payroll/revenue-rule';
 import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
@@ -182,7 +183,14 @@ export async function POST(request: NextRequest) {
       responseBody: result.response ?? null,
     });
 
-    return NextResponse.json(result);
+    // Attach the entry's own workbook — the posted lines plus the allocation basis behind
+    // them. A FOLLOW-ON STEP, NEVER A GATE (DS §3.3): the JE is already live in QuickBooks,
+    // so `attachJeWorkbook` records its own outcome and never throws.
+    const attachment = mode === 'live' && result.qbEntryId
+      ? await attachJeWorkbook({ ...header, status: 'posted' }, lines, { entryId: result.qbEntryId, docNumber: result.qbDocNumber })
+      : undefined;
+
+    return NextResponse.json({ ...result, attachment });
   } catch (error) {
     console.error('[payroll/eom/post POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to post month-end allocation journal entry';
