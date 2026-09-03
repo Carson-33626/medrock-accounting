@@ -543,6 +543,21 @@ function CogsComparisonTable({
    *  the flag is a property of the month, not of the line. */
   const comparable = rf.delta !== null;
 
+  /**
+   * A category that moved nothing in EITHER month is not a line of this report.
+   * `Uncoded` and `Opening Balance` are the usual pair: both are real categories
+   * that hold inventory value, but neither consumes at a cost basis, so they sit
+   * at $0.00 / $0.00 / — and push the lines that did move further down the table.
+   *
+   * Dropped on the figures, never on the category name: a month where Uncoded
+   * genuinely consumes still shows it. And this filter is deliberately NOT
+   * applied to the roll-forward table above, where the same categories carry real
+   * beginning and ending BALANCES — zero COGS there is a fact about the movement
+   * column, not a reason to hide the stock.
+   */
+  const shown = rf.lines.filter((l) => l.cogs !== 0 || l.priorCogs !== 0);
+  const hidden = rf.lines.length - shown.length;
+
   const line = (l: CogsRollForwardLine, key: string, footer: boolean) => {
     const change = l.cogs - l.priorCogs;
     const percent = l.priorCogs === 0 ? null : (change / Math.abs(l.priorCogs)) * 100;
@@ -580,9 +595,15 @@ function CogsComparisonTable({
             <th className={`${th} text-right`}>%</th>
           </tr>
         </thead>
-        <tbody>{rf.lines.map((l) => line(l, l.qbCategory, false))}</tbody>
+        <tbody>{shown.map((l) => line(l, l.qbCategory, false))}</tbody>
         <tfoot>{line(rf.total, 'total', true)}</tfoot>
       </table>
+      {hidden > 0 && (
+        <p className={`text-[11px] mt-2 ${subText}`}>
+          {hidden} categor{hidden === 1 ? 'y is' : 'ies are'} hidden: nothing consumed in either
+          month. They still hold inventory value on the roll-forward above.
+        </p>
+      )}
       {!comparable && (
         <p className={`text-[11px] mt-2 ${subText}`}>
           {rf.priorMonth === null
