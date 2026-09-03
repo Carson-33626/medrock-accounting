@@ -15,6 +15,12 @@
  * to price against; the production run uses the loader's filtered fills.
  *
  * Run from web/:  npx tsx scripts/probe-device-pricing-sheet.ts > device-pricing.csv
+ *
+ * LOCAL ONLY, and EXCLUDED FROM tsconfig deliberately. It imports the loader's device
+ * ruleset across repos (`../../../MedRock-Data-Loader/...`) so the classification here is
+ * the classification production uses, rather than a second copy that can drift. That path
+ * exists on a dev box with both repos checked out as siblings and does NOT exist on Vercel,
+ * where only `web/` is deployed — including it in the build broke the deploy once already.
  */
 import './lib/load-env';
 import { getRdsPool } from '../src/lib/rds';
