@@ -166,6 +166,12 @@ export interface CategoryCogsSeriesRow {
   cogs: number;
 }
 
+/** `/api/inventory/cogs` — the whole COGS history plus the cutover marker. */
+export interface CogsSeriesResponse {
+  rows: CategoryCogsSeriesRow[];
+  firstAnchoredMonth: string | null;
+}
+
 /** One roll-forward line at (location, category) grain. */
 export interface CategoryRollForwardRow {
   location: string;

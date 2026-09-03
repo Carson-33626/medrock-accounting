@@ -5,6 +5,8 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import Explainer from './Explainer';
 import HelpTip from './HelpTip';
 import FifoQueue from './FifoQueue';
+import DownloadIcon from './DownloadIcon';
+import InventoryCogsTab from './InventoryCogsTab';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { shortInventoryLocation } from '@/lib/inventory/monthly-close';
 import { InventoryMethodology } from '@/app/payroll/components/InventoryMethodology';
@@ -22,6 +24,7 @@ import {
 import type {
   AsOfResponse,
   Basis,
+  CogsSeriesResponse,
   LotsResponse,
   ProductDetailResponse,
   ProductGroupRow,
@@ -62,16 +65,6 @@ interface Cell {
   value: number;
   /** null on cash basis, which has no lot grain. */
   lotCount: number | null;
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
 }
 
 interface LotColumn {
@@ -164,9 +157,12 @@ export default function InventoryValuation() {
    *  Defaults: Total, Reconstruction and the three location lines ON (the
    *  comparison view); category lines OFF until toggled — they are the clutter. */
   const [toggledSeries, setToggledSeries] = useState<ReadonlySet<string>>(new Set());
-  /** Sub-tabs: the valuation itself vs. the same Methodology & evidence view the
-   *  Inventory Close tab shows — ONE component, referenced from both sides. */
-  const [pageTab, setPageTab] = useState<'valuation' | 'method' | 'decisions'>('valuation');
+  /** Sub-tabs: the valuation itself, cost of goods sold, and the same
+   *  Methodology & evidence view the Inventory Close tab shows — ONE component,
+   *  referenced from both sides. */
+  const [pageTab, setPageTab] = useState<'valuation' | 'cogs' | 'method' | 'decisions'>('valuation');
+  const [cogs, setCogs] = useState<CogsSeriesResponse | null>(null);
+  const [cogsError, setCogsError] = useState<string | null>(null);
 
   const [lots, setLots] = useState<LotsResponse | null>(null);
   const [lotsLoading, setLotsLoading] = useState(false);
@@ -239,6 +235,31 @@ export default function InventoryValuation() {
       cancelled = true;
     };
   }, []);
+
+  // COGS is the one series fetched lazily: it is a second full-history query and
+  // nothing on the Valuation tab reads it, so it waits until the COGS tab is
+  // opened. Once here it stays — the tab's own month/location controls re-cut it
+  // in the browser, same as the valuation cells.
+  useEffect(() => {
+    if (pageTab !== 'cogs' || cogs) return;
+    let cancelled = false;
+    fetch('/api/inventory/cogs')
+      .then((r) => r.json() as Promise<CogsSeriesResponse | { error: string }>)
+      .then((data) => {
+        if (cancelled) return;
+        if ('error' in data) setCogsError(data.error);
+        else {
+          setCogs(data);
+          setCogsError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setCogsError(e instanceof Error ? e.message : 'Failed to load COGS');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageTab, cogs]);
 
   // Summary supplies the selector lists, the anchored-month badges, and the CASH
   // figures (the lot ledger has no basis dimension). Never the accrual numbers.
@@ -745,6 +766,15 @@ export default function InventoryValuation() {
             Valuation
           </button>
           <button
+            onClick={() => setPageTab('cogs')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
+              pageTab === 'cogs' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+            }`}
+            style={pageTab === 'cogs' ? { backgroundColor: BRAND_PURPLE } : undefined}
+          >
+            COGS
+          </button>
+          <button
             onClick={() => setPageTab('method')}
             className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
               pageTab === 'method' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
@@ -768,6 +798,62 @@ export default function InventoryValuation() {
           <InventoryMethodology darkMode={darkMode} />
         ) : pageTab === 'decisions' ? (
           <InventoryDecisions darkMode={darkMode} />
+        ) : pageTab === 'cogs' ? (
+          <>
+            {/* The SAME month and location controls the valuation reads — COGS is
+                scoped by the identical filter state, so the two tabs never
+                disagree about which month and entity are on screen. Lot status
+                and search are product-grain and have no meaning here. */}
+            <ScopeFilters
+              months={months}
+              selectedMonth={selectedMonth}
+              onMonth={(m) => {
+                setMonth(m);
+                setPage(0);
+              }}
+              location={location}
+              locations={summary?.locations ?? []}
+              onLocation={(l) => {
+                setLocation(l);
+                setPage(0);
+              }}
+              category={category}
+              categories={allCategories}
+              onCategory={(c) => {
+                setCategory(c);
+                setPage(0);
+              }}
+              status={status}
+              onStatus={(s) => {
+                setStatus(s);
+                setPage(0);
+              }}
+              search={search}
+              onSearch={(s) => {
+                setSearch(s);
+                setPage(0);
+              }}
+              showProductFilters={false}
+              showCategory={false}
+              cardBg={cardBg}
+              inputCls={inputCls}
+              subText={subText}
+            />
+            <InventoryCogsTab
+              rows={cogs?.rows ?? []}
+              firstAnchoredMonth={cogs?.firstAnchoredMonth ?? null}
+              selectedMonth={selectedMonth}
+              location={location}
+              loading={!cogs && !cogsError}
+              error={cogsError}
+              darkMode={darkMode}
+              cardBg={cardBg}
+              rowBorder={rowBorder}
+              subText={subText}
+              exportBtnCls={exportBtnCls}
+              exportBtnStyle={exportBtnStyle}
+            />
+          </>
         ) : (
         <>
         <Explainer id="inventory-valuation" title="What am I looking at?">
@@ -827,83 +913,39 @@ export default function InventoryValuation() {
         )}
 
         {/* The month picker — the control this whole page hangs off */}
-        <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-3 ${cardBg}`}>
-          <label className="text-sm font-semibold">As of end of</label>
-          {/* Newest first — recent months are what anyone comes here for. The API
-              ships `months` oldest-first, so reversing is display-only. */}
-          <select
-            value={selectedMonth ?? ''}
-            onChange={(e) => {
-              setMonth(e.target.value);
-              setPage(0);
-            }}
-            className={inputCls}
-          >
-            {[...months].reverse().map((m) => (
-              <option key={m} value={m}>
-                {m} (close {monthDates(m).asOf})
-              </option>
-            ))}
-          </select>
-          <select
-            value={location}
-            onChange={(e) => {
-              setLocation(e.target.value);
-              setPage(0);
-            }}
-            className={inputCls}
-          >
-            <option value="all">All locations</option>
-            {(summary?.locations ?? []).map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <select
-            value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              setPage(0);
-            }}
-            className={inputCls}
-          >
-            <option value="all">All Categories</option>
-            {allCategories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(0);
-            }}
-            className={inputCls}
-            title="Lot status is product-grain — it filters the product table below"
-          >
-            <option value="all">All Lots</option>
-            <option value="open">Open (qty remaining)</option>
-            <option value="fully_used">Fully Used</option>
-          </select>
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            placeholder="Search product, NDC, or lot #"
-            className={`${inputCls} w-64`}
-            title="Search is product-grain — it filters the product table below"
-          />
-          <span className={`text-xs ${subText}`}>
-            {months.length > 0
-              ? `${months.length} months available (${months[0]} – ${months[months.length - 1]})`
-              : ''}
-          </span>
-        </div>
+        <ScopeFilters
+          months={months}
+          selectedMonth={selectedMonth}
+          onMonth={(m) => {
+            setMonth(m);
+            setPage(0);
+          }}
+          location={location}
+          locations={summary?.locations ?? []}
+          onLocation={(l) => {
+            setLocation(l);
+            setPage(0);
+          }}
+          category={category}
+          categories={allCategories}
+          onCategory={(c) => {
+            setCategory(c);
+            setPage(0);
+          }}
+          status={status}
+          onStatus={(s) => {
+            setStatus(s);
+            setPage(0);
+          }}
+          search={search}
+          onSearch={(s) => {
+            setSearch(s);
+            setPage(0);
+          }}
+          cardBg={cardBg}
+          inputCls={inputCls}
+          subText={subText}
+        />
 
         {/* Headline */}
         {dates && (
@@ -1395,6 +1437,114 @@ export default function InventoryValuation() {
         </>
         )}
       </div>
+    </div>
+  );
+}
+
+interface ScopeFiltersProps {
+  months: string[];
+  selectedMonth: string | null;
+  onMonth: (month: string) => void;
+  location: string;
+  locations: string[];
+  onLocation: (location: string) => void;
+  category: string;
+  categories: string[];
+  onCategory: (category: string) => void;
+  status: string;
+  onStatus: (status: string) => void;
+  search: string;
+  onSearch: (search: string) => void;
+  /** Lot status and product search: product-grain, so only the tab that shows a
+   *  product table has any use for them. */
+  showProductFilters?: boolean;
+  showCategory?: boolean;
+  cardBg: string;
+  inputCls: string;
+  subText: string;
+}
+
+/**
+ * The scope bar — the control the whole page hangs off, shared by the Valuation
+ * and COGS tabs so a month or location chosen on one is still chosen on the
+ * other. It owns no state: every value and setter comes from the page.
+ */
+function ScopeFilters({
+  months,
+  selectedMonth,
+  onMonth,
+  location,
+  locations,
+  onLocation,
+  category,
+  categories,
+  onCategory,
+  status,
+  onStatus,
+  search,
+  onSearch,
+  showProductFilters = true,
+  showCategory = true,
+  cardBg,
+  inputCls,
+  subText,
+}: ScopeFiltersProps) {
+  return (
+    <div className={`rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-3 ${cardBg}`}>
+      <label className="text-sm font-semibold">As of end of</label>
+      {/* Newest first — recent months are what anyone comes here for. The API
+          ships `months` oldest-first, so reversing is display-only. */}
+      <select value={selectedMonth ?? ''} onChange={(e) => onMonth(e.target.value)} className={inputCls}>
+        {[...months].reverse().map((m) => (
+          <option key={m} value={m}>
+            {m} (close {monthDates(m).asOf})
+          </option>
+        ))}
+      </select>
+      <select value={location} onChange={(e) => onLocation(e.target.value)} className={inputCls}>
+        <option value="all">All locations</option>
+        {locations.map((l) => (
+          <option key={l} value={l}>
+            {l}
+          </option>
+        ))}
+      </select>
+      {showCategory && (
+        <select value={category} onChange={(e) => onCategory(e.target.value)} className={inputCls}>
+          <option value="all">All Categories</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      )}
+      {showProductFilters && (
+        <>
+          <select
+            value={status}
+            onChange={(e) => onStatus(e.target.value)}
+            className={inputCls}
+            title="Lot status is product-grain — it filters the product table below"
+          >
+            <option value="all">All Lots</option>
+            <option value="open">Open (qty remaining)</option>
+            <option value="fully_used">Fully Used</option>
+          </select>
+          <input
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Search product, NDC, or lot #"
+            className={`${inputCls} w-64`}
+            title="Search is product-grain — it filters the product table below"
+          />
+        </>
+      )}
+      <span className={`text-xs ${subText}`}>
+        {months.length > 0
+          ? `${months.length} months available (${months[0]} – ${months[months.length - 1]})`
+          : ''}
+      </span>
     </div>
   );
 }

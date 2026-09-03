@@ -115,8 +115,8 @@ export async function fetchCategoryLedgerValues(
  */
 export async function fetchCategoryCogsSeries(
   pool: Pool,
-  fromMonth: string,
-  toMonth: string,
+  fromMonth = '0000-00',
+  toMonth = '9999-99',
 ): Promise<CategoryCogsSeriesRow[]> {
   const { rows } = await pool.query<{
     as_of_month: string;
