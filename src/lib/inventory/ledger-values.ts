@@ -20,6 +20,7 @@
  */
 import type { Pool } from 'pg';
 import type { CategoryLedgerValue } from './monthly-close';
+import type { CategoryCogsSeriesRow } from '@/types/inventory';
 
 /**
  * The category expression, written once. A lot with no `purchase_lots` row has
@@ -99,6 +100,67 @@ export async function fetchCategoryLedgerValues(
     receiptIds: r.receipt_ids,
     lotCount: r.lot_count,
   }));
+}
+
+/**
+ * COGS by category by month — the QuickBooks 5000.xx P&L shape, from our side.
+ *
+ * Carson, 2026-09-03, from a QB P&L showing 5000.05/.10/.15/.20/.35 populated for
+ * January and February 2026 and BLANK from March on: the close JEs have never
+ * posted, so $1.5M of category COGS is simply missing from the books. This is the
+ * view that makes that visible.
+ *
+ * Same `qty_consumed x unit_cost` basis as `fetchCategoryLedgerValues`, so a column
+ * of this grid and that month's roll-forward are the same number.
+ */
+export async function fetchCategoryCogsSeries(
+  pool: Pool,
+  fromMonth: string,
+  toMonth: string,
+): Promise<CategoryCogsSeriesRow[]> {
+  const { rows } = await pool.query<{
+    as_of_month: string;
+    location: string;
+    qb_category: string;
+    cogs: number;
+  }>(
+    `SELECT l.as_of_month,
+            l.location,
+            ${CATEGORY_EXPR} AS qb_category,
+            COALESCE(sum(l.qty_consumed * COALESCE(p.unit_cost, 0)), 0)::float8 AS cogs
+     FROM inventory.lot_depletion_ledger l
+     LEFT JOIN inventory.purchase_lots p ON p.receipt_id = l.receipt_id
+     WHERE ${NOT_COLLAPSED} AND l.as_of_month BETWEEN $1 AND $2
+     GROUP BY l.as_of_month, l.location, ${CATEGORY_EXPR}
+     ORDER BY l.as_of_month, l.location, qb_category`,
+    [fromMonth, toMonth],
+  );
+  return rows.map((r) => ({
+    month: r.as_of_month,
+    location: r.location,
+    qbCategory: r.qb_category,
+    cogs: r.cogs,
+  }));
+}
+
+/**
+ * The first month the ledger is anchored to a real count.
+ *
+ * That month carries the whole catch-up write-off from every unanchored month
+ * before it, so its COGS is a cutover discharge, not operating cost of goods —
+ * $2,170,590 combined at 2026-01 against ~$290k in a normal month. It has to be
+ * labelled wherever COGS is shown by month, or someone reads a $2.2M January.
+ *
+ * Derived, not hardcoded: 2025-12 has zero anchored rows and 2026-01 has 9,463.
+ * A ratio heuristic was tried first and rejected — at location grain it
+ * false-positived on Florida (76.9% in a normal month) and on Texas's first
+ * trading month.
+ */
+export async function fetchFirstAnchoredMonth(pool: Pool): Promise<string | null> {
+  const { rows } = await pool.query<{ month: string | null }>(
+    `SELECT min(as_of_month) AS month FROM inventory.lot_depletion_ledger WHERE lot_anchored`,
+  );
+  return rows[0]?.month ?? null;
 }
 
 export interface LedgerSeriesRow {

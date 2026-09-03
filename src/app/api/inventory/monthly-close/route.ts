@@ -35,6 +35,8 @@ const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): Mont
   headers: [],
   linesById: {},
   categoryRollForward: [],
+  categoryCogsSeries: [],
+  firstAnchoredMonth: null,
   categoryJournalEntries: [],
   categoryUnavailable: null,
 });

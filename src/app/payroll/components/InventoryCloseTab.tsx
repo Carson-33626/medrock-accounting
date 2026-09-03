@@ -442,6 +442,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
             journalEntries={monthlyClose.journalEntries}
             categoryJournalEntries={monthlyClose.categoryJournalEntries}
             categoryRollForward={monthlyClose.categoryRollForward}
+            categoryCogsSeries={monthlyClose.categoryCogsSeries}
+            firstAnchoredMonth={monthlyClose.firstAnchoredMonth}
             basis={monthlyClose.basis}
             monthEnd={monthlyClose.monthEnd}
             month={selectedMonth}

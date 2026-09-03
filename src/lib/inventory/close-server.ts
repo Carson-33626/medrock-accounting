@@ -28,7 +28,11 @@ import {
   type CategoryLedgerValue,
 } from './monthly-close';
 import { CORRECTION_ACCOUNT } from './category-accounts';
-import { fetchCategoryLedgerValues } from './ledger-values';
+import {
+  fetchCategoryCogsSeries,
+  fetchCategoryLedgerValues,
+  fetchFirstAnchoredMonth,
+} from './ledger-values';
 import {
   saveDraft,
   loadDraft,
@@ -39,6 +43,7 @@ import {
 import type { Entity, JournalDraft, JournalLine } from '../payroll/types';
 import type {
   CategoryJE,
+  CategoryCogsSeriesRow,
   CategoryRollForwardRow,
   CloseBasis,
   InvCloseHeader,
@@ -132,6 +137,8 @@ export async function computeClose(
 ): Promise<
   Pick<MonthlyCloseResponse, 'purchasesAvailable' | 'rollForward' | 'journalEntries'> & {
     categoryRollForward: CategoryRollForwardRow[];
+    categoryCogsSeries: CategoryCogsSeriesRow[];
+    firstAnchoredMonth: string | null;
     categoryJournalEntries: CategoryJE[];
     categoryUnavailable: string | null;
   }
@@ -147,6 +154,8 @@ export async function computeClose(
       rollForward: [],
       journalEntries: [],
       categoryRollForward: [],
+      categoryCogsSeries: [],
+      firstAnchoredMonth: null,
       categoryJournalEntries: [],
       categoryUnavailable: null,
     };
@@ -194,6 +203,8 @@ export async function computeClose(
       purchasesAvailable,
       rollForward: [],
       journalEntries: [],
+      categoryCogsSeries: [],
+      firstAnchoredMonth: null,
       categoryRollForward: [],
       categoryJournalEntries: [],
       categoryUnavailable: null,
@@ -274,11 +285,30 @@ export async function computeClose(
     console.warn('[inventory/close-server] category grain skipped:', categoryUnavailable);
   }
 
+  // COGS by category by month, calendar-year-to-date — the shape the accountants
+  // read the QuickBooks 5000.xx P&L in. Best-effort for the same reason the
+  // category grain is: a failure here must not take down the close.
+  let categoryCogsSeries: CategoryCogsSeriesRow[] = [];
+  let firstAnchoredMonth: string | null = null;
+  try {
+    [categoryCogsSeries, firstAnchoredMonth] = await Promise.all([
+      fetchCategoryCogsSeries(pool, `${month.slice(0, 4)}-01`, month),
+      fetchFirstAnchoredMonth(pool),
+    ]);
+  } catch (seriesErr) {
+    console.warn(
+      '[inventory/close-server] COGS series skipped:',
+      seriesErr instanceof Error ? seriesErr.message : seriesErr,
+    );
+  }
+
   return {
     purchasesAvailable,
     rollForward,
     journalEntries,
     categoryRollForward,
+    categoryCogsSeries,
+    firstAnchoredMonth,
     categoryJournalEntries,
     categoryUnavailable,
   };

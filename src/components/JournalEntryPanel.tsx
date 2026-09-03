@@ -5,7 +5,9 @@ import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw,
 import HelpTip from './HelpTip';
 import QboImportGuide from './QboImportGuide';
 import CategoryLotDrilldown from './CategoryLotDrilldown';
+import CategoryCogsByMonth from './CategoryCogsByMonth';
 import type {
+  CategoryCogsSeriesRow,
   CategoryJE,
   CategoryRollForwardRow,
   CloseBasis,
@@ -78,6 +80,8 @@ export default function JournalEntryPanel({
   journalEntries,
   categoryJournalEntries,
   categoryRollForward,
+  categoryCogsSeries,
+  firstAnchoredMonth,
   basis,
   monthEnd,
   month,
@@ -93,6 +97,8 @@ export default function JournalEntryPanel({
   journalEntries: LocationJE[];
   categoryJournalEntries: CategoryJE[];
   categoryRollForward: CategoryRollForwardRow[];
+  categoryCogsSeries: CategoryCogsSeriesRow[];
+  firstAnchoredMonth: string | null;
   basis: CloseBasis;
   monthEnd: string;
   month: string;
@@ -180,6 +186,8 @@ export default function JournalEntryPanel({
           view={activeView}
           categoryJE={categoryJournalEntries.find((c) => c.location === activeView.je.location) ?? null}
           categoryRollForward={categoryRollForward}
+          categoryCogsSeries={categoryCogsSeries}
+          firstAnchoredMonth={firstAnchoredMonth}
           basis={basis}
           month={month}
           monthEnd={monthEnd}
@@ -241,6 +249,8 @@ function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: Location
 function CategoryBreakdown({
   je,
   categoryRollForward,
+  categoryCogsSeries,
+  firstAnchoredMonth,
   month,
   darkMode,
   subText,
@@ -249,6 +259,8 @@ function CategoryBreakdown({
 }: {
   je: CategoryJE;
   categoryRollForward: CategoryRollForwardRow[];
+  categoryCogsSeries: CategoryCogsSeriesRow[];
+  firstAnchoredMonth: string | null;
   month: string;
   darkMode: boolean;
   subText: string;
@@ -412,6 +424,14 @@ function CategoryBreakdown({
           </tfoot>
         </table>
       </div>
+      <CategoryCogsByMonth
+        rows={categoryCogsSeries}
+        location={je.location}
+        firstAnchoredMonth={firstAnchoredMonth}
+        darkMode={darkMode}
+        subText={subText}
+        border={border}
+      />
       {je.unmappedCategories.length > 0 && (
         <p className={`text-xs ${subText}`}>
           Residual categories ({je.unmappedCategories.join(', ')}) share the parent Inventory Asset /
@@ -474,6 +494,8 @@ function DraftCard({
   view,
   categoryJE,
   categoryRollForward,
+  categoryCogsSeries,
+  firstAnchoredMonth,
   basis,
   month,
   monthEnd,
@@ -490,6 +512,8 @@ function DraftCard({
   view: LocationView;
   categoryJE: CategoryJE | null;
   categoryRollForward: CategoryRollForwardRow[];
+  categoryCogsSeries: CategoryCogsSeriesRow[];
+  firstAnchoredMonth: string | null;
   basis: CloseBasis;
   month: string;
   monthEnd: string;
@@ -579,6 +603,8 @@ function DraftCard({
               key={categoryJE.location}
               je={categoryJE}
               categoryRollForward={categoryRollForward}
+              categoryCogsSeries={categoryCogsSeries}
+              firstAnchoredMonth={firstAnchoredMonth}
               month={month}
               darkMode={darkMode}
               subText={subText}

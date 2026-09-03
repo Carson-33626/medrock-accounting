@@ -158,6 +158,14 @@ export interface InvCloseLine {
  * docs/superpowers/specs/2026-08-24-inventory-close-category-lot-detail-design.md.
  */
 
+/** One (month, location, category) cell of the COGS-by-month grid. */
+export interface CategoryCogsSeriesRow {
+  month: string;
+  location: string;
+  qbCategory: string;
+  cogs: number;
+}
+
 /** One roll-forward line at (location, category) grain. */
 export interface CategoryRollForwardRow {
   location: string;
@@ -298,6 +306,13 @@ export interface MonthlyCloseResponse {
   linesById: Record<string, InvCloseLine[]>;
   /** Category-grain roll-forward (lot-ledger sourced). Empty when unavailable. */
   categoryRollForward: CategoryRollForwardRow[];
+  /** COGS by category by month, calendar-year-to-date — the QB 5000.xx P&L shape. */
+  categoryCogsSeries: CategoryCogsSeriesRow[];
+  /**
+   * The first month anchored to a real count. Its COGS is the cutover discharge
+   * (every unanchored month's write-off landing at once), never operating COGS.
+   */
+  firstAnchoredMonth: string | null;
   /** Category-grain entries — what actually generates/posts as of 2026-08-24. */
   categoryJournalEntries: CategoryJE[];
   /**
