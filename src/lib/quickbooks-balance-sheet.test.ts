@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildBalanceSheetEndpoint, parseInventoryAssetSection } from './quickbooks-multi';
+import {
+  balanceSheetStartDate,
+  buildBalanceSheetEndpoint,
+  parseInventoryAssetSection,
+} from './quickbooks-multi';
 
 /**
  * Fixture modeled on the real QB BalanceSheet report tree (single end_date, so
@@ -113,6 +117,14 @@ describe('buildBalanceSheetEndpoint', () => {
     const params = new URLSearchParams(endpoint.slice(endpoint.indexOf('?') + 1));
     expect(params.get('start_date')).toBeTruthy();
     expect(params.get('end_date')).toBe('2026-03-31');
+  });
+
+  it('starts at Jan 1 of the as-of YEAR — a far-past epoch is ignored by QuickBooks', () => {
+    // Deployed 2000-01-01 on 2026-09-03 and QBO still served its default balances.
+    // Same-year Jan 1 is the shape the working sweep uses.
+    expect(balanceSheetStartDate('2026-06-30')).toBe('2026-01-01');
+    expect(balanceSheetStartDate('2022-09-30')).toBe('2022-01-01');
+    expect(balanceSheetStartDate('2026-01-31')).toBe('2026-01-01');
   });
 
   it('keeps start_date at or before the requested as-of date for every month we close', () => {

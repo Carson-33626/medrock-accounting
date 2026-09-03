@@ -1215,7 +1215,24 @@ export function parseInventoryAssetSection(report: QbBalanceSheetReport): Invent
  * it only makes QuickBooks honour `end_date`. Do not remove it, and do not
  * "simplify" it away.
  */
-const BALANCE_SHEET_EPOCH = '2000-01-01';
+/**
+ * January 1 of the as-of year — the ONLY `start_date` shape proven to work.
+ *
+ * A far-past epoch does NOT work. Deployed 2026-09-03 with `start_date=2000-01-01`
+ * and QuickBooks still returned its default balances (TN 1220.10 stayed at
+ * 630,754.05 for `month=2026-06`, which is the 07/31 figure). QuickBooks ignores an
+ * out-of-range start date exactly as it ignores a missing one, and either way
+ * answers 200 with a well-formed report — there is no error to catch.
+ *
+ * `<year>-01-01` mirrors `_sweep-L9-balance-sheet.ts`, which passes 2026-01-01 and
+ * demonstrably gets distinct, correct balances per end_date (06/30 vs 07/31), and
+ * whose totals tie to QuickBooks' own BalanceSheet report to $0.00. A balance sheet
+ * is cumulative, so this does not turn the figures into year-to-date movement — it
+ * only makes QuickBooks honour `end_date`.
+ */
+export function balanceSheetStartDate(asOfDate: string): string {
+  return `${asOfDate.slice(0, 4)}-01-01`;
+}
 
 /**
  * The BalanceSheet report endpoint for an as-of date. Extracted and exported ONLY
@@ -1224,7 +1241,7 @@ const BALANCE_SHEET_EPOCH = '2000-01-01';
  */
 export function buildBalanceSheetEndpoint(asOfDate: string): string {
   return (
-    `reports/BalanceSheet?start_date=${BALANCE_SHEET_EPOCH}` +
+    `reports/BalanceSheet?start_date=${balanceSheetStartDate(asOfDate)}` +
     `&end_date=${encodeURIComponent(asOfDate)}` +
     '&accounting_method=Accrual&minorversion=75'
   );
