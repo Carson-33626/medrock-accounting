@@ -113,13 +113,44 @@ export interface LabAccrualDraftPair {
  * zero-amount lines: QuickBooks accepts them, and a shelf of $0.00 entries is
  * noise an accountant then has to read past every month to find the real ones.
  */
+/**
+ * The QuickBooks identity of one half of the pair.
+ *
+ * Exported and used by BOTH the draft builder and the post route. The post route
+ * re-derives DocNumber/TxnDate/PrivateNote rather than trusting the stored draft
+ * (a stale row must not decide what lands in QuickBooks), so if it derived them
+ * independently the two could disagree about what the same entry is called.
+ */
+export function labAccrualIdentity(
+  month: string,
+  kind: 'accrual' | 'reversal',
+): { docNumber: string; txnDateIso: string; privateNote: string } {
+  const tag = monthTag(month);
+  if (kind === 'reversal') {
+    return {
+      docNumber: `LS Accru ${tag}R`,
+      txnDateIso: nextMonthStartIso(month),
+      privateNote: `Reverse of JE LS Accru ${tag}`,
+    };
+  }
+  return {
+    docNumber: `LS Accru ${tag}`,
+    txnDateIso: monthEndIso(month),
+    privateNote:
+      `Lab supplies accrual — ${month}. Estimated spend not yet entered in QuickBooks; ` +
+      'lab supplies are bought ad hoc and do not route through LifeFile, so FIFO cannot see them. ' +
+      'Reverses on the first of the following month.',
+  };
+}
+
 export function buildLabAccrualDrafts(input: LabAccrualDraftInput): LabAccrualDraftPair | null {
   const amount = round2(input.accrual);
   if (amount <= 0) return null;
 
   const entity = ACCRUAL_ENTITY_BY_LOCATION[input.location];
-  const tag = monthTag(input.month);
   const monthEnd = monthEndIso(input.month);
+  const accrualId = labAccrualIdentity(input.month, 'accrual');
+  const reversalId = labAccrualIdentity(input.month, 'reversal');
   const pct = Math.round(input.completeness * 100);
   const basis =
     input.boundBy === 'entry'
@@ -166,7 +197,6 @@ export function buildLabAccrualDrafts(input: LabAccrualDraftInput): LabAccrualDr
     periodStart: `${input.month}-01`,
     periodEnd: monthEnd,
   };
-  const reversalDate = nextMonthStartIso(input.month);
 
   return {
     accrual: {
@@ -174,12 +204,9 @@ export function buildLabAccrualDrafts(input: LabAccrualDraftInput): LabAccrualDr
       kind: 'accrual',
       payDate: isoToAdp(monthEnd),
       ...period,
-      docNumber: `LS Accru ${tag}`,
-      txnDate: monthEnd,
-      privateNote:
-        `Lab supplies accrual — ${input.month}. Estimated spend not yet entered in QuickBooks; ` +
-        'lab supplies are bought ad hoc and do not route through LifeFile, so FIFO cannot see them. ' +
-        'Reverses on the first of the following month.',
+      docNumber: accrualId.docNumber,
+      txnDate: accrualId.txnDateIso,
+      privateNote: accrualId.privateNote,
       lines: lines(false),
       totalDebits: amount,
       totalCredits: amount,
@@ -189,11 +216,11 @@ export function buildLabAccrualDrafts(input: LabAccrualDraftInput): LabAccrualDr
     reversal: {
       entity,
       kind: 'reversal',
-      payDate: isoToAdp(reversalDate),
+      payDate: isoToAdp(reversalId.txnDateIso),
       ...period,
-      docNumber: `LS Accru ${tag}R`,
-      txnDate: reversalDate,
-      privateNote: `Reverse of JE LS Accru ${tag}`,
+      docNumber: reversalId.docNumber,
+      txnDate: reversalId.txnDateIso,
+      privateNote: reversalId.privateNote,
       lines: lines(true),
       totalDebits: amount,
       totalCredits: amount,

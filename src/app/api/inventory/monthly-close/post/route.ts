@@ -5,6 +5,7 @@ import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { invCloseDocNumber, openingCorrectionDocNumber } from '@/lib/inventory/monthly-close';
 import { INV_OPEN_PAY_GROUP } from '@/lib/inventory/close-server';
+import { LAB_ACCRUAL_PAY_GROUP, labAccrualIdentity } from '@/lib/inventory/lab-supplies-je';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
 
@@ -59,9 +60,25 @@ export async function POST(request: NextRequest) {
     const { header, lines } = loaded;
     entity = header.entity;
 
-    // GATE 1 (both modes): this route only ever posts inventory-close JEs — any
-    // other draft routed here would post with the wrong doc-number/note scheme.
-    if (header.kind !== 'inventory') {
+    // The lab-supplies accrual pair rides this route too (Carson, 2026-09-03: "add this
+    // on the COGS/Inventory journal entries so that this piece becomes visible and they
+    // can use the inventory JE to post this"). It is inventory cost by nature and the
+    // accountants work the close from one screen, so it gets the same gates, the same
+    // audit and the same Approve -> Dry run -> Post workflow. It keeps kind 'accrual' /
+    // 'reversal' because that IS what it is — the kind drives the reversal semantics.
+    const isLabAccrual = header.pay_group === LAB_ACCRUAL_PAY_GROUP;
+
+    // GATE 1 (both modes): this route only ever posts inventory-close JEs and the lab
+    // accrual — any other draft routed here would post with the wrong doc-number/note
+    // scheme.
+    if (isLabAccrual) {
+      if (header.kind !== 'accrual' && header.kind !== 'reversal') {
+        return NextResponse.json(
+          { error: 'lab-accrual header must be kind accrual or reversal' },
+          { status: 400 },
+        );
+      }
+    } else if (header.kind !== 'inventory') {
       return NextResponse.json({ error: 'header is not an inventory-close draft' }, { status: 400 });
     }
 
@@ -94,22 +111,35 @@ export async function POST(request: NextRequest) {
     // 2026.03', never the monthly 'Inv Adj', so the two are distinct in QB.
     const isOpeningCorrection = header.pay_group === INV_OPEN_PAY_GROUP;
 
+    // The accrual month is the PERIOD, not the pay date — the reversal's pay date is
+    // the first of the following month and would derive the wrong tag.
+    const labId = isLabAccrual
+      ? labAccrualIdentity(
+          (header.period_end ?? '').slice(0, 7),
+          header.kind === 'reversal' ? 'reversal' : 'accrual',
+        )
+      : null;
+
     const draft: JournalDraft = {
       entity: header.entity,
-      kind: 'inventory',
+      kind: isLabAccrual ? (header.kind === 'reversal' ? 'reversal' : 'accrual') : 'inventory',
       payDate: header.pay_date,
       payGroup: header.pay_group,
       periodStart: header.period_start ?? '',
       periodEnd: header.period_end ?? '',
       periodSegment: header.period_segment,
-      docNumber: isOpeningCorrection
-        ? openingCorrectionDocNumber(header.entity, month)
-        : invCloseDocNumber(header.entity, month),
-      txnDate: header.txn_date ?? undefined,
+      docNumber: labId
+        ? labId.docNumber
+        : isOpeningCorrection
+          ? openingCorrectionDocNumber(header.entity, month)
+          : invCloseDocNumber(header.entity, month),
+      txnDate: labId ? labId.txnDateIso : (header.txn_date ?? undefined),
       // The stored line memos carry the basis + as-of date; the note stays stable.
-      privateNote: isOpeningCorrection
-        ? 'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)'
-        : `Inventory FIFO close adjustment — ${month}`,
+      privateNote: labId
+        ? labId.privateNote
+        : isOpeningCorrection
+          ? 'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)'
+          : `Inventory FIFO close adjustment — ${month}`,
       lines,
       totalDebits: header.total_debits,
       totalCredits: header.total_credits,

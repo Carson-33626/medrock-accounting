@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
-import { generateLabAccrualDrafts } from '@/lib/inventory/lab-supplies-server';
+import {
+  fetchLabSuppliesAccrual,
+  generateLabAccrualDrafts,
+  listLabAccrualDrafts,
+} from '@/lib/inventory/lab-supplies-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,11 +40,40 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await generateLabAccrualDrafts(month);
-    return NextResponse.json({ month, ...result });
+    const stored = await listLabAccrualDrafts(month);
+    return NextResponse.json({ month, ...result, ...stored });
   } catch (error) {
     console.error('[inventory/lab-supplies-accrual/generate POST]', error);
     const message =
       error instanceof Error ? error.message : 'Failed to generate lab-supplies accrual drafts';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * GET ?month=YYYY-MM — the month's stored accrual drafts plus the live estimate
+ * behind them, for the Inventory Close tab. Read-only.
+ */
+export async function GET(request: NextRequest) {
+  await requireManager();
+  try {
+    const month = request.nextUrl.searchParams.get('month') ?? '';
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return NextResponse.json({ error: 'month is required as YYYY-MM' }, { status: 400 });
+    }
+    const [stored, live] = await Promise.all([
+      listLabAccrualDrafts(month),
+      fetchLabSuppliesAccrual(),
+    ]);
+    return NextResponse.json({
+      month,
+      ...stored,
+      estimate: live.months.filter((m) => m.month === month),
+      unavailable: live.unavailable,
+    });
+  } catch (error) {
+    console.error('[inventory/lab-supplies-accrual/generate GET]', error);
+    const message = error instanceof Error ? error.message : 'Failed to read lab-supplies accrual drafts';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

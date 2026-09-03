@@ -23,7 +23,9 @@
  */
 import { qbQueryAll, type Location } from '@/lib/quickbooks-multi';
 import { computeAccrual, type AccrualLocation, type AccrualResult } from './lab-supplies-accrual';
-import { buildLabAccrualDrafts } from './lab-supplies-je';
+import { buildLabAccrualDrafts, LAB_ACCRUAL_PAY_GROUP } from './lab-supplies-je';
+import { loadDraft } from '@/lib/payroll/store';
+import { getRdsPool } from '@/lib/rds';
 import { saveDraft } from '@/lib/payroll/store';
 import { createHash } from 'node:crypto';
 
@@ -65,6 +67,26 @@ export interface LabSuppliesAccrualResponse {
   months: LabSuppliesAccrualMonth[];
   /** Locations whose QuickBooks realm could not be read; their rows are absent. */
   unavailable: string[];
+}
+
+/** One stored half of an accrual pair, for the Inventory Close tab. */
+export interface LabAccrualHeader {
+  id: number;
+  entity: string;
+  kind: 'accrual' | 'reversal';
+  status: 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
+  qb_doc_number: string | null;
+  txn_date: string | null;
+  total_debits: number;
+  total_credits: number;
+  variance: number;
+}
+
+export interface LabAccrualLine {
+  postingType: 'Debit' | 'Credit';
+  amount: number;
+  accountName: string;
+  memo: string;
 }
 
 /** Last day of a 'YYYY-MM', as 'YYYY-MM-DD'. */
@@ -237,4 +259,64 @@ export async function generateLabAccrualDrafts(
   }
 
   return { saved, skipped, unavailable };
+}
+
+/**
+ * The stored lab-accrual drafts for a month, in the shape the Inventory Close tab
+ * already renders its own drafts in.
+ *
+ * BOTH halves of every pair, deliberately. The reversal is dated the first of the
+ * NEXT month and is a separate posting act; hiding it would leave an accrual on the
+ * books with nothing on screen saying it comes back off.
+ *
+ * Matched on `period_end`, not `pay_date` — the pair spans two pay dates by design
+ * (see `lab-supplies-je.ts`) and both halves belong to the accrued month.
+ */
+export async function listLabAccrualDrafts(month: string): Promise<{
+  headers: LabAccrualHeader[];
+  linesById: Record<string, LabAccrualLine[]>;
+}> {
+  const { rows } = await getRdsPool().query<{
+    id: number;
+    entity: string;
+    kind: string;
+    status: string;
+    qb_doc_number: string | null;
+    txn_date: string | null;
+    total_debits: string;
+    total_credits: string;
+    variance: string;
+  }>(
+    `SELECT id, entity, kind, status, qb_doc_number,
+            to_char(txn_date, 'YYYY-MM-DD') AS txn_date,
+            total_debits::text, total_credits::text, variance::text
+     FROM accounting.payroll_journal_headers
+     WHERE pay_group = $1 AND period_end = $2
+     ORDER BY entity, kind DESC`,
+    [LAB_ACCRUAL_PAY_GROUP, monthEndOf(month)],
+  );
+
+  const headers: LabAccrualHeader[] = rows.map((r) => ({
+    id: r.id,
+    entity: r.entity,
+    kind: r.kind === 'reversal' ? 'reversal' : 'accrual',
+    status: r.status as LabAccrualHeader['status'],
+    qb_doc_number: r.qb_doc_number,
+    txn_date: r.txn_date,
+    total_debits: Number(r.total_debits),
+    total_credits: Number(r.total_credits),
+    variance: Number(r.variance),
+  }));
+
+  const linesById: Record<string, LabAccrualLine[]> = {};
+  for (const h of headers) {
+    const loaded = await loadDraft(h.id);
+    linesById[String(h.id)] = (loaded?.lines ?? []).map((l) => ({
+      postingType: l.postingType,
+      amount: l.amount,
+      accountName: l.accountName,
+      memo: l.memo,
+    }));
+  }
+  return { headers, linesById };
 }
