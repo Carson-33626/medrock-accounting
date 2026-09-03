@@ -119,9 +119,9 @@ describe('buildBalanceSheetEndpoint', () => {
     expect(params.get('end_date')).toBe('2026-03-31');
   });
 
-  it('starts at Jan 1 of the as-of YEAR — a far-past epoch is ignored by QuickBooks', () => {
-    // Deployed 2000-01-01 on 2026-09-03 and QBO still served its default balances.
-    // Same-year Jan 1 is the shape the working sweep uses.
+  it('starts at Jan 1 of the as-of year', () => {
+    // Any start_date works — probed 2026-09-03, 2000-01-01 and 2026-01-01 both return
+    // 535,127.20 at end_date 2026-06-30. Same-year Jan 1 mirrors the proven sweep call.
     expect(balanceSheetStartDate('2026-06-30')).toBe('2026-01-01');
     expect(balanceSheetStartDate('2022-09-30')).toBe('2022-01-01');
     expect(balanceSheetStartDate('2026-01-31')).toBe('2026-01-01');

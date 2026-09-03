@@ -1216,19 +1216,25 @@ export function parseInventoryAssetSection(report: QbBalanceSheetReport): Invent
  * "simplify" it away.
  */
 /**
- * January 1 of the as-of year — the ONLY `start_date` shape proven to work.
+ * January 1 of the as-of year. ANY `start_date` works — sending one at all is the
+ * whole fix.
  *
- * A far-past epoch does NOT work. Deployed 2026-09-03 with `start_date=2000-01-01`
- * and QuickBooks still returned its default balances (TN 1220.10 stayed at
- * 630,754.05 for `month=2026-06`, which is the 07/31 figure). QuickBooks ignores an
- * out-of-range start date exactly as it ignores a missing one, and either way
- * answers 200 with a well-formed report — there is no error to catch.
+ * Measured directly against the TN realm on 2026-09-03
+ * (`_probe-balancesheet-enddate.ts`), reading the period QuickBooks echoes back in
+ * `Header.StartPeriod`/`EndPeriod`:
  *
- * `<year>-01-01` mirrors `_sweep-L9-balance-sheet.ts`, which passes 2026-01-01 and
- * demonstrably gets distinct, correct balances per end_date (06/30 vs 07/31), and
- * whose totals tie to QuickBooks' own BalanceSheet report to $0.00. A balance sheet
- * is cumulative, so this does not turn the figures into year-to-date movement — it
- * only makes QuickBooks honour `end_date`.
+ *   end_date=2026-06-30 alone            -> period 2026-01-01..2026-09-03  630,754.05
+ *   start_date=2026-01-01 + same end     -> period 2026-01-01..2026-06-30  535,127.20
+ *   start_date=2000-01-01 + same end     -> period 2000-01-01..2026-06-30  535,127.20
+ *
+ * So without a `start_date` QuickBooks discards `end_date` and runs year-to-date
+ * through TODAY, while still answering 200 with a well-formed report — there is no
+ * error to catch, and the numbers look entirely plausible. That is what made the
+ * close page compute every month's adjustment against one set of balances.
+ *
+ * A balance sheet is cumulative, so the start date does not reduce the figures to
+ * year-to-date movement (both rows above agree to the cent). `<year>-01-01` simply
+ * mirrors `_sweep-L9-balance-sheet.ts`, the call already proven in production.
  */
 export function balanceSheetStartDate(asOfDate: string): string {
   return `${asOfDate.slice(0, 4)}-01-01`;
