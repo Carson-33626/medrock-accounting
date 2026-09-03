@@ -5,6 +5,7 @@ import CategoryCogsByMonth from './CategoryCogsByMonth';
 import DownloadIcon from './DownloadIcon';
 import Explainer from './Explainer';
 import HelpTip from './HelpTip';
+import LabSuppliesAccrual from './LabSuppliesAccrual';
 import { shortInventoryLocation } from '@/lib/inventory/monthly-close';
 import {
   buildCogsGrid,
@@ -331,6 +332,17 @@ export default function InventoryCogsTab({
               subText={subText}
             />
           )}
+
+          {/* Lab supplies are absent from every figure above — the category was
+              cleared out of FIFO because it never reaches LifeFile. Its cost is
+              accrued from QuickBooks instead, and it belongs on this tab so the
+              COGS picture is not silently missing a line. */}
+          <LabSuppliesAccrual
+            cardBg={cardBg}
+            rowBorder={rowBorder}
+            subText={subText}
+            darkMode={darkMode}
+          />
         </>
       )}
     </>
