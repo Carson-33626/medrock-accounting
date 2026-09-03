@@ -6,24 +6,32 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 /**
  * Collapsible "What am I looking at?" panel.
  *
- * Opens itself the FIRST time a browser ever renders the panel (keyed by `id`
- * in localStorage) and stays collapsed on every visit after that. Server
- * render and the initial client render are always collapsed, so the first-run
- * expansion happens post-hydration — that avoids an SSR/client mismatch.
+ * By default it opens itself the FIRST time a browser ever renders the panel
+ * (keyed by `id` in localStorage) and stays collapsed on every visit after
+ * that. Server render and the initial client render are always collapsed, so
+ * the first-run expansion happens post-hydration — that avoids an SSR/client
+ * mismatch.
+ *
+ * `openOnFirstVisit={false}` suppresses even that one expansion: the panel
+ * starts collapsed for everyone, every time. Use it where the explanation is
+ * long enough that opening it pushes the actual figures off the screen.
  */
 export default function Explainer({
   id,
   title = 'What am I looking at?',
+  openOnFirstVisit = true,
   children,
 }: {
   id: string;
   title?: string;
+  openOnFirstVisit?: boolean;
   children: ReactNode;
 }) {
   const { darkMode } = useDarkMode();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (!openOnFirstVisit) return;
     try {
       const key = `explainer-seen:${id}`;
       if (window.localStorage.getItem(key) === null) {
@@ -33,7 +41,7 @@ export default function Explainer({
     } catch {
       // localStorage unavailable (private browsing) — stay collapsed.
     }
-  }, [id]);
+  }, [id, openOnFirstVisit]);
 
   return (
     <details

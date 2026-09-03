@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import CategoryCogsByMonth from './CategoryCogsByMonth';
 import DownloadIcon from './DownloadIcon';
 import Explainer from './Explainer';
@@ -19,11 +19,6 @@ import {
 import type { CategoryCogsSeriesRow } from '@/types/inventory';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-/** How much of the history the tab shows: the selected month's year so far, or
- *  everything. Year-to-date is the default — it is the window an accountant
- *  reconciles a P&L over, and it keeps the grid narrow enough to read. */
-type CogsRange = 'ytd' | 'all';
 
 interface FlagCopy {
   badge: string;
@@ -89,14 +84,19 @@ export default function InventoryCogsTab({
   exportBtnCls: string;
   exportBtnStyle: { backgroundColor: string };
 }) {
-  const [range, setRange] = useState<CogsRange>('ytd');
-
-  /** The window the grid, the totals and the exports all share. Year-to-date is
-   *  January of the selected month's year through the selected month. */
+  /**
+   * The window the grid, the totals and the exports all share: January of the
+   * selected month's year through the selected month.
+   *
+   * There is deliberately NO range control on this tab. The month picker at the
+   * top of the page is the single filter — year-to-date through whatever month
+   * is selected there. It is the window an accountant reconciles a P&L over, and
+   * an earlier year stays reachable by picking a month inside it.
+   */
   const monthWindow = useMemo(() => {
-    if (range === 'all' || !selectedMonth) return { from: undefined, to: undefined };
+    if (!selectedMonth) return { from: undefined, to: undefined };
     return { from: `${selectedMonth.slice(0, 4)}-01`, to: selectedMonth };
-  }, [range, selectedMonth]);
+  }, [selectedMonth]);
 
   const windowRows = useMemo(
     () =>
@@ -134,21 +134,21 @@ export default function InventoryCogsTab({
     return `/api/inventory/cogs?${params.toString()}`;
   };
 
-  const rangeBtn = (value: CogsRange, label: string) => (
-    <button
-      onClick={() => setRange(value)}
-      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-        range === value ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
-      }`}
-      style={range === value ? exportBtnStyle : undefined}
-    >
-      {label}
-    </button>
-  );
+  /** The window, spelled out — 'Jan–Jun 2026'. The grid has no control of its
+   *  own, so it has to say plainly what it is showing. */
+  const windowLabel = ((): string => {
+    if (!selectedMonth) return 'all months';
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const name = new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', {
+      month: 'short',
+      timeZone: 'UTC',
+    });
+    return m === 1 ? `${name} ${y}` : `Jan–${name} ${y}`;
+  })();
 
   return (
     <>
-      <Explainer id="inventory-cogs" title="What am I looking at?">
+      <Explainer id="inventory-cogs" title="What am I looking at?" openOnFirstVisit={false}>
         <p>
           <strong>Cost of goods sold, straight off the lot ledger.</strong> As stock is dispensed or
           used in compounding, the oldest lots go first (FIFO) and each unit is expensed at what that
@@ -222,8 +222,7 @@ export default function InventoryCogsTab({
               )}
               {!monthInWindow && (
                 <span className={`text-xs ${subText}`}>
-                  No cost of goods sold for {selectedMonth ?? 'this month'} in this window
-                  {range === 'ytd' ? ' — try All months.' : '.'}
+                  No cost of goods sold recorded for {selectedMonth ?? 'this month'}.
                 </span>
               )}
             </div>
@@ -248,9 +247,7 @@ export default function InventoryCogsTab({
 
             <div className="mt-5 grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <p className={`text-xs ${subText}`}>
-                  Operating COGS, {range === 'ytd' ? 'year to date' : 'all months'}
-                </p>
+                <p className={`text-xs ${subText}`}>Operating COGS, {windowLabel}</p>
                 <p className="text-xl font-bold tabular-nums">{usd.format(operating)}</p>
               </div>
               <div>
@@ -283,10 +280,7 @@ export default function InventoryCogsTab({
                   text="One row per QuickBooks COGS account, one column per month. The Operating total column sums only the months that are operating cost of goods; the cutover and true-up months are shown struck through so nothing disappears without explanation. With the location filter on 'All locations' the grid aggregates FL, TN and TX; pick a location in the bar above to see one entity."
                 />
               </p>
-              <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
-                {rangeBtn('ytd', 'Year to date')}
-                {rangeBtn('all', 'All months')}
-              </div>
+              <span className={`text-xs ${subText}`}>{windowLabel}</span>
               <div className="ml-auto flex gap-2">
                 <a href={exportHref('csv')} className={exportBtnCls} style={exportBtnStyle}>
                   <DownloadIcon /> Export CSV
