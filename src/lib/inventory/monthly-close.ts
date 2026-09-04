@@ -474,9 +474,13 @@ export function buildCategoryJE(
     .filter((r) => r.location === location)
     .map((r) => {
       const accounts = accountsForCategory(r.qbCategory);
-      if (!accounts.mapped) unmappedCategories.push(r.qbCategory);
-
       const fifoTarget = round2(r.ending);
+      // Only a bucket that actually CARRIES value is worth warning about. Florida
+      // 2026-03 held 'Uncoded' at $0.00 alongside a real 'Opening Balance', and
+      // naming both sent the accountant after the empty one — the coding work had
+      // already cleared it. A category at zero contributes nothing to the residual
+      // pair and is not a task.
+      if (!accounts.mapped && fifoTarget !== 0) unmappedCategories.push(r.qbCategory);
       let qbBookBalance: number | null;
       if (!bookAvailable) {
         qbBookBalance = null;

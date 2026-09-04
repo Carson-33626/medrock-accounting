@@ -345,6 +345,39 @@ export async function loadStoredDrafts(
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
+ * The residual-line warning, with advice that fits the bucket it names.
+ *
+ * The old text told the accountant to "assign drug codes to clear" whatever was in
+ * the residual. That is right for `Uncoded` and IMPOSSIBLE for `Opening Balance`:
+ * OB rows are pre-history pseudo-receipts with no `purchase_lots` row at all, so
+ * there is no product to code. Measured 2026-03, Florida's entire residual was
+ * Opening Balance ($4,212.00) while Uncoded sat at $0.00 — the message sent them
+ * after the empty bucket with an instruction that could not work on the full one.
+ *
+ * Exported for the test that pins each bucket's advice.
+ */
+export function residualWarning(location: string, categories: readonly string[]): string {
+  const listed = categories.length > 0 ? categories.join(', ') : 'one or more categories';
+  const advice: string[] = [];
+  if (categories.includes('Uncoded')) {
+    advice.push("'Uncoded' clears by assigning drug codes to those products");
+  }
+  if (categories.includes('Opening Balance')) {
+    advice.push(
+      "'Opening Balance' is pre-history stock carrying no product record, so it cannot be coded — " +
+        'it clears as those lots deplete, or by attributing them to the category their own product ' +
+        'already carries',
+    );
+  }
+  return (
+    `${location}: ${listed} ${categories.length === 1 ? 'has' : 'have'} no QuickBooks category ` +
+    'account — posted to the parent Inventory Asset / Cost of Goods Sold as ONE combined residual ' +
+    `line${advice.length > 0 ? `. ${advice.join('; ')}` : ''}`
+  );
+}
+
+
+/**
  * Generate (or regenerate) the month's inventory-close drafts from the current
  * close numbers. Locked once any draft for the month has posted — mirroring the
  * EOM generate gate, the accountant must un-post in QuickBooks first.
@@ -405,11 +438,7 @@ export async function generateInvCloseDrafts(
     // claiming otherwise sends the accountant looking for a line that isn't there.
     const residualLine = jeLines.find((l) => !l.mapped);
     if (residualLine) {
-      warnings.push(
-        `${je.location}: ${je.unmappedCategories.join(', ')} have no QuickBooks category account — ` +
-          'posted to the parent Inventory Asset / Cost of Goods Sold as ONE combined residual line ' +
-          '(assign drug codes to clear)',
-      );
+      warnings.push(residualWarning(je.location, je.unmappedCategories));
     }
     const lines: JournalLine[] = jeLines.map((l) => ({
       postingType: l.debit !== null ? 'Debit' : 'Credit',

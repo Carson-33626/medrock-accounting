@@ -458,6 +458,21 @@ describe('buildCategoryJE', () => {
     expect(je.unmappedCategories).toEqual(['Uncoded']);
   });
 
+  it('does not name an unmapped category that carries nothing', () => {
+    // Florida 2026-03 held 'Uncoded' at $0.00 next to a real 'Opening Balance'.
+    // Naming the empty one sent the accountant after a bucket the coding work had
+    // already cleared, and it contributes nothing to the residual pair either.
+    const rows = buildCategoryRollForward(
+      [
+        clv({ location: 'MedRock FL', qbCategory: 'Uncoded', endingValue: 0 }),
+        clv({ location: 'MedRock FL', qbCategory: 'Opening Balance', endingValue: 4212 }),
+      ],
+      null,
+    );
+    const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
+    expect(je.unmappedCategories).toEqual(['Opening Balance']);
+  });
+
   it('treats a sub-account with no balance-sheet row as a zero book balance, not null', () => {
     // A never-funded sub-account is legitimately $0 — the whole FIFO value is the
     // adjustment. Only a MISSING BALANCE SHEET (bookAvailable=false) is unknown.
