@@ -28,6 +28,7 @@ import {
   type CategoryLedgerValue,
 } from './monthly-close';
 import { CORRECTION_ACCOUNT } from './category-accounts';
+import { assemblePool, type JeContribution } from './je-pool';
 import {
   fetchCategoryCogsSeries,
   fetchCategoryLedgerValues,
@@ -356,6 +357,34 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
  *
  * Exported for the test that pins each bucket's advice.
  */
+/**
+ * The FIFO category adjustment as a pool contributor.
+ *
+ * Pure: it takes an already-computed `CategoryJE` and shapes its Dr/Cr pairs into
+ * journal lines. `available` is the book-balance question — without a QuickBooks
+ * balance sheet there is nothing to adjust TOWARDS, so the pool must not post.
+ */
+export function fifoCategoryContribution(je: CategoryJE, monthEnd: string): JeContribution {
+  const jeLines = je.bookAvailable ? categoryJournalEntryLinesWithSources(je, monthEnd) : [];
+  return {
+    source: 'fifo-category',
+    label: 'FIFO category adjustment',
+    available: je.bookAvailable,
+    warnings: [],
+    lines: jeLines.map((l) => ({
+      postingType: l.debit !== null ? 'Debit' : 'Credit',
+      amount: round2(l.debit ?? l.credit ?? 0),
+      accountName: l.account,
+      departmentName: null,
+      className: null,
+      memo: l.memo,
+      creditBucket: null,
+      origin: 'generated',
+      sourceRowKeys: l.receiptIds,
+    })),
+  };
+}
+
 export function residualWarning(location: string, categories: readonly string[]): string {
   const listed = categories.length > 0 ? categories.join(', ') : 'one or more categories';
   const advice: string[] = [];
@@ -440,19 +469,16 @@ export async function generateInvCloseDrafts(
     if (residualLine) {
       warnings.push(residualWarning(je.location, je.unmappedCategories));
     }
-    const lines: JournalLine[] = jeLines.map((l) => ({
-      postingType: l.debit !== null ? 'Debit' : 'Credit',
-      amount: round2(l.debit ?? l.credit ?? 0),
-      accountName: l.account,
-      departmentName: null,
-      className: null,
-      memo: l.memo,
-      creditBucket: null,
-      origin: 'generated',
-      sourceRowKeys: l.receiptIds,
-    }));
-    const totalDebits = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
-    const totalCredits = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
+    // Assembled through the pool even though FIFO is currently its only
+    // contributor. The lab-supplies accrual and device standard cost join it as
+    // further contributors rather than as their own entries — see
+    // docs/fifo-monthly-close/ds-one-inventory-je-2026-09-03.md. Today's output is
+    // byte-identical to the hand-rolled version this replaced, which is the point:
+    // the restructure must not move a number.
+    const pool = assemblePool([fifoCategoryContribution(je, monthEnd)]);
+    const lines = pool.lines;
+    const totalDebits = pool.totalDebits;
+    const totalCredits = pool.totalCredits;
     const draft: JournalDraft = {
       entity,
       kind: 'inventory',
@@ -467,7 +493,7 @@ export async function generateInvCloseDrafts(
       lines,
       totalDebits,
       totalCredits,
-      variance: round2(totalDebits - totalCredits),
+      variance: pool.variance,
       rowKeys: [],
     };
     await saveDraft(draft, snapshotHash);
