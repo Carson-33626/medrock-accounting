@@ -63,6 +63,39 @@ export interface DeviceUsageRow {
   readonly disposition: 'depleted' | 'unpurchased' | 'unresolved';
 }
 
+/**
+ * Devices that are measured and shown but must NOT produce a packaging line.
+ *
+ * CARSON, 2026-09-04, on the eye pads: *"They are technically compound ingredient
+ * since they are part of the formula, but the lifefile system will not pull them
+ * down, so we'll need to fold it in as if it was a device."*
+ *
+ * Folded in — but for VISIBILITY, not for a second relief. Eye pads are bought
+ * into `1220.10 Compound Ingredient` (27 lines / $934.86 in 2026; 2 to 1220.20,
+ * 1 to 1220.15), so crediting them against packaging would charge 1220.15 for
+ * something in the ingredient pool.
+ *
+ * Crediting them against 1220.10 instead would be worse, not better. Eye pads
+ * have no LifeFile receipts at all — they are an Amazon buy that never enters the
+ * lot ledger — so the FIFO close's Compound Ingredient line, which posts
+ * `FIFO target − QuickBooks book balance`, is ALREADY sweeping the whole $934.86
+ * out of 1220.10. A device line on the same account would relieve it a second
+ * time. One mechanism per category.
+ *
+ * So the units are counted, priced, and carried into the detail sheet where the
+ * lab's consumption is visible — which is what "the lifefile system will not pull
+ * them down" is really complaining about — and the dollars stay with the FIFO
+ * line that already handles them. ~$1,000/year either way.
+ */
+export const MEASURED_NOT_RELIEVED: ReadonlyMap<string, string> = new Map([
+  [
+    'Eye Pad Pack',
+    'Bought into 1220.10 Compound Ingredient, not packaging. The FIFO close already ' +
+      'sweeps it via target-vs-book because it has no lot-ledger receipts, so a device ' +
+      'line here would relieve the same $934.86 twice. Counted and priced for visibility only.',
+  ],
+]);
+
 /** One priced device line, kept for the detail sheet. */
 export interface DeviceCostLine {
   readonly device: string;
@@ -72,6 +105,12 @@ export interface DeviceCostLine {
   readonly pricePerUnit: number;
   readonly value: number;
   readonly confidence: string;
+  /**
+   * When set, the line is shown and priced but its value is NOT in `total` and it
+   * posts nothing — the string says which other mechanism already relieves it.
+   * See `MEASURED_NOT_RELIEVED`.
+   */
+  readonly notRelieved?: string;
 }
 
 /** What one entity's month values out to, with everything it could not price. */
@@ -157,6 +196,7 @@ export function valueDeviceUsage(
     }
     const value = cents(slot.units * price.pricePerUnit);
     if (value === 0) continue;
+    const notRelieved = MEASURED_NOT_RELIEVED.get(slot.device);
     lines.push({
       device: slot.device,
       sku: slot.sku,
@@ -165,8 +205,10 @@ export function valueDeviceUsage(
       pricePerUnit: price.pricePerUnit,
       value,
       confidence: price.confidence,
+      ...(notRelieved === undefined ? {} : { notRelieved }),
     });
-    total = cents(total + value);
+    // Shown, priced, and deliberately outside the posted total.
+    if (notRelieved === undefined) total = cents(total + value);
   }
 
   // Biggest dollars first — the reviewer's eye should land on the pumps.
@@ -251,6 +293,14 @@ export function deviceCostContribution(
       `Packaging line is a ${result.monthsCovered.length}-month catch-up ` +
         `(${result.monthsCovered[0]} → ${result.monthsCovered[result.monthsCovered.length - 1]}), ` +
         'not one month of consumption — label it as such on the close package.',
+    );
+  }
+
+  for (const line of result.lines) {
+    if (line.notRelieved === undefined) continue;
+    warnings.push(
+      `${line.units.toLocaleString()} ${line.device} units ($${line.value.toFixed(2)}) are ` +
+        `shown but NOT relieved here — ${line.notRelieved}`,
     );
   }
 

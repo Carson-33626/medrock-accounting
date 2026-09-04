@@ -162,9 +162,53 @@ describe('the journal lines', () => {
   it('rounds to cents so the two halves cannot disagree', () => {
     const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
       usage({ device: 'Scar Sheet Pack', sku: '', units: 3 }), // 3 x 0.17 = 0.51
-      usage({ device: 'Eye Pad Pack', sku: '', units: 7 }), // 7 x 0.18 = 1.26
+      usage({ device: 'Ointment Jar', sku: '2oz', units: 4 }), // 4 x 0.43 = 1.72
     ]);
-    expect(c.lines[0].amount).toBe(1.77);
+    expect(c.lines[0].amount).toBe(2.23);
     expect(c.lines[0].amount).toBe(c.lines[1].amount);
+  });
+});
+
+describe('eye pads — measured, shown, and deliberately not relieved here', () => {
+  // Carson, 2026-09-04: "They are technically compound ingredient since they are
+  // part of the formula, but the lifefile system will not pull them down, so
+  // we'll need to fold it in as if it was a device."
+  //
+  // Folded in for visibility. NOT given a packaging credit: eye pads are bought
+  // into 1220.10 and have no lot-ledger receipts, so the FIFO close's Compound
+  // Ingredient line already sweeps them via target-vs-book. A device line would
+  // relieve the same $934.86 twice.
+  it('prices and shows the units', () => {
+    const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [
+      usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
+    ]);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0].value).toBe(180); // 1,000 x 0.18
+  });
+
+  it('keeps their value OUT of the posted total', () => {
+    const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [
+      usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
+      usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
+    ]);
+    expect(r.total).toBe(204); // the pump only
+    expect(r.lines.find((l) => l.device === 'Eye Pad Pack')?.notRelieved).toContain('1220.10');
+  });
+
+  it('emits no journal line at all when eye pads are the only usage', () => {
+    const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
+      usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
+    ]);
+    expect(c.lines).toHaveLength(0);
+    expect(c.available).toBe(true);
+  });
+
+  it('says on the entry why they are shown but not relieved', () => {
+    const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
+      usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
+    ]);
+    const text = c.warnings.join(' ');
+    expect(text).toContain('shown but NOT relieved');
+    expect(text).toContain('twice');
   });
 });
