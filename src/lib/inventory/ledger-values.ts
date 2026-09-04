@@ -24,12 +24,27 @@ import type { CategoryCogsSeriesRow, CategoryLedgerMovementRow } from '@/types/i
 import { PRODUCT_NAMES_CTE, RESOLVED_PRODUCT_NAME } from '@/lib/inventory-sql';
 
 /**
- * The category expression, written once. A lot with no `purchase_lots` row has
- * no coded category — it is opening-balance stock that predates our receipt
- * history — and must land in its own bucket rather than being dropped or folded
- * elsewhere, because the close posts it as a residual against the parent account.
+ * The category expression, written once — now the LEDGER's own stamp.
+ *
+ * It used to read `COALESCE(p.qb_category, 'Opening Balance')`, which invented a
+ * bucket: an opening-balance lot has no `purchase_lots` row, so it fell to a
+ * literal and the close posted it as an uncodeable residual against the parent
+ * account. Florida's was $4,212.00, and the warning attached to it asked the
+ * accountant to "assign drug codes" to stock that carries no product record —
+ * advice that could never be followed.
+ *
+ * The loader has always known the category for these lots: `lots.ts` stamps
+ * `qbCategory` on OB receipts from the Supabase coding view. As of 2026-09-04 it
+ * carries that onto `lot_depletion_ledger.qb_category`, so the answer is now on
+ * the row being read and no derivation is needed here.
+ *
+ * `p.qb_category` is kept as a fallback rather than dropped, so a ledger row the
+ * loader has not yet re-stamped still lands where it did before. Measured on
+ * 2026-03 before the switch: the two sides agree on EVERY row that has a purchase
+ * lot, and disagree on exactly the 159 OB receipts ($4,212.00) — which is the
+ * whole point of the change. No ledger row carries a NULL category.
  */
-const CATEGORY_EXPR = `COALESCE(p.qb_category, 'Opening Balance')`;
+const CATEGORY_EXPR = `COALESCE(l.qb_category, p.qb_category, 'Uncoded')`;
 
 /**
  * Collapsed pre-conversion lots (Florida's Pioneer era, mainly) are EXCLUDED
