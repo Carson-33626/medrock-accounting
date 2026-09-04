@@ -25,7 +25,12 @@
 import type { JournalLine } from '@/lib/payroll/types';
 
 /** A stable id for the system that produced a set of lines. */
-export type JeSource = 'fifo-category' | 'lab-supplies' | 'device-standard-cost';
+export type JeSource =
+  | 'fifo-category'
+  | 'lab-supplies'
+  | 'device-standard-cost'
+  | 'otc-items'
+  | 'shipping-packaging';
 
 export interface JeContribution {
   source: JeSource;
