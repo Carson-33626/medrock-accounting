@@ -12,14 +12,14 @@
  *
  * Run from web/:  npx tsx scripts/_probe-jar-gel-split.ts
  */
-import './lib/load-env';
-import { getRdsPool } from '../src/lib/rds';
+import '../lib/load-env';
+import { getRdsPool } from '../../src/lib/rds';
 import {
   classifyDeviceRule,
   deriveForm,
   deriveQty,
   resolveDevice,
-} from '../../../MedRock-Data-Loader/powerbi-sqlite/src/transforms/fifo/devices';
+} from '../../../../MedRock-Data-Loader/powerbi-sqlite/src/transforms/fifo/devices';
 
 interface FillRow {
   item: string | null;
