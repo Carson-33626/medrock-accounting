@@ -9,12 +9,18 @@
  *   allocation          -> month-end eomDocNumber (month from txn_date)
  *   inventory           -> monthly-close invCloseDocNumber (month from txn_date)
  *   inventory/INV OPEN  -> openingCorrectionDocNumber — the one-time cutover, NOT a close
- *   accrual, reversal   -> lab-supplies labAccrualIdentity (pay_group 'LAB ACCRUAL')
+ *   accrual, reversal   -> labAccrualIdentity ('LAB ACCRUAL') / shippingAccrualIdentity ('SHIP ACCRUAL')
  *
  * The last two branches were added 2026-09-04. Without them a lab-accrual header derived
  * `PR 2026.08.31` / 'Auto payroll JE — LAB ACCRUAL …' and the opening correction derived the
  * monthly close's 'FL Inv Adj 2026.03' — so the workbook an accountant downloads, and the CSV
  * Barbara imports by hand, both named the entry something the Post button would never write.
+ *
+ * AN ACCRUAL PAIR IS KEYED BY pay_group, NOT BY kind. 'accrual' and 'reversal' are shared by
+ * every pair, so a pair whose pay_group is not listed above falls through to the pay_date
+ * branch and is named `PR <date>` after payroll. That is exactly the bug found on 2026-09-04,
+ * and it will recur for the NEXT pair unless whoever adds one adds a branch here. If you are
+ * writing a new accrual, this file and `je-detail-fetch.ts` are the two places that need you.
  */
 import type { Entity } from './types';
 import { docNumber as payDocNumber, txnDate as payTxnDate } from './qb-journal';
@@ -28,6 +34,10 @@ import {
   OPENING_CORRECTION_NOTE,
 } from '../inventory/monthly-close';
 import { labAccrualIdentity, LAB_ACCRUAL_PAY_GROUP } from '../inventory/lab-supplies-je';
+import {
+  shippingAccrualIdentity,
+  SHIPPING_ACCRUAL_PAY_GROUP,
+} from '../inventory/shipping-packaging-je';
 
 /** The header fields identity derivation needs — a subset of store.PayrollHeader. */
 export interface JeIdentityHeader {
@@ -69,16 +79,28 @@ export function deriveJeIdentity(header: JeIdentityHeader, segIndex: number, seg
     };
   }
 
-  // The lab-supplies accrual/reversal pair. The month is the PERIOD, not the posting date:
-  // the reversal lands on the 1st of the following month and would derive the wrong tag from
-  // its own txn_date. Same rule the post route follows.
-  if (header.pay_group === LAB_ACCRUAL_PAY_GROUP && (header.kind === 'accrual' || header.kind === 'reversal')) {
-    const id = labAccrualIdentity((header.period_end ?? txnDateIso).slice(0, 7), header.kind);
-    return {
-      docNumber: header.qb_doc_number ?? id.docNumber,
-      txnDateIso: id.txnDateIso,
-      privateNote: id.privateNote,
-    };
+  // The accrual/reversal pairs. The month is the PERIOD, not the posting date: the reversal
+  // lands on the 1st of the following month and would derive the wrong tag from its own
+  // txn_date. Same rule the post routes follow.
+  //
+  // Each pair is keyed by pay_group because the kind alone does not identify it — 'accrual'
+  // is shared. A pair whose pay_group is missing here falls through to the pay_date branch
+  // and derives `PR <date>`, which is how the lab accrual came to be named after payroll.
+  if (header.kind === 'accrual' || header.kind === 'reversal') {
+    const periodMonth = (header.period_end ?? txnDateIso).slice(0, 7);
+    const id =
+      header.pay_group === LAB_ACCRUAL_PAY_GROUP
+        ? labAccrualIdentity(periodMonth, header.kind)
+        : header.pay_group === SHIPPING_ACCRUAL_PAY_GROUP
+          ? shippingAccrualIdentity(periodMonth, header.kind)
+          : null;
+    if (id !== null) {
+      return {
+        docNumber: header.qb_doc_number ?? id.docNumber,
+        txnDateIso: id.txnDateIso,
+        privateNote: id.privateNote,
+      };
+    }
   }
 
   if (header.kind === 'inventory') {

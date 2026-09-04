@@ -86,7 +86,22 @@ async function accrualSheets(
   label: string,
   kind: 'accrual' | 'reversal',
 ): Promise<DetailSheet[]> {
-  if (header.pay_group !== LAB_ACCRUAL_PAY_GROUP) return [];
+  if (header.pay_group !== LAB_ACCRUAL_PAY_GROUP) {
+    // Every accrual pair needs its own builder — 'accrual' is a shared kind, so the pay_group
+    // is what says which one this is. Returning [] silently would mean the entry posts with no
+    // source sheet, which is the thing Carson asked us to stop doing ("every single journal
+    // entry posting button needs to include 2 files"). So it is loud instead.
+    //
+    // Known outstanding: SHIP ACCRUAL (shipping-packaging-je.ts). It needs the shipping
+    // contributor to retain its inputs via saveSourceSnapshot at generate time, then a builder
+    // here. Not urgent — that contributor is not wired into the pool, so no such header exists
+    // yet — but it must land before it is.
+    console.warn(
+      `[je-detail-fetch] no source-detail builder for accrual pay_group '${header.pay_group}' ` +
+        `(header ${header.id}) — the entry will ship WITHOUT its source data.`,
+    );
+    return [];
+  }
   const snapshot = parseLabAccrualSnapshot(await getSourceSnapshot(header.id));
   if (snapshot === null) return [];
   return buildLabAccrualJeDetailSheets({ storedLines: lines, snapshot, kind, label });

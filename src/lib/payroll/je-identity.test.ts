@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { deriveJeIdentity, type JeIdentityHeader } from './je-identity';
 import { labAccrualIdentity, LAB_ACCRUAL_PAY_GROUP } from '@/lib/inventory/lab-supplies-je';
 import {
+  shippingAccrualIdentity,
+  SHIPPING_ACCRUAL_PAY_GROUP,
+} from '@/lib/inventory/shipping-packaging-je';
+import {
   invCloseDocNumber,
   openingCorrectionDocNumber,
   INV_OPEN_PAY_GROUP,
@@ -77,5 +81,60 @@ describe('deriveJeIdentity', () => {
         1,
       ).docNumber,
     ).toBe('LS Accru 2026.08-2');
+  });
+
+  // The lab accrual was named `PR 2026.08.31` for exactly as long as it had no branch here.
+  // The shipping pair is a clone of it and would have inherited the same defect, so it gets
+  // the same coverage BEFORE it is wired into the pool rather than after someone notices.
+  it('names the shipping accrual by its period too', () => {
+    const id = deriveJeIdentity(
+      header({ kind: 'accrual', pay_group: SHIPPING_ACCRUAL_PAY_GROUP, period_end: '2026-08-31' }),
+      0,
+      1,
+    );
+    expect(id).toEqual(shippingAccrualIdentity('2026-08', 'accrual'));
+    expect(id.docNumber).toBe('SP Accru 2026.08');
+  });
+
+  it('keeps the shipping reversal on the accrued month', () => {
+    const id = deriveJeIdentity(
+      header({
+        kind: 'reversal',
+        pay_group: SHIPPING_ACCRUAL_PAY_GROUP,
+        period_end: '2026-08-31',
+        txn_date: '2026-09-01',
+      }),
+      0,
+      1,
+    );
+    expect(id.docNumber).toBe('SP Accru 2026.08R');
+    expect(id.txnDateIso).toBe('2026-09-01');
+  });
+
+  it('never gives two different accrual pairs the same DocNumber', () => {
+    const lab = deriveJeIdentity(
+      header({ kind: 'accrual', pay_group: LAB_ACCRUAL_PAY_GROUP, period_end: '2026-08-31' }),
+      0,
+      1,
+    );
+    const ship = deriveJeIdentity(
+      header({ kind: 'accrual', pay_group: SHIPPING_ACCRUAL_PAY_GROUP, period_end: '2026-08-31' }),
+      0,
+      1,
+    );
+    expect(lab.docNumber).not.toBe(ship.docNumber);
+  });
+
+  it('does NOT name an unknown accrual pair after payroll — it falls through, and that is the trap', () => {
+    // Documenting the failure mode rather than pretending it cannot happen: a pair with no
+    // branch above lands in the pay_date arm and is named `PR <date>`. If this test ever
+    // starts failing because someone added a default, good — but they must then decide what
+    // an unrecognised pair should be called, which is the point.
+    const id = deriveJeIdentity(
+      header({ kind: 'accrual', pay_group: 'SOME FUTURE ACCRUAL', period_end: '2026-08-31' }),
+      0,
+      1,
+    );
+    expect(id.docNumber).toBe('PR 2026.08.31');
   });
 });
