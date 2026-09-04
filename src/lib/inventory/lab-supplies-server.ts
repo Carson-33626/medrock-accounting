@@ -22,11 +22,15 @@
  * Read-only against QuickBooks — SELECT queries only, nothing is written there.
  */
 import { qbQueryAll, type Location } from '@/lib/quickbooks-multi';
-import { computeAccrual, type AccrualLocation, type AccrualResult } from './lab-supplies-accrual';
-import { buildLabAccrualDrafts, LAB_ACCRUAL_PAY_GROUP } from './lab-supplies-je';
+import {
+  computeAccrual, ACCRUAL_PARAMETERS,
+  type AccrualLocation, type AccrualResult,
+} from './lab-supplies-accrual';
+import { buildLabAccrualDrafts, LAB_ACCRUAL_PAY_GROUP, ACCRUAL_ENTITY_BY_LOCATION } from './lab-supplies-je';
+import type { LabAccrualSnapshot } from './je-detail-accrual';
 import { loadDraft } from '@/lib/payroll/store';
 import { getRdsPool } from '@/lib/rds';
-import { saveDraft } from '@/lib/payroll/store';
+import { saveDraft, saveSourceSnapshot } from '@/lib/payroll/store';
 import { createHash } from 'node:crypto';
 
 const ACCOUNT_NUMS = ['1220.20', '5000.25'] as const;
@@ -221,7 +225,9 @@ export async function generateLabAccrualDrafts(
     );
   }
 
-  const { months, unavailable } = await fetchLabSuppliesAccrual(Math.max(span, 1));
+  // `observedAsOf` is the date the QuickBooks read was actually taken — the one that fixes
+  // completeness, and so the one the retained snapshot must carry.
+  const { months, unavailable, asOf: observedAsOf } = await fetchLabSuppliesAccrual(Math.max(span, 1));
 
   const saved: string[] = [];
   const skipped: string[] = [];
@@ -253,8 +259,42 @@ export async function generateLabAccrualDrafts(
         }),
       )
       .digest('hex');
-    await saveDraft(pair.accrual, snapshotHash);
-    await saveDraft(pair.reversal, snapshotHash);
+    const accrualId = await saveDraft(pair.accrual, snapshotHash);
+    const reversalId = await saveDraft(pair.reversal, snapshotHash);
+
+    // RETAIN THE INPUTS, not just their fingerprint. Completeness is a function of the day
+    // the QuickBooks observation was taken, so re-pulling tomorrow returns a smaller accrual
+    // than the one that posted — there is no re-reading this source. The entry's `Accrual
+    // basis` sheet (both the download and the QuickBooks attachment) is built from this row;
+    // without it the workbook ships with its Journal Entry sheet alone. See DS §6.
+    const snapshot: LabAccrualSnapshot = {
+      location: row.location,
+      month: row.month,
+      asOf: observedAsOf,
+      observedToDate: row.observedToDate,
+      observedDocs: row.observedDocs,
+      normalDocs: ACCRUAL_PARAMETERS.normalDocsPerMonth[row.location],
+      daysElapsed: row.daysElapsed,
+      curveCompleteness: row.curveCompleteness,
+      entryCompleteness: row.entryCompleteness,
+      completeness: row.completeness,
+      boundBy: row.boundBy,
+      trailingAverage: row.trailingAverage,
+      accrual: row.accrual,
+      estimatedTotal: row.estimatedTotal,
+      flagged: row.flagged,
+      flagReason: row.flagReason,
+      borrowedCurve: row.borrowedCurve,
+    };
+    const entity = ACCRUAL_ENTITY_BY_LOCATION[row.location];
+    // Best-effort: a failed snapshot write must not lose the drafts that were just saved.
+    // It costs the basis sheet, not the entry.
+    try {
+      await saveSourceSnapshot(accrualId, entity, snapshot);
+      await saveSourceSnapshot(reversalId, entity, snapshot);
+    } catch (error) {
+      console.warn(`[lab-supplies-accrual] snapshot not retained for ${row.location} ${row.month}:`, error);
+    }
     saved.push(`${row.location}: ${pair.accrual.docNumber} + ${pair.reversal.docNumber}`);
   }
 

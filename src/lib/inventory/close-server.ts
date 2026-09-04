@@ -24,6 +24,7 @@ import {
   buildOpeningCorrectionRows,
   openingCorrectionLines,
   openingCorrectionDocNumber,
+  INV_OPEN_PAY_GROUP,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
@@ -516,7 +517,9 @@ export const CUTOVER_MONTH = '2026-03';
 const CUTOVER_PRIOR_MONTH = '2026-02';
 const OPENING_DATE = '2026-03-01';
 const BOOK_AS_OF = '2026-02-28';
-export const INV_OPEN_PAY_GROUP = 'INV OPEN';
+// Canonical in monthly-close.ts (pure) — je-identity needs it and must not import this
+// module's RDS/QuickBooks deps. Re-exported so existing callers keep their import site.
+export { INV_OPEN_PAY_GROUP };
 
 export async function listOpeningCorrectionHeaders(): Promise<PayrollHeader[]> {
   const { rows } = await getRdsPool().query<HeaderRow>(

@@ -3,8 +3,12 @@ import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
-import { invCloseDocNumber, openingCorrectionDocNumber } from '@/lib/inventory/monthly-close';
-import { INV_OPEN_PAY_GROUP } from '@/lib/inventory/close-server';
+import {
+  invCloseDocNumber,
+  openingCorrectionDocNumber,
+  INV_OPEN_PAY_GROUP,
+  OPENING_CORRECTION_NOTE,
+} from '@/lib/inventory/monthly-close';
 import { LAB_ACCRUAL_PAY_GROUP, labAccrualIdentity } from '@/lib/inventory/lab-supplies-je';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
@@ -138,7 +142,7 @@ export async function POST(request: NextRequest) {
       privateNote: labId
         ? labId.privateNote
         : isOpeningCorrection
-          ? 'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)'
+          ? OPENING_CORRECTION_NOTE
           : `Inventory FIFO close adjustment — ${month}`,
       lines,
       totalDebits: header.total_debits,

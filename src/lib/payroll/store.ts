@@ -674,6 +674,57 @@ export async function hasAttachedFile(headerId: number, fileName: string): Promi
 }
 
 /**
+ * The audit `outcome` under which a draft's own source inputs are retained at GENERATE time.
+ *
+ * DS §6: "start retaining the source snapshot on new posts so this question never arises
+ * again." `source_snapshot_hash` on the header is a fingerprint, not the data, and there is no
+ * jsonb column on `payroll_journal_headers` to put the data in — but `payroll_post_audit` is
+ * already the record of what we did with a header, its `outcome` is free text with no CHECK,
+ * and `response_body` is jsonb. So this needs NO MIGRATION. `mode` is 'dry_run' because
+ * nothing has reached QuickBooks when a draft is generated.
+ */
+const SOURCE_SNAPSHOT_OUTCOME = 'snapshot';
+
+/**
+ * Retain the inputs a draft was computed from, so its source-detail sheet can be rebuilt
+ * faithfully later instead of re-derived from a source that has since moved.
+ *
+ * Only kinds whose source cannot be re-read need this — the lab-supplies accrual, whose
+ * completeness is a function of the day it was measured (see `je-detail-accrual.ts`). The
+ * close reads back its stored lot ids and the allocation reads back `payroll_eom_runs.pool`;
+ * neither goes through here.
+ *
+ * Regenerating a draft writes a NEW row rather than replacing the old one — the audit table is
+ * append-only by design, and `getSourceSnapshot` takes the latest.
+ */
+export async function saveSourceSnapshot(
+  headerId: number,
+  entity: Entity,
+  snapshot: JsonValue,
+): Promise<void> {
+  await insertAudit({
+    headerId,
+    mode: 'dry_run',
+    entity,
+    outcome: SOURCE_SNAPSHOT_OUTCOME,
+    responseBody: snapshot,
+  });
+}
+
+/** The most recently retained source snapshot for a header, or null if it has none. */
+export async function getSourceSnapshot(headerId: number): Promise<JsonValue | null> {
+  const { rows } = await getRdsPool().query<{ response_body: JsonValue | null }>(
+    `SELECT response_body
+       FROM accounting.payroll_post_audit
+      WHERE header_id = $1 AND outcome = $2
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1`,
+    [headerId, SOURCE_SNAPSHOT_OUTCOME],
+  );
+  return rows[0]?.response_body ?? null;
+}
+
+/**
  * Pin the DocNumber this header will post under, without touching its status.
  *
  * The DocNumber-conflict rename (see doc-number-conflict.ts): the derived number is taken in

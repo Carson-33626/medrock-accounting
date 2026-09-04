@@ -642,6 +642,18 @@ export function openingCorrectionDocNumber(location: string, month: string): str
   return `${shortInventoryLocation(location)} Inv Open ${month.replace('-', '.')}`;
 }
 
+/** The correction's own pay_group, so its drafts never collide with the monthly
+ *  close's month-end ones in the header table's natural key. Canonical HERE, in the
+ *  pure module, because `je-identity` needs it to tell a correction from a close and
+ *  must not pull in close-server's RDS/QuickBooks dependencies to do it. */
+export const INV_OPEN_PAY_GROUP = 'INV OPEN';
+
+/** The PrivateNote the correction posts under. Shared by the post route and
+ *  `deriveJeIdentity` so the QBO import CSV cannot describe the entry differently
+ *  from the way the Post button writes it. */
+export const OPENING_CORRECTION_NOTE =
+  'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)';
+
 /** One computed correction row plus its evidence (server-side superset of the
  *  client's OpeningCorrectionRowView). */
 export interface OpeningCorrectionRowCalc {

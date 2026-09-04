@@ -14,6 +14,8 @@
  */
 import type { DetailSheet } from '@/lib/inventory/je-detail';
 import { buildInventoryJeDetailSheets } from '@/lib/inventory/je-detail';
+import { buildLabAccrualJeDetailSheets, parseLabAccrualSnapshot } from '@/lib/inventory/je-detail-accrual';
+import { LAB_ACCRUAL_PAY_GROUP } from '@/lib/inventory/lab-supplies-je';
 import { fetchJeLotDetail } from '@/lib/inventory/ledger-values';
 import { getRdsPool } from '@/lib/rds';
 import { buildPayrollJeDetailSheets } from './je-detail-payroll';
@@ -21,7 +23,7 @@ import { buildAllocationJeDetailSheets } from './je-detail-allocation';
 import { allocationBasis } from './month-end';
 import { buildJournal } from './build-je';
 import { selectSource } from './source-select';
-import { getAccountMap, getEmployeeMap, type PayrollHeader, type JsonValue } from './store';
+import { getAccountMap, getEmployeeMap, getSourceSnapshot, type PayrollHeader, type JsonValue } from './store';
 import { getEomRun } from './eom-store';
 import { adpDateToIso } from './dates';
 import { shortMonthName, type Month } from './month';
@@ -41,6 +43,9 @@ export async function fetchJeDetailSheets(
     if (header.kind === 'inventory') return await inventorySheets(header, lines);
     if (header.kind === 'allocation') return await allocationSheets(header, lines, label);
     if (header.kind === 'pay_date') return await payrollSheets(header, lines, label);
+    if (header.kind === 'accrual' || header.kind === 'reversal') {
+      return await accrualSheets(header, lines, label, header.kind);
+    }
     return [];
   } catch (error) {
     console.warn(
@@ -64,6 +69,27 @@ async function inventorySheets(header: PayrollHeader, lines: readonly JournalLin
   const lots = await fetchJeLotDetail(getRdsPool(), receiptIds, monthEnd.slice(0, 7));
   if (lots.length === 0) return [];
   return buildInventoryJeDetailSheets(lines, lots, monthEnd);
+}
+
+/**
+ * The lab-supplies accrual pair. Reads the estimate RETAINED at generate time
+ * (`saveSourceSnapshot`) rather than re-pulling QuickBooks: completeness is a function of the
+ * day the observation was taken, so a re-pull returns a different accrual than the one that
+ * posted and would never foot. See `je-detail-accrual.ts`.
+ *
+ * Only the lab accrual claims these kinds today. A future accrual on another pay_group gets no
+ * sheet rather than the wrong one.
+ */
+async function accrualSheets(
+  header: PayrollHeader,
+  lines: readonly JournalLine[],
+  label: string,
+  kind: 'accrual' | 'reversal',
+): Promise<DetailSheet[]> {
+  if (header.pay_group !== LAB_ACCRUAL_PAY_GROUP) return [];
+  const snapshot = parseLabAccrualSnapshot(await getSourceSnapshot(header.id));
+  if (snapshot === null) return [];
+  return buildLabAccrualJeDetailSheets({ storedLines: lines, snapshot, kind, label });
 }
 
 /**

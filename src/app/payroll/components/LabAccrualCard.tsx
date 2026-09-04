@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
+import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import type {
   LabAccrualHeader,
   LabAccrualLine,
@@ -211,7 +212,16 @@ export default function LabAccrualCard({
                     <td className={numCls}>{usd.format(h.total_debits)}</td>
                     <td className="py-1.5 pr-4">{statusChip(h)}</td>
                     <td className="py-1.5 pr-4">
-                      <div className="flex gap-1.5 justify-end">
+                      <div className="flex gap-1.5 justify-end items-center">
+                        {/* The entry plus the estimate behind it, in one workbook — the same
+                            file that attaches to the posted entry in QuickBooks. Shown at
+                            every status: an audit asks for it after the post, not before. */}
+                        <JeSourceWorkbookLink
+                          headerId={h.id}
+                          docNumber={h.qb_doc_number ?? label}
+                          darkMode={darkMode}
+                          compact
+                        />
                         {h.status === 'needs_review' &&
                           btn('Approve', () => onApprove(h.id), busy)}
                         {h.status === 'approved' && (

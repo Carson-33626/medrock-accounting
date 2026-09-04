@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
 import QboImportGuide from '@/components/QboImportGuide';
+import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import StatusBadge from '@/components/PayrollStatusBadge';
 import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import {
@@ -1323,6 +1324,12 @@ function DraftCard({
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      {/* Always available, posted or not, and regardless of the period-complete guard — the
+          entry plus the allocation basis behind it is what an audit asks for. */}
+      <div className="flex flex-wrap gap-2">
+        <JeSourceWorkbookLink headerId={header.id} docNumber={docNumber} darkMode={darkMode} />
       </div>
 
       {!posted && isEomMonthComplete(month) && (

@@ -30,6 +30,7 @@ import { csRemainderLines } from '../../src/lib/payroll/cs-catchup';
 import { listPostedCsAlloHeaders } from '../../src/lib/payroll/eom-store';
 import { longMonthName, monthTag, type Month } from '../../src/lib/payroll/month';
 import { postJournalEntry } from '../../src/lib/payroll/qb-journal';
+import { attachJeWorkbook } from '../../src/lib/payroll/je-attach';
 import { insertAudit, loadDraft, saveDraft, setHeaderStatus, type JsonValue } from '../../src/lib/payroll/store';
 import type { Entity, JournalDraft, JournalLine } from '../../src/lib/payroll/types';
 
@@ -113,6 +114,22 @@ async function runMonth(m: Month): Promise<void> {
       responseBody: result.response ?? null,
     });
     console.log(`  ✅ POSTED ${draft.entity}: ${result.qbDocNumber} — QB JE Id ${result.qbEntryId} (header #${id})`);
+
+    // Every posted entry ships its workbook (Carson, 2026-09-04). A FOLLOW-ON STEP, NEVER A
+    // GATE: the JE is already live, so attachJeWorkbook records its own outcome and never
+    // throws. NOTE the sheet this gets: the `Journal Entry` sheet, and — for now — nothing
+    // else. This runner fetches its CS pool LIVE and saves no snapshot, and a top-up issue is
+    // a delta against already-posted sets rather than a split of a pool, so the allocation
+    // basis builder cannot reproduce the entry and correctly ships nothing (DS §11.3 case 1).
+    // The fix is to have this script retain its pool the way `eom/generate` does.
+    const stored = await loadDraft(id);
+    if (stored && result.qbEntryId) {
+      const outcome = await attachJeWorkbook(
+        stored.header, stored.lines,
+        { entryId: result.qbEntryId, docNumber: result.qbDocNumber },
+      );
+      console.log(`     attachment: ${outcome.status}${outcome.reason ? ` — ${outcome.reason}` : ''} (${outcome.fileName})`);
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import Explainer from '@/components/Explainer';
 import HelpTip from '@/components/HelpTip';
 import RollForward from '@/components/RollForward';
 import JournalEntryPanel, { type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
+import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
 import LabAccrualCard from './LabAccrualCard';
@@ -595,6 +596,18 @@ function OpeningCorrectionCard({
               <span className="text-sm font-semibold">{loc.location}</span>
               <span className={`text-sm ${subText}`}>net {usd(loc.netAdjustment)}</span>
               {header && statusChip(header)}
+              {header && (
+                <span className={`flex items-center gap-2${header.status === 'posted' ? ' ml-auto' : ''}`}>
+                  {/* The correction plus its source detail, posted or not — an audit asks for
+                      the evidence after the entry is live, not only while it is a draft. */}
+                  <JeSourceWorkbookLink
+                    headerId={header.id}
+                    docNumber={header.qb_doc_number ?? loc.location}
+                    darkMode={darkMode}
+                    compact
+                  />
+                </span>
+              )}
               {header && header.status !== 'posted' && (
                 <span className="ml-auto flex items-center gap-2">
                   {(header.status === 'draft' || header.status === 'needs_review') && (

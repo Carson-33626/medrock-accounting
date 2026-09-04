@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Download, Loader2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
 import HelpTip from './HelpTip';
 import QboImportGuide from './QboImportGuide';
+import JeSourceWorkbookLink from './JeSourceWorkbookLink';
 import CategoryLotDrilldown from './CategoryLotDrilldown';
 import CategoryCogsByMonth from './CategoryCogsByMonth';
 import type {
@@ -668,6 +669,14 @@ function DraftCard({
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          )}
+
+          {header && (
+            <div className="flex flex-wrap gap-2">
+              {/* Always available, posted or not — the entry plus its source detail is what an
+                  audit asks for, and asking for it must not depend on the entry being a draft. */}
+              <JeSourceWorkbookLink headerId={header.id} docNumber={docNumber} darkMode={darkMode} />
             </div>
           )}
 
