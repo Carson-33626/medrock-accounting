@@ -96,6 +96,7 @@ export default function JournalEntryPanel({
   onApprove,
   onDryRun,
   onPostLive,
+  onUnpost,
 }: {
   journalEntries: LocationJE[];
   categoryJournalEntries: CategoryJE[];
@@ -112,6 +113,8 @@ export default function JournalEntryPanel({
   dryRunPayloads: Record<number, QbJournalEntryPayload>;
   /** RDS location -> (FullyQualifiedName -> AcctNum), so lines print '1220.05 …'. */
   accountNumbers: Record<string, Record<string, string>>;
+  /** Delete a posted entry from QuickBooks and return it to a draft. */
+  onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
@@ -202,6 +205,7 @@ export default function JournalEntryPanel({
           onApprove={onApprove}
           onDryRun={onDryRun}
           onPostLive={onPostLive}
+          onUnpost={onUnpost}
         />
       ) : (
         <CombinedCard
@@ -516,6 +520,7 @@ function DraftCard({
   onApprove,
   onDryRun,
   onPostLive,
+  onUnpost,
 }: {
   darkMode: boolean;
   cardBg: string;
@@ -536,12 +541,56 @@ function DraftCard({
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
+  onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
 }) {
   const { je, header } = view;
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
   const posted = header?.status === 'posted';
   const [qboGuideOpen, setQboGuideOpen] = useState(false);
+  // A posted entry collapses to a receipt (Carson, 2026-09-14: "if it's already
+  // posted, just change to a receipt and a link"), with the detail one click away
+  // and the pull-back that deletes it from QuickBooks for a regenerate + repost.
+  const [showPostedDetail, setShowPostedDetail] = useState(false);
   const docNumber = posted ? (header?.qb_doc_number ?? '—') : invCloseDocNumber(je.location, month);
+
+  if (posted && header && !showPostedDetail) {
+    return (
+      <div className={`rounded-xl shadow-sm ${cardBg} border-2 ${darkMode ? 'border-emerald-800' : 'border-emerald-300'} p-4 space-y-2`}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              {je.location} — posted to QuickBooks
+              <StatusBadge darkMode={darkMode} label={STATUS_LABEL[header.status]} />
+            </p>
+            <p className={`text-xs ${subText}`}>
+              {docNumber} · {header.txn_date ?? monthEnd} · Dr {usd.format(header.total_debits)}
+            </p>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <JeSourceWorkbookLink headerId={header.id} docNumber={docNumber} darkMode={darkMode} compact />
+            <button
+              onClick={() => setShowPostedDetail(true)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${
+                darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              Show detail
+            </button>
+            <button
+              onClick={() => onUnpost(header.id, je.location, docNumber)}
+              disabled={busy}
+              title="Delete this entry from QuickBooks and return it to a draft, so it can be regenerated and reposted"
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+              }`}
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin inline" aria-hidden /> : 'Pull back from QuickBooks'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const lines = displayLines(view, basis, monthEnd);
   const debitTotal = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
   const creditTotal = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
@@ -555,10 +604,22 @@ function DraftCard({
             {docNumber} · {header?.txn_date ?? monthEnd}
           </p>
         </div>
-        <StatusBadge
-          darkMode={darkMode}
-          label={header ? STATUS_LABEL[header.status] : je.bookAvailable ? 'Suggested' : 'Book balance unavailable'}
-        />
+        <span className="flex items-center gap-2">
+          {posted && (
+            <button
+              onClick={() => setShowPostedDetail(false)}
+              className={`px-2 py-0.5 text-xs font-medium rounded-lg border ${
+                darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              Collapse
+            </button>
+          )}
+          <StatusBadge
+            darkMode={darkMode}
+            label={header ? STATUS_LABEL[header.status] : je.bookAvailable ? 'Suggested' : 'Book balance unavailable'}
+          />
+        </span>
       </div>
 
       {!je.bookAvailable && !header ? (

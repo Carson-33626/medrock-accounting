@@ -227,6 +227,42 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
     [selectedMonth, closeBasis, loadClose],
   );
 
+  // Pull a posted entry back out of QuickBooks so it can be regenerated and reposted.
+  // Carson, 2026-09-14: "an undo / pull down button to delete the posted journal so
+  // we can regenerate and repost it." Two confirmations: it deletes from the live
+  // general ledger, and the second asks for the reason that lands in the audit row.
+  const handleUnpost = useCallback(
+    async (headerId: number, entityLabel: string, docNumber: string) => {
+      if (!selectedMonth) return;
+      const confirmed = window.confirm(
+        `This will DELETE ${docNumber} from QuickBooks for ${entityLabel} and return it to a draft so it can be regenerated and reposted. ` +
+          'The workbook attached to it is removed too. Continue?',
+      );
+      if (!confirmed) return;
+      const reason = window.prompt('Why is this entry being pulled back? (recorded in the audit log)', '') ?? '';
+      setBusyHeaderId(headerId);
+      setError(null);
+      try {
+        const res = await fetch('/api/inventory/monthly-close/unpost', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headerId, reason }),
+        });
+        const body = (await res.json()) as ApiErrorBody & { detachFailed?: string[] };
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        if (body.detachFailed && body.detachFailed.length > 0) {
+          setError(`Entry deleted, but ${body.detachFailed.length} attachment(s) could not be removed from QuickBooks — see the audit log.`);
+        }
+        await loadClose(selectedMonth, closeBasis);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to pull the entry back from QuickBooks');
+      } finally {
+        setBusyHeaderId(null);
+      }
+    },
+    [selectedMonth, closeBasis, loadClose],
+  );
+
   const closeReady =
     monthlyClose && monthlyClose.month === selectedMonth && monthlyClose.basis === closeBasis;
   const dates = selectedMonth ? monthDates(selectedMonth) : null;
@@ -418,6 +454,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           onApprove={(id) => void handleApprove(id)}
           onDryRun={(id) => void handleDryRun(id)}
           onPostLive={(id, label) => void handlePostLive(id, label)}
+          onUnpost={(id, label, doc) => void handleUnpost(id, label, doc)}
           dryRunPayloads={dryRunPayloads}
         />
       )}
@@ -465,6 +502,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
             onApprove={(id) => void handleApprove(id)}
             onDryRun={(id) => void handleDryRun(id)}
             onPostLive={(id, entityLabel) => void handlePostLive(id, entityLabel)}
+            onUnpost={(id, entityLabel, doc) => void handleUnpost(id, entityLabel, doc)}
           />
         </>
       ) : (
@@ -493,6 +531,7 @@ function OpeningCorrectionCard({
   onApprove,
   onDryRun,
   onPostLive,
+  onUnpost,
   dryRunPayloads,
 }: {
   correction: OpeningCorrection;
@@ -505,6 +544,8 @@ function OpeningCorrectionCard({
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
+  /** Delete the posted entry from QuickBooks and return it to a draft. */
+  onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
 }) {
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -584,6 +625,16 @@ function OpeningCorrectionCard({
                 darkMode={darkMode}
                 compact
               />
+              <button
+                onClick={() => onUnpost(h.id, h.entity, h.qb_doc_number ?? `#${h.id}`)}
+                disabled={busyHeaderId === h.id}
+                title="Delete this entry from QuickBooks and return it to a draft, so it can be regenerated and reposted"
+                className={`ml-auto px-2 py-0.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                  darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+                }`}
+              >
+                Pull back from QuickBooks
+              </button>
             </li>
           ))}
         </ul>

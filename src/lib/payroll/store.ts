@@ -662,15 +662,37 @@ export async function insertAudit(entry: AuditEntry): Promise<void> {
  * asks QuickBooks as a second opinion, but this is the authority.
  */
 export async function hasAttachedFile(headerId: number, fileName: string): Promise<boolean> {
-  const { rows } = await getRdsPool().query<{ n: string }>(
-    `SELECT count(*)::text AS n
+  // The LATEST attach/detach event for this file decides. An unpost (je-unpost.ts)
+  // writes a `detached` row after removing the file from QuickBooks, so a repost
+  // attaches a fresh file instead of being skipped as "already attached".
+  const { rows } = await getRdsPool().query<{ outcome: string }>(
+    `SELECT outcome
        FROM accounting.payroll_post_audit
       WHERE header_id = $1
-        AND outcome = 'attached'
-        AND response_body ->> 'fileName' = $2`,
+        AND outcome IN ('attached', 'detached')
+        AND response_body ->> 'fileName' = $2
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1`,
     [headerId, fileName],
   );
-  return Number(rows[0]?.n ?? 0) > 0;
+  return rows[0]?.outcome === 'attached';
+}
+
+/** Every file still attached to a header's QuickBooks entry, per our audit trail. */
+export async function listAttachedFiles(headerId: number): Promise<Array<{ fileName: string; attachableId: string }>> {
+  const { rows } = await getRdsPool().query<{ file_name: string | null; attachable_id: string | null; outcome: string }>(
+    `SELECT DISTINCT ON (response_body ->> 'fileName')
+            response_body ->> 'fileName' AS file_name,
+            response_body ->> 'attachableId' AS attachable_id,
+            outcome
+       FROM accounting.payroll_post_audit
+      WHERE header_id = $1 AND outcome IN ('attached', 'detached')
+      ORDER BY response_body ->> 'fileName', created_at DESC, id DESC`,
+    [headerId],
+  );
+  return rows
+    .filter((r) => r.outcome === 'attached' && r.file_name && r.attachable_id)
+    .map((r) => ({ fileName: r.file_name as string, attachableId: r.attachable_id as string }));
 }
 
 /**
