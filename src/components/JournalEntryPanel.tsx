@@ -456,7 +456,11 @@ function StatusBadge({ darkMode, label }: { darkMode: boolean; label: string }) 
   );
 }
 
-function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJournalEntryPayload }) {
+/** The exact QuickBooks payload a dry run built, shown under the entry it belongs to.
+ *  Exported because every posting card must render it: the correction card and the
+ *  lab-accrual card ran the dry run but never showed the result (Carson, 2026-09-14:
+ *  "Dry run on the year end correction doesn't do anything?"). */
+export function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payload: QbJournalEntryPayload }) {
   const [open, setOpen] = useState(true);
   return (
     <div className="space-y-1">

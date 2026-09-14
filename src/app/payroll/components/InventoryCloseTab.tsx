@@ -6,7 +6,7 @@ import { useDarkMode } from '@/contexts/DarkModeContext';
 import Explainer from '@/components/Explainer';
 import HelpTip from '@/components/HelpTip';
 import RollForward from '@/components/RollForward';
-import JournalEntryPanel, { type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
+import JournalEntryPanel, { DryRunPreview, type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
@@ -421,6 +421,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           onApprove={(id) => void handleApprove(id)}
           onDryRun={(id) => void handleDryRun(id)}
           onPostLive={(id, label) => void handlePostLive(id, label)}
+          dryRunPayloads={dryRunPayloads}
         />
       )}
 
@@ -433,6 +434,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           darkMode={darkMode}
           busyHeaderId={busyHeaderId}
           refreshKey={labRefresh}
+          dryRunPayloads={dryRunPayloads}
           onApprove={(id) => void handleApprove(id)}
           onDryRun={(id) => void handleDryRun(id)}
           onPostLive={(id, label) => void handlePostLive(id, label)}
@@ -505,11 +507,14 @@ function OpeningCorrectionCard({
   onApprove,
   onDryRun,
   onPostLive,
+  dryRunPayloads,
 }: {
   correction: OpeningCorrection;
   darkMode: boolean;
   generating: boolean;
   busyHeaderId: number | null;
+  /** Dry-run results keyed by header id — rendered under the entry they belong to. */
+  dryRunPayloads: Record<number, QbJournalEntryPayload>;
   onGenerate: () => void;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
@@ -687,6 +692,10 @@ function OpeningCorrectionCard({
                   </tbody>
                 </table>
               </details>
+            )}
+
+            {header && dryRunPayloads[header.id] && (
+              <DryRunPreview darkMode={darkMode} payload={dryRunPayloads[header.id]} />
             )}
           </div>
         );

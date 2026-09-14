@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
+import { DryRunPreview, type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
 import type {
   LabAccrualHeader,
   LabAccrualLine,
@@ -42,6 +43,7 @@ export default function LabAccrualCard({
   month,
   darkMode,
   busyHeaderId,
+  dryRunPayloads,
   onApprove,
   onDryRun,
   onPostLive,
@@ -50,6 +52,8 @@ export default function LabAccrualCard({
   month: string;
   darkMode: boolean;
   busyHeaderId: number | null;
+  /** Dry-run results keyed by header id — rendered under the row they belong to. */
+  dryRunPayloads: Record<number, QbJournalEntryPayload>;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
@@ -203,7 +207,8 @@ export default function LabAccrualCard({
                 const busy = busyHeaderId === h.id;
                 const label = `${h.entity} ${h.kind === 'reversal' ? 'reversal' : 'accrual'}`;
                 return (
-                  <tr key={h.id} className={`border-b last:border-0 ${border}`}>
+                  <React.Fragment key={h.id}>
+                  <tr className={`border-b last:border-0 ${border}`}>
                     <td className="py-1.5 pr-4 font-medium">{h.entity.replace('MedRock ', '')}</td>
                     <td className={`py-1.5 pr-4 ${h.kind === 'reversal' ? subText : ''}`}>
                       {h.kind === 'reversal' ? 'Reversal' : 'Accrual'}
@@ -233,6 +238,14 @@ export default function LabAccrualCard({
                       </div>
                     </td>
                   </tr>
+                  {dryRunPayloads[h.id] && (
+                    <tr key={`${h.id}-dry-run`} className={`border-b last:border-0 ${border}`}>
+                      <td colSpan={6} className="py-2 pr-4">
+                        <DryRunPreview darkMode={darkMode} payload={dryRunPayloads[h.id]} />
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
