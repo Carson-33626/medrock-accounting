@@ -25,6 +25,7 @@ import {
   openingCorrectionLines,
   openingCorrectionDocNumber,
   INV_OPEN_PAY_GROUP,
+  OPENING_CORRECTION_NOTE,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
@@ -506,17 +507,27 @@ export async function generateInvCloseDrafts(
 }
 
 // ---------------------------------------------------------------------------
-// OPENING CORRECTION — the one-time cutover JE (Carson's 2026-08-26 ruling:
-// 2026-03 forward runs on the FIFO system). Book balances read at the settled
-// stop point's eve; FIFO opening read from the prior month's lot ledger; drafts
-// stored under pay_group 'INV OPEN' with pay_date 2026-03-01 so they never
-// collide with the monthly close's month-end drafts.
+// OPENING CORRECTION — the one-time JE that trues book to FIFO.
+//
+// Dated 2025-12-31 as a 13th-month entry (Ash, relayed by Barbara 2026-09-14;
+// Carson: "large adjustment in December so all of 2026 is smooth"). It was
+// 2026-03-01 under the 08-26 proposal; see ds-year-end-correction-2025-12.md.
+// Book balances read as of 12/31; FIFO target read from the 2025-12 lot ledger,
+// which must be COUNT-ANCHORED for the figure to mean anything — until the
+// loader pins its anchor start at 2025-12, the December ledger is the
+// unanchored roll-forward and this card must not be posted. Drafts stored under
+// pay_group 'INV OPEN' with pay_date 2025-12-31 so they never collide with the
+// monthly close's month-end drafts (which start at CUTOVER_MONTH).
 // ---------------------------------------------------------------------------
 
-export const CUTOVER_MONTH = '2026-03';
-const CUTOVER_PRIOR_MONTH = '2026-02';
-const OPENING_DATE = '2026-03-01';
-const BOOK_AS_OF = '2026-02-28';
+/** Ledger month the FIFO target is read from, and the month the entry is dated
+ *  in — the card renders on it, the doc number carries it. */
+export const CORRECTION_MONTH = '2025-12';
+/** First month that runs on the FIFO monthly close. December has no monthly
+ *  close: the correction IS its ending. */
+export const CUTOVER_MONTH = '2026-01';
+const OPENING_DATE = '2025-12-31';
+const BOOK_AS_OF = '2025-12-31';
 // Canonical in monthly-close.ts (pure) — je-identity needs it and must not import this
 // module's RDS/QuickBooks deps. Re-exported so existing callers keep their import site.
 export { INV_OPEN_PAY_GROUP };
@@ -542,7 +553,7 @@ interface CorrectionComputation {
 
 async function computeCorrectionLocations(): Promise<CorrectionComputation> {
   const pool = getRdsPool();
-  const categoryValues: CategoryLedgerValue[] = await fetchCategoryLedgerValues(pool, CUTOVER_PRIOR_MONTH);
+  const categoryValues: CategoryLedgerValue[] = await fetchCategoryLedgerValues(pool, CORRECTION_MONTH);
 
   const locations: OpeningCorrectionLocation[] = [];
   const detail: CorrectionComputation['detail'] = new Map();
@@ -677,11 +688,11 @@ export async function generateOpeningCorrectionDrafts(): Promise<
       periodStart: OPENING_DATE,
       periodEnd: OPENING_DATE,
       periodSegment: '',
-      docNumber: openingCorrectionDocNumber(rdsLocation, CUTOVER_MONTH),
+      docNumber: openingCorrectionDocNumber(rdsLocation, CORRECTION_MONTH),
       txnDate: OPENING_DATE,
       privateNote:
-        'Opening inventory correction to FIFO method — one-time cutover (2026-03-01). ' +
-        'See docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md.',
+        `${OPENING_CORRECTION_NOTE}. ` +
+        'See docs/fifo-monthly-close/ds-year-end-correction-2025-12.md.',
       lines,
       totalDebits,
       totalCredits,

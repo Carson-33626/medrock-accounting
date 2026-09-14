@@ -56,8 +56,8 @@ export const GLOSSARY: ReadonlyArray<readonly [string, string, string]> = [
   ],
   [
     'Opening correction',
-    'The one-time entry dated 2026-03-01 that moves each inventory sub-account from its old estimated balance to the FIFO opening. Posts once, to its own offset account, and is never repeated.',
-    'QuickBooks balance sheets as of 2026-02-28 (live API pull) vs. the FIFO ledger at 2026-02; figures in docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md.',
+    'The one-time entry dated 2025-12-31 that moves each inventory sub-account from its old estimated balance to the FIFO year-end value, so every 2026 month carries only its own movement. Posts once, to its own offset account, and is never repeated.',
+    'QuickBooks balance sheets as of 2025-12-31 (live API pull) vs. the count-anchored FIFO ledger at 2025-12; method in docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md, date ruling in ds-year-end-correction-2025-12.md.',
   ],
   [
     'Backward reconstruction (the control)',

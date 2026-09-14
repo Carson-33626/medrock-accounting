@@ -6,7 +6,7 @@ import {
   computeOpeningCorrection,
   loadStoredDrafts,
   monthEndDate,
-  CUTOVER_MONTH,
+  CORRECTION_MONTH,
 } from '@/lib/inventory/close-server';
 import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/inventory';
 
@@ -56,10 +56,11 @@ export async function GET(request: NextRequest) {
     const close = await computeClose(month, basis, monthEnd);
     const stored = await loadStoredDrafts(monthEnd);
 
-    // The one-time cutover card, only on the cutover month. Best-effort: a
-    // correction-side failure must never take down the monthly close view.
+    // The one-time year-end correction card, only on the month it is dated in
+    // (December 2025). Best-effort: a correction-side failure must never take
+    // down the monthly close view.
     let openingCorrection = null;
-    if (month === CUTOVER_MONTH) {
+    if (month === CORRECTION_MONTH) {
       openingCorrection = await computeOpeningCorrection().catch((e: unknown) => {
         console.warn('[inventory/monthly-close] opening correction skipped:', e);
         return null;

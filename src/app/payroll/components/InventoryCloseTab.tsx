@@ -491,9 +491,9 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
 }
 
 /**
- * The one-time cutover correction (2026-03-01): trues each QB inventory
- * sub-account to the FIFO opening, offset to the dedicated correction account.
- * Rendered only when the cutover month is selected. Same Approve → Dry run →
+ * The one-time year-end correction (dated 2025-12-31): trues each QB inventory
+ * sub-account to the FIFO 12/31 value, offset to the dedicated correction account.
+ * Rendered only when December 2025 is selected. Same Approve → Dry run →
  * Post workflow as the monthly drafts — the handlers are header-generic.
  */
 function OpeningCorrectionCard({

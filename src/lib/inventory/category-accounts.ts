@@ -39,8 +39,9 @@ export const COGS_ACCOUNT = 'Cost of Goods Sold';
 export const WASTE_ACCOUNT = 'Cost of Goods Sold:Drug Waste & Shrinkage';
 
 /**
- * The one-time offset for the 2026-03-01 opening correction (cutover to FIFO —
- * see docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md §4). The
+ * The one-time offset for the 2025-12-31 opening correction (year-end true-up to
+ * FIFO — method in docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md
+ * §4, date moved by ds-year-end-correction-2025-12.md). The
  * recommended `5000.60` account: used once, then never again. If Kristi picks a
  * different treatment, change it HERE — generation refuses to draft for a
  * company whose chart lacks this account, so a rename cannot post blind.

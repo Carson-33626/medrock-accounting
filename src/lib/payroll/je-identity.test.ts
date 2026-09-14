@@ -72,6 +72,16 @@ describe('deriveJeIdentity', () => {
     expect(deriveJeIdentity(open, 0, 1).privateNote).toBe(OPENING_CORRECTION_NOTE);
   });
 
+  it('dates the year-end correction in December 2025 — the month comes from txn_date, not the cutover', () => {
+    // Ash, 2026-09-14: the one-time true-up is a 13th-month entry dated 12/31/2025.
+    const open = header({ kind: 'inventory', pay_group: INV_OPEN_PAY_GROUP, pay_date: '12/31/2025', txn_date: '2025-12-31' });
+    const id = deriveJeIdentity(open, 0, 1);
+    expect(id.docNumber).toBe(openingCorrectionDocNumber('MedRock TN', '2025-12'));
+    expect(id.docNumber).toBe('TN Inv Open 2025.12');
+    expect(id.txnDateIso).toBe('2025-12-31');
+    expect(id.privateNote).toContain('2025-12-31');
+  });
+
   it('still derives an ordinary payroll run, and a pinned DocNumber always wins', () => {
     expect(deriveJeIdentity(header({}), 0, 1).docNumber).toBe('PR 2026.08.31');
     expect(

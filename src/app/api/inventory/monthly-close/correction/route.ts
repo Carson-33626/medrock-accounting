@@ -9,7 +9,7 @@ export const maxDuration = 120;
 
 /**
  * POST /api/inventory/monthly-close/correction — persist the one-time opening
- * correction (cutover to FIFO, 2026-03-01) as drafts, pay_group 'INV OPEN', so
+ * correction (year-end true-up to FIFO, dated 2025-12-31) as drafts, pay_group 'INV OPEN', so
  * it gets the same Approve → Post workflow as the monthly close. Regeneration
  * is locked once any correction has posted.
  */

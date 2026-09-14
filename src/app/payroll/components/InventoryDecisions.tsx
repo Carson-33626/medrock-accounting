@@ -30,8 +30,17 @@ const DECISIONS: Decision[] = [
     status: 'decided',
   },
   {
+    date: '2026-09-14',
+    title: 'Opening correction moves to 2025-12-31 (13th-month entry)',
+    decision:
+      'The one-time true-up is dated 12/31/2025 instead of 2026-03-01, and the FIFO ledger is count-anchored from December 2025 so the accumulated write-down lands in 2025. Monthly closes run from January 2026.',
+    why:
+      'Ash: every 2026 month should carry only its own movement. Kristi (2026-09-08): cash-basis tax is unaffected, the balance sheet is a schedule, and a 12/31 baseline keeps the monthly adjustments small. Figures regenerate once the December anchor lands.',
+    status: 'decided',
+  },
+  {
     date: '2026-08-26',
-    title: 'Opening correction: $1,543,975 write-down, dated 2026-03-01',
+    title: 'Opening correction: $1,543,975 write-down, dated 2026-03-01 (date superseded 2026-09-14)',
     decision:
       'One JE per company (FL $669,503 · TN $621,672 · TX $252,801) trues each inventory sub-account to the FIFO opening. OTC, shipping packaging, and suspense accounts are out of scope and untouched.',
     why:

@@ -652,7 +652,7 @@ export const INV_OPEN_PAY_GROUP = 'INV OPEN';
  *  `deriveJeIdentity` so the QBO import CSV cannot describe the entry differently
  *  from the way the Post button writes it. */
 export const OPENING_CORRECTION_NOTE =
-  'Opening inventory correction to FIFO method — one-time cutover (2026-03-01)';
+  'Opening inventory correction to FIFO method — one-time year-end true-up (2025-12-31)';
 
 /** One computed correction row plus its evidence (server-side superset of the
  *  client's OpeningCorrectionRowView). */

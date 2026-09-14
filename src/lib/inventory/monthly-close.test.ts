@@ -912,5 +912,7 @@ describe('opening correction — the one-time cutover JE (proposal 2026-08-26)',
 
   it('doc number is Inv Open, never colliding with the monthly Inv Adj', () => {
     expect(openingCorrectionDocNumber('MedRock Florida', '2026-03')).toBe('FL Inv Open 2026.03');
+    // The year-end date (2026-09-14 ruling): the doc number carries December 2025.
+    expect(openingCorrectionDocNumber('MedRock Florida', '2025-12')).toBe('FL Inv Open 2025.12');
   });
 });

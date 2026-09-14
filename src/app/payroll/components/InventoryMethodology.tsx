@@ -100,9 +100,9 @@ export function InventoryMethodology({ darkMode }: { darkMode: boolean }) {
           book values, which were accumulated estimates. Every figure traces to one of three evidence
           types: a <strong>purchase receipt</strong>, a <strong>usage record</strong>, or a{' '}
           <strong>dated on-hand count</strong> from the pharmacy system. Months before{' '}
-          <strong>March 2026</strong> are settled and never receive entries; the one-time opening
-          correction (dated 2026-03-01, on the Close JEs sub-tab) sets the starting balance, and each
-          open month then posts its own statement below.
+          <strong>January 2026</strong> are settled and never receive entries; the one-time year-end
+          correction (dated 2025-12-31, on the Close JEs sub-tab under December 2025) sets the
+          starting balance, and each 2026 month then posts its own statement below.
         </p>
       </Section>
 
@@ -286,7 +286,7 @@ export function InventoryMethodology({ darkMode }: { darkMode: boolean }) {
                   5000.60 Inventory Valuation Correction (proposed — pending CPA sign-off; the card on
                   the Close JEs sub-tab refuses to draft until it exists)
                 </td>
-                <td className="py-1 pr-3">once, dated 2026-03-01</td>
+                <td className="py-1 pr-3">once, dated 2025-12-31</td>
               </tr>
             </tbody>
           </table>
