@@ -316,8 +316,12 @@ export async function listLabAccrualDrafts(month: string): Promise<{
   headers: LabAccrualHeader[];
   linesById: Record<string, LabAccrualLine[]>;
 }> {
+  // `id` is a BIGINT and node-postgres returns bigint as a STRING. Sent as-is to
+  // /api/payroll/approve it fails the `typeof headerId !== 'number'` gate with
+  // "headerId is required" (Carson, 2026-09-14, Approve on the lab card). The
+  // payroll header mapper (`toHeader`) casts with Number(); so does this one.
   const { rows } = await getRdsPool().query<{
-    id: number;
+    id: string;
     entity: string;
     kind: string;
     status: string;
@@ -337,7 +341,7 @@ export async function listLabAccrualDrafts(month: string): Promise<{
   );
 
   const headers: LabAccrualHeader[] = rows.map((r) => ({
-    id: r.id,
+    id: Number(r.id),
     entity: r.entity,
     kind: r.kind === 'reversal' ? 'reversal' : 'accrual',
     status: r.status as LabAccrualHeader['status'],
