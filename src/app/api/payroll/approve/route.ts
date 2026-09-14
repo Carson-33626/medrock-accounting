@@ -32,7 +32,14 @@ export async function POST(request: NextRequest) {
     }
     // Closed period: approval's only purpose is unlocking a post, and posting a
     // pre-04/10/2026 payroll would duplicate what accounting already booked.
-    if (isPayrollPeriodComplete(loaded.header.pay_date)) {
+    //
+    // A PAYROLL lock, so it applies to payroll runs only. Inventory entries (the
+    // 12/31/2025 year-end correction, the monthly closes) and the accrual pairs are
+    // dated by their own period and are exactly what accounting asked this system to
+    // post — Carson, 2026-09-14, was blocked approving the year-end correction because
+    // its 12/31/2025 pay_date fell before the payroll cutoff. They post through their
+    // own routes, which carry their own gates.
+    if (loaded.header.kind === 'pay_date' && isPayrollPeriodComplete(loaded.header.pay_date)) {
       return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
     }
 
