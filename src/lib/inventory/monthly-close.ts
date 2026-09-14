@@ -648,6 +648,11 @@ export function openingCorrectionDocNumber(location: string, month: string): str
  *  must not pull in close-server's RDS/QuickBooks dependencies to do it. */
 export const INV_OPEN_PAY_GROUP = 'INV OPEN';
 
+/** The monthly close's pay_group. Canonical here (pure) for the same reason as
+ *  INV_OPEN_PAY_GROUP: the lab-supplies contributor queries posted close lines by
+ *  it and must not import close-server's RDS/QuickBooks dependencies to do so. */
+export const INV_CLOSE_PAY_GROUP = 'INV CLOSE';
+
 /** The PrivateNote the correction posts under. Shared by the post route and
  *  `deriveJeIdentity` so the QBO import CSV cannot describe the entry differently
  *  from the way the Post button writes it. */

@@ -15,6 +15,8 @@
 import type { DetailSheet } from '@/lib/inventory/je-detail';
 import { buildInventoryJeDetailSheets } from '@/lib/inventory/je-detail';
 import { buildLabAccrualJeDetailSheets, parseLabAccrualSnapshot } from '@/lib/inventory/je-detail-accrual';
+import { buildLabSuppliesPoolDetailSheet, parseLabSuppliesPoolSnapshot } from '@/lib/inventory/je-detail-lab-pool';
+import { LAB_SUPPLIES_SOURCE_KEY } from '@/lib/inventory/lab-supplies-contribution';
 import { LAB_ACCRUAL_PAY_GROUP } from '@/lib/inventory/lab-supplies-je';
 import { fetchJeLotDetail } from '@/lib/inventory/ledger-values';
 import { getRdsPool } from '@/lib/rds';
@@ -63,12 +65,23 @@ export async function fetchJeDetailSheets(
 async function inventorySheets(header: PayrollHeader, lines: readonly JournalLine[]): Promise<DetailSheet[]> {
   const monthEnd = header.period_end ?? header.txn_date;
   if (monthEnd === null) return [];
-  const receiptIds = [...new Set(lines.flatMap((l) => l.sourceRowKeys))];
-  if (receiptIds.length === 0) return [];
+  const sheets: DetailSheet[] = [];
 
-  const lots = await fetchJeLotDetail(getRdsPool(), receiptIds, monthEnd.slice(0, 7));
-  if (lots.length === 0) return [];
-  return buildInventoryJeDetailSheets(lines, lots, monthEnd);
+  // The FIFO lines carry receipt ids; the lab-supplies lines carry their source tag
+  // instead (they have no lots). Keep the two apart so neither sheet sees the other's lines.
+  const labLines = lines.filter((l) => l.sourceRowKeys.includes(LAB_SUPPLIES_SOURCE_KEY));
+  const fifoLines = lines.filter((l) => !l.sourceRowKeys.includes(LAB_SUPPLIES_SOURCE_KEY));
+  const receiptIds = [...new Set(fifoLines.flatMap((l) => l.sourceRowKeys))];
+  if (receiptIds.length > 0) {
+    const lots = await fetchJeLotDetail(getRdsPool(), receiptIds, monthEnd.slice(0, 7));
+    if (lots.length > 0) sheets.push(...buildInventoryJeDetailSheets(fifoLines, lots, monthEnd));
+  }
+
+  // The lab-supplies basis retained at generate time (pooled since 2026-09-14).
+  const labSnapshot = parseLabSuppliesPoolSnapshot(await getSourceSnapshot(header.id));
+  if (labSnapshot !== null) sheets.push(...buildLabSuppliesPoolDetailSheet(labLines, labSnapshot));
+
+  return sheets;
 }
 
 /**

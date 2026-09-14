@@ -12,8 +12,8 @@
  *   2. The one-time correction dated 2025-12-31 (pay_group INV OPEN), FL/TN/TX.
  *   3. The monthly inventory close for every month 2026-01 .. --through (default:
  *      the current month), 'floor' basis — same code path as the Generate button.
- *   4. The lab-supplies accrual pair for the same months (it skips settled and
- *      unfinished months itself).
+ *   4. (Since 2026-09-14 the lab-supplies accrual is pooled INTO each close entry,
+ *      so it regenerates with step 3; the retired LAB ACCRUAL drafts are cleared.)
  *
  * SAFETY. Every generator refuses a month with a POSTED entry and reports it as a
  * skip. Everything written is a `needs_review` draft in our own store — nothing
@@ -35,7 +35,6 @@ import {
   loadStoredDrafts,
   monthEndDate,
 } from '../src/lib/inventory/close-server';
-import { generateLabAccrualDrafts, listLabAccrualDrafts } from '../src/lib/inventory/lab-supplies-server';
 
 interface AnchorRow {
   as_of_month: string;
@@ -118,8 +117,7 @@ async function main(): Promise<void> {
     for (const month of months) {
       const monthEnd = monthEndDate(month);
       const stored = monthEnd ? await loadStoredDrafts(monthEnd) : { headers: [] };
-      const lab = await listLabAccrualDrafts(month);
-      console.log(`  ${month}  close (currently ${stored.headers.length} header(s)) + lab accrual (currently ${lab.headers.length})`);
+      console.log(`  ${month}  close incl. lab supplies (currently ${stored.headers.length} header(s))`);
     }
     console.log('\nRe-run with --confirm.');
     return;
@@ -142,7 +140,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // 3 + 4. Monthly closes and the lab accrual, in month order.
+  // 3. Monthly closes (lab supplies pooled inside), in month order.
   for (const month of months) {
     const monthEnd = monthEndDate(month);
     if (!monthEnd) continue;
@@ -159,16 +157,16 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(`== ${month} lab accrual ==`);
-    try {
-      const lab = await generateLabAccrualDrafts(month);
-      console.log(`  saved ${lab.saved.length}, skipped ${lab.skipped.length}, unavailable ${lab.unavailable.length}`);
-      for (const s of lab.skipped) console.log(`    skipped: ${s}`);
-      for (const u of lab.unavailable) console.log(`    unavailable: ${u}`);
-    } catch (e) {
-      console.log(`  ERROR: ${e instanceof Error ? e.message : String(e)}`);
-    }
   }
+
+  // The lab-supplies accrual is pooled INTO the close entry since 2026-09-14, so the
+  // separate LAB ACCRUAL drafts (accrual + reversal pairs) are obsolete. None ever
+  // posted; unposted ones are cleared so nobody approves a duplicate of what the
+  // close entry now carries. Posted rows are never touched.
+  const { rowCount } = await getRdsPool().query(
+    `DELETE FROM accounting.payroll_journal_headers WHERE pay_group = 'LAB ACCRUAL' AND status <> 'posted'`,
+  );
+  console.log(`\n== retired LAB ACCRUAL drafts ==\n  removed ${rowCount ?? 0} unposted header(s)`);
 }
 
 main()

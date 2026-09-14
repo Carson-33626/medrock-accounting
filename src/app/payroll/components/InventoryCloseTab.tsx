@@ -11,7 +11,6 @@ import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { formatAccount } from '@/lib/inventory/account-label';
 import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
-import LabAccrualCard from './LabAccrualCard';
 import { InventoryMethodology } from './InventoryMethodology';
 import { InventoryDecisions } from './InventoryDecisions';
 import type {
@@ -63,7 +62,6 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   const [busyHeaderId, setBusyHeaderId] = useState<number | null>(null);
   /** Bumped after any approve/post so the lab-accrual card re-reads its own drafts —
    *  it owns its data (it reads QuickBooks live) rather than riding the close payload. */
-  const [labRefresh, setLabRefresh] = useState(0);
   const [dryRunPayloads, setDryRunPayloads] = useState<Record<number, QbJournalEntryPayload>>({});
   // Stale-response guard (mirrors EndOfMonthTab.load): a slow close fetch for a month the
   // user has since switched away from must not clobber the current month's data.
@@ -174,7 +172,6 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         const body = (await res.json()) as ApiErrorBody;
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         await loadClose(selectedMonth, closeBasis);
-        setLabRefresh((n) => n + 1);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to approve draft');
       } finally {
@@ -221,7 +218,6 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         const body = (await res.json()) as PostResponse & ApiErrorBody;
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         await loadClose(selectedMonth, closeBasis);
-        setLabRefresh((n) => n + 1);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to post journal entry');
       } finally {
@@ -426,21 +422,9 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         />
       )}
 
-      {/* Lab supplies: cleared out of FIFO entirely, so the close cannot see it. Carson,
-          2026-09-03 — put it on the inventory JE so it is visible and postable from the
-          same screen the accountants already work the close from. */}
-      {selectedMonth && (
-        <LabAccrualCard
-          month={selectedMonth}
-          darkMode={darkMode}
-          busyHeaderId={busyHeaderId}
-          refreshKey={labRefresh}
-          dryRunPayloads={dryRunPayloads}
-          onApprove={(id) => void handleApprove(id)}
-          onDryRun={(id) => void handleDryRun(id)}
-          onPostLive={(id, label) => void handlePostLive(id, label)}
-        />
-      )}
+      {/* Lab supplies no longer has its own card: since 2026-09-14 the accrual is a
+          contributor INSIDE each month's close entry (lab-supplies-contribution.ts),
+          so it generates, approves and posts with the entry. */}
 
       {dates && (
         <p className={`text-sm ${subText}`}>

@@ -26,12 +26,12 @@ import {
   computeAccrual, ACCRUAL_PARAMETERS,
   type AccrualLocation, type AccrualResult,
 } from './lab-supplies-accrual';
-import { buildLabAccrualDrafts, LAB_ACCRUAL_PAY_GROUP, ACCRUAL_ENTITY_BY_LOCATION } from './lab-supplies-je';
-import type { LabAccrualSnapshot } from './je-detail-accrual';
-import { loadDraft } from '@/lib/payroll/store';
+import { LAB_ACCRUAL_PAY_GROUP, ACCRUED_EXPENSES_ACCOUNT } from './lab-supplies-je';
+import { buildLabSuppliesContribution, LAB_SUPPLIES_SOURCE_KEY, type LabSuppliesContribution } from './lab-supplies-contribution';
+import type { LabSuppliesPoolSnapshot } from './je-detail-lab-pool';
+import { INV_CLOSE_PAY_GROUP } from './monthly-close';
 import { getRdsPool } from '@/lib/rds';
-import { saveDraft, saveSourceSnapshot } from '@/lib/payroll/store';
-import { createHash } from 'node:crypto';
+import type { Entity } from '@/lib/payroll/types';
 
 const ACCOUNT_NUMS = ['1220.20', '5000.25'] as const;
 
@@ -71,26 +71,6 @@ export interface LabSuppliesAccrualResponse {
   months: LabSuppliesAccrualMonth[];
   /** Locations whose QuickBooks realm could not be read; their rows are absent. */
   unavailable: string[];
-}
-
-/** One stored half of an accrual pair, for the Inventory Close tab. */
-export interface LabAccrualHeader {
-  id: number;
-  entity: string;
-  kind: 'accrual' | 'reversal';
-  status: 'draft' | 'needs_review' | 'approved' | 'posted' | 'error';
-  qb_doc_number: string | null;
-  txn_date: string | null;
-  total_debits: number;
-  total_credits: number;
-  variance: number;
-}
-
-export interface LabAccrualLine {
-  postingType: 'Debit' | 'Credit';
-  amount: number;
-  accountName: string;
-  memo: string;
 }
 
 /** Last day of a 'YYYY-MM', as 'YYYY-MM-DD'. */
@@ -186,181 +166,96 @@ export async function fetchLabSuppliesAccrual(monthCount = 6): Promise<LabSuppli
 }
 
 // ---------------------------------------------------------------------------
-// DRAFT GENERATION
+// THE POOL CONTRIBUTOR (2026-09-14) — replaces the accrual/reversal draft pair.
+// Carson: "fold lab supplies into the main journal entry, not a separate piece,
+// so it generates on journal entry generation." Lines: lab-supplies-contribution.ts.
 // ---------------------------------------------------------------------------
 
 /**
- * Generate (or regenerate) the lab-supplies accrual drafts for one month.
- *
- * Writes to OUR draft table only — nothing reaches QuickBooks until someone
- * approves and posts, exactly like the FIFO close. `saveDraft` refuses to
- * overwrite a header that has already posted, so regenerating is safe.
- *
- * The month is normally the one just closed. Every location that has something
- * to accrue produces a PAIR: the accrual at month-end and its reversal on the
- * first of the next month. A location whose accrual has fallen to zero produces
- * nothing — the month has settled and the real bills are carrying the cost.
+ * Σ of our own POSTED lab-supplies lines for one entity, to date: credits to
+ * `2011 Accrued Expenses` less debits. Two populations, both ours:
+ *   - close entries (INV CLOSE) carrying lines tagged `src:lab-supplies`
+ *   - the retired LAB ACCRUAL pairs, should any ever have posted (none had on
+ *     2026-09-14; kept so a posted pair could never be double-counted)
+ * Only `status = 'posted'` counts: a draft is not on the books.
  */
-export async function generateLabAccrualDrafts(
-  month: string,
-): Promise<{ saved: string[]; skipped: string[]; unavailable: string[] }> {
-  // Reach back far enough to include the requested month whatever it is, so a
-  // regeneration of an older month reads the same figures the tab shows.
-  const asOf = new Date().toISOString().slice(0, 10);
-  const [ay, am] = asOf.slice(0, 7).split('-').map(Number);
-  const [my, mm] = month.split('-').map(Number);
-  const span = (ay - my) * 12 + (am - mm) + 1;
-  if (span < 1) throw new Error(`generateLabAccrualDrafts: ${month} is in the future`);
+export async function fetchPostedLabSuppliesToDate(entity: Entity): Promise<number> {
+  const { rows } = await getRdsPool().query<{ net: string | null }>(
+    `SELECT sum(CASE WHEN l.posting_type = 'Credit' THEN l.amount ELSE -l.amount END)::text AS net
+       FROM accounting.payroll_journal_lines l
+       JOIN accounting.payroll_journal_headers h ON h.id = l.header_id
+      WHERE h.entity = $1
+        AND h.status = 'posted'
+        AND l.account_name = $2
+        AND (
+          (h.pay_group = $3 AND $4 = ANY(l.source_row_keys))
+          OR h.pay_group = $5
+        )`,
+    [entity, ACCRUED_EXPENSES_ACCOUNT, INV_CLOSE_PAY_GROUP, LAB_SUPPLIES_SOURCE_KEY, LAB_ACCRUAL_PAY_GROUP],
+  );
+  return Math.round(Number(rows[0]?.net ?? 0) * 100) / 100;
+}
 
-  // AN UNFINISHED MONTH CANNOT BE ACCRUED. The completeness curve is measured in
-  // days AFTER month-end, so a month still running scores 0% and would accrue a
-  // FULL month's average — on 2026-09-03 that is $3,024.06 of Florida September
-  // against three elapsed days. The tab shows the current month because the trend
-  // is worth seeing; generating an entry from it is not. Accruals are a month-end
-  // act, so the month must have ended.
-  if (monthEndOf(month) >= asOf) {
-    throw new Error(
-      `generateLabAccrualDrafts: ${month} has not ended yet (as of ${asOf}) — ` +
-        'an accrual for a month still in progress would book a full month of cost against a partial month',
-    );
-  }
-
-  // `observedAsOf` is the date the QuickBooks read was actually taken — the one that fixes
-  // completeness, and so the one the retained snapshot must carry.
-  const { months, unavailable, asOf: observedAsOf } = await fetchLabSuppliesAccrual(Math.max(span, 1));
-
-  const saved: string[] = [];
-  const skipped: string[] = [];
-
-  for (const row of months) {
-    if (row.month !== month) continue;
-    const pair = buildLabAccrualDrafts({
-      location: row.location,
-      month: row.month,
-      accrual: row.accrual,
-      completeness: row.completeness,
-      boundBy: row.boundBy,
-    });
-    if (pair === null) {
-      skipped.push(`${row.location}: nothing to accrue (month has settled)`);
-      continue;
-    }
-    // Hash the INPUTS, not the built lines: the drift gate should fire when the
-    // estimate moves, not when the memo wording changes.
-    const snapshotHash = createHash('sha256')
-      .update(
-        JSON.stringify({
-          location: row.location,
-          month: row.month,
-          accrual: row.accrual,
-          completeness: row.completeness,
-          observedToDate: row.observedToDate,
-          observedDocs: row.observedDocs,
-        }),
-      )
-      .digest('hex');
-    const accrualId = await saveDraft(pair.accrual, snapshotHash);
-    const reversalId = await saveDraft(pair.reversal, snapshotHash);
-
-    // RETAIN THE INPUTS, not just their fingerprint. Completeness is a function of the day
-    // the QuickBooks observation was taken, so re-pulling tomorrow returns a smaller accrual
-    // than the one that posted — there is no re-reading this source. The entry's `Accrual
-    // basis` sheet (both the download and the QuickBooks attachment) is built from this row;
-    // without it the workbook ships with its Journal Entry sheet alone. See DS §6.
-    const snapshot: LabAccrualSnapshot = {
-      location: row.location,
-      month: row.month,
-      asOf: observedAsOf,
-      observedToDate: row.observedToDate,
-      observedDocs: row.observedDocs,
-      normalDocs: ACCRUAL_PARAMETERS.normalDocsPerMonth[row.location],
-      daysElapsed: row.daysElapsed,
-      curveCompleteness: row.curveCompleteness,
-      entryCompleteness: row.entryCompleteness,
-      completeness: row.completeness,
-      boundBy: row.boundBy,
-      trailingAverage: row.trailingAverage,
-      accrual: row.accrual,
-      estimatedTotal: row.estimatedTotal,
-      flagged: row.flagged,
-      flagReason: row.flagReason,
-      borrowedCurve: row.borrowedCurve,
-    };
-    const entity = ACCRUAL_ENTITY_BY_LOCATION[row.location];
-    // Best-effort: a failed snapshot write must not lose the drafts that were just saved.
-    // It costs the basis sheet, not the entry.
-    try {
-      await saveSourceSnapshot(accrualId, entity, snapshot);
-      await saveSourceSnapshot(reversalId, entity, snapshot);
-    } catch (error) {
-      console.warn(`[lab-supplies-accrual] snapshot not retained for ${row.location} ${row.month}:`, error);
-    }
-    saved.push(`${row.location}: ${pair.accrual.docNumber} + ${pair.reversal.docNumber}`);
-  }
-
-  return { saved, skipped, unavailable };
+/** Months between two 'YYYY-MM's, inclusive, for sizing the QuickBooks read. */
+function monthSpan(from: string, to: string): number {
+  const [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm) + 1;
 }
 
 /**
- * The stored lab-accrual drafts for a month, in the shape the Inventory Close tab
- * already renders its own drafts in.
+ * The lab-supplies contribution to one entity's close entry for `month`, plus the
+ * basis to retain on the header so the workbook can explain it later.
  *
- * BOTH halves of every pair, deliberately. The reversal is dated the first of the
- * NEXT month and is a separate posting act; hiding it would leave an accrual on the
- * books with nothing on screen saying it comes back off.
- *
- * Matched on `period_end`, not `pay_date` — the pair spans two pay dates by design
- * (see `lab-supplies-je.ts`) and both halves belong to the accrued month.
+ * `available` is false only when this entity's QuickBooks realm could not be read
+ * — the pool then refuses the whole entry rather than posting one that is quietly
+ * missing a piece.
  */
-export async function listLabAccrualDrafts(month: string): Promise<{
-  headers: LabAccrualHeader[];
-  linesById: Record<string, LabAccrualLine[]>;
-}> {
-  // `id` is a BIGINT and node-postgres returns bigint as a STRING. Sent as-is to
-  // /api/payroll/approve it fails the `typeof headerId !== 'number'` gate with
-  // "headerId is required" (Carson, 2026-09-14, Approve on the lab card). The
-  // payroll header mapper (`toHeader`) casts with Number(); so does this one.
-  const { rows } = await getRdsPool().query<{
-    id: string;
-    entity: string;
-    kind: string;
-    status: string;
-    qb_doc_number: string | null;
-    txn_date: string | null;
-    total_debits: string;
-    total_credits: string;
-    variance: string;
-  }>(
-    `SELECT id, entity, kind, status, qb_doc_number,
-            to_char(txn_date, 'YYYY-MM-DD') AS txn_date,
-            total_debits::text, total_credits::text, variance::text
-     FROM accounting.payroll_journal_headers
-     WHERE pay_group = $1 AND period_end = $2
-     ORDER BY entity, kind DESC`,
-    [LAB_ACCRUAL_PAY_GROUP, monthEndOf(month)],
-  );
+export async function labSuppliesContributionFor(
+  entity: Entity,
+  month: string,
+): Promise<{ contribution: LabSuppliesContribution; snapshot: LabSuppliesPoolSnapshot | null }> {
+  const asOf = new Date().toISOString().slice(0, 10);
+  const monthEnded = monthEndOf(month) < asOf;
+  // Reach back to the earliest month that could still carry an unkeyed estimate
+  // (the FL curve's p99 lag is ~8 months) or to the requested month, whichever is older.
+  const span = Math.max(monthSpan(month, asOf.slice(0, 7)), 9);
+  const [read, postedToDate] = await Promise.all([
+    fetchLabSuppliesAccrual(span),
+    fetchPostedLabSuppliesToDate(entity),
+  ]);
+  const available = !read.unavailable.some((u) => u.startsWith(entity));
+  const contribution = buildLabSuppliesContribution({
+    location: entity,
+    month,
+    months: read.months,
+    postedToDate,
+    monthEnded,
+    available,
+  });
+  if (!available || !monthEnded) return { contribution, snapshot: null };
 
-  const headers: LabAccrualHeader[] = rows.map((r) => ({
-    id: Number(r.id),
-    entity: r.entity,
-    kind: r.kind === 'reversal' ? 'reversal' : 'accrual',
-    status: r.status as LabAccrualHeader['status'],
-    qb_doc_number: r.qb_doc_number,
-    txn_date: r.txn_date,
-    total_debits: Number(r.total_debits),
-    total_credits: Number(r.total_credits),
-    variance: Number(r.variance),
-  }));
-
-  const linesById: Record<string, LabAccrualLine[]> = {};
-  for (const h of headers) {
-    const loaded = await loadDraft(h.id);
-    linesById[String(h.id)] = (loaded?.lines ?? []).map((l) => ({
-      postingType: l.postingType,
-      amount: l.amount,
-      accountName: l.accountName,
-      memo: l.memo,
-    }));
-  }
-  return { headers, linesById };
+  const snapshot: LabSuppliesPoolSnapshot = {
+    kind: 'lab-supplies-pool',
+    location: entity,
+    month,
+    asOf: read.asOf,
+    target: contribution.target,
+    postedToDate,
+    delta: contribution.delta,
+    months: contribution.basis.map((m) => ({
+      month: m.month,
+      observedToDate: m.observedToDate,
+      observedDocs: m.observedDocs,
+      daysElapsed: m.daysElapsed,
+      completeness: m.completeness,
+      boundBy: m.boundBy,
+      trailingAverage: m.trailingAverage,
+      accrual: m.accrual,
+      flagged: m.flagged,
+      flagReason: m.flagReason,
+    })),
+  };
+  return { contribution, snapshot };
 }
+

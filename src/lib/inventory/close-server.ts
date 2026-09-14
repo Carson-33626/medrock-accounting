@@ -25,11 +25,14 @@ import {
   openingCorrectionLines,
   openingCorrectionDocNumber,
   INV_OPEN_PAY_GROUP,
+  INV_CLOSE_PAY_GROUP,
   OPENING_CORRECTION_NOTE,
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
 import { correctionOffsetAccount } from './monthly-close';
+import { labSuppliesContributionFor } from './lab-supplies-server';
+import { saveSourceSnapshot } from '../payroll/store';
 import { assemblePool, type JeContribution } from './je-pool';
 import {
   fetchCategoryCogsSeries,
@@ -59,7 +62,8 @@ import type {
 /** One draft set per month — the conflict key (entity, pay_date, INV CLOSE, '')
  *  means regenerating on the other basis REPLACES the unposted drafts rather
  *  than creating a second postable set of the same economic adjustment. */
-export const INV_CLOSE_PAY_GROUP = 'INV CLOSE';
+// Canonical in monthly-close.ts (pure); re-exported so existing importers keep their site.
+export { INV_CLOSE_PAY_GROUP };
 
 /** 'YYYY-MM' → last day of that month as 'YYYY-MM-DD', or null when malformed. */
 export function monthEndDate(month: string): string | null {
@@ -453,11 +457,6 @@ export async function generateInvCloseDrafts(
   const warnings: string[] = [];
   const savedEntities: Entity[] = [];
   const payDate = isoToAdp(monthEnd);
-  // Hash the CATEGORY entries — those are what generates now, so a change in a
-  // category value must invalidate the draft.
-  const snapshotHash = createHash('sha256')
-    .update(JSON.stringify({ basis, categoryJournalEntries: close.categoryJournalEntries }))
-    .digest('hex');
 
   for (const je of close.categoryJournalEntries) {
     const entity = QB_LOCATIONS.find((qb) => QB_TO_RDS_LOCATION[qb] === je.location);
@@ -467,10 +466,6 @@ export async function generateInvCloseDrafts(
       continue;
     }
     const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
-    if (jeLines.length === 0) {
-      warnings.push(`${je.location}: no adjustment needed (FIFO ties to book) — no draft generated`);
-      continue;
-    }
     // Gate on a residual line HAVING BEEN EMITTED, not on unmappedCategories
     // being non-empty: an unmapped category whose combined adjustment nets to zero
     // (TX 'Uncoded' in 2026-03 — every remaining_value NULL) posts nothing, and
@@ -479,16 +474,36 @@ export async function generateInvCloseDrafts(
     if (residualLine) {
       warnings.push(residualWarning(je.location, je.unmappedCategories));
     }
-    // Assembled through the pool even though FIFO is currently its only
-    // contributor. The lab-supplies accrual and device standard cost join it as
-    // further contributors rather than as their own entries — see
-    // docs/fifo-monthly-close/ds-one-inventory-je-2026-09-03.md. Today's output is
-    // byte-identical to the hand-rolled version this replaced, which is the point:
-    // the restructure must not move a number.
-    const pool = assemblePool([fifoCategoryContribution(je, monthEnd)]);
+
+    // ONE entry per (entity, month): FIFO plus the lab-supplies accrual, pooled.
+    // Carson, 2026-09-14: "fold lab supplies into the main journal entry, not a
+    // separate piece, so it generates on journal entry generation." The lab
+    // contributor books target − posted (ds-one-inventory-je §3), so no reversal
+    // and no second entry. See docs/fifo-monthly-close/ds-one-inventory-je-2026-09-03.md.
+    const lab = await labSuppliesContributionFor(entity, month);
+    const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution]);
+    for (const w of pool.warnings) warnings.push(w);
+    if (pool.unavailable.length > 0) {
+      // A partial read must never become a posted number — the whole entry waits.
+      warnings.push(`${je.location}: ${pool.unavailable.join(', ')} could not compute — no draft generated`);
+      continue;
+    }
+    if (pool.lines.length === 0) {
+      warnings.push(`${je.location}: no adjustment needed (FIFO ties to book, lab accrual stands) — no draft generated`);
+      continue;
+    }
+    if (pool.variance !== 0) {
+      warnings.push(`${je.location}: pooled entry does not balance (variance ${pool.variance.toFixed(2)}) — no draft generated`);
+      continue;
+    }
     const lines = pool.lines;
     const totalDebits = pool.totalDebits;
     const totalCredits = pool.totalCredits;
+    // Per entity, and including the lab basis: a moved estimate must invalidate
+    // the draft exactly as a moved category value does.
+    const entityHash = createHash('sha256')
+      .update(JSON.stringify({ basis, categoryJournalEntry: je, lab: lab.snapshot }))
+      .digest('hex');
     const draft: JournalDraft = {
       entity,
       kind: 'inventory',
@@ -499,14 +514,24 @@ export async function generateInvCloseDrafts(
       periodSegment: '',
       docNumber: invCloseDocNumber(je.location, month),
       txnDate: monthEnd,
-      privateNote: `Inventory FIFO close adjustment — ${month} (category detail, lot-level)`,
+      privateNote: `Inventory FIFO close adjustment — ${month} (category detail, lot-level; lab supplies accrual pooled)`,
       lines,
       totalDebits,
       totalCredits,
       variance: pool.variance,
       rowKeys: [],
     };
-    await saveDraft(draft, snapshotHash);
+    const headerId = await saveDraft(draft, entityHash);
+    // RETAIN THE LAB BASIS on the header: completeness is a function of the day
+    // QuickBooks was read, so the workbook must print what was retained, never a
+    // re-pull. Best-effort — a failed snapshot costs the basis sheet, not the entry.
+    if (lab.snapshot !== null) {
+      try {
+        await saveSourceSnapshot(headerId, entity, lab.snapshot);
+      } catch (error) {
+        console.warn(`[inventory/close-server] lab basis not retained for ${je.location} ${month}:`, error);
+      }
+    }
     savedEntities.push(entity);
   }
 
