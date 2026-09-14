@@ -532,14 +532,83 @@ function OpeningCorrectionCard({
     );
   };
 
+  // Once every correction draft has posted, the card collapses to a receipt: doc
+  // number, QuickBooks date and amount per entity, with the detail one click away.
+  // Carson, 2026-09-14: "will the system recognize that it has been posted and
+  // collapse and notate this section?" Regeneration is locked server-side at the
+  // first posted header, so a collapsed card can never be re-drafted by accident.
+  const allPosted = correction.headers.length > 0 && correction.headers.every((h) => h.status === 'posted');
+  const [expanded, setExpanded] = useState(false);
+
+  if (allPosted && !expanded) {
+    return (
+      <div
+        className={`rounded-xl shadow-sm border-2 ${darkMode ? 'border-emerald-800' : 'border-emerald-300'} ${cardBg} p-4 space-y-2`}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              Year-end correction — posted to QuickBooks
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  darkMode ? 'bg-emerald-900/60 text-emerald-200' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                Posted
+              </span>
+            </h3>
+            <p className={`text-sm ${subText}`}>
+              The one-time true-up dated {correction.openingDate} is on the books. Net company-wide:{' '}
+              <span className="font-semibold">{usd(netTotal)}</span>. Regeneration is locked.
+            </p>
+          </div>
+          <button
+            onClick={() => setExpanded(true)}
+            className={`ml-auto px-3 py-1.5 text-xs font-medium rounded-lg border ${
+              darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+            }`}
+          >
+            Show detail
+          </button>
+        </div>
+        <ul className="text-sm space-y-1">
+          {correction.headers.map((h) => (
+            <li key={h.id} className="flex flex-wrap items-center gap-3">
+              <span className="font-medium w-8">{h.entity.replace('MedRock ', '')}</span>
+              <span className="font-mono text-xs">{h.qb_doc_number ?? `#${h.id}`}</span>
+              <span className={subText}>{h.txn_date ?? correction.openingDate}</span>
+              <span className="tabular-nums">{usd(h.total_debits)}</span>
+              <JeSourceWorkbookLink
+                headerId={h.id}
+                docNumber={h.qb_doc_number ?? h.entity}
+                darkMode={darkMode}
+                compact
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`rounded-xl shadow-sm border-2 ${darkMode ? 'border-indigo-700' : 'border-indigo-300'} ${cardBg} p-4 space-y-4`}
     >
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h3 className="text-sm font-semibold">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
             Year-end correction — one-time true-up to FIFO ({correction.openingDate})
+            {allPosted && (
+              <button
+                onClick={() => setExpanded(false)}
+                className={`px-2 py-0.5 text-xs font-medium rounded-lg border ${
+                  darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                Collapse
+              </button>
+            )}
           </h3>
           <p className={`text-sm ${subText}`}>
             Trues each inventory sub-account from its QuickBooks balance (as of {correction.bookAsOf}) to the
