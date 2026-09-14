@@ -588,9 +588,9 @@ function DraftCard({
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
               <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
-                QB book balance
+                QuickBooks balance
                 <HelpTip
-                  label="QB book balance"
+                  label="QuickBooks balance"
                   text="The inventory-asset balance in QuickBooks at month end. Historically it was maintained with rough monthly write-off estimates rather than a valuation, so it drifts from reality over time — it is the number being corrected, not a benchmark."
                 />
               </p>

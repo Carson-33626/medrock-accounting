@@ -542,7 +542,7 @@ function OpeningCorrectionCard({
             Year-end correction — one-time true-up to FIFO ({correction.openingDate})
           </h3>
           <p className={`text-sm ${subText}`}>
-            Trues each inventory sub-account from its book balance (as of {correction.bookAsOf}) to the
+            Trues each inventory sub-account from its QuickBooks balance (as of {correction.bookAsOf}) to the
             FIFO year-end value, each offset to <span className="font-medium">{correction.offsetAccount}</span>.
             Posts once as a 13th-month entry, so every 2026 month carries only its own movement. Net
             company-wide: <span className="font-semibold">{usd(netTotal)}</span>.
@@ -639,7 +639,7 @@ function OpeningCorrectionCard({
                 <thead>
                   <tr>
                     <th className={thCls}>Inventory account</th>
-                    <th className={`${thCls} text-right`}>Book {correction.bookAsOf}</th>
+                    <th className={`${thCls} text-right`}>QuickBooks 12/31</th>
                     <th className={`${thCls} text-right`}>FIFO 12/31</th>
                     <th className={`${thCls} text-right`}>Correction</th>
                     <th className={thCls}>Offset to</th>
