@@ -204,7 +204,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
     async (headerId: number, entityLabel: string) => {
       if (!selectedMonth) return;
       const confirmed = window.confirm(
-        `This will POST a LIVE journal entry to QuickBooks for ${entityLabel}. This writes to the real general ledger and cannot be undone from here. Continue?`,
+        `This will POST a LIVE journal entry to QuickBooks for ${entityLabel}. It writes to the real general ledger. ` +
+          'If it needs to change, the posted receipt has a "Pull back from QuickBooks" button that deletes the entry and returns it to a draft. Continue?',
       );
       if (!confirmed) return;
       setBusyHeaderId(headerId);
