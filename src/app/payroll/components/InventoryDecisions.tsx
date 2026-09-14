@@ -35,7 +35,7 @@ const DECISIONS: Decision[] = [
     decision:
       'The one-time true-up is dated 12/31/2025 instead of 2026-03-01, and the FIFO ledger is count-anchored from December 2025 so the accumulated write-down lands in 2025. Monthly closes run from January 2026.',
     why:
-      'Ash: every 2026 month should carry only its own movement. Kristi (2026-09-08): cash-basis tax is unaffected, the balance sheet is a schedule, and a 12/31 baseline keeps the monthly adjustments small. Figures regenerate once the December anchor lands.',
+      'Ash: every 2026 month should carry only its own movement. Kristi (2026-09-08): cash-basis tax is unaffected, the balance sheet is a schedule, and a 12/31 baseline keeps the monthly adjustments small. No new offset account (Carson): each sub-account offsets to its paired COGS account, the same 1220.xx / 5000.xx pairing the monthly close uses.',
     status: 'decided',
   },
   {

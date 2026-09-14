@@ -38,15 +38,11 @@ export const COGS_ACCOUNT = 'Cost of Goods Sold';
  */
 export const WASTE_ACCOUNT = 'Cost of Goods Sold:Drug Waste & Shrinkage';
 
-/**
- * The one-time offset for the 2025-12-31 opening correction (year-end true-up to
- * FIFO — method in docs/fifo-monthly-close/2026-08-26-correction-je-proposal.md
- * §4, date moved by ds-year-end-correction-2025-12.md). The
- * recommended `5000.60` account: used once, then never again. If Kristi picks a
- * different treatment, change it HERE — generation refuses to draft for a
- * company whose chart lacks this account, so a rename cannot post blind.
- */
-export const CORRECTION_ACCOUNT = 'Cost of Goods Sold:Inventory Valuation Correction';
+// The 08-26 proposal's dedicated `5000.60 Inventory Valuation Correction` offset
+// was RETIRED before it was created (Carson, 2026-09-14: "i'd rather not create
+// a new account, just keep the accounts aligned as is"). The year-end correction
+// offsets each inventory sub-account to its paired COGS account above, via
+// `correctionOffsetAccount` in monthly-close.ts.
 
 export interface CategoryAccounts {
   /** Inventory-asset account (FullyQualifiedName) this category adjusts. */

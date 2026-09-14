@@ -29,7 +29,7 @@ import {
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
-import { CORRECTION_ACCOUNT } from './category-accounts';
+import { correctionOffsetAccount } from './monthly-close';
 import { assemblePool, type JeContribution } from './je-pool';
 import {
   fetchCategoryCogsSeries,
@@ -568,7 +568,12 @@ async function computeCorrectionLocations(): Promise<CorrectionComputation> {
     const rows = bookAvailable
       ? buildOpeningCorrectionRows(rdsLocation, categoryValues, book.accounts, accountNums)
       : [];
-    const offsetFound = CORRECTION_ACCOUNT in accountNums;
+    // Every row offsets to its PAIRED COGS account (no dedicated correction
+    // account — Carson, 2026-09-14). The draft is refused if any of those is
+    // missing from this company's chart, so the post can never throw
+    // `unresolved account` on a line the reviewer already approved.
+    const offsetFound =
+      bookAvailable && rows.every((row) => correctionOffsetAccount(row) in accountNums);
     detail.set(rdsLocation, { rows, bookAvailable, offsetFound });
     locations.push({
       location: rdsLocation,
@@ -616,7 +621,7 @@ export async function computeOpeningCorrection(): Promise<OpeningCorrection> {
     cutoverMonth: CUTOVER_MONTH,
     openingDate: OPENING_DATE,
     bookAsOf: BOOK_AS_OF,
-    offsetAccount: CORRECTION_ACCOUNT,
+    offsetAccount: 'its paired Cost of Goods Sold sub-account (parent COGS for the residual)',
     locations,
     headers,
     linesById,
@@ -653,13 +658,16 @@ export async function generateOpeningCorrectionDrafts(): Promise<
       continue;
     }
     if (!d.offsetFound) {
+      const missing = d.rows
+        .map((row) => correctionOffsetAccount(row))
+        .filter((account, i, all) => all.indexOf(account) === i);
       warnings.push(
-        `${rdsLocation}: offset account "${CORRECTION_ACCOUNT}" not found in the chart of accounts — ` +
-          'create it (proposal §4) before generating this correction',
+        `${rdsLocation}: a paired COGS account is missing from the chart of accounts ` +
+          `(needs ${missing.join(', ')}) — no correction draft generated`,
       );
       continue;
     }
-    const jeLines = openingCorrectionLines(d.rows, CORRECTION_ACCOUNT, BOOK_AS_OF);
+    const jeLines = openingCorrectionLines(d.rows, BOOK_AS_OF);
     if (jeLines.length === 0) {
       warnings.push(`${rdsLocation}: book already ties to the FIFO opening — no correction needed`);
       continue;

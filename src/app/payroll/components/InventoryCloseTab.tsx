@@ -548,12 +548,12 @@ function OpeningCorrectionCard({
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h3 className="text-sm font-semibold">
-            Opening correction — one-time cutover to FIFO ({correction.openingDate})
+            Year-end correction — one-time true-up to FIFO ({correction.openingDate})
           </h3>
           <p className={`text-sm ${subText}`}>
             Trues each inventory sub-account from its book balance (as of {correction.bookAsOf}) to the
-            FIFO opening, offset to <span className="font-medium">{correction.offsetAccount}</span>.
-            Posts once, dated the first day of the open period — settled months are never touched. Net
+            FIFO year-end value, each offset to <span className="font-medium">{correction.offsetAccount}</span>.
+            Posts once as a 13th-month entry, so every 2026 month carries only its own movement. Net
             company-wide: <span className="font-semibold">{usd(netTotal)}</span>.
           </p>
         </div>
@@ -580,9 +580,9 @@ function OpeningCorrectionCard({
         >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
           <p>
-            <strong>Offset account missing</strong> in {missingOffset.map((l) => l.location).join(', ')}:
-            create <span className="font-mono">{correction.offsetAccount}</span> (correction proposal §4)
-            before generating — drafts are refused for those companies until it exists.
+            <strong>COGS account missing</strong> in {missingOffset.map((l) => l.location).join(', ')}:
+            one of the paired Cost of Goods Sold sub-accounts is not in that company&apos;s chart —
+            drafts are refused for those companies until it resolves.
           </p>
         </div>
       )}

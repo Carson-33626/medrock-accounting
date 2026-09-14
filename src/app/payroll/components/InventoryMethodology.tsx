@@ -281,10 +281,10 @@ export function InventoryMethodology({ darkMode }: { darkMode: boolean }) {
                 <td className="py-1 pr-3">monthly</td>
               </tr>
               <tr>
-                <td className="py-1 pr-3">Opening correction (cutover)</td>
+                <td className="py-1 pr-3">Year-end correction (13th-month entry)</td>
                 <td className="py-1 pr-3">
-                  5000.60 Inventory Valuation Correction (proposed — pending CPA sign-off; the card on
-                  the Close JEs sub-tab refuses to draft until it exists)
+                  each inventory sub-account&apos;s paired COGS account (5000.05 / .10 / .15 / .20), the
+                  residual to parent COGS — no dedicated correction account
                 </td>
                 <td className="py-1 pr-3">once, dated 2025-12-31</td>
               </tr>

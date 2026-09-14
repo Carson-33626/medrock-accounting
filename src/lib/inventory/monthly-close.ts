@@ -724,27 +724,40 @@ export interface CorrectionPostingLine extends JeLine {
 }
 
 /**
+ * The offset account for one correction row: the COGS account already PAIRED
+ * with that row's inventory sub-account (1220.05 ↔ 5000.05 and so on), and the
+ * parent Cost of Goods Sold for the residual row — the same pairing every
+ * monthly close posts on.
+ *
+ * Carson, 2026-09-14: *"i'd rather not create a new account, just keep the
+ * accounts aligned as is."* That retired the proposed 5000.60 Inventory
+ * Valuation Correction account (08-26 proposal §4) before it was ever created.
+ */
+export function correctionOffsetAccount(row: Pick<OpeningCorrectionRowCalc, 'qbCategory' | 'mapped'>): string {
+  if (!row.mapped || row.qbCategory === null) return COGS_ACCOUNT;
+  return accountsForCategory(row.qbCategory).cogs;
+}
+
+/**
  * The balanced correction JE for one location: each row's inventory account is
- * set to its FIFO opening (Dr when FIFO exceeds book, Cr when below), with ONE
- * offset line to the correction account for the net. Returns [] when nothing
- * adjusts. Amounts are rounded per row and the offset is the sum of the rounded
- * rows, so the entry balances to the cent by construction.
+ * set to its FIFO opening (Dr when FIFO exceeds book, Cr when below), each with
+ * its OWN offset line to the paired COGS account. Returns [] when nothing
+ * adjusts. Every pair is the same rounded amount on both sides, so the entry
+ * balances to the cent by construction, and the P&L shows the true-up on the
+ * same 5000.xx lines the monthly close uses.
  */
 export function openingCorrectionLines(
   rows: OpeningCorrectionRowCalc[],
-  offsetAccount: string,
   bookAsOf: string,
 ): CorrectionPostingLine[] {
   const out: CorrectionPostingLine[] = [];
-  let net = 0;
   for (const row of rows) {
     if (row.adjustment === 0) continue;
-    net = round2(net + row.adjustment);
     const amount = round2(Math.abs(row.adjustment));
     const label = row.qbCategory ?? row.account;
     const memo =
-      `Set ${label} to FIFO opening $${row.fifo.toFixed(2)} ` +
-      `(book $${row.book.toFixed(2)} as of ${bookAsOf}) — one-time cutover`;
+      `Set ${label} to FIFO year-end $${row.fifo.toFixed(2)} ` +
+      `(book $${row.book.toFixed(2)} as of ${bookAsOf}) — one-time true-up`;
     out.push({
       account: row.account,
       debit: row.adjustment > 0 ? amount : null,
@@ -752,15 +765,11 @@ export function openingCorrectionLines(
       memo,
       receiptIds: row.receiptIds,
     });
-  }
-  if (out.length === 0) return [];
-  const offsetAmount = round2(Math.abs(net));
-  if (offsetAmount !== 0) {
     out.push({
-      account: offsetAccount,
-      debit: net < 0 ? offsetAmount : null,
-      credit: net > 0 ? offsetAmount : null,
-      memo: 'Opening inventory correction to FIFO method — one-time cutover offset',
+      account: correctionOffsetAccount(row),
+      debit: row.adjustment < 0 ? amount : null,
+      credit: row.adjustment > 0 ? amount : null,
+      memo: `${label} — one-time true-up offset`,
       receiptIds: [],
     });
   }

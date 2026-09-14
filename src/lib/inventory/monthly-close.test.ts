@@ -20,7 +20,7 @@ import {
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
-import { WASTE_ACCOUNT, CORRECTION_ACCOUNT, INVENTORY_ACCOUNT as PARENT_INV } from './category-accounts';
+import { WASTE_ACCOUNT, INVENTORY_ACCOUNT as PARENT_INV } from './category-accounts';
 import type { InvCloseHeader, InvCloseLine } from '@/types/inventory';
 
 const mv = (over: Partial<RollbackMonthValue> & { location: string }): RollbackMonthValue => ({
@@ -886,20 +886,32 @@ describe('opening correction — the one-time cutover JE (proposal 2026-08-26)',
     expect(rows.some((r) => r.fifo === 999999)).toBe(false);
   });
 
-  it('emits a balanced JE with one offset line carrying the net', () => {
+  it('emits a balanced JE offsetting each row to its PAIRED COGS account — no new account', () => {
+    // Carson, 2026-09-14: "i'd rather not create a new account, just keep the
+    // accounts aligned as is." Same 1220.xx ↔ 5000.xx pairing the monthly close uses.
     const rows = buildOpeningCorrectionRows('MedRock Florida', CATS, BS, NUMS);
-    const lines = openingCorrectionLines(rows, CORRECTION_ACCOUNT, '2026-02-28');
+    const lines = openingCorrectionLines(rows, '2025-12-31');
     const debits = sumCents(lines.filter((l) => l.debit !== null).map((l) => l.debit ?? 0));
     const credits = sumCents(lines.filter((l) => l.credit !== null).map((l) => l.credit ?? 0));
     expect(debits).toBe(credits);
-    // The net write-down (FL proposal figure) lands as ONE debit on the offset.
-    const offset = lines.filter((l) => l.account === CORRECTION_ACCOUNT);
-    expect(offset).toHaveLength(1);
-    expect(offset[0]?.debit).toBe(669502.68);
-    // Row evidence rides along.
+    // Nothing goes to the retired 5000.60 account.
+    expect(lines.some((l) => l.account.includes('Valuation Correction'))).toBe(false);
+    // Compound Ingredient: Cr 1220.10, Dr its paired 5000.10, same amount.
     const ci = lines.find((l) => l.account === 'Inventory Asset:Compound Ingredient Inventory');
     expect(ci?.credit).toBe(465040.9);
     expect(ci?.receiptIds).toEqual(['r2', 'r3']);
+    const ciOffset = lines.find((l) => l.account === 'Cost of Goods Sold:Compound Ingredient');
+    expect(ciOffset?.debit).toBe(465040.9);
+    // The Uncoded residual (Dr parent inventory) offsets to the PARENT COGS.
+    const residualOffset = lines.find((l) => l.account === 'Cost of Goods Sold');
+    expect(residualOffset?.credit).toBe(12.41);
+    // The net across all offsets is still the FL proposal write-down.
+    const offsetNet = sumCents(
+      lines
+        .filter((l) => l.account.startsWith('Cost of Goods Sold'))
+        .map((l) => (l.debit ?? 0) - (l.credit ?? 0)),
+    );
+    expect(offsetNet).toBe(669502.68);
   });
 
   it('returns [] when the books already tie', () => {
@@ -907,7 +919,7 @@ describe('opening correction — the one-time cutover JE (proposal 2026-08-26)',
     const bs = [{ name: '1220.05 Commercial Rx Inventory', value: 83529.07 }];
     const nums = { 'Inventory Asset:Commercial Rx Inventory': '1220.05' };
     const rows = buildOpeningCorrectionRows('MedRock Florida', tied, bs, nums);
-    expect(openingCorrectionLines(rows, CORRECTION_ACCOUNT, '2026-02-28')).toEqual([]);
+    expect(openingCorrectionLines(rows, '2025-12-31')).toEqual([]);
   });
 
   it('doc number is Inv Open, never colliding with the monthly Inv Adj', () => {
