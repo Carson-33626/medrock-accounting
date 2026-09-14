@@ -152,7 +152,11 @@ export default function InventoryValuation() {
   const [fromClose, setFromClose] = useState(false);
   /** Trend window: focused on the last 90 days by default; 'all' shows the full
    *  history including the pre-anchor era and its discharge step. */
-  const [chartRange, setChartRange] = useState<'90d' | 'all'>('90d');
+  /** 'anchored' (default) and '90d' never plot months before the first count-anchored
+   *  month; 'all' is the full unanchored history behind an explicit click. Carson,
+   *  2026-09-14, on the pre-December roll-forward peaking at $2.2M: "we need to
+   *  correct the full chart so it doesn't look crazy high." */
+  const [chartRange, setChartRange] = useState<'90d' | 'anchored' | 'all'>('anchored');
   /** Chart series the user has toggled AWAY from their default visibility.
    *  Defaults: Total, Reconstruction and the three location lines ON (the
    *  comparison view); category lines OFF until toggled — they are the clutter. */
@@ -470,19 +474,32 @@ export default function InventoryValuation() {
     [],
   );
 
+  /** The first month-end with a real count. Months before it are the forward
+   *  roll-forward with four years of unrecorded shrink still in it (it peaked at
+   *  $2.26M against a $394k count at 2025-12) — an estimate nobody should read as
+   *  on-hand value, so the chart hides them unless the full history is asked for. */
+  const firstAnchoredMonth = summary?.anchoredMonths[0] ?? null;
+
   /**
-   * The windowed view: months whose month-end falls within 90 days of the
-   * selected month's. Monthly grain, so that is the selected month and the two
-   * before it — focused on now, with the y-axis rescaled to the recent level
-   * instead of the historical peak. 'all' shows the full history.
+   * The windowed view. 'anchored': from the first count-anchored month through the
+   * selected month. '90d': the selected month and the two before it, but never
+   * earlier than the first anchored month. 'all': the full history, pre-anchor era
+   * and its discharge step included, with the banner that explains the shape.
    */
   const windowedChartData = useMemo(() => {
     if (chartRange === 'all' || !selectedMonth || chartData.length === 0) return chartData;
-    const end = new Date(`${selectedMonth}-01T00:00:00Z`);
-    const start = new Date(end.getTime() - 90 * 86_400_000);
-    const floor = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`;
-    return chartData.filter((d) => String(d.month) >= floor && String(d.month) <= selectedMonth);
-  }, [chartRange, chartData, selectedMonth]);
+    let floor = firstAnchoredMonth ?? '';
+    if (chartRange === '90d') {
+      const end = new Date(`${selectedMonth}-01T00:00:00Z`);
+      const start = new Date(end.getTime() - 90 * 86_400_000);
+      const ninety = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}`;
+      if (ninety > floor) floor = ninety;
+    }
+    const rows = chartData.filter((d) => String(d.month) >= floor && String(d.month) <= selectedMonth);
+    // A selected month before the anchor floor has nothing anchored to show; fall
+    // back to the plain window rather than an empty chart.
+    return rows.length > 0 ? rows : chartData.filter((d) => String(d.month) <= selectedMonth).slice(-3);
+  }, [chartRange, chartData, selectedMonth, firstAnchoredMonth]);
 
   /**
    * The pre-anchor history accumulates unrecorded shrink for years, and all of
@@ -1153,7 +1170,7 @@ export default function InventoryValuation() {
                 {location === 'all' ? '' : ` — ${shortInventoryLocation(location)}`}
                 <HelpTip
                   label="How to read this chart"
-                  text="Month-end on-hand value by category, for the current location scope. The default view is the last 90 days ending at the selected month; All time shows the full history, including the pre-anchor era and its one-time discharge step. The red dashed line is the reconstruction — an independent valuation built backward from LifeFile's lot report — shown so the two methods can be compared directly. Click a series chip to hide or show its line; the axis rescales to what is visible."
+                  text="Month-end on-hand value by category, for the current location scope. The default view starts at the first month anchored to a real count (December 2025) and runs through the selected month; Last 90 days narrows that to three months. Full history adds the pre-anchor era — a forward roll-forward carrying years of unrecorded shrink, shown only as context for its one-time discharge step. The red dashed line is the reconstruction — an independent valuation built backward from LifeFile's lot report — shown so the two methods can be compared directly. Click a series chip to hide or show its line; the axis rescales to what is visible."
                 />
               </p>
             </div>
@@ -1161,24 +1178,29 @@ export default function InventoryValuation() {
             {/* ONE control row: the window toggle and the line toggles together. */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className={`inline-flex rounded-lg border overflow-hidden ${rowBorder}`}>
-                <button
-                  onClick={() => setChartRange('90d')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartRange === '90d' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
-                  }`}
-                  style={chartRange === '90d' ? { backgroundColor: BRAND_PURPLE } : undefined}
-                >
-                  Last 90 days
-                </button>
-                <button
-                  onClick={() => setChartRange('all')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    chartRange === 'all' ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
-                  }`}
-                  style={chartRange === 'all' ? { backgroundColor: BRAND_PURPLE } : undefined}
-                >
-                  All time
-                </button>
+                {(
+                  [
+                    { key: 'anchored', label: firstAnchoredMonth ? `Since ${firstAnchoredMonth}` : 'Anchored' },
+                    { key: '90d', label: 'Last 90 days' },
+                    { key: 'all', label: 'Full history' },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setChartRange(opt.key)}
+                    title={
+                      opt.key === 'all'
+                        ? 'Includes the pre-anchor roll-forward — an estimate, not on-hand value'
+                        : undefined
+                    }
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      chartRange === opt.key ? 'text-white' : darkMode ? 'text-slate-300' : 'text-slate-600'
+                    }`}
+                    style={chartRange === opt.key ? { backgroundColor: BRAND_PURPLE } : undefined}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
