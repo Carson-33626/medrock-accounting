@@ -29,6 +29,7 @@ const emptyResponse = (month: string, monthEnd: string, basis: CloseBasis): Mont
   month,
   monthEnd,
   basis,
+  accountNumbers: {},
   purchasesAvailable: false,
   rollForward: [],
   journalEntries: [],

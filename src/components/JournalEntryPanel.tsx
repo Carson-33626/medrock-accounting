@@ -7,6 +7,7 @@ import QboImportGuide from './QboImportGuide';
 import JeSourceWorkbookLink from './JeSourceWorkbookLink';
 import CategoryLotDrilldown from './CategoryLotDrilldown';
 import CategoryCogsByMonth from './CategoryCogsByMonth';
+import { formatAccount } from '@/lib/inventory/account-label';
 import type {
   CategoryCogsSeriesRow,
   CategoryJE,
@@ -91,6 +92,7 @@ export default function JournalEntryPanel({
   linesById,
   busyHeaderId,
   dryRunPayloads,
+  accountNumbers,
   onApprove,
   onDryRun,
   onPostLive,
@@ -108,6 +110,8 @@ export default function JournalEntryPanel({
   linesById: Record<string, InvCloseLine[]>;
   busyHeaderId: number | null;
   dryRunPayloads: Record<number, QbJournalEntryPayload>;
+  /** RDS location -> (FullyQualifiedName -> AcctNum), so lines print '1220.05 …'. */
+  accountNumbers: Record<string, Record<string, string>>;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
@@ -194,6 +198,7 @@ export default function JournalEntryPanel({
           monthEnd={monthEnd}
           busy={activeView.header !== null && busyHeaderId === activeView.header.id}
           dryRunPayload={activeView.header ? (dryRunPayloads[activeView.header.id] ?? null) : null}
+          accountNumbers={accountNumbers[activeView.je.location] ?? {}}
           onApprove={onApprove}
           onDryRun={onDryRun}
           onPostLive={onPostLive}
@@ -207,6 +212,7 @@ export default function JournalEntryPanel({
           basis={basis}
           month={month}
           monthEnd={monthEnd}
+          accountNumbers={accountNumbers}
         />
       )}
     </div>
@@ -506,6 +512,7 @@ function DraftCard({
   monthEnd,
   busy,
   dryRunPayload,
+  accountNumbers,
   onApprove,
   onDryRun,
   onPostLive,
@@ -524,6 +531,8 @@ function DraftCard({
   monthEnd: string;
   busy: boolean;
   dryRunPayload: QbJournalEntryPayload | null;
+  /** This company's FullyQualifiedName -> AcctNum map. */
+  accountNumbers: Record<string, string>;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
@@ -652,7 +661,7 @@ function DraftCard({
                   {lines.map((l, i) => (
                     <tr key={`${l.accountName}-${i}`} className={`border-b last:border-0 ${border}`}>
                       <td className={`px-2 py-1 text-xs ${subText}`}>{l.postingType}</td>
-                      <td className="px-2 py-1">{l.accountName}</td>
+                      <td className="px-2 py-1">{formatAccount(l.accountName, accountNumbers)}</td>
                       <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
                       <td className="px-2 py-1 text-right tabular-nums">
                         {l.postingType === 'Debit' ? usd.format(l.amount) : ''}
@@ -758,6 +767,7 @@ function CombinedCard({
   basis,
   month,
   monthEnd,
+  accountNumbers,
 }: {
   cardBg: string;
   subText: string;
@@ -766,6 +776,7 @@ function CombinedCard({
   basis: CloseBasis;
   month: string;
   monthEnd: string;
+  accountNumbers: Record<string, Record<string, string>>;
 }) {
   const rows = views.flatMap((v) =>
     displayLines(v, basis, monthEnd).map((l, i) => ({
@@ -805,7 +816,7 @@ function CombinedCard({
                 <tr key={l._key} className={`border-t ${border}`}>
                   <td className={`px-2 py-1 text-xs whitespace-nowrap ${subText}`}>{shortInventoryLocation(l.location)}</td>
                   <td className={`px-2 py-1 text-xs ${subText}`}>{l.postingType}</td>
-                  <td className="px-2 py-1">{l.accountName}</td>
+                  <td className="px-2 py-1">{formatAccount(l.accountName, accountNumbers[l.location])}</td>
                   <td className={`px-2 py-1 text-xs ${subText}`}>{l.memo}</td>
                   <td className="px-2 py-1 text-right tabular-nums">
                     {l.postingType === 'Debit' ? usd.format(l.amount) : ''}

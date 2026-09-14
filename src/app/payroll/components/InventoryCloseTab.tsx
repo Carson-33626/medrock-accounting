@@ -9,6 +9,7 @@ import RollForward from '@/components/RollForward';
 import JournalEntryPanel, { DryRunPreview, type QbJournalEntryPayload } from '@/components/JournalEntryPanel';
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
+import { formatAccount } from '@/lib/inventory/account-label';
 import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
 import LabAccrualCard from './LabAccrualCard';
 import { InventoryMethodology } from './InventoryMethodology';
@@ -476,6 +477,7 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
             linesById={monthlyClose.linesById}
             busyHeaderId={busyHeaderId}
             dryRunPayloads={dryRunPayloads}
+            accountNumbers={monthlyClose.accountNumbers}
             onApprove={(id) => void handleApprove(id)}
             onDryRun={(id) => void handleDryRun(id)}
             onPostLive={(id, entityLabel) => void handlePostLive(id, entityLabel)}
@@ -652,22 +654,24 @@ function OpeningCorrectionCard({
               <table className="text-sm w-full">
                 <thead>
                   <tr>
-                    <th className={thCls}>Account</th>
+                    <th className={thCls}>Inventory account</th>
                     <th className={`${thCls} text-right`}>Book {correction.bookAsOf}</th>
-                    <th className={`${thCls} text-right`}>FIFO opening</th>
+                    <th className={`${thCls} text-right`}>FIFO 12/31</th>
                     <th className={`${thCls} text-right`}>Correction</th>
+                    <th className={thCls}>Offset to</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loc.rows.map((r) => (
                     <tr key={r.account + (r.qbCategory ?? '')}>
                       <td className="py-1 pr-4">
-                        {r.account}
+                        {formatAccount(r.account, loc.accountNumbers)}
                         {!r.mapped && <span className={`ml-1 text-xs ${subText}`}>(residual: {r.qbCategory})</span>}
                       </td>
                       <td className={numCls}>{usd(r.book)}</td>
                       <td className={numCls}>{usd(r.fifo)}</td>
                       <td className={`${numCls} font-medium`}>{usd(r.adjustment)}</td>
+                      <td className={`py-1 pr-4 text-xs ${subText}`}>{formatAccount(r.offsetAccount, loc.accountNumbers)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -683,7 +687,7 @@ function OpeningCorrectionCard({
                   <tbody>
                     {lines.map((l, i) => (
                       <tr key={i}>
-                        <td className="py-0.5 pr-4">{l.accountName}</td>
+                        <td className="py-0.5 pr-4">{formatAccount(l.accountName, loc.accountNumbers)}</td>
                         <td className={numCls}>{l.postingType === 'Debit' ? usd(l.amount) : ''}</td>
                         <td className={numCls}>{l.postingType === 'Credit' ? usd(l.amount) : ''}</td>
                         <td className={`py-0.5 ${subText}`}>{l.memo}</td>

@@ -144,9 +144,13 @@ export async function computeClose(
     firstAnchoredMonth: string | null;
     categoryJournalEntries: CategoryJE[];
     categoryUnavailable: string | null;
+    accountNumbers: Record<string, Record<string, string>>;
   }
 > {
   const pool = getRdsPool();
+  // FullyQualifiedName -> AcctNum per location, captured from the dimension read
+  // the category JE already needs, so the screen can label lines by number.
+  const accountNumbers: Record<string, Record<string, string>> = {};
 
   const exists = await pool.query<{ regclass: string | null }>(
     `SELECT to_regclass('inventory.fifo_rollback_valuation')::text AS regclass`,
@@ -160,6 +164,7 @@ export async function computeClose(
       categoryCogsSeries: [],
       firstAnchoredMonth: null,
       categoryJournalEntries: [],
+      accountNumbers: {},
       categoryUnavailable: null,
     };
   }
@@ -211,6 +216,7 @@ export async function computeClose(
       categoryRollForward: [],
       categoryJournalEntries: [],
       categoryUnavailable: null,
+      accountNumbers: {},
     };
   }
 
@@ -274,6 +280,7 @@ export async function computeClose(
           getBalanceSheetInventory(qbLocation, monthEnd).catch(() => null),
           fetchDimensions(qbLocation).catch(() => null),
         ]);
+        if (refs !== null) accountNumbers[location] = refs.accountNums ?? {};
         if (book === null || refs === null) {
           return buildCategoryJE(location, categoryRollForward, [], {}, false);
         }
@@ -314,6 +321,7 @@ export async function computeClose(
     firstAnchoredMonth,
     categoryJournalEntries,
     categoryUnavailable,
+    accountNumbers,
   };
 }
 
@@ -579,14 +587,21 @@ async function computeCorrectionLocations(): Promise<CorrectionComputation> {
       location: rdsLocation,
       bookAvailable,
       offsetFound,
-      rows: rows.map(({ qbCategory, account, book: b, fifo, adjustment, mapped }) => ({
-        qbCategory,
-        account,
-        book: b,
-        fifo,
-        adjustment,
-        mapped,
-      })),
+      accountNumbers: accountNums,
+      rows: rows.map((row) => {
+        const offsetAccount = correctionOffsetAccount(row);
+        return {
+          qbCategory: row.qbCategory,
+          account: row.account,
+          accountNumber: accountNums[row.account] ?? null,
+          offsetAccount,
+          offsetAccountNumber: accountNums[offsetAccount] ?? null,
+          book: row.book,
+          fifo: row.fifo,
+          adjustment: row.adjustment,
+          mapped: row.mapped,
+        };
+      }),
       netAdjustment: round2(rows.reduce((s, r) => s + r.adjustment, 0)),
     });
   }

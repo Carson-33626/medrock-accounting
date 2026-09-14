@@ -282,9 +282,15 @@ export interface OpeningCorrectionRowView {
   qbCategory: string | null;
   /** QB FullyQualifiedName of the inventory account this row sets. */
   account: string;
-  /** Book balance as of the stop-point eve (2026-02-28). */
+  /** AcctNum of `account` ('1220.05'); null when the chart carries none. */
+  accountNumber: string | null;
+  /** QB FullyQualifiedName of the paired COGS account taking this row's offset. */
+  offsetAccount: string;
+  /** AcctNum of `offsetAccount` ('5000.05'); null when the chart carries none. */
+  offsetAccountNumber: string | null;
+  /** Book balance as of the correction date (2025-12-31). */
   book: number;
-  /** FIFO opening (prior-month ledger ending). */
+  /** FIFO year-end value (the correction-month ledger ending). */
   fifo: number;
   /** fifo − book. Negative → credit inventory (write-down). */
   adjustment: number;
@@ -296,8 +302,10 @@ export interface OpeningCorrectionLocation {
   /** RDS naming ('MedRock Florida'). */
   location: string;
   bookAvailable: boolean;
-  /** true when the offset account exists in this company's chart. */
+  /** true when every paired COGS account exists in this company's chart. */
   offsetFound: boolean;
+  /** This company's FullyQualifiedName -> AcctNum map, for labelling draft lines. */
+  accountNumbers: Record<string, string>;
   rows: OpeningCorrectionRowView[];
   /** Σ row.adjustment — the net write-down (negative) this JE books. */
   netAdjustment: number;
@@ -341,6 +349,10 @@ export interface MonthlyCloseResponse {
   firstAnchoredMonth: string | null;
   /** Category-grain entries — what actually generates/posts as of 2026-08-24. */
   categoryJournalEntries: CategoryJE[];
+  /** RDS location -> (FullyQualifiedName -> AcctNum), so every line can print
+   *  '1220.05 Commercial Rx Inventory' the way accounting reads it. Empty for a
+   *  location whose realm gave no dimensions. */
+  accountNumbers: Record<string, Record<string, string>>;
   /**
    * Non-null when the category grain FAILED (QB/ledger error) rather than being
    * legitimately empty. Empty `categoryJournalEntries` with this null means the
