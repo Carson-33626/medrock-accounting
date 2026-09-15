@@ -301,6 +301,18 @@ function CategoryBreakdown({
   const categorizedTotal = sumCents(je.lines.map((l) => l.fifoTarget));
   if (je.lines.length === 0) return null;
 
+  // A residual category ('Uncoded', 'Opening Balance') whose every figure is zero —
+  // no stock, no book balance, no movement this month — is old depleted lots still
+  // carrying the stamp. It contributes nothing and is not a task, so it is not a
+  // row. Carson, 2026-09-15, January FL: "uncoded still exists" over nine $0 lots.
+  // Mapped categories always show; a residual with ANY dollars still shows.
+  const visibleLines = je.lines.filter((l) => {
+    if (l.mapped) return true;
+    const mv = movementByKey.get(categoryKey(je.location, l.qbCategory));
+    const moved = (mv?.beginning ?? 0) !== 0 || (mv?.purchases ?? 0) !== 0 || (mv?.cogs ?? 0) !== 0;
+    return l.fifoTarget !== 0 || (l.qbBookBalance ?? 0) !== 0 || (l.adjustment ?? 0) !== 0 || moved;
+  });
+
   return (
     <div className="space-y-1">
       <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -338,7 +350,7 @@ function CategoryBreakdown({
             </tr>
           </thead>
           <tbody>
-            {je.lines.map((l) => (
+            {visibleLines.map((l) => (
               <Fragment key={l.qbCategory}>
                 <tr
                   onClick={() => setOpen((v) => (v === l.qbCategory ? null : l.qbCategory))}
