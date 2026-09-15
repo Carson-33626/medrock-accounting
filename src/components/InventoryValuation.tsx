@@ -693,6 +693,7 @@ export default function InventoryValuation() {
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const pageBg = darkMode ? 'bg-slate-900' : 'bg-slate-50';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
+  const border = darkMode ? 'border-slate-700' : 'border-slate-200';
   const tableHead = darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600';
   const rowBorder = darkMode ? 'border-slate-700' : 'border-slate-200';
   const inputCls = `rounded-lg border px-3 py-2 text-sm ${
@@ -1025,28 +1026,45 @@ export default function InventoryValuation() {
                 text="Purchases at actual invoice cost flow in; usage-driven COGS posts to each category's COGS account; waste (the documented disposal log) and shrink (the count residual) post together to the dedicated 5000.55 Drug Waste & Shrinkage line. These are the same numbers the month's close JE is built from — the Inventory Close tab shows the identical statement."
               />
             </p>
-            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Total first, then its breakdown — Carson, 2026-09-15: "show the total, and
+                then the breakdown". The total is the same figure the Inventory Close
+                page's roll-forward calls COGS (derived): everything that left inventory. */}
+            <div className="mt-3 grid grid-cols-2 gap-4">
               <div>
                 <p className={`text-xs ${subText}`}>Purchases</p>
                 <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.purchases)}</p>
               </div>
               <div>
-                <p className={`text-xs ${subText}`}>COGS (usage)</p>
-                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.cogs)}</p>
+                <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
+                  Total out of inventory
+                  <HelpTip
+                    label="Total out of inventory"
+                    text="Usage + waste + shrink — everything that left inventory this month. Beginning + purchases − this total = the ending value above. The Inventory Close page's roll-forward shows this same figure as COGS (derived)."
+                  />
+                </p>
+                <p className="text-xl font-bold tabular-nums">
+                  {usd.format(Math.round((monthMovement.cogs + monthMovement.waste + monthMovement.shrink) * 100) / 100)}
+                </p>
+              </div>
+            </div>
+            <div className={`mt-3 pt-3 border-t ${border} grid grid-cols-3 gap-4`}>
+              <div>
+                <p className={`text-xs ${subText}`}>of which COGS (usage)</p>
+                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.cogs)}</p>
               </div>
               <div>
-                <p className={`text-xs ${subText}`}>Waste (documented)</p>
-                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.waste)}</p>
+                <p className={`text-xs ${subText}`}>of which waste (documented)</p>
+                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.waste)}</p>
               </div>
               <div>
-                <p className={`text-xs ${subText}`}>Shrink (count residual)</p>
-                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.shrink)}</p>
+                <p className={`text-xs ${subText}`}>of which shrink (count residual)</p>
+                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.shrink)}</p>
               </div>
             </div>
             <p className={`text-xs mt-3 ${subText}`}>
-              Beginning + Purchases − COGS − Waste − Shrink = the ending value above, to the cent. Waste and
-              shrink post to <strong>5000.55 Drug Waste &amp; Shrinkage</strong>, never commingled with
-              operating COGS.
+              Beginning + Purchases − Total out of inventory = the ending value above, to the cent. Waste and
+              shrink are designed to post to <strong>5000.55 Drug Waste &amp; Shrinkage</strong>; the close entry
+              currently carries them inside each category&rsquo;s operating COGS line (see the Inventory Close page).
             </p>
           </div>
         )}
