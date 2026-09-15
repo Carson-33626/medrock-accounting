@@ -718,6 +718,21 @@ function OpeningCorrectionCard({
                     darkMode={darkMode}
                     compact
                   />
+                  {/* A posted row in the expanded card (one company posted, another not
+                      yet) still needs its pull-back — Carson, 2026-09-14, after FL posted
+                      and TN was refused: "there is no delete button on the FL piece." */}
+                  {header.status === 'posted' && (
+                    <button
+                      onClick={() => onUnpost(header.id, loc.location, header.qb_doc_number ?? `#${header.id}`)}
+                      disabled={busyHeaderId === header.id}
+                      title="Delete this entry from QuickBooks and return it to a draft, so it can be regenerated and reposted"
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                        darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+                      }`}
+                    >
+                      Pull back from QuickBooks
+                    </button>
+                  )}
                 </span>
               )}
               {header && header.status !== 'posted' && (
