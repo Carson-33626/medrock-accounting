@@ -16,8 +16,10 @@ vi.mock('@/lib/payroll/store', () => ({
 }));
 
 const getEomRun = vi.fn(async (..._a: unknown[]) => null as EomRun | null);
+const listPostedCsAlloHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 vi.mock('@/lib/payroll/eom-store', () => ({
   getEomRun: (...a: unknown[]) => getEomRun(...a),
+  listPostedCsAlloHeaders: (...a: unknown[]) => listPostedCsAlloHeaders(...a),
 }));
 
 const postJournalEntry = vi.fn(async (..._a: unknown[]) => ({ mode: 'dry_run', payload: {} }) as PostResult);
@@ -59,13 +61,66 @@ beforeEach(() => {
   insertAudit.mockReset();
   setHeaderStatus.mockReset();
   getEomRun.mockReset();
+  listPostedCsAlloHeaders.mockReset();
   postJournalEntry.mockReset();
 
   loadDraft.mockResolvedValue({ header, lines });
   insertAudit.mockResolvedValue(undefined);
   setHeaderStatus.mockResolvedValue(undefined);
   getEomRun.mockResolvedValue(null);
+  listPostedCsAlloHeaders.mockResolvedValue([]);
   postJournalEntry.mockResolvedValue({ mode: 'dry_run', payload: {} } as PostResult);
+});
+
+const csLine: JournalLine = {
+  postingType: 'Debit', amount: 100, accountName: 'Payroll Expenses:Customer Service Wages',
+  departmentName: null, className: null, memo: 'CS', creditBucket: null, origin: 'generated', sourceRowKeys: [],
+};
+const adminLine: JournalLine = { ...csLine, accountName: 'Payroll Expenses:Administrative Wages', memo: 'admin' };
+const csAlloHeader: PayrollHeader = {
+  ...header, id: 2823, pay_group: 'CS ALLO', status: 'posted', qb_entry_id: '53416', qb_doc_number: 'FL CS Allo 2026.07',
+};
+
+describe('GATE 5 — CS double-move', () => {
+  it('live blocks a stale EOM draft that still carries Customer Service lines when a CS Allo is posted', async () => {
+    listPostedCsAlloHeaders.mockResolvedValue([csAlloHeader]);
+    loadDraft.mockResolvedValueOnce({ header, lines: [adminLine, csLine] });
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain('FL CS Allo 2026.07');
+    expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'blocked', reason: expect.stringContaining('stale draft') }));
+    expect(postJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('live passes a regenerated EOM draft (no CS lines) when a CS Allo is posted', async () => {
+    listPostedCsAlloHeaders.mockResolvedValue([csAlloHeader]);
+    loadDraft.mockResolvedValueOnce({ header, lines: [adminLine] });
+    postJournalEntry.mockResolvedValueOnce({
+      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.07', TxnDate: '2026-07-31', Line: [] },
+      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.07',
+    } as PostResult);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(200);
+  });
+
+  it('live passes an EOM draft with CS lines when NO CS Allo is posted for the month', async () => {
+    loadDraft.mockResolvedValueOnce({ header, lines: [adminLine, csLine] });
+    postJournalEntry.mockResolvedValueOnce({
+      mode: 'live', payload: { DocNumber: 'FL % Allo 2026.07', TxnDate: '2026-07-31', Line: [] },
+      qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.07',
+    } as PostResult);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(200);
+  });
+
+  it('dry_run never consults the CS gate', async () => {
+    listPostedCsAlloHeaders.mockResolvedValue([csAlloHeader]);
+    loadDraft.mockResolvedValueOnce({ header, lines: [csLine] });
+    const res = await POST(req({ headerId: 5, mode: 'dry_run' }));
+    expect(res.status).toBe(200);
+    expect(listPostedCsAlloHeaders).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/payroll/eom/post', () => {

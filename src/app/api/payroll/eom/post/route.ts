@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
-import { getEomRun } from '@/lib/payroll/eom-store';
+import { getEomRun, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
@@ -43,6 +43,12 @@ function readShares(revenue: JsonValue): Record<EomEntity, number> | null {
     out[e] = v;
   }
   return out;
+}
+
+/** A draft line that moves Customer Service labor — the same account test the pool
+ *  classifier applies to external QuickBooks entries (qb-pool.isCsPoolLine). */
+export function isCustomerServiceAccount(accountName: string): boolean {
+  return /customer service/i.test(accountName);
 }
 
 /** The posted CS Allo doc numbers stored with the run (empty for months without the CS
@@ -131,6 +137,21 @@ export async function POST(request: NextRequest) {
       if (header.variance !== 0) {
         await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'draft unbalanced' });
         return NextResponse.json({ error: 'draft unbalanced', variance: header.variance }, { status: 409 });
+      }
+
+      // GATE 5 (CS double-move): the generate route drops Customer Service from the pool
+      // when the month already has posted CS Allo entries, but a draft generated BEFORE
+      // those posted still carries the CS lines. Posting it would move CS twice. Carson,
+      // 2026-09-15: "confirm in code that the CSR revenue split is not double counted
+      // into the larger split piece." Re-check the draft's lines here, at post time.
+      if (header.pay_group === 'EOM') {
+        const csHeaders = await listPostedCsAlloHeaders(lockMonth);
+        if (csHeaders.length > 0 && lines.some((l) => isCustomerServiceAccount(l.accountName))) {
+          const docs = csHeaders.map((h) => h.qb_doc_number ?? `#${h.id}`).join(', ');
+          const reason = `stale draft: carries Customer Service lines already allocated by ${docs} — regenerate before posting`;
+          await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
+          return NextResponse.json({ error: reason }, { status: 409 });
+        }
       }
     }
 
