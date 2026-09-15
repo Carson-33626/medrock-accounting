@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  sortByLocation,
+  locationRank,
   rollForwardFromCategories,
   monthlyCloseLock,
   CORRECTION_MONTH,
@@ -215,6 +217,7 @@ const header = (over: Partial<InvCloseHeader> & { id: number; entity: string }):
   total_debits: 0,
   total_credits: 0,
   variance: 0,
+  generated_at: null,
   ...over,
 });
 
@@ -977,5 +980,20 @@ describe('rollForwardFromCategories', () => {
   });
   it('is empty for no rows', () => {
     expect(rollForwardFromCategories([])).toEqual([]);
+  });
+});
+
+describe('sortByLocation', () => {
+  it('orders FL, TN, TX under any spelling and keeps unknowns last in input order', () => {
+    const input = ['MedRock Texas', 'Tennessee', 'Zeta', 'MedRock FL', 'Alpha'];
+    expect(sortByLocation(input, (s) => s)).toEqual(['MedRock FL', 'Tennessee', 'MedRock Texas', 'Zeta', 'Alpha']);
+    expect(locationRank('MedRock Florida')).toBe(0);
+    expect(locationRank('MedRock TN')).toBe(1);
+    expect(locationRank('Texas')).toBe(2);
+  });
+  it('roll-forward rows come out FL, TN, TX even when the ledger lists TN first', () => {
+    const cat = (location: string) => ({ location, qbCategory: 'x', beginning: 1, purchases: 1, ending: 1, cogs: 1, consumed: 0, receiptIds: [], lotCount: 1 });
+    const rows = rollForwardFromCategories([cat('MedRock Tennessee'), cat('MedRock Texas'), cat('MedRock Florida')]);
+    expect(rows.map((r) => r.label)).toEqual(['Florida', 'Tennessee', 'Texas', 'Total']);
   });
 });

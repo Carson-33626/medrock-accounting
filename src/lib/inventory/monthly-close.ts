@@ -110,6 +110,29 @@ function emptyValue(location: string): RollbackMonthValue {
 }
 
 /**
+ * The one entity order every table and selector on the close page uses:
+ * FL, TN, TX. Accepts the RDS name ('MedRock Florida'), the short label
+ * ('Florida') and the QuickBooks token ('MedRock FL'). Carson, 2026-09-15:
+ * "adjust the roll forwards table to match the journal entry selector".
+ */
+const LOCATION_ORDER: ReadonlyArray<readonly string[]> = [
+  ['MedRock Florida', 'Florida', 'MedRock FL'],
+  ['MedRock Tennessee', 'Tennessee', 'MedRock TN'],
+  ['MedRock Texas', 'Texas', 'MedRock TX'],
+];
+export function locationRank(name: string): number {
+  const i = LOCATION_ORDER.findIndex((aliases) => aliases.includes(name));
+  return i === -1 ? LOCATION_ORDER.length : i;
+}
+/** Stable sort of anything carrying a location name, FL → TN → TX, unknowns last. */
+export function sortByLocation<T>(items: readonly T[], nameOf: (item: T) => string): T[] {
+  return items
+    .map((item, index) => ({ item, index, rank: locationRank(nameOf(item)) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((x) => x.item);
+}
+
+/**
  * The roll-forward table built from the CATEGORY ledger (what posts), one row per
  * location plus the total — for count-anchored months, where the backward-rollback
  * reference is a different valuation and the two tables disagreed on screen
@@ -124,8 +147,7 @@ export function rollForwardFromCategories(rows: readonly CategoryRollForwardRow[
     list.push(r);
     byLocation.set(r.location, list);
   }
-  const locationRows: RollForwardRow[] = [...byLocation.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+  const locationRows: RollForwardRow[] = sortByLocation([...byLocation.entries()], ([location]) => location)
     .map(([location, cats]) => {
       const windowStart = cats.some((c) => c.beginning === null);
       const beginning = windowStart ? null : round2(cats.reduce((s, c) => s + (c.beginning ?? 0), 0));

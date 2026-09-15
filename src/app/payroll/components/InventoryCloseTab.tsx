@@ -298,6 +298,25 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   const headers = closeReady && monthlyClose ? monthlyClose.headers : [];
   const anyPosted = headers.some((h) => h.status === 'posted');
   const generateLabel = generating ? 'Generating…' : headers.length > 0 ? 'Regenerate drafts' : 'Generate drafts';
+  // When this month's drafts were last built — the newest `generated` audit stamp
+  // across its headers. Comes from the server, so it survives reloads and only
+  // moves when a Generate actually succeeded.
+  const lastGenerated = headers.reduce<string | null>(
+    (latest, h) => (h.generated_at && (!latest || h.generated_at > latest) ? h.generated_at : latest),
+    null,
+  );
+  const lastGeneratedLabel =
+    headers.length === 0
+      ? 'Not generated yet'
+      : lastGenerated
+        ? `Last generated ${new Date(lastGenerated).toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}`
+        : 'Last generated before 2026-09-15 (not stamped)';
 
   const cardBg = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-white text-slate-900';
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
@@ -416,6 +435,11 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           >
             Excel (close package)
           </a>
+        )}
+        {closeReady && closeLock === null && (
+          <span className={`ml-auto text-xs ${subText}`} title="From the audit trail — set only by a successful Generate">
+            {lastGeneratedLabel}
+          </span>
         )}
         <button
           onClick={() => void handleGenerate()}

@@ -42,6 +42,7 @@ import {
 import {
   saveDraft,
   loadDraft,
+  insertAudit,
   toHeader,
   type HeaderRow,
   type PayrollHeader,
@@ -329,11 +330,27 @@ export async function computeClose(
   };
 }
 
+/** header id → ISO time of its latest `generated` audit row (see generateInvCloseDrafts). */
+async function lastGeneratedAt(headerIds: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (headerIds.length === 0) return out;
+  const { rows } = await getRdsPool().query<{ header_id: string; at: string }>(
+    `SELECT header_id::text, to_char(max(created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS at
+       FROM accounting.payroll_post_audit
+      WHERE header_id = ANY($1::bigint[]) AND outcome = 'generated'
+      GROUP BY header_id`,
+    [headerIds],
+  );
+  for (const r of rows) out.set(Number(r.header_id), r.at);
+  return out;
+}
+
 /** Stored drafts for the month, shaped for the client. */
 export async function loadStoredDrafts(
   monthEnd: string,
 ): Promise<{ headers: InvCloseHeader[]; linesById: Record<string, InvCloseLine[]> }> {
   const stored = await listInvCloseHeaders(monthEnd);
+  const generatedAt = await lastGeneratedAt(stored.map((h) => h.id));
   const headers: InvCloseHeader[] = stored.map((h) => ({
     id: h.id,
     entity: h.entity,
@@ -343,6 +360,7 @@ export async function loadStoredDrafts(
     total_debits: h.total_debits,
     total_credits: h.total_credits,
     variance: h.variance,
+    generated_at: generatedAt.get(h.id) ?? null,
   }));
   const linesById: Record<string, InvCloseLine[]> = {};
   for (const h of stored) {
@@ -528,6 +546,17 @@ export async function generateInvCloseDrafts(
       rowKeys: [],
     };
     const headerId = await saveDraft(draft, entityHash);
+    // Stamp the generation in the audit trail. The header's updated_at also moves
+    // on approve / post, so it cannot say when the NUMBERS were last built; this
+    // row can. Carson, 2026-09-15: "a generated date/time stamp next to the
+    // generate button … that does not update until generate is successful".
+    await insertAudit({
+      headerId,
+      mode: 'dry_run',
+      entity,
+      outcome: 'generated',
+      reason: `drafts generated for ${month} (${basis} basis)`,
+    });
     // RETAIN THE LAB BASIS on the header: completeness is a function of the day
     // QuickBooks was read, so the workbook must print what was retained, never a
     // re-pull. Best-effort — a failed snapshot costs the basis sheet, not the entry.
@@ -640,6 +669,7 @@ async function computeCorrectionLocations(): Promise<CorrectionComputation> {
 export async function computeOpeningCorrection(): Promise<OpeningCorrection> {
   const { locations } = await computeCorrectionLocations();
   const stored = await listOpeningCorrectionHeaders();
+  const generatedAt = await lastGeneratedAt(stored.map((h) => h.id));
   const headers: InvCloseHeader[] = stored.map((h) => ({
     id: h.id,
     entity: h.entity,
@@ -649,6 +679,7 @@ export async function computeOpeningCorrection(): Promise<OpeningCorrection> {
     total_debits: h.total_debits,
     total_credits: h.total_credits,
     variance: h.variance,
+    generated_at: generatedAt.get(h.id) ?? null,
   }));
   const linesById: Record<string, InvCloseLine[]> = {};
   for (const h of stored) {
@@ -750,7 +781,14 @@ export async function generateOpeningCorrectionDrafts(): Promise<
       variance: round2(totalDebits - totalCredits),
       rowKeys: [],
     };
-    await saveDraft(draft, snapshotHash);
+    const headerId = await saveDraft(draft, snapshotHash);
+    await insertAudit({
+      headerId,
+      mode: 'dry_run',
+      entity: qbLocation,
+      outcome: 'generated',
+      reason: `year-end correction drafts generated (${CORRECTION_MONTH})`,
+    });
     savedEntities.push(qbLocation);
   }
 

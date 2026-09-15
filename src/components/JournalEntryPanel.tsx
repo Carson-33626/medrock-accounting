@@ -24,6 +24,7 @@ import {
   findCloseHeader,
   invCloseDocNumber,
   shortInventoryLocation,
+  sortByLocation,
   sumCents,
 } from '@/lib/inventory/monthly-close';
 
@@ -123,9 +124,11 @@ export default function JournalEntryPanel({
   const subText = darkMode ? 'text-slate-400' : 'text-slate-500';
   const border = darkMode ? 'border-slate-700' : 'border-slate-200';
 
+  // FL → TN → TX, the same order as the roll-forward above (sortByLocation), so
+  // the selector and the table never disagree on who is first.
   const views = useMemo<LocationView[]>(
     () =>
-      journalEntries.map((je) => {
+      sortByLocation(journalEntries, (je) => je.location).map((je) => {
         const header = findCloseHeader(je.location, headers);
         return { je, header, storedLines: header ? (linesById[String(header.id)] ?? []) : [] };
       }),

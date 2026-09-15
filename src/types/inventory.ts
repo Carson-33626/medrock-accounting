@@ -137,6 +137,10 @@ export interface InvCloseHeader {
   total_debits: number;
   total_credits: number;
   variance: number;
+  /** ISO timestamp of the last successful Generate that wrote this draft (from
+   *  the audit trail's `generated` row); null for drafts made before stamping
+   *  began (2026-09-15). Approve / post / pull-back never move it. */
+  generated_at: string | null;
 }
 
 /** Stored draft line — what will actually post, frozen at generation time. */
