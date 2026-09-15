@@ -162,7 +162,7 @@ function stripKey(line: JournalLine & { _key: number }): JournalLine {
 interface ReviewTabProps {
   /** The draft header to review — chosen by clicking a card on the Payrolls landing. */
   headerId: number;
-  /** Switches PayrollTabs to the Mappings tab (optionally pre-selecting an entity). */
+  /** Navigates to the Mappings page (optionally pre-selecting an entity). */
   onNavigateToMappings?: (entity: string) => void;
 }
 

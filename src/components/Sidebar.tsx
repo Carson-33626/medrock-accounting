@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/use-auth';
 import { authClient } from '@/lib/auth-client';
 import { AdminLink } from '@/components/AdminLink';
 import { TAX_LOCATION_GROUPS, TAX_LEGACY_FILINGS } from '@/lib/sales-tax-filings';
+import { JOURNAL_ENTRY_ROUTES, JOURNAL_ENTRIES_PREFIX } from '@/app/journal-entries/routes';
 
 // Navigation items for MedRock Accounting
 // NOTE: Coupons and Marketer Profitability dashboards remain stashed in web/_archive
@@ -27,16 +28,18 @@ const navigation = [
 // Admin-only navigation. These pages enforce an admin role server-side (requireManager),
 // so they're hidden from non-admins here to avoid the bounce-back-to-home trap.
 // (User management lives in the central auth system.)
-const adminNavigation = [
-  { name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon },
-  { name: 'Journal Entries', href: '/payroll', icon: PayrollIcon },
-  { name: 'QuickBooks', href: '/admin/quickbooks', icon: QuickBooksIcon },
-];
+// Journal Entries is an expandable group (one page per entry type) rendered
+// between these two — see JOURNAL_ENTRY_ROUTES.
+const adminNavigationBefore = [{ name: 'Location Analytics', href: '/location-analytics', icon: ChartIcon }];
+const adminNavigationAfter = [{ name: 'QuickBooks', href: '/admin/quickbooks', icon: QuickBooksIcon }];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [salesTaxExpanded, setSalesTaxExpanded] = useState(false);
+  // Journal Entries group — one sub-link per entry type (Carson, 2026-09-15: "sub-selectors
+  // under the journal entries on the nav bar on the left"). Auto-expands on its pages.
+  const [journalExpanded, setJournalExpanded] = useState(false);
   // Each location (filing entity) is its own collapsible sub-menu; default all open.
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(
     () => new Set(TAX_LOCATION_GROUPS.map((g) => g.entity)),
@@ -52,6 +55,7 @@ export function Sidebar() {
   // Auto-expand the Sales Tax group when on one of its pages.
   useEffect(() => {
     if (pathname?.startsWith('/sales-tax')) setSalesTaxExpanded(true);
+    if (pathname?.startsWith(JOURNAL_ENTRIES_PREFIX)) setJournalExpanded(true);
   }, [pathname]);
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { user, loading, logout } = useAuth();
@@ -261,7 +265,72 @@ export function Sidebar() {
                   Admin
                 </p>
               </div>
-              {adminNavigation.map((item) => {
+              {adminNavigationBefore.map((item) => {
+                const isActive = pathname?.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors min-h-[44px] ${
+                      isActive
+                        ? 'text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                    }`}
+                    style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+
+              {/* Journal Entries — expandable group, one page per entry type */}
+              {(() => {
+                const groupActive = pathname?.startsWith(JOURNAL_ENTRIES_PREFIX) ?? false;
+                return (
+                  <div>
+                    <button
+                      onClick={() => setJournalExpanded((v) => !v)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors min-h-[44px] ${
+                        groupActive && !journalExpanded
+                          ? 'text-white'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                      }`}
+                      style={groupActive && !journalExpanded ? { backgroundColor: '#5e3b8d' } : undefined}
+                      aria-expanded={journalExpanded}
+                    >
+                      <PayrollIcon className="w-5 h-5" />
+                      <span className="flex-1 text-left">Journal Entries</span>
+                      <ChevronIcon className={`w-4 h-4 transition-transform ${journalExpanded ? 'rotate-90' : ''}`} />
+                    </button>
+                    {journalExpanded && (
+                      <div className="mt-1 ml-4 pl-3 border-l border-slate-700 space-y-1">
+                        {JOURNAL_ENTRY_ROUTES.map((r) => {
+                          const isActive = pathname === r.href || (pathname?.startsWith(r.href + '/') ?? false);
+                          return (
+                            <Link
+                              key={r.href}
+                              href={r.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={`block px-4 py-2 rounded-lg text-sm transition-colors min-h-[40px] flex items-center ${
+                                isActive
+                                  ? 'text-white'
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white active:bg-slate-700'
+                              }`}
+                              style={isActive ? { backgroundColor: '#5e3b8d' } : undefined}
+                            >
+                              {r.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {adminNavigationAfter.map((item) => {
                 const isActive = pathname?.startsWith(item.href);
                 return (
                   <Link

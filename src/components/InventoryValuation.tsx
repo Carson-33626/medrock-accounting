@@ -708,7 +708,7 @@ export default function InventoryValuation() {
       <div className="max-w-screen-2xl mx-auto space-y-6">
         {fromClose && selectedMonth && (
           <a
-            href={`/payroll?tab=inventoryclose&month=${encodeURIComponent(selectedMonth)}`}
+            href={`/journal-entries/inventory-close?month=${encodeURIComponent(selectedMonth)}`}
             className={`inline-flex items-center gap-1.5 text-sm font-medium underline ${
               darkMode ? 'text-blue-300' : 'text-blue-600'
             }`}
@@ -1449,7 +1449,7 @@ export default function InventoryValuation() {
         <p className={`text-sm ${subText}`}>
           Looking for the roll-forward &amp; suggested journal entry? The monthly close lives on the{' '}
           <a
-            href={`/payroll?tab=inventoryclose${selectedMonth ? `&month=${encodeURIComponent(selectedMonth)}` : ''}`}
+            href={`/journal-entries/inventory-close${selectedMonth ? `?month=${encodeURIComponent(selectedMonth)}` : ''}`}
             className="underline font-medium"
           >
             Journal Entries page → Inventory Close
