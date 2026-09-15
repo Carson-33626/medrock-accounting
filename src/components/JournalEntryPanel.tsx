@@ -241,11 +241,14 @@ function LargeAdjustmentNote({
   fifoTarget,
   qbBookBalance,
   adjustment,
+  anchored,
 }: {
   darkMode: boolean;
   fifoTarget: number;
   qbBookBalance: number | null;
   adjustment: number | null;
+  /** True on a count-anchored month (2025-12 onward): the figures are the ledger's. */
+  anchored: boolean;
 }) {
   if (adjustment === null || qbBookBalance === null) return null;
   const scale = Math.max(Math.abs(fifoTarget), Math.abs(qbBookBalance), 1);
@@ -255,6 +258,7 @@ function LargeAdjustmentNote({
   // Carson, 2026-09-15: "the texas january posting has the large adjustment flag
   // still?" A catch-up worth the explanation is also large in dollars.
   if (Math.abs(adjustment) < LARGE_ADJUSTMENT_FLOOR) return null;
+  const bookAboveFifo = adjustment < 0;
   return (
     <div
       className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
@@ -262,15 +266,49 @@ function LargeAdjustmentNote({
       }`}
     >
       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-      <p>
-        <span className="font-semibold">This adjustment is large — that is expected on a first close, not a
-        red flag.</span>{' '}
-        The QuickBooks balance was maintained with rough monthly estimates and has never been tied to an
-        actual valuation, so this entry is catching up <em>years</em> of accumulated drift in one step —
-        it does not mean inventory moved by this much in one month. Note the offset lands in Cost of Goods
-        Sold for this month, which will distort that month&rsquo;s margin. Worth confirming treatment with
-        the CPA (post as-is, or split/backdate the catch-up) before posting.
-      </p>
+      {anchored ? (
+        // 2026 months. From March 2026 QuickBooks capitalised every drug and packaging
+        // purchase into 1220.xx and nothing relieved it, so the book runs a full month
+        // of purchases ahead of the counted stock each month. The entry moves that into
+        // Cost of Goods Sold — it IS the month's COGS being recognised. Carson,
+        // 2026-09-15: "it's firing for every single month, can we update it accordingly
+        // for what it really is warning about and why the adjustments are so large".
+        <p>
+          <span className="font-semibold">
+            {bookAboveFifo
+              ? 'Large because the book is carrying unrelieved purchases — this entry is the month’s COGS.'
+              : 'Large because the book sits well below the counted stock.'}
+          </span>{' '}
+          {bookAboveFifo ? (
+            <>
+              Since March 2026, purchases have been capitalised into the inventory accounts in QuickBooks with
+              no monthly relief to Cost of Goods Sold, so the book balance grows by roughly a month of
+              purchases every month while the counted FIFO stock moves only by purchases minus usage. The
+              difference here is that month&rsquo;s (and any earlier unposted month&rsquo;s) purchases being
+              recognised as COGS. Post the months in order and regenerate each one after the previous post;
+              once the prior month is in QuickBooks, the adjustment shrinks to purchases minus usage for the
+              month, and this note stops appearing.
+            </>
+          ) : (
+            <>
+              The counted FIFO stock exceeds the inventory accounts in QuickBooks by this much, so the entry
+              adds it back to inventory and credits Cost of Goods Sold. On a month right after a posted
+              true-up this usually means purchases were expensed straight to COGS rather than capitalised;
+              check the prior month posted and this draft was regenerated after it.
+            </>
+          )}
+        </p>
+      ) : (
+        <p>
+          <span className="font-semibold">This adjustment is large — that is expected on a first close, not a
+          red flag.</span>{' '}
+          The QuickBooks balance was maintained with rough monthly estimates and has never been tied to an
+          actual valuation, so this entry is catching up <em>years</em> of accumulated drift in one step —
+          it does not mean inventory moved by this much in one month. Note the offset lands in Cost of Goods
+          Sold for this month, which will distort that month&rsquo;s margin. Worth confirming treatment with
+          the CPA (post as-is, or split/backdate the catch-up) before posting.
+        </p>
+      )}
     </div>
   );
 }
@@ -769,6 +807,7 @@ function DraftCard({
             fifoTarget={headline.fifoTarget}
             qbBookBalance={headline.qbBookBalance}
             adjustment={headline.adjustment}
+            anchored={anchored}
           />
 
           {categoryJE && (
