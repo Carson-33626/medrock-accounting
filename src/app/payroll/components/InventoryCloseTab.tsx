@@ -166,6 +166,41 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
     }
   }, [selectedMonth, closeBasis, loadClose]);
 
+  // A CORRECTION to a posted month for one company (ds-correction-entry-2026-09-15):
+  // the month recomputed against the book that now holds the posted entry, drafted
+  // as `<parent>-2`. Barbara, via Carson 2026-09-15.
+  const [generatingCloseCorrection, setGeneratingCloseCorrection] = useState<string | null>(null);
+  const handleGenerateCloseCorrection = useCallback(
+    async (location: string) => {
+      if (!selectedMonth) return;
+      const entity = location.replace(/^MedRock (Florida|Tennessee|Texas)$/, (_m, s: string) =>
+        s === 'Florida' ? 'MedRock FL' : s === 'Tennessee' ? 'MedRock TN' : 'MedRock TX',
+      );
+      setGeneratingCloseCorrection(location);
+      setError(null);
+      try {
+        const res = await fetch('/api/inventory/monthly-close/generate-correction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ month: selectedMonth, basis: closeBasis, entity }),
+        });
+        const body = (await res.json()) as { nothingToCorrect?: boolean; docNumber?: string; warnings?: string[] } & ApiErrorBody;
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        const notes = body.warnings ?? [];
+        if (body.nothingToCorrect) {
+          notes.push(`${location}: nothing to correct — FIFO ties to the book as posted and the lab accrual stands.`);
+        }
+        setWarnings(notes);
+        await loadClose(selectedMonth, closeBasis);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to generate the correction');
+      } finally {
+        setGeneratingCloseCorrection(null);
+      }
+    },
+    [selectedMonth, closeBasis, loadClose],
+  );
+
   const handleGenerate = useCallback(async () => {
     if (!selectedMonth) return;
     setGenerating(true);
@@ -585,6 +620,8 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
             onDryRun={(id) => void handleDryRun(id)}
             onPostLive={(id, entityLabel) => void handlePostLive(id, entityLabel)}
             onUnpost={(id, entityLabel, doc) => void handleUnpost(id, entityLabel, doc)}
+            onGenerateCorrection={(location) => void handleGenerateCloseCorrection(location)}
+            generatingCorrection={generatingCloseCorrection}
           />
         </>
       ) : (

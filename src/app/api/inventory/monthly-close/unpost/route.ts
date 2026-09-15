@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit } from '@/lib/payroll/store';
 import { unpostJournalEntry } from '@/lib/payroll/je-unpost';
-import { INV_OPEN_PAY_GROUP, INV_CLOSE_PAY_GROUP } from '@/lib/inventory/monthly-close';
+import { INV_OPEN_PAY_GROUP, INV_CLOSE_PAY_GROUP, correctionIndex } from '@/lib/inventory/monthly-close';
+import { listInvCloseHeaders } from '@/lib/inventory/close-server';
+import { getRdsPool } from '@/lib/rds';
 import { LAB_ACCRUAL_PAY_GROUP } from '@/lib/inventory/lab-supplies-je';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +55,37 @@ export async function POST(request: NextRequest) {
     if (header.status !== 'posted' || !header.qb_entry_id) {
       await insertAudit({ headerId, mode: 'live', entity: header.entity, outcome: 'blocked', reason: 'unpost: not posted' });
       return NextResponse.json({ error: 'entry is not posted — nothing to pull back' }, { status: 409 });
+    }
+
+    // A parent with corrections (ds-correction-entry-2026-09-15 §4.5): a POSTED
+    // correction must come back first — it was computed on top of this entry, and
+    // QuickBooks would otherwise hold a delta to nothing. An UNPOSTED correction
+    // draft is discarded here (audited), since the book it was built against is
+    // about to change.
+    if (header.pay_group === INV_CLOSE_PAY_GROUP && correctionIndex(header.period_segment) === null) {
+      // A close entry's txn_date IS the month end the store keys by.
+      const siblings = header.txn_date ? await listInvCloseHeaders(header.txn_date) : [];
+      const corrections = siblings.filter(
+        (h) => h.entity === header.entity && correctionIndex(h.period_segment) !== null,
+      );
+      const postedCorrections = corrections.filter((h) => h.status === 'posted');
+      if (postedCorrections.length > 0) {
+        const docs = postedCorrections.map((h) => h.qb_doc_number ?? `#${h.id}`).join(', ');
+        const reason = `unpost refused: correction(s) ${docs} are posted on top of this entry — pull them back first`;
+        await insertAudit({ headerId, mode: 'live', entity: header.entity, outcome: 'blocked', reason });
+        return NextResponse.json({ error: reason }, { status: 409 });
+      }
+      for (const draft of corrections) {
+        await insertAudit({
+          headerId: draft.id,
+          mode: 'live',
+          entity: draft.entity,
+          outcome: 'discarded',
+          reason: `correction draft discarded: its parent ${header.qb_doc_number ?? `#${header.id}`} is being pulled back`,
+        });
+        await getRdsPool().query(`DELETE FROM accounting.payroll_journal_lines WHERE header_id = $1`, [draft.id]);
+        await getRdsPool().query(`DELETE FROM accounting.payroll_journal_headers WHERE id = $1 AND status <> 'posted'`, [draft.id]);
+      }
     }
 
     const reason =

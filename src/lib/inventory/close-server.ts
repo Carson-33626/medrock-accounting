@@ -30,7 +30,16 @@ import {
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
-import { correctionOffsetAccount, CORRECTION_MONTH, CUTOVER_MONTH, monthlyCloseLock } from './monthly-close';
+import {
+  correctionOffsetAccount,
+  CORRECTION_MONTH,
+  CUTOVER_MONTH,
+  monthlyCloseLock,
+  correctionIndex,
+  correctionSegment,
+  invCloseCorrectionDocNumber,
+  invCloseCorrectionNote,
+} from './monthly-close';
 import { labSuppliesContributionFor } from './lab-supplies-server';
 import { saveSourceSnapshot } from '../payroll/store';
 import { assemblePool, type JeContribution } from './je-pool';
@@ -126,6 +135,7 @@ export async function deleteUnpostedInvCloseHeaders(
   const { rowCount } = await getRdsPool().query(
     `DELETE FROM accounting.payroll_journal_headers
      WHERE pay_group = $1 AND kind = 'inventory' AND pay_date = $2
+       AND period_segment = ''
        AND status <> 'posted' AND NOT (entity = ANY($3::text[]))`,
     [INV_CLOSE_PAY_GROUP, isoToAdp(monthEnd), keepEntities],
   );
@@ -330,6 +340,118 @@ export async function computeClose(
   };
 }
 
+/**
+ * CORRECTION to a posted month (ds-correction-entry-2026-09-15). Barbara, via Carson
+ * 2026-09-15: "instead of just pull back and regenerate … do a regenerate and post a
+ * correction journal entry, to catch any one offs".
+ *
+ * No new arithmetic: the close is `FIFO − book` per category and `target − posted`
+ * for lab supplies, both read as of today. With the parent already in the book, the
+ * recompute IS the delta. Saved as a second header on the same month with
+ * period_segment 'C{n}' (n = posted corrections + 1) and doc `<parent>-{n+1}`.
+ * Rules: posted parent required; an unposted correction draft is replaced; a zero
+ * delta saves nothing; regular Generate stays locked and never touches these rows.
+ */
+export async function generateInvCloseCorrection(
+  month: string,
+  basis: CloseBasis,
+  monthEnd: string,
+  entity: Entity,
+): Promise<
+  | { headerId: number; docNumber: string; warnings: string[] }
+  | { nothingToCorrect: true; warnings: string[] }
+  | { locked: string }
+> {
+  const cutoverLock = monthlyCloseLock(month);
+  if (cutoverLock !== null) return { locked: cutoverLock };
+
+  const existing = (await listInvCloseHeaders(monthEnd)).filter((h) => h.entity === entity);
+  const parent = existing.find((h) => correctionIndex(h.period_segment) === null);
+  if (!parent || parent.status !== 'posted') {
+    return { locked: `${entity}: no posted ${month} inventory entry to correct — post the month first, or regenerate it` };
+  }
+  const corrections = existing.filter((h) => correctionIndex(h.period_segment) !== null);
+  const postedCorrections = corrections.filter((h) => h.status === 'posted').length;
+  const openDraft = corrections.find((h) => h.status !== 'posted');
+  const index = postedCorrections + 1;
+
+  const close = await computeClose(month, basis, monthEnd);
+  if (close.categoryUnavailable !== null) {
+    return { locked: `Category detail could not be read (${close.categoryUnavailable}) — nothing was generated` };
+  }
+  const qbLocation = QB_LOCATIONS.find((qb) => qb === entity);
+  if (!qbLocation) return { locked: `${entity}: not an inventory company` };
+  const location = QB_TO_RDS_LOCATION[qbLocation];
+  const je = close.categoryJournalEntries.find((j) => j.location === location);
+  if (!je) return { locked: `${entity}: no category detail for ${month}` };
+  if (!je.bookAvailable) return { locked: `${entity}: QB book balance unavailable — no correction generated` };
+
+  const warnings: string[] = [];
+  const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
+  if (jeLines.find((l) => !l.mapped)) warnings.push(residualWarning(je.location, je.unmappedCategories));
+  const lab = await labSuppliesContributionFor(entity, month);
+  const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution]);
+  for (const w of pool.warnings) warnings.push(w);
+  if (pool.unavailable.length > 0) {
+    return { locked: `${entity}: ${pool.unavailable.join(', ')} could not compute — no correction generated` };
+  }
+  if (pool.lines.length === 0) {
+    // Nothing moved since the parent posted. Drop a stale open draft if one exists.
+    if (openDraft) {
+      await getRdsPool().query(`DELETE FROM accounting.payroll_journal_lines WHERE header_id = $1`, [openDraft.id]);
+      await getRdsPool().query(`DELETE FROM accounting.payroll_journal_headers WHERE id = $1 AND status <> 'posted'`, [openDraft.id]);
+    }
+    return { nothingToCorrect: true, warnings };
+  }
+  if (pool.variance !== 0) {
+    return { locked: `${entity}: correction does not balance (variance ${pool.variance.toFixed(2)}) — no correction generated` };
+  }
+  // An open draft under a DIFFERENT index (a correction posted since it was built)
+  // would collide with nothing but mislead; replace it with the fresh one.
+  if (openDraft && openDraft.period_segment !== correctionSegment(index)) {
+    await getRdsPool().query(`DELETE FROM accounting.payroll_journal_lines WHERE header_id = $1`, [openDraft.id]);
+    await getRdsPool().query(`DELETE FROM accounting.payroll_journal_headers WHERE id = $1 AND status <> 'posted'`, [openDraft.id]);
+  }
+
+  const entityHash = createHash('sha256')
+    .update(JSON.stringify({ basis, correctionOf: parent.qb_doc_number, index, categoryJournalEntry: je, lab: lab.snapshot }))
+    .digest('hex');
+  const docNumber = invCloseCorrectionDocNumber(je.location, month, index);
+  const draft: JournalDraft = {
+    entity,
+    kind: 'inventory',
+    payDate: isoToAdp(monthEnd),
+    payGroup: INV_CLOSE_PAY_GROUP,
+    periodStart: `${month}-01`,
+    periodEnd: monthEnd,
+    periodSegment: correctionSegment(index),
+    docNumber,
+    txnDate: monthEnd,
+    privateNote: invCloseCorrectionNote(je.location, month, index),
+    lines: pool.lines,
+    totalDebits: pool.totalDebits,
+    totalCredits: pool.totalCredits,
+    variance: pool.variance,
+    rowKeys: [],
+  };
+  const headerId = await saveDraft(draft, entityHash);
+  await insertAudit({
+    headerId,
+    mode: 'dry_run',
+    entity,
+    outcome: 'generated',
+    reason: `correction ${index} to ${parent.qb_doc_number ?? `#${parent.id}`} generated for ${month} (${basis} basis)`,
+  });
+  if (lab.snapshot !== null) {
+    try {
+      await saveSourceSnapshot(headerId, entity, lab.snapshot);
+    } catch (error) {
+      console.warn(`[inventory/close-server] lab basis not retained for correction ${docNumber}:`, error);
+    }
+  }
+  return { headerId, docNumber, warnings };
+}
+
 /** header id → ISO time of its latest `generated` audit row (see generateInvCloseDrafts). */
 async function lastGeneratedAt(headerIds: number[]): Promise<Map<number, string>> {
   const out = new Map<number, string>();
@@ -361,6 +483,7 @@ export async function loadStoredDrafts(
     total_credits: h.total_credits,
     variance: h.variance,
     generated_at: generatedAt.get(h.id) ?? null,
+    period_segment: h.period_segment,
   }));
   const linesById: Record<string, InvCloseLine[]> = {};
   for (const h of stored) {
@@ -680,6 +803,7 @@ export async function computeOpeningCorrection(): Promise<OpeningCorrection> {
     total_credits: h.total_credits,
     variance: h.variance,
     generated_at: generatedAt.get(h.id) ?? null,
+    period_segment: h.period_segment,
   }));
   const linesById: Record<string, InvCloseLine[]> = {};
   for (const h of stored) {

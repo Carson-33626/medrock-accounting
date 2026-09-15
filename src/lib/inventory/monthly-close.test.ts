@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  correctionIndex,
+  correctionSegment,
+  invCloseCorrectionDocNumber,
+  invCloseCorrectionNote,
+  findCloseCorrections,
   sortByLocation,
   locationRank,
   rollForwardFromCategories,
@@ -218,6 +223,7 @@ const header = (over: Partial<InvCloseHeader> & { id: number; entity: string }):
   total_credits: 0,
   variance: 0,
   generated_at: null,
+  period_segment: '',
   ...over,
 });
 
@@ -995,5 +1001,34 @@ describe('sortByLocation', () => {
     const cat = (location: string) => ({ location, qbCategory: 'x', beginning: 1, purchases: 1, ending: 1, cogs: 1, consumed: 0, receiptIds: [], lotCount: 1 });
     const rows = rollForwardFromCategories([cat('MedRock Tennessee'), cat('MedRock Texas'), cat('MedRock Florida')]);
     expect(rows.map((r) => r.label)).toEqual(['Florida', 'Tennessee', 'Texas', 'Total']);
+  });
+});
+
+describe('corrections to a posted month (ds-correction-entry-2026-09-15)', () => {
+  it('indexes C1, C2 and nothing else', () => {
+    expect(correctionIndex('')).toBeNull();
+    expect(correctionIndex('C1')).toBe(1);
+    expect(correctionIndex('C12')).toBe(12);
+    expect(correctionIndex('C0')).toBeNull();
+    expect(correctionIndex('2026-03')).toBeNull();
+    expect(correctionSegment(3)).toBe('C3');
+  });
+  it('numbers the doc like the CS Allo top-ups: parent, -2, -3', () => {
+    expect(invCloseCorrectionDocNumber('MedRock Florida', '2026-03', 1)).toBe('FL Inv Adj 2026.03-2');
+    expect(invCloseCorrectionDocNumber('MedRock TN', '2026-03', 2)).toBe('TN Inv Adj 2026.03-3');
+    expect(invCloseCorrectionNote('MedRock Florida', '2026-03', 1)).toBe(
+      'Inventory FIFO close correction 1 to FL Inv Adj 2026.03 — 2026-03',
+    );
+  });
+  it('findCloseHeader returns the parent only; findCloseCorrections the rest, oldest first', () => {
+    const hs = [
+      header({ id: 3, entity: 'MedRock FL', period_segment: 'C2' }),
+      header({ id: 1, entity: 'MedRock FL', status: 'posted' }),
+      header({ id: 2, entity: 'MedRock FL', period_segment: 'C1', status: 'posted' }),
+      header({ id: 9, entity: 'MedRock TN' }),
+    ];
+    expect(findCloseHeader('MedRock Florida', hs)?.id).toBe(1);
+    expect(findCloseCorrections('MedRock Florida', hs).map((h) => h.id)).toEqual([2, 3]);
+    expect(findCloseCorrections('MedRock Tennessee', hs)).toEqual([]);
   });
 });

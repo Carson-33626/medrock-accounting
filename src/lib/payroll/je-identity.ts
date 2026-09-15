@@ -29,6 +29,9 @@ import { eomDocNumber } from './month-end';
 import { longMonthName, type Month } from './month';
 import {
   invCloseDocNumber,
+  invCloseCorrectionDocNumber,
+  invCloseCorrectionNote,
+  correctionIndex,
   openingCorrectionDocNumber,
   INV_OPEN_PAY_GROUP,
   OPENING_CORRECTION_NOTE,
@@ -110,6 +113,15 @@ export function deriveJeIdentity(header: JeIdentityHeader, segIndex: number, seg
         docNumber: header.qb_doc_number ?? openingCorrectionDocNumber(header.entity, month),
         txnDateIso,
         privateNote: OPENING_CORRECTION_NOTE,
+      };
+    }
+    // A correction to a posted month (period_segment 'C1', …) — ds-correction-entry-2026-09-15.
+    const correction = correctionIndex(header.period_segment);
+    if (correction !== null) {
+      return {
+        docNumber: header.qb_doc_number ?? invCloseCorrectionDocNumber(header.entity, month, correction),
+        txnDateIso,
+        privateNote: invCloseCorrectionNote(header.entity, month, correction),
       };
     }
     return {

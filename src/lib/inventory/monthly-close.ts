@@ -263,6 +263,42 @@ export function invCloseDocNumber(location: string, month: string): string {
   return `${shortInventoryLocation(location)} Inv Adj ${month.replace('-', '.')}`;
 }
 
+/**
+ * CORRECTIONS (ds-correction-entry-2026-09-15). A posted month is never touched:
+ * "Generate correction" recomputes the month against a book that now contains the
+ * posted entry, and the leftover is a second draft on the same month. Identity:
+ * same pay_group, `period_segment` 'C1', 'C2', …, doc number `<parent>-2`, `-3`, …
+ * (the suffix convention the CS Allo top-ups already use in QuickBooks).
+ */
+export const CORRECTION_SEGMENT_PREFIX = 'C';
+
+/** 1 for 'C1', 2 for 'C2', … ; null for a parent ('') or anything else. */
+export function correctionIndex(periodSegment: string): number | null {
+  const m = /^C([1-9]\d*)$/.exec(periodSegment);
+  return m ? Number(m[1]) : null;
+}
+
+export function correctionSegment(index: number): string {
+  return `${CORRECTION_SEGMENT_PREFIX}${index}`;
+}
+
+/** 'FL Inv Adj 2026.03-2' for correction 1, '-3' for correction 2, … */
+export function invCloseCorrectionDocNumber(location: string, month: string, index: number): string {
+  return `${invCloseDocNumber(location, month)}-${index + 1}`;
+}
+
+export function invCloseCorrectionNote(location: string, month: string, index: number): string {
+  return `Inventory FIFO close correction ${index} to ${invCloseDocNumber(location, month)} — ${month}`;
+}
+
+/** The corrections stored for a location this month, oldest first. */
+export function findCloseCorrections(location: string, headers: InvCloseHeader[]): InvCloseHeader[] {
+  const short = shortInventoryLocation(location);
+  return headers
+    .filter((h) => shortInventoryLocation(h.entity) === short && correctionIndex(h.period_segment) !== null)
+    .sort((a, b) => (correctionIndex(a.period_segment) ?? 0) - (correctionIndex(b.period_segment) ?? 0));
+}
+
 /** One copy-ready journal line (debit XOR credit). */
 export interface JeLine {
   account: string;
@@ -368,7 +404,11 @@ export const CLOSE_STATUS_LABEL: Record<InvCloseHeader['status'], string> = {
  */
 export function findCloseHeader(location: string, headers: InvCloseHeader[]): InvCloseHeader | null {
   const short = shortInventoryLocation(location);
-  return headers.find((h) => shortInventoryLocation(h.entity) === short) ?? null;
+  // The PARENT entry only — corrections (period_segment 'C1', …) have their own rows.
+  return (
+    headers.find((h) => shortInventoryLocation(h.entity) === short && correctionIndex(h.period_segment) === null) ??
+    null
+  );
 }
 
 /**

@@ -22,6 +22,9 @@ import {
   categoryKey,
   closeDisplayLines,
   findCloseHeader,
+  findCloseCorrections,
+  correctionIndex,
+  invCloseCorrectionDocNumber,
   invCloseDocNumber,
   shortInventoryLocation,
   sortByLocation,
@@ -69,8 +72,11 @@ export interface QbJournalEntryPayload {
 /** A location's suggested numbers joined with its stored draft (when generated). */
 interface LocationView {
   je: LocationJE;
+  /** The month's entry (period_segment ''), if a draft exists. */
   header: InvCloseHeader | null;
   storedLines: InvCloseLine[];
+  /** Corrections to a posted month, oldest first (ds-correction-entry-2026-09-15). */
+  corrections: Array<{ header: InvCloseHeader; storedLines: InvCloseLine[] }>;
 }
 
 /**
@@ -98,6 +104,8 @@ export default function JournalEntryPanel({
   onDryRun,
   onPostLive,
   onUnpost,
+  onGenerateCorrection,
+  generatingCorrection,
 }: {
   journalEntries: LocationJE[];
   categoryJournalEntries: CategoryJE[];
@@ -116,6 +124,10 @@ export default function JournalEntryPanel({
   accountNumbers: Record<string, Record<string, string>>;
   /** Delete a posted entry from QuickBooks and return it to a draft. */
   onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
+  /** Draft a correction to this company's posted month (ds-correction-entry-2026-09-15). */
+  onGenerateCorrection: (entityLabel: string) => void;
+  /** The RDS location whose correction is being generated right now, if any. */
+  generatingCorrection: string | null;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
@@ -130,7 +142,11 @@ export default function JournalEntryPanel({
     () =>
       sortByLocation(journalEntries, (je) => je.location).map((je) => {
         const header = findCloseHeader(je.location, headers);
-        return { je, header, storedLines: header ? (linesById[String(header.id)] ?? []) : [] };
+        const corrections = findCloseCorrections(je.location, headers).map((h) => ({
+          header: h,
+          storedLines: linesById[String(h.id)] ?? [],
+        }));
+        return { je, header, storedLines: header ? (linesById[String(header.id)] ?? []) : [], corrections };
       }),
     [journalEntries, headers, linesById],
   );
@@ -203,12 +219,16 @@ export default function JournalEntryPanel({
           month={month}
           monthEnd={monthEnd}
           busy={activeView.header !== null && busyHeaderId === activeView.header.id}
+          busyHeaderId={busyHeaderId}
           dryRunPayload={activeView.header ? (dryRunPayloads[activeView.header.id] ?? null) : null}
+          dryRunPayloads={dryRunPayloads}
           accountNumbers={accountNumbers[activeView.je.location] ?? {}}
           onApprove={onApprove}
           onDryRun={onDryRun}
           onPostLive={onPostLive}
           onUnpost={onUnpost}
+          onGenerateCorrection={onGenerateCorrection}
+          generatingCorrection={generatingCorrection}
         />
       ) : (
         <CombinedCard
@@ -595,6 +615,141 @@ export function DryRunPreview({ darkMode, payload }: { darkMode: boolean; payloa
   );
 }
 
+/**
+ * The corrections under a posted month's receipt (ds-correction-entry-2026-09-15):
+ * each one a row with its doc number, status, amount, expandable lines, and the
+ * same Approve → Dry run → Post buttons as any draft — or, once posted, a receipt
+ * with its own pull-back. Barbara, via Carson 2026-09-15: "regenerate and post a
+ * correction journal entry, to catch any one offs".
+ */
+function CorrectionRows({
+  view,
+  darkMode,
+  subText,
+  border,
+  month,
+  monthEnd,
+  busyHeaderId,
+  dryRunPayloads,
+  onApprove,
+  onDryRun,
+  onPostLive,
+  onUnpost,
+}: {
+  view: LocationView;
+  darkMode: boolean;
+  subText: string;
+  border: string;
+  month: string;
+  monthEnd: string;
+  busyHeaderId: number | null;
+  dryRunPayloads: Record<number, QbJournalEntryPayload>;
+  onApprove: (headerId: number) => void;
+  onDryRun: (headerId: number) => void;
+  onPostLive: (headerId: number, entityLabel: string) => void;
+  onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
+}) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  if (view.corrections.length === 0) return null;
+  const { je } = view;
+  return (
+    <div className={`mt-3 pt-3 border-t ${border} space-y-2`}>
+      <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>
+        Corrections to {view.header?.qb_doc_number ?? invCloseDocNumber(je.location, month)}
+      </p>
+      {view.corrections.map(({ header: h, storedLines }) => {
+        const idx = correctionIndex(h.period_segment) ?? 0;
+        const doc = h.qb_doc_number ?? invCloseCorrectionDocNumber(je.location, month, idx);
+        const posted = h.status === 'posted';
+        const busy = busyHeaderId === h.id;
+        const payload = dryRunPayloads[h.id] ?? null;
+        const open = openId === h.id;
+        return (
+          <div key={h.id} className={`rounded-lg border p-3 space-y-2 ${border}`}>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setOpenId(open ? null : h.id)}
+                className="flex items-center gap-1 text-sm font-medium"
+                aria-expanded={open}
+              >
+                {open ? <ChevronDown className="w-4 h-4" aria-hidden /> : <ChevronRight className="w-4 h-4" aria-hidden />}
+                {doc}
+              </button>
+              <StatusBadge darkMode={darkMode} label={STATUS_LABEL[h.status]} />
+              <span className={`text-xs ${subText}`}>
+                {h.txn_date ?? monthEnd} · Dr {usd.format(h.total_debits)}
+                {h.generated_at ? ` · generated ${new Date(h.generated_at).toLocaleString()}` : ''}
+              </span>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {posted ? (
+                  <>
+                    <JeSourceWorkbookLink headerId={h.id} docNumber={doc} darkMode={darkMode} compact />
+                    <button
+                      onClick={() => onUnpost(h.id, je.location, doc)}
+                      disabled={busy}
+                      title="Delete this correction from QuickBooks and return it to a draft"
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                        darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+                      }`}
+                    >
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin inline" aria-hidden /> : 'Pull back from QuickBooks'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {h.status !== 'approved' && (
+                      <button
+                        onClick={() => onApprove(h.id)}
+                        disabled={busy}
+                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onDryRun(h.id)}
+                      disabled={busy}
+                      title="Builds the exact QuickBooks payload and previews it below — nothing is sent"
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                        darkMode ? 'border-slate-600 hover:bg-slate-700' : 'border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      Dry run
+                    </button>
+                    <button
+                      onClick={() => onPostLive(h.id, je.location)}
+                      disabled={busy || h.status !== 'approved'}
+                      title={h.status !== 'approved' ? 'Approve first' : 'Post this correction to QuickBooks'}
+                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin inline" aria-hidden /> : 'Post'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {open && (
+              <table className="w-full text-xs">
+                <tbody>
+                  {storedLines.map((l, i) => (
+                    <tr key={i} className={`border-t ${border}`}>
+                      <td className="py-0.5 pr-2 w-8">{l.postingType === 'Debit' ? 'Dr' : 'Cr'}</td>
+                      <td className="py-0.5 pr-3 text-right whitespace-nowrap w-28 tabular-nums">{usd.format(l.amount)}</td>
+                      <td className="py-0.5 pr-3">{l.accountName}</td>
+                      <td className={`py-0.5 ${subText}`}>{l.memo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {payload && <DryRunPreview darkMode={darkMode} payload={payload} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Rows the tables render — one selection rule shared with the xlsx export
  *  (closeDisplayLines): stored draft lines when a draft exists (that is what
  *  will post), the live suggestion otherwise. */
@@ -616,12 +771,16 @@ function DraftCard({
   month,
   monthEnd,
   busy,
+  busyHeaderId,
   dryRunPayload,
+  dryRunPayloads,
   accountNumbers,
   onApprove,
   onDryRun,
   onPostLive,
   onUnpost,
+  onGenerateCorrection,
+  generatingCorrection,
 }: {
   darkMode: boolean;
   cardBg: string;
@@ -636,13 +795,17 @@ function DraftCard({
   month: string;
   monthEnd: string;
   busy: boolean;
+  busyHeaderId: number | null;
   dryRunPayload: QbJournalEntryPayload | null;
+  dryRunPayloads: Record<number, QbJournalEntryPayload>;
   /** This company's FullyQualifiedName -> AcctNum map. */
   accountNumbers: Record<string, string>;
   onApprove: (headerId: number) => void;
   onDryRun: (headerId: number) => void;
   onPostLive: (headerId: number, entityLabel: string) => void;
   onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
+  onGenerateCorrection: (entityLabel: string) => void;
+  generatingCorrection: string | null;
 }) {
   const { je, header } = view;
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
@@ -696,9 +859,29 @@ function DraftCard({
               Show detail
             </button>
             <button
+              onClick={() => onGenerateCorrection(je.location)}
+              disabled={generatingCorrection !== null}
+              title="Recompute this month against the book as it stands now (which includes this posted entry) and draft only the difference as a correction — nothing posts until approved"
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                darkMode ? 'border-blue-800 text-blue-300 hover:bg-blue-950/40' : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              {generatingCorrection === je.location ? (
+                <Loader2 className="w-4 h-4 animate-spin inline" aria-hidden />
+              ) : view.corrections.length > 0 ? (
+                'Generate another correction'
+              ) : (
+                'Generate correction'
+              )}
+            </button>
+            <button
               onClick={() => onUnpost(header.id, je.location, docNumber)}
               disabled={busy}
-              title="Delete this entry from QuickBooks and return it to a draft, so it can be regenerated and reposted"
+              title={
+                view.corrections.some((c) => c.header.status === 'posted')
+                  ? 'Pull back the posted correction(s) below first — they were computed on top of this entry'
+                  : 'Delete this entry from QuickBooks and return it to a draft, so it can be regenerated and reposted'
+              }
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
                 darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
               }`}
@@ -707,6 +890,20 @@ function DraftCard({
             </button>
           </div>
         </div>
+        <CorrectionRows
+          view={view}
+          darkMode={darkMode}
+          subText={subText}
+          border={border}
+          month={month}
+          monthEnd={monthEnd}
+          busyHeaderId={busyHeaderId}
+          dryRunPayloads={dryRunPayloads}
+          onApprove={onApprove}
+          onDryRun={onDryRun}
+          onPostLive={onPostLive}
+          onUnpost={onUnpost}
+        />
       </div>
     );
   }

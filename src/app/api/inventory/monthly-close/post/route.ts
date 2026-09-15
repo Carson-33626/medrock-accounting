@@ -5,6 +5,9 @@ import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import {
   invCloseDocNumber,
+  invCloseCorrectionDocNumber,
+  invCloseCorrectionNote,
+  correctionIndex,
   openingCorrectionDocNumber,
   INV_OPEN_PAY_GROUP,
   OPENING_CORRECTION_NOTE,
@@ -114,6 +117,9 @@ export async function POST(request: NextRequest) {
     // and audit but carries its own doc-number/note scheme — 'FL Inv Open
     // 2026.03', never the monthly 'Inv Adj', so the two are distinct in QB.
     const isOpeningCorrection = header.pay_group === INV_OPEN_PAY_GROUP;
+    // A correction to a posted month ('C1', 'C2', …) — same gates, its own doc suffix
+    // and note, matching deriveJeIdentity (ds-correction-entry-2026-09-15).
+    const correction = isOpeningCorrection ? null : correctionIndex(header.period_segment);
 
     // The accrual month is the PERIOD, not the pay date — the reversal's pay date is
     // the first of the following month and would derive the wrong tag.
@@ -136,14 +142,18 @@ export async function POST(request: NextRequest) {
         ? labId.docNumber
         : isOpeningCorrection
           ? openingCorrectionDocNumber(header.entity, month)
-          : invCloseDocNumber(header.entity, month),
+          : correction !== null
+            ? invCloseCorrectionDocNumber(header.entity, month, correction)
+            : invCloseDocNumber(header.entity, month),
       txnDate: labId ? labId.txnDateIso : (header.txn_date ?? undefined),
       // The stored line memos carry the basis + as-of date; the note stays stable.
       privateNote: labId
         ? labId.privateNote
         : isOpeningCorrection
           ? OPENING_CORRECTION_NOTE
-          : `Inventory FIFO close adjustment — ${month}`,
+          : correction !== null
+            ? invCloseCorrectionNote(header.entity, month, correction)
+            : `Inventory FIFO close adjustment — ${month}`,
       lines,
       totalDebits: header.total_debits,
       totalCredits: header.total_credits,

@@ -68,6 +68,14 @@ describe('deriveJeIdentity', () => {
 
     expect(deriveJeIdentity(inv, 0, 1).docNumber).toBe(invCloseDocNumber('MedRock TN', '2026-03'));
     expect(deriveJeIdentity(open, 0, 1).docNumber).toBe(openingCorrectionDocNumber('MedRock TN', '2026-03'));
+
+    // A correction to a posted month carries the -2 / -3 suffix and its own note
+    // (ds-correction-entry-2026-09-15); a stored qb_doc_number still wins.
+    const fix = header({ kind: 'inventory', pay_group: 'INV CLOSE', txn_date: '2026-03-31', period_segment: 'C1' });
+    expect(deriveJeIdentity(fix, 0, 1).docNumber).toBe('TN Inv Adj 2026.03-2');
+    expect(deriveJeIdentity(fix, 0, 1).privateNote).toBe('Inventory FIFO close correction 1 to TN Inv Adj 2026.03 — 2026-03');
+    const fix2 = header({ kind: 'inventory', pay_group: 'INV CLOSE', txn_date: '2026-03-31', period_segment: 'C2', qb_doc_number: 'TN Inv Adj 2026.03-3' });
+    expect(deriveJeIdentity(fix2, 0, 1).docNumber).toBe('TN Inv Adj 2026.03-3');
     expect(deriveJeIdentity(open, 0, 1).docNumber).not.toBe(deriveJeIdentity(inv, 0, 1).docNumber);
     expect(deriveJeIdentity(open, 0, 1).privateNote).toBe(OPENING_CORRECTION_NOTE);
   });

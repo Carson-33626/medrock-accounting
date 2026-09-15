@@ -141,6 +141,9 @@ export interface InvCloseHeader {
    *  the audit trail's `generated` row); null for drafts made before stamping
    *  began (2026-09-15). Approve / post / pull-back never move it. */
   generated_at: string | null;
+  /** '' for the month's entry; 'C1', 'C2', … for corrections to it
+   *  (ds-correction-entry-2026-09-15). */
+  period_segment: string;
 }
 
 /** Stored draft line — what will actually post, frozen at generation time. */
