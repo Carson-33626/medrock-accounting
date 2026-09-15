@@ -223,9 +223,13 @@ export default function JournalEntryPanel({
   );
 }
 
+/** Below this many dollars an adjustment is never "large", whatever the ratio. */
+const LARGE_ADJUSTMENT_FLOOR = 2500;
+
 /**
  * Amber context note shown when the adjustment is disproportionately large
- * (> 25% of the bigger of |FIFO target| and |book balance|). A first-ever close
+ * (> 25% of the bigger of |FIFO target| and |book balance|, AND at least
+ * LARGE_ADJUSTMENT_FLOOR in dollars). A first-ever close
  * against a plug-maintained book balance produces exactly this, and without the
  * explanation the number reads like an error.
  */
@@ -243,6 +247,11 @@ function LargeAdjustmentNote({
   if (adjustment === null || qbBookBalance === null) return null;
   const scale = Math.max(Math.abs(fifoTarget), Math.abs(qbBookBalance), 1);
   if (Math.abs(adjustment) <= 0.25 * scale) return null;
+  // Relative alone is not enough: TX January 2026 was a −$34.01 adjustment on a
+  // $39 balance — 87%, and the banner talked about "years of accumulated drift".
+  // Carson, 2026-09-15: "the texas january posting has the large adjustment flag
+  // still?" A catch-up worth the explanation is also large in dollars.
+  if (Math.abs(adjustment) < LARGE_ADJUSTMENT_FLOOR) return null;
   return (
     <div
       className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
