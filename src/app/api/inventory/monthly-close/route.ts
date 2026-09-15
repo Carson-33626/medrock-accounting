@@ -12,6 +12,10 @@ import type { CloseBasis, MonthlyCloseResponse, RollForwardRow } from '@/types/i
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Three QuickBooks balance sheets, the lab-supplies document scan and the lot
+// ledger — ~4s locally, but a cold function plus a slow QuickBooks day must not
+// hit the platform default. Same ceiling as generate/ and correction/.
+export const maxDuration = 120;
 
 /** Postgres error code for "undefined_table". */
 const UNDEFINED_TABLE = '42P01';

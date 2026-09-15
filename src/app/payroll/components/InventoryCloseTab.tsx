@@ -110,7 +110,23 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
     const token = ++requestSeqRef.current;
     try {
       const res = await fetch(`/api/inventory/monthly-close?month=${encodeURIComponent(m)}&basis=${basis}`);
-      const body = (await res.json()) as MonthlyCloseResponse & ApiErrorBody;
+      // Vercel answers a crashed or timed-out function with a plain-text page
+      // ("An error occurred with your deployment…"), not JSON. Parsing that blindly
+      // surfaced as `Unexpected token 'A'… is not valid JSON` (Carson, 2026-09-15,
+      // February after the TX post errored). Read the text first and say what
+      // actually came back.
+      const raw = await res.text();
+      let body: MonthlyCloseResponse & ApiErrorBody;
+      try {
+        body = JSON.parse(raw) as MonthlyCloseResponse & ApiErrorBody;
+      } catch {
+        if (token !== requestSeqRef.current) return;
+        throw new Error(
+          `The server did not return data for ${m} (HTTP ${res.status}${res.statusText ? ' ' + res.statusText : ''}). ` +
+            'Usually a timed-out or restarted function — pick the month again to retry.' +
+            (raw.trim() ? ` Server said: ${raw.trim().slice(0, 160)}` : ''),
+        );
+      }
       if (token !== requestSeqRef.current) return;
       if (!res.ok || body.error) throw new Error(body.error ?? `Request failed (${res.status})`);
       setMonthlyClose(body);
