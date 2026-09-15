@@ -1012,60 +1012,64 @@ export default function InventoryValuation() {
               Stock on hand at month end, valued at what each lot actually cost — with an estimated cost only where the
               purchase receipt is missing.
             </p>
-          </div>
-        )}
 
-        {/* The month's movement — the same figures the close's monthly statement
-            posts, cut to the current scope. */}
-        {monthMovement && anchored && (
-          <div className={`rounded-xl shadow-sm p-5 ${cardBg}`}>
-            <p className="text-sm font-semibold flex items-center gap-1.5">
-              This month&rsquo;s movement
-              <HelpTip
-                label="Where these figures go"
-                text="Purchases at actual invoice cost flow in; usage-driven COGS posts to each category's COGS account; waste (the documented disposal log) and shrink (the count residual) post together to the dedicated 5000.55 Drug Waste & Shrinkage line. These are the same numbers the month's close JE is built from — the Inventory Close tab shows the identical statement."
-              />
-            </p>
-            {/* Total first, then its breakdown — Carson, 2026-09-15: "show the total, and
-                then the breakdown". The total is the same figure the Inventory Close
-                page's roll-forward calls COGS (derived): everything that left inventory. */}
-            <div className="mt-3 grid grid-cols-2 gap-4">
-              <div>
-                <p className={`text-xs ${subText}`}>Purchases</p>
-                <p className="text-xl font-bold tabular-nums">{usd.format(monthMovement.purchases)}</p>
-              </div>
-              <div>
-                <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
-                  Total out of inventory
-                  <HelpTip
-                    label="Total out of inventory"
-                    text="Usage + waste + shrink — everything that left inventory this month. Beginning + purchases − this total = the ending value above. The Inventory Close page's roll-forward shows this same figure as COGS (derived)."
-                  />
-                </p>
-                <p className="text-xl font-bold tabular-nums">
-                  {usd.format(Math.round((monthMovement.cogs + monthMovement.waste + monthMovement.shrink) * 100) / 100)}
-                </p>
-              </div>
-            </div>
-            <div className={`mt-3 pt-3 border-t ${border} grid grid-cols-3 gap-4`}>
-              <div>
-                <p className={`text-xs ${subText}`}>of which COGS (usage)</p>
-                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.cogs)}</p>
-              </div>
-              <div>
-                <p className={`text-xs ${subText}`}>of which waste (documented)</p>
-                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.waste)}</p>
-              </div>
-              <div>
-                <p className={`text-xs ${subText}`}>of which shrink (count residual)</p>
-                <p className="text-lg font-semibold tabular-nums">{usd.format(monthMovement.shrink)}</p>
-              </div>
-            </div>
-            <p className={`text-xs mt-3 ${subText}`}>
-              Beginning + Purchases − Total out of inventory = the ending value above, to the cent. Waste and
-              shrink are designed to post to <strong>5000.55 Drug Waste &amp; Shrinkage</strong>; the close entry
-              currently carries them inside each category&rsquo;s operating COGS line (see the Inventory Close page).
-            </p>
+            {/* The month as a statement, top to bottom — Carson, 2026-09-15: "the big value up
+                top, under it the starting value, COGS, breakdown of COGS, then the final value
+                showing it fully out". Beginning is derived from the same rows the close posts
+                from, so the last line equals the headline to the cent. */}
+            {monthMovement && anchored && (() => {
+              const out = Math.round((monthMovement.cogs + monthMovement.waste + monthMovement.shrink) * 100) / 100;
+              const beginning = Math.round((view.total - monthMovement.purchases + out) * 100) / 100;
+              const row = 'flex items-baseline justify-between gap-4 py-1.5';
+              const num = 'tabular-nums whitespace-nowrap';
+              return (
+                <div className={`mt-5 pt-4 border-t ${border} max-w-xl`}>
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    How the month moved
+                    <HelpTip
+                      label="How the month moved"
+                      text="Beginning stock, plus purchases received at invoice cost, minus everything that left inventory (usage, documented waste and the count residual), equals the month-end value above. These are the same figures the month's close journal entry is built from; the Inventory Close page's roll-forward shows the total out of inventory as COGS (derived)."
+                    />
+                  </p>
+                  <div className="mt-2 text-sm">
+                    <div className={row}>
+                      <span>Beginning of month</span>
+                      <span className={num}>{usd.format(beginning)}</span>
+                    </div>
+                    <div className={row}>
+                      <span>+ Purchases</span>
+                      <span className={num}>{usd.format(monthMovement.purchases)}</span>
+                    </div>
+                    <div className={`${row} font-medium`}>
+                      <span>− Out of inventory (COGS)</span>
+                      <span className={num}>{usd.format(out)}</span>
+                    </div>
+                    <div className={`ml-5 pl-3 border-l ${border} text-xs ${subText}`}>
+                      <div className={row}>
+                        <span>usage</span>
+                        <span className={num}>{usd.format(monthMovement.cogs)}</span>
+                      </div>
+                      <div className={row}>
+                        <span>waste (documented)</span>
+                        <span className={num}>{usd.format(monthMovement.waste)}</span>
+                      </div>
+                      <div className={row}>
+                        <span>shrink (count residual)</span>
+                        <span className={num}>{usd.format(monthMovement.shrink)}</span>
+                      </div>
+                    </div>
+                    <div className={`${row} mt-1 pt-2 border-t-2 ${border} font-bold text-base`}>
+                      <span>= End of month</span>
+                      <span className={num}>{usd.format(view.total)}</span>
+                    </div>
+                  </div>
+                  <p className={`text-xs mt-2 ${subText}`}>
+                    Waste and shrink stay inside operating COGS in the close entry (Carson, 2026-09-15); they are
+                    broken out here so the count residual is visible.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 
