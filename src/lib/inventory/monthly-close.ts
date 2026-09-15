@@ -109,6 +109,44 @@ function emptyValue(location: string): RollbackMonthValue {
   return { location, valueFloor: 0, valueFull: 0, purchasesFloor: 0, purchasesFull: 0 };
 }
 
+/**
+ * The roll-forward table built from the CATEGORY ledger (what posts), one row per
+ * location plus the total — for count-anchored months, where the backward-rollback
+ * reference is a different valuation and the two tables disagreed on screen
+ * (TN January 2026: rollback COGS $119,975 vs ledger $134,998). Carson, 2026-09-15:
+ * "why do the TN cogs in the table and the journal entry table not agree on COGS".
+ * On an anchored month the ledger is the truth, so the top table reads from it too.
+ */
+export function rollForwardFromCategories(rows: readonly CategoryRollForwardRow[]): RollForwardRow[] {
+  const byLocation = new Map<string, CategoryRollForwardRow[]>();
+  for (const r of rows) {
+    const list = byLocation.get(r.location) ?? [];
+    list.push(r);
+    byLocation.set(r.location, list);
+  }
+  const locationRows: RollForwardRow[] = [...byLocation.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([location, cats]) => {
+      const windowStart = cats.some((c) => c.beginning === null);
+      const beginning = windowStart ? null : round2(cats.reduce((s, c) => s + (c.beginning ?? 0), 0));
+      const purchases = round2(cats.reduce((s, c) => s + c.purchases, 0));
+      const ending = round2(cats.reduce((s, c) => s + c.ending, 0));
+      const cogs = beginning === null ? null : round2(beginning + purchases - ending);
+      return {
+        cut: 'location' as const,
+        label: location.replace(/^MedRock /, ''),
+        beginning,
+        purchases,
+        cogs,
+        ending,
+        windowStart,
+        purchasesPending: false,
+      };
+    });
+  if (locationRows.length === 0) return [];
+  return [...locationRows, buildTotalRow(locationRows, locationRows.some((r) => r.windowStart))];
+}
+
 function buildTotalRow(locationRows: RollForwardRow[], windowStart: boolean): RollForwardRow {
   const ending = round2(locationRows.reduce((s, r) => s + r.ending, 0));
 

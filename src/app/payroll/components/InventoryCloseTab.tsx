@@ -10,7 +10,13 @@ import JournalEntryPanel, { DryRunPreview, type QbJournalEntryPayload } from '@/
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { formatAccount } from '@/lib/inventory/account-label';
-import { findCloseHeader, CLOSE_STATUS_LABEL, CORRECTION_MONTH, monthlyCloseLock } from '@/lib/inventory/monthly-close';
+import {
+  findCloseHeader,
+  CLOSE_STATUS_LABEL,
+  CORRECTION_MONTH,
+  monthlyCloseLock,
+  rollForwardFromCategories,
+} from '@/lib/inventory/monthly-close';
 import { InventoryMethodology } from './InventoryMethodology';
 import { InventoryDecisions } from './InventoryDecisions';
 import type {
@@ -496,19 +502,41 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
 
       {closeLock !== null ? null : closeReady && monthlyClose && selectedMonth ? (
         <>
-          <RollForward
-            rows={monthlyClose.rollForward}
-            purchasesAvailable={monthlyClose.purchasesAvailable}
-            darkMode={darkMode}
-          />
-          {monthlyClose.categoryJournalEntries.length > 0 && (
-            <p className={`text-sm ${subText}`}>
-              Drafts generate from the <strong>category detail below</strong> (summed from the lot
-              ledger, so every line traces to its lots). The roll-forward above is the backward-rollback
-              reconstruction — a different method, shown for reference; the two differ for months that
-              are not yet LifeFile-anchored.
-            </p>
-          )}
+          {/* On a count-anchored month the category ledger is what posts, so the
+              roll-forward reads from it and agrees with the entry table below.
+              Unanchored months keep the backward-rollback reference. */}
+          {(() => {
+            const anchored =
+              monthlyClose.firstAnchoredMonth !== null && selectedMonth >= monthlyClose.firstAnchoredMonth;
+            const rows = anchored ? rollForwardFromCategories(monthlyClose.categoryRollForward) : monthlyClose.rollForward;
+            return (
+              <>
+                <RollForward
+                  rows={rows}
+                  purchasesAvailable={anchored ? true : monthlyClose.purchasesAvailable}
+                  darkMode={darkMode}
+                />
+                {monthlyClose.categoryJournalEntries.length > 0 && (
+                  <p className={`text-sm ${subText}`}>
+                    {anchored ? (
+                      <>
+                        Drafts generate from the <strong>category detail below</strong> (summed from the lot
+                        ledger, so every line traces to its lots). The roll-forward above is the same ledger
+                        summed by location, so the two agree.
+                      </>
+                    ) : (
+                      <>
+                        Drafts generate from the <strong>category detail below</strong> (summed from the lot
+                        ledger, so every line traces to its lots). The roll-forward above is the backward-rollback
+                        reconstruction — a different method, shown for reference; the two differ for months that
+                        are not yet LifeFile-anchored.
+                      </>
+                    )}
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <JournalEntryPanel
             journalEntries={monthlyClose.journalEntries}
             categoryJournalEntries={monthlyClose.categoryJournalEntries}

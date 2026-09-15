@@ -322,6 +322,22 @@ function CategoryBreakdown({
     return l.fifoTarget !== 0 || (l.qbBookBalance ?? 0) !== 0 || (l.adjustment ?? 0) !== 0 || moved;
   });
 
+  // Beginning / purchases / COGS summed over every category row of this location
+  // (the same movement rows the visible lines read), for the total row. A null
+  // beginning or COGS anywhere (window start) makes the total null too.
+  const movementTotals = je.lines.reduce<{ beginning: number | null; purchases: number; cogs: number | null }>(
+    (acc, l) => {
+      const mv = movementByKey.get(categoryKey(je.location, l.qbCategory));
+      if (!mv) return acc;
+      return {
+        beginning: acc.beginning === null || mv.beginning === null ? null : round2(acc.beginning + mv.beginning),
+        purchases: round2(acc.purchases + mv.purchases),
+        cogs: acc.cogs === null || mv.cogs === null ? null : round2(acc.cogs + mv.cogs),
+      };
+    },
+    { beginning: 0, purchases: 0, cogs: 0 },
+  );
+
   return (
     <div className="space-y-1">
       <p className="text-sm font-semibold flex items-center gap-1.5">
@@ -448,6 +464,19 @@ function CategoryBreakdown({
                 >
                   open ↗
                 </a>
+              </td>
+              {/* The three movement columns, summed over the same rows, so the
+                  total row lines up under its headers. Without them the FIFO /
+                  QB / Adjustment figures slid three columns left and the
+                  adjustment read as this month's COGS — Carson, 2026-09-15:
+                  "why do the TN cogs in the table and the journal entry table
+                  not agree on COGS". */}
+              <td className="px-2 py-1.5 text-right tabular-nums">
+                {movementTotals.beginning === null ? '—' : usd.format(movementTotals.beginning)}
+              </td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{usd.format(movementTotals.purchases)}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">
+                {movementTotals.cogs === null ? '—' : usd.format(movementTotals.cogs)}
               </td>
               {/* Totalled from the rows above with sumCents, not from the raw
                   float, so this equals both the visible lines and the same

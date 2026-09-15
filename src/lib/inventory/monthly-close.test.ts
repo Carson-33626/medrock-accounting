@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  rollForwardFromCategories,
   monthlyCloseLock,
   CORRECTION_MONTH,
   CUTOVER_MONTH,
@@ -945,5 +946,36 @@ describe('monthlyCloseLock', () => {
   it('opens from the cutover month forward', () => {
     expect(monthlyCloseLock(CUTOVER_MONTH)).toBeNull();
     expect(monthlyCloseLock('2026-08')).toBeNull();
+  });
+});
+
+describe('rollForwardFromCategories', () => {
+  const cat = (location: string, qbCategory: string, beginning: number | null, purchases: number, ending: number) => ({
+    location, qbCategory, beginning, purchases, ending,
+    cogs: beginning === null ? null : Math.round((beginning + purchases - ending) * 100) / 100,
+    consumed: 0, receiptIds: [], lotCount: 1,
+  });
+  it('sums each location across its categories and derives COGS from the balance change', () => {
+    const rows = rollForwardFromCategories([
+      cat('MedRock Tennessee', 'Compound Ingredient', 217790.71, 113148.64, 216563.22),
+      cat('MedRock Tennessee', 'Commercial Rx', 13965.2, 21357.78, 15212.68),
+      cat('MedRock Florida', 'Compound Ingredient', 100, 50, 120),
+    ]);
+    expect(rows.map((r) => r.label)).toEqual(['Florida', 'Tennessee', 'Total']);
+    const tn = rows[1];
+    expect(tn.beginning).toBe(231755.91);
+    expect(tn.purchases).toBe(134506.42);
+    expect(tn.ending).toBe(231775.9);
+    expect(tn.cogs).toBe(134486.43);
+    expect(rows[2].ending).toBe(231895.9);
+  });
+  it('a location with a window-start category has no beginning and no COGS', () => {
+    const rows = rollForwardFromCategories([cat('MedRock Texas', 'Compound Ingredient', null, 34, 25)]);
+    expect(rows[0].beginning).toBeNull();
+    expect(rows[0].cogs).toBeNull();
+    expect(rows[0].windowStart).toBe(true);
+  });
+  it('is empty for no rows', () => {
+    expect(rollForwardFromCategories([])).toEqual([]);
   });
 });
