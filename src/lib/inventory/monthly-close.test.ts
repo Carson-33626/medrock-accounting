@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  monthlyCloseLock,
+  CORRECTION_MONTH,
+  CUTOVER_MONTH,
   buildRollForward,
   buildLocationJE,
   journalEntryLines,
@@ -926,5 +929,21 @@ describe('opening correction — the one-time cutover JE (proposal 2026-08-26)',
     expect(openingCorrectionDocNumber('MedRock Florida', '2026-03')).toBe('FL Inv Open 2026.03');
     // The year-end date (2026-09-14 ruling): the doc number carries December 2025.
     expect(openingCorrectionDocNumber('MedRock Florida', '2025-12')).toBe('FL Inv Open 2025.12');
+  });
+});
+
+describe('monthlyCloseLock', () => {
+  it('locks the correction month itself, naming the cutover', () => {
+    const lock = monthlyCloseLock(CORRECTION_MONTH);
+    expect(lock).toContain('year-end correction month');
+    expect(lock).toContain(CUTOVER_MONTH);
+  });
+  it('locks every month before the correction', () => {
+    expect(monthlyCloseLock('2025-11')).toContain('before the year-end correction');
+    expect(monthlyCloseLock('2024-01')).not.toBeNull();
+  });
+  it('opens from the cutover month forward', () => {
+    expect(monthlyCloseLock(CUTOVER_MONTH)).toBeNull();
+    expect(monthlyCloseLock('2026-08')).toBeNull();
   });
 });

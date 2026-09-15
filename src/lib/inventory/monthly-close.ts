@@ -653,6 +653,25 @@ export const INV_OPEN_PAY_GROUP = 'INV OPEN';
  *  it and must not import close-server's RDS/QuickBooks dependencies to do so. */
 export const INV_CLOSE_PAY_GROUP = 'INV CLOSE';
 
+/** Ledger month the year-end correction reads and the month it is dated in
+ *  (2025-12-31). The Inventory Close tab's month list starts here. */
+export const CORRECTION_MONTH = '2025-12';
+/** First month that runs on the FIFO monthly close. December has no monthly
+ *  close: the correction IS its ending. Carson, 2026-09-15: "the dropdown firmly
+ *  starts 12-2025 to show the adjustment piece, then going forwards it is normal." */
+export const CUTOVER_MONTH = '2026-01';
+
+/** Why a regular monthly close may not be generated for `month` (YYYY-MM), or
+ *  null when it may. December 2025 and every earlier month are hard-locked: the
+ *  year-end correction is the only inventory entry dated at or before 12/31/2025,
+ *  and a monthly close there would restate the same true-up a second time. */
+export function monthlyCloseLock(month: string): string | null {
+  if (month > CORRECTION_MONTH) return null;
+  return month === CORRECTION_MONTH
+    ? `${month} is the year-end correction month — the correction card is its only entry; the monthly close begins ${CUTOVER_MONTH}`
+    : `${month} is before the year-end correction (${CORRECTION_MONTH}) — no monthly close exists for it; the monthly close begins ${CUTOVER_MONTH}`;
+}
+
 /** The PrivateNote the correction posts under. Shared by the post route and
  *  `deriveJeIdentity` so the QBO import CSV cannot describe the entry differently
  *  from the way the Post button writes it. */

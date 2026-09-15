@@ -30,7 +30,7 @@ import {
   type RollbackMonthValue,
   type CategoryLedgerValue,
 } from './monthly-close';
-import { correctionOffsetAccount } from './monthly-close';
+import { correctionOffsetAccount, CORRECTION_MONTH, CUTOVER_MONTH, monthlyCloseLock } from './monthly-close';
 import { labSuppliesContributionFor } from './lab-supplies-server';
 import { saveSourceSnapshot } from '../payroll/store';
 import { assemblePool, type JeContribution } from './je-pool';
@@ -430,6 +430,12 @@ export async function generateInvCloseDrafts(
   basis: CloseBasis,
   monthEnd: string,
 ): Promise<{ savedEntities: Entity[]; warnings: string[] } | { locked: string }> {
+  // HARD LOCK: no monthly close at or before the year-end correction month. The
+  // two stale December 2025 drafts deleted 2026-09-15 were exactly this — the
+  // same true-up as the posted correction, drafted a second time.
+  const cutoverLock = monthlyCloseLock(month);
+  if (cutoverLock !== null) return { locked: cutoverLock };
+
   const existing = await listInvCloseHeaders(monthEnd);
   const posted = existing.filter((h) => h.status === 'posted');
   if (posted.length > 0) {
@@ -553,12 +559,9 @@ export async function generateInvCloseDrafts(
 // monthly close's month-end drafts (which start at CUTOVER_MONTH).
 // ---------------------------------------------------------------------------
 
-/** Ledger month the FIFO target is read from, and the month the entry is dated
- *  in — the card renders on it, the doc number carries it. */
-export const CORRECTION_MONTH = '2025-12';
-/** First month that runs on the FIFO monthly close. December has no monthly
- *  close: the correction IS its ending. */
-export const CUTOVER_MONTH = '2026-01';
+// CORRECTION_MONTH / CUTOVER_MONTH are canonical in monthly-close.ts (pure) so the
+// client tab can read them; re-exported here so existing callers keep their import site.
+export { CORRECTION_MONTH, CUTOVER_MONTH };
 const OPENING_DATE = '2025-12-31';
 const BOOK_AS_OF = '2025-12-31';
 // Canonical in monthly-close.ts (pure) — je-identity needs it and must not import this

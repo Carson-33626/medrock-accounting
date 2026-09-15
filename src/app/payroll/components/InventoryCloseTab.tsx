@@ -10,7 +10,7 @@ import JournalEntryPanel, { DryRunPreview, type QbJournalEntryPayload } from '@/
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
 import { monthDates } from '@/lib/inventory/month-dates';
 import { formatAccount } from '@/lib/inventory/account-label';
-import { findCloseHeader, CLOSE_STATUS_LABEL } from '@/lib/inventory/monthly-close';
+import { findCloseHeader, CLOSE_STATUS_LABEL, CORRECTION_MONTH, monthlyCloseLock } from '@/lib/inventory/monthly-close';
 import { InventoryMethodology } from './InventoryMethodology';
 import { InventoryDecisions } from './InventoryDecisions';
 import type {
@@ -87,12 +87,18 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   }, []);
 
   // Newest first — the close is almost always run for the most recent month.
+  // The list starts at the year-end correction month: nothing before 2025-12 is
+  // closable (Carson, 2026-09-15: "the dropdown firmly starts 12-2025 to show the
+  // adjustment piece, then going forwards it is normal").
   const months = useMemo(() => {
-    const set = new Set(rollbackRows.map((r) => r.as_of_month));
+    const set = new Set(rollbackRows.map((r) => r.as_of_month).filter((m) => m >= CORRECTION_MONTH));
     return [...set].sort((a, b) => b.localeCompare(a));
   }, [rollbackRows]);
 
   const selectedMonth = month ?? months[0] ?? null;
+  /** Non-null on the correction month (and anything earlier): the regular monthly
+   *  close is hard-locked there — only the correction card renders. */
+  const closeLock = selectedMonth ? monthlyCloseLock(selectedMonth) : null;
 
   const loadClose = useCallback(async (m: string, basis: CloseBasis) => {
     const token = ++requestSeqRef.current;
@@ -391,8 +397,10 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
         )}
         <button
           onClick={() => void handleGenerate()}
-          disabled={generating || anyPosted || !closeReady}
-          title={anyPosted ? 'A draft for this month has already posted — regeneration is locked' : undefined}
+          disabled={generating || anyPosted || !closeReady || closeLock !== null}
+          title={
+            closeLock ?? (anyPosted ? 'A draft for this month has already posted — regeneration is locked' : undefined)
+          }
           className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {generating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
@@ -464,13 +472,29 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           contributor INSIDE each month's close entry (lab-supplies-contribution.ts),
           so it generates, approves and posts with the entry. */}
 
-      {dates && (
+      {closeLock !== null && (
+        <div
+          className={`rounded-xl border-2 p-4 text-sm ${
+            darkMode ? 'bg-slate-800 border-slate-600 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-800'
+          }`}
+        >
+          <p className="font-semibold">Monthly close locked for {selectedMonth}.</p>
+          <p className={`mt-1 ${subText}`}>
+            December 2025 carries the one-time year-end correction above and nothing else: it trues each
+            inventory sub-account to the counted FIFO value as of 12/31/2025 and is the opening balance
+            for 2026. There is no regular &ldquo;Inv Adj&rdquo; entry for December or any earlier month,
+            and one cannot be generated here. The monthly close runs from January 2026 forward.
+          </p>
+        </div>
+      )}
+
+      {closeLock === null && dates && (
         <p className={`text-sm ${subText}`}>
           Roll-forward and FIFO target vs. the QuickBooks book balance as of <strong>{dates.asOf}</strong>.
         </p>
       )}
 
-      {closeReady && monthlyClose && selectedMonth ? (
+      {closeLock !== null ? null : closeReady && monthlyClose && selectedMonth ? (
         <>
           <RollForward
             rows={monthlyClose.rollForward}
