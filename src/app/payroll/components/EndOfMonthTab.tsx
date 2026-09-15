@@ -317,6 +317,41 @@ export function EndOfMonthTab() {
     [month, load],
   );
 
+  // Pull a posted CS Allo back out of QuickBooks so the month can be re-done.
+  // Carson, 2026-09-15: "for those CS allo posting, i do not see a pull back button
+  // option, please add that." Same two confirmations as the inventory tab: it
+  // deletes from the live general ledger, and the reason lands in the audit row.
+  const handleUnpost = useCallback(
+    async (headerId: number, entityLabel: string, docNumber: string) => {
+      const confirmed = window.confirm(
+        `This will DELETE ${docNumber} from QuickBooks for ${entityLabel} and return it to a draft. ` +
+          'Customer Service re-enters this month\'s pool on the next Generate. Continue?',
+      );
+      if (!confirmed) return;
+      const reason = window.prompt('Why is this entry being pulled back? (recorded in the audit log)', '') ?? '';
+      setBusyHeaderId(headerId);
+      setError(null);
+      try {
+        const res = await fetch('/api/payroll/eom/unpost', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headerId, reason }),
+        });
+        const body = (await res.json()) as ApiErrorBody & { detachFailed?: string[] };
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        if (body.detachFailed && body.detachFailed.length > 0) {
+          setError(`Entry deleted, but ${body.detachFailed.length} attachment(s) could not be removed from QuickBooks — see the audit log.`);
+        }
+        await load(month);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to pull the entry back from QuickBooks');
+      } finally {
+        setBusyHeaderId(null);
+      }
+    },
+    [month, load],
+  );
+
   const headers = data?.headers ?? [];
   const anyPosted = headers.some((h) => h.status === 'posted');
   const generateLabel = generating ? 'Generating…' : headers.length > 0 ? 'Regenerate drafts' : 'Generate drafts';
@@ -452,6 +487,8 @@ export function EndOfMonthTab() {
           subText={subText}
           headers={data.csAllo.headers}
           lines={data.csAllo.lines}
+          busyHeaderId={busyHeaderId}
+          onUnpost={(id, label, doc) => void handleUnpost(id, label, doc)}
         />
       )}
 
@@ -582,12 +619,17 @@ function CsAlloCard({
   subText,
   headers,
   lines,
+  busyHeaderId,
+  onUnpost,
 }: {
   darkMode: boolean;
   cardBg: string;
   subText: string;
   headers: PayrollHeader[];
   lines: Record<string, JournalLine[]>;
+  busyHeaderId: number | null;
+  /** Delete the posted entry from QuickBooks and return it to a draft. */
+  onUnpost: (headerId: number, entityLabel: string, docNumber: string) => void;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
   const total = round2(headers.reduce((s, h) => s + h.total_debits, 0));
@@ -622,12 +664,14 @@ function CsAlloCard({
               <th className="py-1.5 pr-3">Date</th>
               <th className="py-1.5 pr-3">Status</th>
               <th className="py-1.5 text-right">Total (Dr)</th>
+              <th className="py-1.5 pl-3" />
             </tr>
           </thead>
           <tbody>
             {headers.map((h) => {
               const open = openId === h.id;
               const hLines = lines[String(h.id)] ?? [];
+              const docNumber = h.qb_doc_number ?? `#${h.id}`;
               return (
                 <Fragment key={h.id}>
                   <tr
@@ -641,17 +685,34 @@ function CsAlloCard({
                         <ChevronRight className="w-4 h-4" aria-hidden />
                       )}
                     </td>
-                    <td className="py-2 pr-3 font-medium whitespace-nowrap">{h.qb_doc_number ?? `#${h.id}`}</td>
+                    <td className="py-2 pr-3 font-medium whitespace-nowrap">{docNumber}</td>
                     <td className={`py-2 pr-3 whitespace-nowrap ${subText}`}>{h.txn_date ?? '—'}</td>
                     <td className="py-2 pr-3">
                       <StatusBadge darkMode={darkMode} status={h.status} />
                     </td>
                     <td className="py-2 text-right font-medium whitespace-nowrap">{fmtMoney(h.total_debits)}</td>
+                    <td className="py-2 pl-3 text-right whitespace-nowrap">
+                      {h.status === 'posted' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUnpost(h.id, h.entity, docNumber);
+                          }}
+                          disabled={busyHeaderId === h.id}
+                          title="Delete this entry from QuickBooks and return it to a draft, so Customer Service can be re-allocated"
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                            darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+                          }`}
+                        >
+                          {busyHeaderId === h.id ? 'Pulling back…' : 'Pull back from QuickBooks'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                   {open && hLines.length > 0 && (
                     <tr className={`border-t ${rowBorder}`}>
                       <td />
-                      <td colSpan={4} className="py-2">
+                      <td colSpan={5} className="py-2">
                         <table className="w-full text-xs">
                           <tbody>
                             {hLines.map((l, i) => (
