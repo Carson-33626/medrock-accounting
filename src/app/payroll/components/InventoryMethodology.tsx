@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ArrowDown, Loader2 } from 'lucide-react';
+import { ArrowDown, Loader2 } from 'lucide-react';
+import { DismissibleBanner } from '@/components/DismissibleBanner';
 import type {
   MethodResponse,
   MethodStatementRow,
@@ -149,14 +150,9 @@ export function InventoryMethodology({ darkMode }: { darkMode: boolean }) {
       </Section>
 
       {error && (
-        <div
-          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
-            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+        <DismissibleBanner tone="error" darkMode={darkMode} onDismiss={() => setError(null)}>
           <p>{error}</p>
-        </div>
+        </DismissibleBanner>
       )}
 
       {!data && !error && (

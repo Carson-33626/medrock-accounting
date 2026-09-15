@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { DismissibleBanner } from '@/components/DismissibleBanner';
 import StatusBadge from '@/components/PayrollStatusBadge';
 import { isPayrollPeriodComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import {
@@ -328,14 +329,9 @@ export function PayrollsLanding({ onOpen }: PayrollsLandingProps) {
       )}
 
       {error && (
-        <div
-          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
-            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+        <DismissibleBanner tone="error" darkMode={darkMode} onDismiss={() => setError(null)}>
           <p>{error}</p>
-        </div>
+        </DismissibleBanner>
       )}
 
       {loading && headers.length === 0 ? (
@@ -513,10 +509,9 @@ function ImportPanel({
           </div>
 
           {error && (
-            <p className={`text-sm flex items-center gap-2 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
-              <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
-              {error}
-            </p>
+            <DismissibleBanner tone="error" darkMode={darkMode} onDismiss={() => setError(null)}>
+              <p>{error}</p>
+            </DismissibleBanner>
           )}
 
           {result && (

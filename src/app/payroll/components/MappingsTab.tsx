@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { DismissibleBanner } from '@/components/DismissibleBanner';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -262,14 +263,9 @@ export function MappingsTab({ initialEntity }: MappingsTabProps = {}) {
       </div>
 
       {error && (
-        <div
-          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
-            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+        <DismissibleBanner tone="error" darkMode={darkMode} onDismiss={() => setError(null)}>
           <p>{error}</p>
-        </div>
+        </DismissibleBanner>
       )}
 
       {dimensionsError && !dimensionsLoading && (

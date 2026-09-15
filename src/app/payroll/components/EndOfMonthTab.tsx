@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
+import { DismissibleBanner } from '@/components/DismissibleBanner';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
 import QboImportGuide from '@/components/QboImportGuide';
 import JeSourceWorkbookLink from '@/components/JeSourceWorkbookLink';
@@ -455,29 +456,17 @@ export function EndOfMonthTab() {
       )}
 
       {warnings.length > 0 && (
-        <div
-          className={`rounded-xl border p-3 space-y-1 text-sm ${
-            darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
-          }`}
-        >
+        <DismissibleBanner tone="warning" darkMode={darkMode} onDismiss={() => setWarnings([])}>
           {warnings.map((w, i) => (
-            <p key={i} className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-              <span>{w}</span>
-            </p>
+            <p key={i}>{w}</p>
           ))}
-        </div>
+        </DismissibleBanner>
       )}
 
       {error && (
-        <div
-          className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
-            darkMode ? 'bg-red-950/40 border-red-800 text-red-200' : 'bg-red-50 border-red-300 text-red-800'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+        <DismissibleBanner tone="error" darkMode={darkMode} onDismiss={() => setError(null)}>
           <p>{error}</p>
-        </div>
+        </DismissibleBanner>
       )}
 
       {(data?.csAllo?.headers.length ?? 0) > 0 && data?.csAllo && (
