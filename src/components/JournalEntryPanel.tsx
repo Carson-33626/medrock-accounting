@@ -229,10 +229,20 @@ export default function JournalEntryPanel({
  * against a plug-maintained book balance produces exactly this, and without the
  * explanation the number reads like an error.
  */
-function LargeAdjustmentNote({ darkMode, je }: { darkMode: boolean; je: LocationJE }) {
-  if (je.adjustment === null || je.qbBookBalance === null) return null;
-  const scale = Math.max(Math.abs(je.fifoTarget), Math.abs(je.qbBookBalance), 1);
-  if (Math.abs(je.adjustment) <= 0.25 * scale) return null;
+function LargeAdjustmentNote({
+  darkMode,
+  fifoTarget,
+  qbBookBalance,
+  adjustment,
+}: {
+  darkMode: boolean;
+  fifoTarget: number;
+  qbBookBalance: number | null;
+  adjustment: number | null;
+}) {
+  if (adjustment === null || qbBookBalance === null) return null;
+  const scale = Math.max(Math.abs(fifoTarget), Math.abs(qbBookBalance), 1);
+  if (Math.abs(adjustment) <= 0.25 * scale) return null;
   return (
     <div
       className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
@@ -553,6 +563,24 @@ function DraftCard({
   const [showPostedDetail, setShowPostedDetail] = useState(false);
   const docNumber = posted ? (header?.qb_doc_number ?? '—') : invCloseDocNumber(je.location, month);
 
+  // Which figures head the card. On a count-anchored month the categorized entry is
+  // the truth and the rollback reference is noise — Carson, 2026-09-15: "why does
+  // January have the large adjustment warning when we moved that to December?" The
+  // January banner fired off the rollback's $75k while the entry that posts was
+  // −$1,376. So: anchored → the categorized totals (what posts); otherwise the
+  // rollback reference as before.
+  const anchored = firstAnchoredMonth !== null && month >= firstAnchoredMonth && categoryJE !== null;
+  const headline: { fifoTarget: number; qbBookBalance: number | null; adjustment: number | null } =
+    anchored && categoryJE
+      ? {
+          fifoTarget: categoryJE.fifoTarget,
+          qbBookBalance: categoryJE.bookAvailable
+            ? categoryJE.lines.reduce((s, l) => s + (l.qbBookBalance ?? 0), 0)
+            : null,
+          adjustment: categoryJE.bookAvailable ? categoryJE.adjustment : null,
+        }
+      : { fifoTarget: je.fifoTarget, qbBookBalance: je.qbBookBalance, adjustment: je.adjustment };
+
   if (posted && header && !showPostedDetail) {
     return (
       <div className={`rounded-xl shadow-sm ${cardBg} border-2 ${darkMode ? 'border-emerald-800' : 'border-emerald-300'} p-4 space-y-2`}>
@@ -642,36 +670,53 @@ function DraftCard({
                 FIFO target
                 <HelpTip
                   label="FIFO target"
-                  text="What this close is bringing the books to: month-end stock valued at the actual purchase price of the lots it sits in (receipt-priced)."
+                  text={
+                    anchored
+                      ? 'What this close is bringing the books to: month-end stock by category, summed from the count-anchored lot ledger (the same figures as the by-category table below).'
+                      : 'What this close is bringing the books to: month-end stock valued at the actual purchase price of the lots it sits in (receipt-priced).'
+                  }
                 />
               </p>
-              <p className="text-lg font-bold tabular-nums">{usd.format(je.fifoTarget)}</p>
+              <p className="text-lg font-bold tabular-nums">{usd.format(headline.fifoTarget)}</p>
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
               <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
                 QuickBooks balance
                 <HelpTip
                   label="QuickBooks balance"
-                  text="The inventory-asset balance in QuickBooks at month end. Historically it was maintained with rough monthly write-off estimates rather than a valuation, so it drifts from reality over time — it is the number being corrected, not a benchmark."
+                  text={
+                    anchored
+                      ? 'The in-scope inventory sub-account balances in QuickBooks at month end, summed — the number being corrected.'
+                      : 'The inventory-asset balance in QuickBooks at month end. Historically it was maintained with rough monthly write-off estimates rather than a valuation, so it drifts from reality over time — it is the number being corrected, not a benchmark.'
+                  }
                 />
               </p>
-              <p className="text-lg font-bold tabular-nums">{usd.format(je.qbBookBalance ?? 0)}</p>
+              <p className="text-lg font-bold tabular-nums">{usd.format(headline.qbBookBalance ?? 0)}</p>
             </div>
             <div className={`rounded-lg border p-3 ${border}`}>
               <p className={`text-xs flex items-center gap-1.5 ${subText}`}>
-                Adjustment (rollback ref.)
+                {anchored ? 'Adjustment (posts)' : 'Adjustment (rollback ref.)'}
                 <HelpTip
-                  label="Rollback reference — not the categorized total"
-                  text="These three figures come from the backward-rollback valuation, the reference method: FIFO target minus the QB book balance. The number that actually posts is the Categorized total in the by-category table below, summed from the lot ledger — for non-anchored months the two differ substantially. A large adjustment either way is not one month of activity: the book balance carries years of accumulated estimates that were never tied to a valuation, so the first close catches up all of that drift in a single entry. The offset posts to Cost of Goods Sold."
+                  label={anchored ? 'Categorized total — what posts' : 'Rollback reference — not the categorized total'}
+                  text={
+                    anchored
+                      ? 'FIFO target minus the QuickBooks balance, by category. This is the number the entry posts; the by-category table below is its detail. The backward-rollback reference valuation is not used for anchored months.'
+                      : 'These three figures come from the backward-rollback valuation, the reference method: FIFO target minus the QB book balance. The number that actually posts is the Categorized total in the by-category table below, summed from the lot ledger — for non-anchored months the two differ substantially. A large adjustment either way is not one month of activity: the book balance carries years of accumulated estimates that were never tied to a valuation, so the first close catches up all of that drift in a single entry. The offset posts to Cost of Goods Sold.'
+                  }
                 />
               </p>
               <p className="text-lg font-bold tabular-nums" style={{ color: '#2563eb' }}>
-                {usd.format(je.adjustment ?? 0)}
+                {usd.format(headline.adjustment ?? 0)}
               </p>
             </div>
           </div>
 
-          <LargeAdjustmentNote darkMode={darkMode} je={je} />
+          <LargeAdjustmentNote
+            darkMode={darkMode}
+            fifoTarget={headline.fifoTarget}
+            qbBookBalance={headline.qbBookBalance}
+            adjustment={headline.adjustment}
+          />
 
           {categoryJE && (
             <CategoryBreakdown
