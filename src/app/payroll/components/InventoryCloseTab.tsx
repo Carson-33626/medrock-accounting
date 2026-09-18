@@ -20,6 +20,8 @@ import {
 } from '@/lib/inventory/monthly-close';
 import { InventoryMethodology } from './InventoryMethodology';
 import { InventoryDecisions } from './InventoryDecisions';
+import { CloseDriftPanel } from './CloseDriftPanel';
+import { earlyPostWarning } from '@/lib/inventory/close-drift';
 import type {
   CloseBasis,
   InvCloseHeader,
@@ -267,9 +269,16 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
   const handlePostLive = useCallback(
     async (headerId: number, entityLabel: string) => {
       if (!selectedMonth) return;
+      const early = earlyPostWarning(selectedMonth, new Date().toISOString().slice(0, 10));
       const confirmed = window.confirm(
         `This will POST a LIVE journal entry to QuickBooks for ${entityLabel}. It writes to the real general ledger. ` +
-          'If it needs to change, the posted receipt has a "Pull back from QuickBooks" button that deletes the entry and returns it to a draft. Continue?',
+          'If it needs to change, the posted receipt has a "Pull back from QuickBooks" button that deletes the entry and returns it to a draft. ' +
+          (early ? `
+
+Heads up: ${early}
+
+` : '') +
+          'Continue?',
       );
       if (!confirmed) return;
       setBusyHeaderId(headerId);
@@ -522,6 +531,24 @@ export function InventoryCloseTab({ initialMonth }: { initialMonth?: string }) {
           <p>{error}</p>
         </DismissibleBanner>
       )}
+
+      {/* Early-post warning (ds-close-drift-guard-2026-09-18): a close posted before the
+          month's AP is keyed drifts as the bills land. A warning, not a block. */}
+      {closeLock === null && selectedMonth && (() => {
+        const early = earlyPostWarning(selectedMonth, new Date().toISOString().slice(0, 10));
+        return early === null ? null : (
+          <div
+            className={`rounded-xl border p-3 flex gap-2 items-start text-sm ${
+              darkMode ? 'bg-amber-950/30 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-800'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+            <p>{early}</p>
+          </div>
+        );
+      })()}
+
+      <CloseDriftPanel darkMode={darkMode} onOpenMonth={(m) => setMonth(m)} />
 
       {closeReady && monthlyClose?.openingCorrection && (
         <OpeningCorrectionCard

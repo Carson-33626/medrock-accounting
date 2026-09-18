@@ -42,6 +42,7 @@ import {
 } from './monthly-close';
 import { labSuppliesContributionFor } from './lab-supplies-server';
 import { shippingReliefContributionFor } from './shipping-relief-server';
+import { correctionOrderLock } from './close-drift-server';
 import { SHIPPING_SNAPSHOT_OUTCOME } from './je-detail-shipping-pool';
 import { saveSourceSnapshot } from '../payroll/store';
 import { assemblePool, type JeContribution } from './je-pool';
@@ -372,6 +373,12 @@ export async function generateInvCloseCorrection(
   if (!parent || parent.status !== 'posted') {
     return { locked: `${entity}: no posted ${month} inventory entry to correct — post the month first, or regenerate it` };
   }
+  // ORDER (ds-close-drift-guard-2026-09-18): month-end balances carry forward, so an
+  // earlier month's gap or open correction must be settled before this one is drafted —
+  // otherwise this correction books that gap too and it counts twice once corrected.
+  const orderLock = await correctionOrderLock(entity, month);
+  if (orderLock !== null) return { locked: orderLock };
+
   const corrections = existing.filter((h) => correctionIndex(h.period_segment) !== null);
   const postedCorrections = corrections.filter((h) => h.status === 'posted').length;
   const openDraft = corrections.find((h) => h.status !== 'posted');

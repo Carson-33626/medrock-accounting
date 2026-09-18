@@ -9,9 +9,11 @@ import {
   invCloseCorrectionNote,
   correctionIndex,
   openingCorrectionDocNumber,
+  INV_CLOSE_PAY_GROUP,
   INV_OPEN_PAY_GROUP,
   OPENING_CORRECTION_NOTE,
 } from '@/lib/inventory/monthly-close';
+import { postOrderLock } from '@/lib/inventory/close-drift-server';
 import { LAB_ACCRUAL_PAY_GROUP, labAccrualIdentity } from '@/lib/inventory/lab-supplies-je';
 import type { Entity, JournalDraft } from '@/lib/payroll/types';
 import type { AuditEntry, JsonValue } from '@/lib/payroll/store';
@@ -108,6 +110,18 @@ export async function POST(request: NextRequest) {
       if (header.variance !== 0) {
         await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'draft unbalanced' });
         return NextResponse.json({ error: 'draft unbalanced', variance: header.variance }, { status: 409 });
+      }
+
+      // GATE 5: posting order (ds-close-drift-guard-2026-09-18). Inventory balances carry
+      // forward, so a close or correction must post oldest-first and be generated after
+      // everything before it posted; a regular close whose later month already posted
+      // was absorbed by it and would book twice.
+      if (header.pay_group === INV_CLOSE_PAY_GROUP) {
+        const orderLock = await postOrderLock(headerId, header.entity);
+        if (orderLock !== null) {
+          await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: orderLock });
+          return NextResponse.json({ error: orderLock }, { status: 409 });
+        }
       }
     }
 
