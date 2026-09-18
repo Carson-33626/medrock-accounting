@@ -41,6 +41,8 @@ import {
   invCloseCorrectionNote,
 } from './monthly-close';
 import { labSuppliesContributionFor } from './lab-supplies-server';
+import { shippingReliefContributionFor } from './shipping-relief-server';
+import { SHIPPING_SNAPSHOT_OUTCOME } from './je-detail-shipping-pool';
 import { saveSourceSnapshot } from '../payroll/store';
 import { assemblePool, type JeContribution } from './je-pool';
 import {
@@ -389,8 +391,11 @@ export async function generateInvCloseCorrection(
   const warnings: string[] = [];
   const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
   if (jeLines.find((l) => !l.mapped)) warnings.push(residualWarning(je.location, je.unmappedCategories));
-  const lab = await labSuppliesContributionFor(entity, month);
-  const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution]);
+  const [lab, ship] = await Promise.all([
+    labSuppliesContributionFor(entity, month),
+    shippingReliefContributionFor(entity, month, invCloseDocNumber(je.location, month)),
+  ]);
+  const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution, ship]);
   for (const w of pool.warnings) warnings.push(w);
   if (pool.unavailable.length > 0) {
     return { locked: `${entity}: ${pool.unavailable.join(', ')} could not compute — no correction generated` };
@@ -414,7 +419,7 @@ export async function generateInvCloseCorrection(
   }
 
   const entityHash = createHash('sha256')
-    .update(JSON.stringify({ basis, correctionOf: parent.qb_doc_number, index, categoryJournalEntry: je, lab: lab.snapshot }))
+    .update(JSON.stringify({ basis, correctionOf: parent.qb_doc_number, index, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot }))
     .digest('hex');
   const docNumber = invCloseCorrectionDocNumber(je.location, month, index);
   const draft: JournalDraft = {
@@ -447,6 +452,13 @@ export async function generateInvCloseCorrection(
       await saveSourceSnapshot(headerId, entity, lab.snapshot);
     } catch (error) {
       console.warn(`[inventory/close-server] lab basis not retained for correction ${docNumber}:`, error);
+    }
+  }
+  if (ship.snapshot !== null) {
+    try {
+      await saveSourceSnapshot(headerId, entity, ship.snapshot, SHIPPING_SNAPSHOT_OUTCOME);
+    } catch (error) {
+      console.warn(`[inventory/close-server] shipping basis not retained for correction ${docNumber}:`, error);
     }
   }
   return { headerId, docNumber, warnings };
@@ -627,8 +639,13 @@ export async function generateInvCloseDrafts(
     // separate piece, so it generates on journal entry generation." The lab
     // contributor books target − posted (ds-one-inventory-je §3), so no reversal
     // and no second entry. See docs/fifo-monthly-close/ds-one-inventory-je-2026-09-03.md.
-    const lab = await labSuppliesContributionFor(entity, month);
-    const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution]);
+    // Shipping packaging relief joins the same entry (Carson, 2026-09-18: "get it going with
+    // inventory journals") — Barbara's postage-ratio method, see ds-shipping-relief-2026-09-18.
+    const [lab, ship] = await Promise.all([
+      labSuppliesContributionFor(entity, month),
+      shippingReliefContributionFor(entity, month, invCloseDocNumber(je.location, month)),
+    ]);
+    const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution, ship]);
     for (const w of pool.warnings) warnings.push(w);
     if (pool.unavailable.length > 0) {
       // A partial read must never become a posted number — the whole entry waits.
@@ -636,7 +653,7 @@ export async function generateInvCloseDrafts(
       continue;
     }
     if (pool.lines.length === 0) {
-      warnings.push(`${je.location}: no adjustment needed (FIFO ties to book, lab accrual stands) — no draft generated`);
+      warnings.push(`${je.location}: no adjustment needed (FIFO ties to book, lab accrual stands, no shipping relief) — no draft generated`);
       continue;
     }
     if (pool.variance !== 0) {
@@ -649,7 +666,7 @@ export async function generateInvCloseDrafts(
     // Per entity, and including the lab basis: a moved estimate must invalidate
     // the draft exactly as a moved category value does.
     const entityHash = createHash('sha256')
-      .update(JSON.stringify({ basis, categoryJournalEntry: je, lab: lab.snapshot }))
+      .update(JSON.stringify({ basis, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot }))
       .digest('hex');
     const draft: JournalDraft = {
       entity,
@@ -661,7 +678,7 @@ export async function generateInvCloseDrafts(
       periodSegment: '',
       docNumber: invCloseDocNumber(je.location, month),
       txnDate: monthEnd,
-      privateNote: `Inventory FIFO close adjustment — ${month} (category detail, lot-level; lab supplies accrual pooled)`,
+      privateNote: `Inventory FIFO close adjustment — ${month} (category detail, lot-level; lab supplies accrual and shipping packaging relief pooled)`,
       lines,
       totalDebits,
       totalCredits,
@@ -688,6 +705,13 @@ export async function generateInvCloseDrafts(
         await saveSourceSnapshot(headerId, entity, lab.snapshot);
       } catch (error) {
         console.warn(`[inventory/close-server] lab basis not retained for ${je.location} ${month}:`, error);
+      }
+    }
+    if (ship.snapshot !== null) {
+      try {
+        await saveSourceSnapshot(headerId, entity, ship.snapshot, SHIPPING_SNAPSHOT_OUTCOME);
+      } catch (error) {
+        console.warn(`[inventory/close-server] shipping basis not retained for ${je.location} ${month}:`, error);
       }
     }
     savedEntities.push(entity);

@@ -17,6 +17,12 @@ import { buildInventoryJeDetailSheets } from '@/lib/inventory/je-detail';
 import { buildLabAccrualJeDetailSheets, parseLabAccrualSnapshot } from '@/lib/inventory/je-detail-accrual';
 import { buildLabSuppliesPoolDetailSheet, parseLabSuppliesPoolSnapshot } from '@/lib/inventory/je-detail-lab-pool';
 import { LAB_SUPPLIES_SOURCE_KEY } from '@/lib/inventory/lab-supplies-contribution';
+import {
+  buildShippingReliefDetailSheet,
+  parseShippingReliefSnapshot,
+  SHIPPING_SNAPSHOT_OUTCOME,
+} from '@/lib/inventory/je-detail-shipping-pool';
+import { SHIPPING_RELIEF_SOURCE_KEY } from '@/lib/inventory/shipping-relief';
 import { LAB_ACCRUAL_PAY_GROUP } from '@/lib/inventory/lab-supplies-je';
 import { fetchJeLotDetail } from '@/lib/inventory/ledger-values';
 import { getRdsPool } from '@/lib/rds';
@@ -67,10 +73,13 @@ async function inventorySheets(header: PayrollHeader, lines: readonly JournalLin
   if (monthEnd === null) return [];
   const sheets: DetailSheet[] = [];
 
-  // The FIFO lines carry receipt ids; the lab-supplies lines carry their source tag
-  // instead (they have no lots). Keep the two apart so neither sheet sees the other's lines.
+  // The FIFO lines carry receipt ids; the lab-supplies and shipping lines carry their source
+  // tags instead (they have no lots). Keep them apart so no sheet sees another's lines.
   const labLines = lines.filter((l) => l.sourceRowKeys.includes(LAB_SUPPLIES_SOURCE_KEY));
-  const fifoLines = lines.filter((l) => !l.sourceRowKeys.includes(LAB_SUPPLIES_SOURCE_KEY));
+  const shipLines = lines.filter((l) => l.sourceRowKeys.includes(SHIPPING_RELIEF_SOURCE_KEY));
+  const fifoLines = lines.filter(
+    (l) => !l.sourceRowKeys.includes(LAB_SUPPLIES_SOURCE_KEY) && !l.sourceRowKeys.includes(SHIPPING_RELIEF_SOURCE_KEY),
+  );
   const receiptIds = [...new Set(fifoLines.flatMap((l) => l.sourceRowKeys))];
   if (receiptIds.length > 0) {
     const lots = await fetchJeLotDetail(getRdsPool(), receiptIds, monthEnd.slice(0, 7));
@@ -80,6 +89,10 @@ async function inventorySheets(header: PayrollHeader, lines: readonly JournalLin
   // The lab-supplies basis retained at generate time (pooled since 2026-09-14).
   const labSnapshot = parseLabSuppliesPoolSnapshot(await getSourceSnapshot(header.id));
   if (labSnapshot !== null) sheets.push(...buildLabSuppliesPoolDetailSheet(labLines, labSnapshot));
+
+  // The shipping-packaging relief basis, retained under its own snapshot key (2026-09-18).
+  const shipSnapshot = parseShippingReliefSnapshot(await getSourceSnapshot(header.id, SHIPPING_SNAPSHOT_OUTCOME));
+  if (shipSnapshot !== null) sheets.push(...buildShippingReliefDetailSheet(shipLines, shipSnapshot));
 
   return sheets;
 }

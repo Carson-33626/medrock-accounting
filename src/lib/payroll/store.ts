@@ -723,25 +723,29 @@ export async function saveSourceSnapshot(
   headerId: number,
   entity: Entity,
   snapshot: JsonValue,
+  outcome: string = SOURCE_SNAPSHOT_OUTCOME,
 ): Promise<void> {
   await insertAudit({
     headerId,
     mode: 'dry_run',
     entity,
-    outcome: SOURCE_SNAPSHOT_OUTCOME,
+    outcome,
     responseBody: snapshot,
   });
 }
 
 /** The most recently retained source snapshot for a header, or null if it has none. */
-export async function getSourceSnapshot(headerId: number): Promise<JsonValue | null> {
+export async function getSourceSnapshot(
+  headerId: number,
+  outcome: string = SOURCE_SNAPSHOT_OUTCOME,
+): Promise<JsonValue | null> {
   const { rows } = await getRdsPool().query<{ response_body: JsonValue | null }>(
     `SELECT response_body
        FROM accounting.payroll_post_audit
       WHERE header_id = $1 AND outcome = $2
       ORDER BY created_at DESC, id DESC
       LIMIT 1`,
-    [headerId, SOURCE_SNAPSHOT_OUTCOME],
+    [headerId, outcome],
   );
   return rows[0]?.response_body ?? null;
 }
