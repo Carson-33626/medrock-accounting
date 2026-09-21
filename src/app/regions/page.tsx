@@ -30,7 +30,21 @@ interface EmployeeRow {
   home_location: string | null;
 }
 
-/** ADP home_location ("MedRock TN") → the pharmacy the rep services, as FL / TN / TX. */
+/**
+ * Regions whose serviced pharmacy is NOT the rep's ADP home_location (Carson, 2026-09-21).
+ * Keyed by display name (suffix stripped). ADP is the default for everything else.
+ */
+const SERVICED_LOCATION_OVERRIDES: Record<string, string> = {
+  'South Georgia': 'TN',
+  Remote: 'All',
+};
+
+/** The pharmacy a region's rep services: override first, else FL / TN / TX from ADP home_location. */
+function servicedLocation(region: string, homeLocation: string | null): string | null {
+  return SERVICED_LOCATION_OVERRIDES[region] ?? locationCode(homeLocation);
+}
+
+/** ADP home_location ("MedRock TN") → FL / TN / TX. */
 function locationCode(raw: string | null): string | null {
   const value = clean(raw);
   if (!value) return null;
@@ -89,13 +103,14 @@ export default async function RegionsPage() {
 
     rows = territories.map((t) => {
       const e = t.adp_employee_id ? byId.get(t.adp_employee_id) : undefined;
+      const region = territoryDisplayName(t.name);
       return {
         id: t.id,
-        region: territoryDisplayName(t.name),
+        region,
         holder: e ? `${e.first_name} ${e.last_name}`.trim() : null,
         jobTitle: e ? clean(e.job_title) : null,
         status: e ? e.status : null,
-        location: e ? locationCode(e.home_location) : null,
+        location: e ? servicedLocation(region, e.home_location) : null,
         email: e ? clean(e.work_email)?.toLowerCase() ?? null : null,
         phone: e ? clean(e.phone) : null,
       };
