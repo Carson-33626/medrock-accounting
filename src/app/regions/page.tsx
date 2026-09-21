@@ -27,6 +27,18 @@ interface EmployeeRow {
   status: string;
   phone: string | null;
   work_email: string | null;
+  home_location: string | null;
+}
+
+/** ADP home_location ("MedRock TN") → the pharmacy the rep services, as FL / TN / TX. */
+function locationCode(raw: string | null): string | null {
+  const value = clean(raw);
+  if (!value) return null;
+  const upper = value.toUpperCase();
+  if (/\bFL\b/.test(upper) || upper.includes('FLORIDA')) return 'FL';
+  if (/\bTN\b/.test(upper) || upper.includes('TENNESSEE')) return 'TN';
+  if (/\bTX\b/.test(upper) || upper.includes('TEXAS')) return 'TX';
+  return value;
 }
 
 /** Placeholder names Auth's picker hides — "UNASSIGNED" leftovers and closed Naples (auth: territories.ts). */
@@ -69,7 +81,7 @@ export default async function RegionsPage() {
     if (ids.length > 0) {
       const { data: emps, error: empError } = await supabase
         .from('adp_employees')
-        .select('id, first_name, last_name, job_title, status, phone, work_email')
+        .select('id, first_name, last_name, job_title, status, phone, work_email, home_location')
         .in('id', ids);
       if (empError) throw new Error(empError.message);
       for (const e of (emps ?? []) as EmployeeRow[]) byId.set(e.id, e);
@@ -83,6 +95,7 @@ export default async function RegionsPage() {
         holder: e ? `${e.first_name} ${e.last_name}`.trim() : null,
         jobTitle: e ? clean(e.job_title) : null,
         status: e ? e.status : null,
+        location: e ? locationCode(e.home_location) : null,
         email: e ? clean(e.work_email)?.toLowerCase() ?? null : null,
         phone: e ? clean(e.phone) : null,
       };

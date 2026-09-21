@@ -13,6 +13,8 @@ export interface RegionRow {
   jobTitle: string | null;
   /** ADP status — "Active", "Leave", "Terminated". Null when the region is open. */
   status: string | null;
+  /** Pharmacy the rep services — FL / TN / TX from ADP home_location. Null when open. */
+  location: string | null;
   email: string | null;
   phone: string | null;
 }
@@ -36,7 +38,7 @@ export default function RegionsTable({ rows, loadError = null }: RegionsTablePro
       if (mapFilter?.kind === 'region' && r.id !== mapFilter.id) return false;
       if (mapFilter?.kind === 'state' && !(REGION_GEO[r.region]?.states ?? []).includes(mapFilter.code)) return false;
       if (!q) return true;
-      return [r.region, r.holder, r.email, r.phone].some((v) => (v ?? '').toLowerCase().includes(q));
+      return [r.region, r.holder, r.location, r.email, r.phone].some((v) => (v ?? '').toLowerCase().includes(q));
     });
   }, [rows, search, mapFilter]);
 
@@ -153,6 +155,7 @@ export default function RegionsTable({ rows, loadError = null }: RegionsTablePro
               <tr className={headCls}>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Region</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Assigned to</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Location</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Email</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Phone</th>
               </tr>
@@ -176,13 +179,20 @@ export default function RegionsTable({ rows, loadError = null }: RegionsTablePro
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${openBadge}`}>Open</span>
                     )}
                   </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    {r.location ? (
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${statusBadge}`}>{r.location}</span>
+                    ) : (
+                      <span className={subtle}>—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">{copyCell(r.email, `${r.id}:email`)}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">{copyCell(r.phone, `${r.id}:phone`)}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={4} className={`px-4 py-10 text-center ${subtle}`}>
+                  <td colSpan={5} className={`px-4 py-10 text-center ${subtle}`}>
                     {rows.length === 0 ? 'No regions found.' : 'No regions match that filter.'}
                   </td>
                 </tr>
