@@ -4,7 +4,9 @@ import { loadDraft, insertAudit, setHeaderStatus, latestAuditAt } from '@/lib/pa
 import {
   getEomRun, listPostedCsAlloHeaders, listEomHeaders, listEomCorrectionHeaders,
 } from '@/lib/payroll/eom-store';
-import { eomCorrectionIndex, eomCorrectionDocNumber, eomCorrectionNote } from '@/lib/payroll/eom-correction';
+import {
+  eomCorrectionIndex, eomCorrectionDocNumber, eomCorrectionNote, eomPostedSetFingerprint,
+} from '@/lib/payroll/eom-correction';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
@@ -79,8 +81,9 @@ function readCsAlloDocs(revenue: JsonValue): string[] {
  *   4. variance !== 0 -> 409 'draft unbalanced' (belt-and-suspenders; the builder
  *      already guarantees a balanced draft — see month-end.buildMonthEndAllocation).
  *   5. CS double-move (EOM pay group): stale draft still carrying Customer Service lines.
- *   6. corrections (period_segment 'C<n>', DS 2026-09-25): parent must be posted, and no
- *      same-entity sibling may have posted after the correction was generated. Corrections
+ *   6. corrections (period_segment 'C<n>', DS 2026-09-25): parent must be posted, and the
+ *      same-entity posted set (parent + posted corrections, by id + QB entry id) must match the
+ *      fingerprint recorded at generation (source_snapshot_hash). Corrections
  *      are exempt from the closed-period gate (2a) and post as `<parent doc>-<n+1>`.
  * Every attempt (dry_run and live; blocked, preview, posted, error) is audited.
  */
@@ -175,18 +178,17 @@ export async function POST(request: NextRequest) {
           await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
           return NextResponse.json({ error: reason }, { status: 409 });
         }
-        const generatedAt = await latestAuditAt(header.id, 'generated');
-        const siblings = [parent, ...(await listEomCorrectionHeaders(lockMonth))].filter(
+        // The posted set this correction was netted against, fingerprinted at generation
+        // (header.source_snapshot_hash). Any post, pull-back or repost since — or no
+        // fingerprint at all — means the delta may double-count: refuse (final review I1).
+        const netted = [parent, ...(await listEomCorrectionHeaders(lockMonth))].filter(
           (h) => h.entity === header.entity && h.id !== header.id && h.status === 'posted',
         );
-        for (const h of siblings) {
-          const postedAt = await latestAuditAt(h.id, 'posted');
-          if (generatedAt !== null && postedAt !== null && postedAt > generatedAt) {
-            const doc = h.qb_doc_number ?? `#${h.id}`;
-            const reason = `stale correction: ${doc} posted after it was generated — regenerate the correction before posting`;
-            await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
-            return NextResponse.json({ error: reason }, { status: 409 });
-          }
+        if (!header.source_snapshot_hash || header.source_snapshot_hash !== eomPostedSetFingerprint(netted)) {
+          const why = header.source_snapshot_hash ? 'the posted entries for the month changed since it was generated' : 'no posted-set fingerprint recorded';
+          const reason = `stale correction: ${why} — regenerate the correction before posting`;
+          await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
+          return NextResponse.json({ error: reason }, { status: 409 });
         }
       }
     }

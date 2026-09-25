@@ -62,8 +62,21 @@ export function eomCorrectionNote(entity: Entity, m: Month, index: number, found
   );
 }
 
+/**
+ * Fingerprint of the posted set a correction is netted against (parent + posted corrections
+ * for one month/entity): the sorted `"<id>:<qb_entry_id>"` list. Stored as the correction's
+ * `source_snapshot_hash` at generation and recomputed at live post — any post, pull-back or
+ * repost (new QuickBooks id) since generation changes it (final review I1).
+ */
+export function eomPostedSetFingerprint(headers: ReadonlyArray<{ id: number; qb_entry_id: string | null }>): string {
+  const parts = [...headers].sort((a, b) => a.id - b.id).map((h) => `${h.id}:${h.qb_entry_id ?? ''}`);
+  return `eom-posted:${parts.join(',')}`;
+}
+
 export interface EomDiffSettings { threshold: number; enabled: boolean; checkFromMonth: string }
 
+/** accounting.eom_diff_settings.threshold is numeric(12,2). */
+const MAX_THRESHOLD = 9_999_999_999.99;
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 export function validateSettings(
   input: { threshold?: number; enabled?: boolean; checkFromMonth?: string },
@@ -73,7 +86,9 @@ export function validateSettings(
     if (typeof input.threshold !== 'number' || !Number.isFinite(input.threshold) || input.threshold < 0) {
       return { ok: false, error: 'threshold must be a number ≥ 0' };
     }
-    value.threshold = Math.round((input.threshold + Number.EPSILON) * 100) / 100;
+    const rounded = Math.round((input.threshold + Number.EPSILON) * 100) / 100;
+    if (rounded > MAX_THRESHOLD) return { ok: false, error: 'threshold must be at most 9,999,999,999.99' };
+    value.threshold = rounded;
   }
   if (input.enabled !== undefined) {
     if (typeof input.enabled !== 'boolean') return { ok: false, error: 'enabled must be true or false' };

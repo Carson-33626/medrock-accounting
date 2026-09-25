@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   remainderLines, deltaDebits, isFlagged, eomCorrectionSegment, eomCorrectionIndex,
-  eomCorrectionDocNumber, eomCorrectionNote, validateSettings,
+  eomCorrectionDocNumber, eomCorrectionNote, validateSettings, eomPostedSetFingerprint,
 } from './eom-correction';
 import type { JournalLine } from './types';
 
@@ -80,7 +80,26 @@ describe('validateSettings', () => {
     expect(validateSettings({ threshold: Number.NaN }).ok).toBe(false);
     expect(validateSettings({ checkFromMonth: '2026-4' }).ok).toBe(false);
   });
+  it('rejects a threshold above numeric(12,2)', () => {
+    expect(validateSettings({ threshold: 9_999_999_999.99 }).ok).toBe(true);
+    expect(validateSettings({ threshold: 10_000_000_000 }).ok).toBe(false);
+  });
   it('rounds threshold to cents', () => {
     expect(validateSettings({ threshold: 1.005 })).toEqual({ ok: true, value: { threshold: 1.01 } });
+  });
+});
+
+describe('eomPostedSetFingerprint', () => {
+  it('is the sorted "<id>:<qb_entry_id>" list, order-independent', () => {
+    const a = eomPostedSetFingerprint([{ id: 5, qb_entry_id: 'qb-7' }, { id: 1, qb_entry_id: 'qb-1' }]);
+    const b = eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-1' }, { id: 5, qb_entry_id: 'qb-7' }]);
+    expect(a).toBe(b);
+    expect(a).toBe('eom-posted:1:qb-1,5:qb-7');
+  });
+  it('changes when a QuickBooks entry id changes (pulled back and reposted)', () => {
+    expect(eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-1' }])).not.toBe(eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-2' }]));
+  });
+  it('sorts ids numerically, not as text', () => {
+    expect(eomPostedSetFingerprint([{ id: 10, qb_entry_id: 'a' }, { id: 9, qb_entry_id: 'b' }])).toBe('eom-posted:9:b,10:a');
   });
 });

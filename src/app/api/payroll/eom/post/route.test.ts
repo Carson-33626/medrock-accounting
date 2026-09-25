@@ -229,14 +229,19 @@ describe('POST /api/payroll/eom/post', () => {
 });
 
 describe('correction entries (DS 2026-09-25)', () => {
-  const correction: PayrollHeader = { ...header, period_segment: 'C1', pay_date: '03/31/2026', txn_date: '2026-03-31' };
+  const correction: PayrollHeader = {
+    ...header, period_segment: 'C1', pay_date: '03/31/2026', txn_date: '2026-03-31', source_snapshot_hash: 'eom-posted:1:qb-1',
+  };
+  const parent: PayrollHeader = { ...correction, id: 1, period_segment: '', status: 'posted', qb_entry_id: 'qb-1', source_snapshot_hash: null };
+  const livePost = { mode: 'live', payload: { DocNumber: 'FL % Allo 2026.03-2', TxnDate: '2026-03-31', Line: [] }, qbEntryId: 'qb-99', qbDocNumber: 'FL % Allo 2026.03-2' } as PostResult;
 
   it('a correction in a locked month may post (lock exemption)', async () => {
     loadDraft.mockResolvedValueOnce({ header: correction, lines });
-    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'posted' }]);
-    latestAuditAt.mockResolvedValue(null);
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    postJournalEntry.mockResolvedValueOnce(livePost);
     const res = await POST(req({ headerId: 5, mode: 'live' }));
-    expect(res.status).not.toBe(409);
+    expect(res.status).toBe(200);
+    expect(postJournalEntry).toHaveBeenCalledWith('MedRock FL', expect.anything(), { mode: 'live' });
   });
 
   it('the parent in a locked month is still refused', async () => {
@@ -246,25 +251,62 @@ describe('correction entries (DS 2026-09-25)', () => {
 
   it('a correction whose parent is not posted is refused', async () => {
     loadDraft.mockResolvedValueOnce({ header: correction, lines });
-    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'approved' }]);
+    listEomHeaders.mockResolvedValueOnce([{ ...parent, status: 'approved' }]);
     const res = await POST(req({ headerId: 5, mode: 'live' }));
     expect(res.status).toBe(409);
     expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'blocked' }));
     expect(postJournalEntry).not.toHaveBeenCalled();
   });
 
-  it('a stale correction is refused (something posted for the month/entity after it was generated)', async () => {
-    loadDraft.mockResolvedValueOnce({ header: correction, lines });
-    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'posted' }]);
-    listEomCorrectionHeaders.mockResolvedValueOnce([{ ...correction, id: 6, period_segment: 'C2', status: 'posted' }]);
-    latestAuditAt.mockImplementation(async (...a: unknown[]) => {
-      const [id, outcome] = a as [number, string];
-      return id === 5 && outcome === 'generated' ? '2026-09-26T10:00:00Z' : id === 6 && outcome === 'posted' ? '2026-09-26T11:00:00Z' : null;
-    });
-    const res = await POST(req({ headerId: 5, mode: 'live' }));
+  async function expectStale(res: Response): Promise<void> {
     expect(res.status).toBe(409);
     expect(((await res.json()) as { error: string }).error).toContain('regenerate the correction');
+    expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'blocked', reason: expect.stringContaining('regenerate the correction') }));
     expect(postJournalEntry).not.toHaveBeenCalled();
+    expect(setHeaderStatus).not.toHaveBeenCalled();
+  }
+
+  it('refused when a same-entity sibling posted after generation (fingerprint mismatch)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: 'C2' }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...correction, id: 6, period_segment: 'C1', status: 'posted', qb_entry_id: 'qb-6' },
+      { ...correction, period_segment: 'C2' },
+    ]);
+    await expectStale(await POST(req({ headerId: 5, mode: 'live' })));
+  });
+
+  it('refused when a sibling netted at generation was pulled back since', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: 'C2', source_snapshot_hash: 'eom-posted:1:qb-1,6:qb-6' }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([{ ...correction, id: 6, period_segment: 'C1', status: 'needs_review', qb_entry_id: null }]);
+    await expectStale(await POST(req({ headerId: 5, mode: 'live' })));
+  });
+
+  it('refused when no fingerprint was recorded at generation', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, source_snapshot_hash: null }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    await expectStale(await POST(req({ headerId: 5, mode: 'live' })));
+  });
+
+  it('refused when the parent was pulled back and reposted (new QuickBooks id)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: correction, lines });
+    listEomHeaders.mockResolvedValueOnce([{ ...parent, qb_entry_id: 'qb-2' }]);
+    await expectStale(await POST(req({ headerId: 5, mode: 'live' })));
+  });
+
+  it('a matching fingerprint passes; other entities and the correction itself are ignored', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: 'C2', source_snapshot_hash: 'eom-posted:1:qb-1,6:qb-6' }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent, { ...parent, id: 2, entity: 'MedRock TN', qb_entry_id: 'qb-2' }]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...correction, id: 6, period_segment: 'C1', status: 'posted', qb_entry_id: 'qb-6' },
+      { ...correction, id: 7, entity: 'MedRock TN', period_segment: 'C1', status: 'posted', qb_entry_id: 'qb-7' },
+      { ...correction, period_segment: 'C2' },
+    ]);
+    postJournalEntry.mockResolvedValueOnce(livePost);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(200);
+    expect(setHeaderStatus).toHaveBeenCalledWith(5, 'posted', { entryId: 'qb-99', docNumber: 'FL % Allo 2026.03-2' });
   });
 
   it('a correction posts with its -N doc and correction note', async () => {

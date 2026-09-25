@@ -84,7 +84,7 @@ beforeEach(() => {
   computeEomTarget.mockResolvedValue(targetWith({}));
   listEomHeaders.mockResolvedValue([]);
   listEomCorrectionHeaders.mockResolvedValue([]);
-  saveDraft.mockResolvedValue(1);
+  saveDraft.mockResolvedValue(100); // never a posted header id in these fixtures
   insertAudit.mockResolvedValue(undefined);
   loadDraft.mockResolvedValue(null);
   fetchDimensions.mockResolvedValue({ accounts: {}, departments: {}, classes: {} });
@@ -104,6 +104,8 @@ describe('generateEomCorrection', () => {
     loadDraft.mockResolvedValue({ header: hdr(1, 'MedRock FL'), lines: PARENT_LINES });
     expect(await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26')).toEqual({ nothingToCorrect: true });
     expect(query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM accounting.payroll_journal_headers'), [7]);
+    // I3: lines cascade via FK — never delete them ahead of the header's status guard.
+    expect(query).not.toHaveBeenCalledWith(expect.stringContaining('payroll_journal_lines'), expect.anything());
   });
 
   it('saves C1 as "<doc>-2" with only the delta lines, audited generated', async () => {
@@ -129,6 +131,61 @@ describe('generateEomCorrection', () => {
     const r = await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26');
     expect(r).toMatchObject({ docNumber: 'FL % Allo 2026.03-3' });
     expect((saveDraft.mock.calls[0][0] as JournalDraft).lines[0].amount).toBe(10);
+  });
+
+  it('persists the posted-set fingerprint (parent + posted corrections) as the snapshot hash (I1)', async () => {
+    listEomHeaders.mockResolvedValueOnce([hdr(1, 'MedRock FL')]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...hdr(5, 'MedRock FL'), period_segment: 'C1', qb_entry_id: 'qb-5' },
+      { ...hdr(8, 'MedRock TN'), period_segment: 'C1', qb_entry_id: 'qb-8' },
+    ]);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 120, 'Wages'), L('Credit', 120, 'Due to TN')] }));
+    loadDraft.mockImplementation(async (id: number) => ({ header: hdr(id, 'MedRock FL'), lines: [L('Debit', 100, 'Wages'), L('Credit', 100, 'Due to TN')] }));
+    await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26');
+    expect(saveDraft.mock.calls[0][1]).toBe('eom-posted:1:qb-1,5:qb-5');
+  });
+
+  it('after a gap (C1 pulled back, C2 posted) the next index is 3, and the stale C1 draft is deleted (I2)', async () => {
+    listEomHeaders.mockResolvedValueOnce([hdr(1, 'MedRock FL')]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...hdr(5, 'MedRock FL'), period_segment: 'C1', status: 'needs_review', qb_entry_id: null },
+      { ...hdr(6, 'MedRock FL'), period_segment: 'C2', qb_entry_id: 'qb-6' },
+    ]);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 120, 'Wages'), L('Credit', 120, 'Due to TN')] }));
+    loadDraft.mockImplementation(async (id: number) => ({ header: hdr(id, 'MedRock FL'), lines: [L('Debit', 50, 'Wages'), L('Credit', 50, 'Due to TN')] }));
+    saveDraft.mockResolvedValueOnce(9);
+    const r = await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26');
+    expect(r).toMatchObject({ headerId: 9, docNumber: 'FL % Allo 2026.03-4' });
+    expect((saveDraft.mock.calls[0][0] as JournalDraft).periodSegment).toBe('C3');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM accounting.payroll_journal_headers'), [5]);
+  });
+
+  it('throws (no generated audit) when saveDraft hands back a POSTED header id (I2)', async () => {
+    listEomHeaders.mockResolvedValueOnce([hdr(1, 'MedRock FL')]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([{ ...hdr(6, 'MedRock FL'), period_segment: 'C1', qb_entry_id: 'qb-6' }]);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 120, 'Wages'), L('Credit', 120, 'Due to TN')] }));
+    loadDraft.mockImplementation(async (id: number) => ({ header: hdr(id, 'MedRock FL'), lines: [L('Debit', 50, 'Wages'), L('Credit', 50, 'Due to TN')] }));
+    saveDraft.mockResolvedValueOnce(6);
+    await expect(generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26')).rejects.toThrow(/posted/);
+    expect(insertAudit).not.toHaveBeenCalled();
+  });
+
+  it('409 when a posted header cannot be loaded — never silently skipped (deferred d)', async () => {
+    listEomHeaders.mockResolvedValueOnce([hdr(1, 'MedRock FL')]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([]);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': PARENT_LINES }));
+    loadDraft.mockResolvedValue(null);
+    expect(await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26')).toMatchObject({ status: 409, locked: expect.stringContaining('FL % Allo 2026.03') });
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('409 when a posted header has zero lines (deferred d)', async () => {
+    listEomHeaders.mockResolvedValueOnce([hdr(1, 'MedRock FL')]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([]);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': PARENT_LINES }));
+    loadDraft.mockResolvedValue({ header: hdr(1, 'MedRock FL'), lines: [] });
+    expect(await generateEomCorrection('2026-03', 'MedRock FL', '2026-09-26')).toMatchObject({ status: 409 });
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 
   it('passes a QuickBooks failure through with its status', async () => {
