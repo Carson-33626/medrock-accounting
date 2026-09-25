@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { DismissibleBanner } from '@/components/DismissibleBanner';
 import { isIeAccount } from '@/lib/payroll/inter-entity';
@@ -45,6 +46,9 @@ interface PayrollHeader {
   total_credits: number;
   variance: number;
   kind: string;
+  /** 'C1', 'C2', … for a correction header, '' for the parent (Task 4). */
+  period_segment: string;
+  pay_group: string;
 }
 
 interface JournalLine {
@@ -95,6 +99,62 @@ interface EomGetResponse {
    *  drafts EXCLUDE Customer Service for this month — the generate hard rule defers to
    *  these entries, and the tab must say so or CS looks like it silently vanished. */
   csAllo?: { headers: PayrollHeader[]; lines: Record<string, JournalLine[]> };
+  /** Correction entries (period_segment 'C1', …) to a posted month-end — DS 2026-09-25 §4.2. */
+  corrections?: { headers: PayrollHeader[]; lines: Record<string, JournalLine[]> };
+}
+
+/**
+ * Local mirrors of the /api/payroll/eom/diff* response shapes (eom-diff-server.ts /
+ * eom-diff-store.ts / eom-correction.ts). Same never-import-server-modules rule as above.
+ */
+interface EomDiffSettings {
+  threshold: number;
+  enabled: boolean;
+  checkFromMonth: string;
+}
+
+interface EomDiffRun {
+  id: number;
+  trigger: string;
+  startedAt: string;
+  finishedAt: string | null;
+  ok: boolean | null;
+  error: string | null;
+}
+
+interface EomDiffCheck {
+  month: string;
+  entity: EomEntity;
+  runId: number;
+  checkedAt: string;
+  deltaLines: JournalLine[];
+  deltaDebits: number;
+  error: string | null;
+  flagged: boolean;
+}
+
+interface EomDiffStatus {
+  settings: EomDiffSettings;
+  lastRun: EomDiffRun | null;
+  checks: EomDiffCheck[];
+  flagged: Array<{ month: string; entities: Array<{ entity: EomEntity; deltaDebits: number }> }>;
+}
+
+type EomDiffRunOutcome = { skipped: true } | { skipped: false; runId: number; ok: boolean; months: string[] };
+
+interface EomDiffRunResponse {
+  run: EomDiffRunOutcome;
+  status: EomDiffStatus;
+}
+
+interface EomCorrectionOkResponse {
+  headerId: number;
+  docNumber: string;
+  warnings: string[];
+}
+
+interface EomCorrectionNothingResponse {
+  nothingToCorrect: true;
 }
 
 interface EomGenerateResponse {
@@ -174,6 +234,16 @@ function draftDocNumber(entity: EomEntity, month: string): string {
   return `${SHORT_ENT[entity]} % Allo ${month.replace('-', '.')}`;
 }
 
+/** 'YYYY-MM' -> 'June 2026', for the difference check's month labels. */
+function monthLabel(m: string): string {
+  return new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+/** An ISO timestamp -> 'Sep 25, 3:41 PM', for the difference check's run times. */
+function fmtRunTime(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never';
+}
+
 /**
  * End of Month tab: generates and reviews the month-end Allocate-pool JEs (revenue-share,
  * 1/3, and 50/50 splits across FL/TN/TX). Drafts here never touch QuickBooks until an
@@ -181,7 +251,11 @@ function draftDocNumber(entity: EomEntity, month: string): string {
  */
 export function EndOfMonthTab() {
   const { darkMode } = useDarkMode();
-  const [month, setMonth] = useState<string>(previousMonth());
+  const searchParams = useSearchParams();
+  const [month, setMonth] = useState<string>(() => {
+    const q = searchParams.get('month');
+    return q && /^\d{4}-(0[1-9]|1[0-2])$/.test(q) ? q : previousMonth();
+  });
   const [data, setData] = useState<EomGetResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -189,6 +263,14 @@ export function EndOfMonthTab() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busyHeaderId, setBusyHeaderId] = useState<number | null>(null);
   const [dryRunPayloads, setDryRunPayloads] = useState<Record<number, QbJournalEntryPayload>>({});
+  // Difference-check status (DS 2026-09-25 §4.1) — independent of the month's own load/error
+  // state since it covers every month, not just the one on screen.
+  const [diffStatus, setDiffStatus] = useState<EomDiffStatus | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffChecking, setDiffChecking] = useState(false);
+  const [diffSettingsSaving, setDiffSettingsSaving] = useState(false);
+  const [diffSettingsError, setDiffSettingsError] = useState<string | null>(null);
+  const [correctionBusyKey, setCorrectionBusyKey] = useState<string | null>(null);
   // Draft sub-tab (mirrors the split-payroll review): one tab per location + Combined.
   const [draftTab, setDraftTab] = useState<EomEntity | 'combined'>('MedRock FL');
   // Stale-response guard for `load` (mirrors ReviewTab.loadDraft's requestSeqRef): bumped at the
@@ -226,6 +308,89 @@ export function EndOfMonthTab() {
     setWarnings([]);
     void load(month);
   }, [month, load]);
+
+  // Difference-check status covers every month, so it loads once with the tab (not per month
+  // switch) and again after an explicit Recheck.
+  const loadDiff = useCallback(async () => {
+    try {
+      const res = await fetch('/api/payroll/eom/diff');
+      const body = (await res.json()) as EomDiffStatus & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setDiffStatus(body);
+      setDiffError(null);
+    } catch (e) {
+      setDiffError(e instanceof Error ? e.message : 'Failed to load the difference check');
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDiff();
+  }, [loadDiff]);
+
+  const handleDiffRecheck = useCallback(async () => {
+    setDiffChecking(true);
+    setDiffError(null);
+    try {
+      const res = await fetch('/api/payroll/eom/diff', { method: 'POST' });
+      const body = (await res.json()) as EomDiffRunResponse & ApiErrorBody;
+      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+      setDiffStatus(body.status);
+    } catch (e) {
+      setDiffError(e instanceof Error ? e.message : 'Failed to run the difference check');
+    } finally {
+      setDiffChecking(false);
+    }
+  }, []);
+
+  const handleSaveDiffSettings = useCallback(
+    async (partial: { threshold: number; enabled: boolean; checkFromMonth: string }) => {
+      setDiffSettingsSaving(true);
+      setDiffSettingsError(null);
+      try {
+        const res = await fetch('/api/payroll/eom/diff/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(partial),
+        });
+        const body = (await res.json()) as EomDiffSettings & ApiErrorBody;
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        setDiffStatus((prev) => (prev ? { ...prev, settings: body } : prev));
+      } catch (e) {
+        setDiffSettingsError(e instanceof Error ? e.message : 'Failed to save the difference check settings');
+      } finally {
+        setDiffSettingsSaving(false);
+      }
+    },
+    [],
+  );
+
+  const handleGenerateCorrection = useCallback(
+    async (targetMonth: string, entity: EomEntity) => {
+      const key = `${targetMonth}¦${entity}`;
+      setCorrectionBusyKey(key);
+      setError(null);
+      try {
+        const res = await fetch('/api/payroll/eom/correction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ month: targetMonth, entity }),
+        });
+        const body = (await res.json()) as (EomCorrectionOkResponse | EomCorrectionNothingResponse) & ApiErrorBody;
+        if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+        if ('nothingToCorrect' in body) {
+          setWarnings(['Nothing to correct — the books already match']);
+        } else {
+          setWarnings(body.warnings ?? []);
+        }
+        await load(month);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to generate the correction');
+      } finally {
+        setCorrectionBusyKey(null);
+      }
+    },
+    [month, load],
+  );
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
@@ -323,10 +488,10 @@ export function EndOfMonthTab() {
   // option, please add that." Same two confirmations as the inventory tab: it
   // deletes from the live general ledger, and the reason lands in the audit row.
   const handleUnpost = useCallback(
-    async (headerId: number, entityLabel: string, docNumber: string) => {
+    async (headerId: number, entityLabel: string, docNumber: string, consequence: string) => {
       const confirmed = window.confirm(
         `This will DELETE ${docNumber} from QuickBooks for ${entityLabel} and return it to a draft. ` +
-          'Customer Service re-enters this month\'s pool on the next Generate. Continue?',
+          `${consequence} Continue?`,
       );
       if (!confirmed) return;
       const reason = window.prompt('Why is this entry being pulled back? (recorded in the audit log)', '') ?? '';
@@ -469,6 +634,26 @@ export function EndOfMonthTab() {
         </DismissibleBanner>
       )}
 
+      <DifferencesCard
+        darkMode={darkMode}
+        cardBg={cardBg}
+        subText={subText}
+        border={border}
+        inputBg={inputBg}
+        month={month}
+        onGoToMonth={setMonth}
+        status={diffStatus}
+        error={diffError}
+        checking={diffChecking}
+        onRecheck={() => void handleDiffRecheck()}
+        onSaveSettings={(v) => void handleSaveDiffSettings(v)}
+        settingsSaving={diffSettingsSaving}
+        settingsError={diffSettingsError}
+        anyPostedThisMonth={anyPosted}
+        onGenerateCorrection={(e) => void handleGenerateCorrection(month, e)}
+        correctionBusyKey={correctionBusyKey}
+      />
+
       {(data?.csAllo?.headers.length ?? 0) > 0 && data?.csAllo && (
         <CsAlloCard
           darkMode={darkMode}
@@ -477,7 +662,9 @@ export function EndOfMonthTab() {
           headers={data.csAllo.headers}
           lines={data.csAllo.lines}
           busyHeaderId={busyHeaderId}
-          onUnpost={(id, label, doc) => void handleUnpost(id, label, doc)}
+          onUnpost={(id, label, doc) =>
+            void handleUnpost(id, label, doc, 'Customer Service re-enters this month\'s pool on the next Generate.')
+          }
         />
       )}
 
@@ -573,6 +760,17 @@ export function EndOfMonthTab() {
                   onApprove={() => void handleApprove(activeHeader.id)}
                   onDryRun={() => void handleDryRun(activeHeader.id)}
                   onPostLive={() => void handlePostLive(activeHeader.id, activeHeader.entity)}
+                  onUnpost={
+                    activeHeader.status === 'posted'
+                      ? () =>
+                          void handleUnpost(
+                            activeHeader.id,
+                            activeHeader.entity,
+                            activeHeader.qb_doc_number ?? `#${activeHeader.id}`,
+                            'Only possible once its corrections are pulled back.',
+                          )
+                      : undefined
+                  }
                 />
               ) : (
                 <CombinedDraftsCard
@@ -585,6 +783,49 @@ export function EndOfMonthTab() {
                 />
               )}
             </>
+          )}
+
+          {(data.corrections?.headers.length ?? 0) > 0 && data.corrections && (
+            <div className="space-y-3">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Corrections</p>
+              {data.corrections.headers
+                .slice()
+                .sort((a, b) => a.entity.localeCompare(b.entity) || a.period_segment.localeCompare(b.period_segment))
+                .map((h) => {
+                  const index = Number(h.period_segment.slice(1));
+                  const docNumberOverride = h.status !== 'posted' ? `${draftDocNumber(h.entity, month)}-${index + 1}` : undefined;
+                  return (
+                    <DraftCard
+                      key={h.id}
+                      darkMode={darkMode}
+                      cardBg={cardBg}
+                      subText={subText}
+                      border={border}
+                      header={h}
+                      month={month}
+                      lines={data.corrections?.lines[String(h.id)] ?? []}
+                      busy={busyHeaderId === h.id}
+                      dryRunPayload={dryRunPayloads[h.id] ?? null}
+                      onApprove={() => void handleApprove(h.id)}
+                      onDryRun={() => void handleDryRun(h.id)}
+                      onPostLive={() => void handlePostLive(h.id, h.entity)}
+                      docNumberOverride={docNumberOverride}
+                      lockExempt
+                      onUnpost={
+                        h.status === 'posted'
+                          ? () =>
+                              void handleUnpost(
+                                h.id,
+                                h.entity,
+                                h.qb_doc_number ?? `#${h.id}`,
+                                'The difference returns to the banner on the next check.',
+                              )
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+            </div>
           )}
 
           {headers.length > 0 && <SymmetryStrip darkMode={darkMode} cardBg={cardBg} border={border} symmetry={symmetry} />}
@@ -723,6 +964,265 @@ function CsAlloCard({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Difference check card (DS 2026-09-25 §4.1-4.2): last run status + Recheck now, the current
+ * month's per-entity delta rows with Generate correction, a compact pointer to other flagged
+ * months, and the collapsed settings levers. Renders regardless of whether the month's own
+ * `data` has loaded — it is fed entirely by `GET/POST /api/payroll/eom/diff`.
+ */
+function DifferencesCard({
+  darkMode,
+  cardBg,
+  subText,
+  border,
+  inputBg,
+  month,
+  onGoToMonth,
+  status,
+  error,
+  checking,
+  onRecheck,
+  onSaveSettings,
+  settingsSaving,
+  settingsError,
+  anyPostedThisMonth,
+  onGenerateCorrection,
+  correctionBusyKey,
+}: {
+  darkMode: boolean;
+  cardBg: string;
+  subText: string;
+  border: string;
+  inputBg: string;
+  month: string;
+  onGoToMonth: (month: string) => void;
+  status: EomDiffStatus | null;
+  error: string | null;
+  checking: boolean;
+  onRecheck: () => void;
+  onSaveSettings: (v: { threshold: number; enabled: boolean; checkFromMonth: string }) => void;
+  settingsSaving: boolean;
+  settingsError: string | null;
+  anyPostedThisMonth: boolean;
+  onGenerateCorrection: (entity: EomEntity) => void;
+  correctionBusyKey: string | null;
+}) {
+  const [openDetailKey, setOpenDetailKey] = useState<string | null>(null);
+  const [thresholdInput, setThresholdInput] = useState<string>(String(status?.settings.threshold ?? 1));
+  const [enabledInput, setEnabledInput] = useState<boolean>(status?.settings.enabled ?? true);
+  const [checkFromInput, setCheckFromInput] = useState<string>(status?.settings.checkFromMonth ?? '');
+
+  useEffect(() => {
+    if (!status) return;
+    setThresholdInput(String(status.settings.threshold));
+    setEnabledInput(status.settings.enabled);
+    setCheckFromInput(status.settings.checkFromMonth);
+  }, [status?.settings.threshold, status?.settings.enabled, status?.settings.checkFromMonth]);
+
+  const currentChecks = status?.checks.filter((c) => c.month === month) ?? [];
+  const otherFlagged = status?.flagged.filter((f) => f.month !== month) ?? [];
+
+  return (
+    <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <p className="text-sm font-semibold">Difference check</p>
+          <p className={`text-xs ${subText}`}>
+            {status
+              ? status.lastRun
+                ? `Last checked ${fmtRunTime(status.lastRun.finishedAt)} — ${
+                    status.lastRun.ok === false ? `failed: ${status.lastRun.error ?? 'unknown error'}` : 'ok'
+                  }`
+                : 'Never run'
+              : 'Loading…'}
+          </p>
+        </div>
+        <button
+          onClick={onRecheck}
+          disabled={checking}
+          className={`ml-auto flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border disabled:opacity-50 ${
+            darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          {checking ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RefreshCw className="w-4 h-4" aria-hidden />}
+          Recheck now
+        </button>
+      </div>
+
+      {error && (
+        <p className={`text-xs flex items-center gap-1.5 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+          <XCircle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          {error}
+        </p>
+      )}
+
+      {status && currentChecks.length === 0 && anyPostedThisMonth && (
+        <p className={`text-sm ${subText}`}>
+          Not checked yet —{' '}
+          <button onClick={onRecheck} className={darkMode ? 'text-blue-300 underline' : 'text-blue-600 underline'}>
+            Recheck now
+          </button>
+          .
+        </p>
+      )}
+
+      {currentChecks.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className={`text-left text-xs uppercase tracking-wide ${subText}`}>
+                <th className="py-1.5 pr-3">Entity</th>
+                <th className="py-1.5 pr-3 text-right">Delta</th>
+                <th className="py-1.5 pr-3">Status</th>
+                <th className="py-1.5 pr-3" />
+                <th className="py-1.5 pl-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {currentChecks.map((c) => {
+                const key = `${c.month}¦${c.entity}`;
+                const open = openDetailKey === key;
+                const busyKey = correctionBusyKey === key;
+                return (
+                  <Fragment key={key}>
+                    <tr className={`border-t ${border}`}>
+                      <td className="py-2 pr-3 font-medium whitespace-nowrap">{SHORT_ENT[c.entity]}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums whitespace-nowrap">{fmtMoney(c.deltaDebits)}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">
+                        {c.error ? (
+                          <span className={darkMode ? 'text-red-300' : 'text-red-700'}>Error</span>
+                        ) : c.flagged ? (
+                          <span className={darkMode ? 'text-amber-300' : 'text-amber-700'}>Flagged</span>
+                        ) : (
+                          <span className={darkMode ? 'text-emerald-300' : 'text-emerald-700'}>Within threshold</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 whitespace-nowrap">
+                        <button
+                          onClick={() => setOpenDetailKey(open ? null : key)}
+                          className={`text-xs flex items-center gap-1 ${darkMode ? 'text-blue-300' : 'text-blue-600'}`}
+                        >
+                          {open ? <ChevronDown className="w-3.5 h-3.5" aria-hidden /> : <ChevronRight className="w-3.5 h-3.5" aria-hidden />}
+                          Detail
+                        </button>
+                      </td>
+                      <td className="py-2 pl-3 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => onGenerateCorrection(c.entity)}
+                          disabled={busyKey}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                            darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {busyKey ? 'Generating…' : 'Generate correction'}
+                        </button>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className={`border-t ${border}`}>
+                        <td />
+                        <td colSpan={4} className="py-2">
+                          {c.deltaLines.length === 0 ? (
+                            <p className={`text-xs ${subText}`}>No delta lines.</p>
+                          ) : (
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className={`text-left ${subText}`}>
+                                  <th className="py-0.5 pr-2">Posting</th>
+                                  <th className="py-0.5 pr-2">Account</th>
+                                  <th className="py-0.5 pr-2">Memo</th>
+                                  <th className="py-0.5 pr-2 text-right">Debit</th>
+                                  <th className="py-0.5 text-right">Credit</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {c.deltaLines.map((l, i) => (
+                                  <tr key={i}>
+                                    <td className="py-0.5 pr-2">{l.postingType}</td>
+                                    <td className="py-0.5 pr-2">{l.accountName}</td>
+                                    <td className={`py-0.5 pr-2 ${subText}`}>{l.memo}</td>
+                                    <td className="py-0.5 pr-2 text-right tabular-nums">
+                                      {l.postingType === 'Debit' ? fmtMoney(l.amount) : ''}
+                                    </td>
+                                    <td className="py-0.5 text-right tabular-nums">
+                                      {l.postingType === 'Credit' ? fmtMoney(l.amount) : ''}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {otherFlagged.length > 0 && (
+        <div className={`text-xs space-y-1 pt-2 border-t ${border}`}>
+          {otherFlagged.map((f) => (
+            <div key={f.month} className="flex flex-wrap items-center gap-2">
+              <span className={subText}>
+                Also flagged: {monthLabel(f.month)} ({f.entities.map((e) => `${SHORT_ENT[e.entity]} ${fmtMoney(e.deltaDebits)}`).join(', ')})
+              </span>
+              <button onClick={() => onGoToMonth(f.month)} className={darkMode ? 'text-blue-300 underline' : 'text-blue-600 underline'}>
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <details className="pt-1">
+        <summary className={`text-xs font-semibold cursor-pointer ${subText}`}>Levers</summary>
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <label className={`text-xs ${subText}`}>
+            Threshold ($)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={thresholdInput}
+              onChange={(e) => setThresholdInput(e.target.value)}
+              className={`block mt-1 rounded-md border px-2 py-1.5 text-sm w-28 ${inputBg}`}
+            />
+          </label>
+          <label className={`text-xs flex items-center gap-1.5 ${subText}`}>
+            <input type="checkbox" checked={enabledInput} onChange={(e) => setEnabledInput(e.target.checked)} />
+            Enabled (daily cron)
+          </label>
+          <label className={`text-xs ${subText}`}>
+            Check from month
+            <input
+              type="month"
+              value={checkFromInput}
+              onChange={(e) => setCheckFromInput(e.target.value)}
+              className={`block mt-1 rounded-md border px-2 py-1.5 text-sm ${inputBg}`}
+            />
+          </label>
+          <button
+            onClick={() => {
+              const threshold = Number(thresholdInput);
+              onSaveSettings({ threshold, enabled: enabledInput, checkFromMonth: checkFromInput });
+            }}
+            disabled={settingsSaving}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
+            Save
+          </button>
+        </div>
+        {settingsError && <p className={`text-xs mt-1 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>{settingsError}</p>}
+      </details>
     </div>
   );
 }
@@ -1309,6 +1809,9 @@ function DraftCard({
   onApprove,
   onDryRun,
   onPostLive,
+  docNumberOverride,
+  onUnpost,
+  lockExempt,
 }: {
   darkMode: boolean;
   cardBg: string;
@@ -1322,13 +1825,23 @@ function DraftCard({
   onApprove: () => void;
   onDryRun: () => void;
   onPostLive: () => void;
+  /** The draft doc number for an unposted correction row (its real numbering scheme differs
+   *  from a parent draft's `draftDocNumber`) — falls back to `draftDocNumber` when omitted. */
+  docNumberOverride?: string;
+  /** Delete the posted entry from QuickBooks and return it to a draft. Omitted (or undefined)
+   *  hides the button — the parent month-end card only shows it once it has posted. */
+  onUnpost?: () => void;
+  /** A correction draft must stay actionable even in a period-complete month (the period lock
+   *  is what the correction exists to fix). */
+  lockExempt?: boolean;
 }) {
   const posted = header.status === 'posted';
   const [qboGuideOpen, setQboGuideOpen] = useState(false);
-  const docNumber = posted ? (header.qb_doc_number ?? '—') : draftDocNumber(header.entity, month);
+  const docNumber = posted ? (header.qb_doc_number ?? '—') : (docNumberOverride ?? draftDocNumber(header.entity, month));
   const debitTotal = round2(lines.filter((l) => l.postingType === 'Debit').reduce((s, l) => s + l.amount, 0));
   const creditTotal = round2(lines.filter((l) => l.postingType === 'Credit').reduce((s, l) => s + l.amount, 0));
   const th = `px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider ${subText}`;
+  const locked = isEomMonthComplete(month) && !lockExempt;
 
   return (
     <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
@@ -1382,7 +1895,7 @@ function DraftCard({
         <JeSourceWorkbookLink headerId={header.id} docNumber={docNumber} darkMode={darkMode} />
       </div>
 
-      {!posted && isEomMonthComplete(month) && (
+      {!posted && locked && (
         <p
           title={PERIOD_COMPLETE_MESSAGE}
           className={`text-xs flex items-center gap-1.5 rounded-md border px-2 py-1.5 font-medium ${
@@ -1393,7 +1906,7 @@ function DraftCard({
         </p>
       )}
 
-      {!posted && !isEomMonthComplete(month) && (
+      {!posted && !locked && (
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setQboGuideOpen(true)}
@@ -1444,6 +1957,22 @@ function DraftCard({
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Zap className="w-4 h-4" aria-hidden />}
             Post to QuickBooks
+          </button>
+        </div>
+      )}
+
+      {posted && onUnpost && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onUnpost}
+            disabled={busy}
+            title="Delete this entry from QuickBooks and return it to a draft"
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+              darkMode ? 'border-red-800 text-red-300 hover:bg-red-950/40' : 'border-red-300 text-red-700 hover:bg-red-50'
+            }`}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
+            Pull back from QuickBooks
           </button>
         </div>
       )}

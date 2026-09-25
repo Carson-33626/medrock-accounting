@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import { AccrualAllocationNotes } from '@/app/payroll/components/AccrualAllocationNotes';
+import { EomDiffBanner } from './EomDiffBanner';
 
 export type JournalEntriesNotesView = 'payrolls' | 'endofmonth' | 'mappings';
 
@@ -34,6 +35,7 @@ export function JournalEntriesShell({
           <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Journal Entries</p>
           <h1 className={`text-2xl font-bold ${headText}`}>{title}</h1>
         </div>
+        <EomDiffBanner darkMode={darkMode} />
         {notesView && <AccrualAllocationNotes darkMode={darkMode} view={notesView} />}
         {children}
       </div>

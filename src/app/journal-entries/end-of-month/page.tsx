@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { requireManager } from '@/lib/auth';
 import { JournalEntriesShell } from '../JournalEntriesShell';
 import { EndOfMonthTab } from '@/app/payroll/components/EndOfMonthTab';
@@ -14,7 +15,11 @@ export default async function Page() {
   await requireManager();
   return (
     <JournalEntriesShell title="End of Month Allocation" notesView="endofmonth">
-      <EndOfMonthTab />
+      {/* EndOfMonthTab reads ?month= via useSearchParams, which requires a Suspense
+          boundary for `next build`'s static analysis even though this page is force-dynamic. */}
+      <Suspense fallback={null}>
+        <EndOfMonthTab />
+      </Suspense>
     </JournalEntriesShell>
   );
 }
