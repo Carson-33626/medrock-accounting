@@ -17,6 +17,7 @@
 import type { PoolLine } from './qb-pool';
 import { isCsPoolLine } from './qb-pool';
 import type { JournalLine } from './types';
+import { remainderLines } from './eom-correction';
 
 /** Split a month's pool into the CS slice and everything else. */
 export function excludeCsLines(pool: PoolLine[]): { kept: PoolLine[]; cs: PoolLine[] } {
@@ -34,30 +35,5 @@ export function excludeCsLines(pool: PoolLine[]): { kept: PoolLine[]; cs: PoolLi
  * cents individually, so the remainder always balances too.
  */
 export function csRemainderLines(target: JournalLine[], postedSets: JournalLine[][]): JournalLine[] {
-  const acc = new Map<string, { cents: number; memo: string }>();
-  const add = (l: JournalLine, sign: 1 | -1, keepMemo: boolean): void => {
-    const cur = acc.get(l.accountName) ?? { cents: 0, memo: 'Customer Service allocation — top-up' };
-    cur.cents += sign * (l.postingType === 'Debit' ? 1 : -1) * Math.round(l.amount * 100);
-    if (keepMemo && l.memo !== '') cur.memo = l.memo;
-    acc.set(l.accountName, cur);
-  };
-  for (const l of target) add(l, 1, true);
-  for (const set of postedSets) for (const l of set) add(l, -1, false);
-
-  const out: JournalLine[] = [];
-  for (const [accountName, v] of acc) {
-    if (v.cents === 0) continue;
-    out.push({
-      postingType: v.cents > 0 ? 'Debit' : 'Credit',
-      amount: Math.abs(v.cents) / 100,
-      accountName,
-      departmentName: null,
-      className: null,
-      memo: v.memo,
-      creditBucket: null,
-      origin: 'inter_entity',
-      sourceRowKeys: [],
-    });
-  }
-  return out;
+  return remainderLines(target, postedSets, 'Customer Service allocation — top-up');
 }
