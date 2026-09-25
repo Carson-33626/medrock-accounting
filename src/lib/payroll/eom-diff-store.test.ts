@@ -9,7 +9,7 @@ vi.mock('../rds', () => ({
 }));
 
 import {
-  getSettings, updateSettings, startRun, finishRun, latestRun, upsertCheck, listChecks,
+  getSettings, updateSettings, startRun, finishRun, latestRun, upsertCheck, listChecks, deleteCheck, deleteChecksNotIn,
   listPostedParentMonths, listPostedEomHeaderIds,
 } from './eom-diff-store';
 
@@ -122,6 +122,22 @@ describe('eom-diff-store checks', () => {
       deltaDebits: 5,
       error: null,
     });
+  });
+
+  it('deleteCheck deletes one (month, entity) row', async () => {
+    await deleteCheck('2026-03', 'MedRock TN');
+    const [sql, params] = query.mock.calls[0] as [string, string[]];
+    expect(sql).toContain('DELETE FROM accounting.eom_diff_checks');
+    expect(sql).toContain('month = $1 AND entity = $2');
+    expect(params).toEqual(['2026-03', 'MedRock TN']);
+  });
+
+  it('deleteChecksNotIn deletes every row whose month is not in the list', async () => {
+    await deleteChecksNotIn(['2026-03', '2026-04']);
+    const [sql, params] = query.mock.calls[0] as [string, [string[]]];
+    expect(sql).toContain('DELETE FROM accounting.eom_diff_checks');
+    expect(sql).toContain('NOT (month = ANY($1::text[]))');
+    expect(params).toEqual([['2026-03', '2026-04']]);
   });
 
   it('listChecks drops malformed delta_lines items', async () => {

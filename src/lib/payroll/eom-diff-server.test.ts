@@ -11,6 +11,8 @@ const startRun = vi.fn(async (..._a: unknown[]) => 1);
 const finishRun = vi.fn(async (..._a: unknown[]) => undefined);
 const latestRun = vi.fn(async (..._a: unknown[]) => null as EomDiffRun | null);
 const upsertCheck = vi.fn(async (..._a: unknown[]) => undefined);
+const deleteCheck = vi.fn(async (..._a: unknown[]) => undefined);
+const deleteChecksNotIn = vi.fn(async (..._a: unknown[]) => undefined);
 const listChecks = vi.fn(async (..._a: unknown[]) => [] as EomDiffCheck[]);
 const listPostedParentMonths = vi.fn(async (..._a: unknown[]) => [] as string[]);
 // Typed (not `unknown[]`) because tests below need mockImplementation((m: Month, e: Entity) => …).
@@ -21,6 +23,8 @@ vi.mock('./eom-diff-store', () => ({
   finishRun: (...a: unknown[]) => finishRun(...a),
   latestRun: (...a: unknown[]) => latestRun(...a),
   upsertCheck: (...a: unknown[]) => upsertCheck(...a),
+  deleteCheck: (...a: unknown[]) => deleteCheck(...a),
+  deleteChecksNotIn: (...a: unknown[]) => deleteChecksNotIn(...a),
   listChecks: (...a: unknown[]) => listChecks(...a),
   listPostedParentMonths: (...a: unknown[]) => listPostedParentMonths(...a),
   listPostedEomHeaderIds: (m: Month, e: Entity) => listPostedEomHeaderIds(m, e),
@@ -81,6 +85,8 @@ beforeEach(() => {
   finishRun.mockReset();
   latestRun.mockReset();
   upsertCheck.mockReset();
+  deleteCheck.mockReset();
+  deleteChecksNotIn.mockReset();
   listChecks.mockReset();
   listPostedParentMonths.mockReset();
   listPostedEomHeaderIds.mockReset();
@@ -92,6 +98,8 @@ beforeEach(() => {
   finishRun.mockResolvedValue(undefined);
   latestRun.mockResolvedValue(null);
   upsertCheck.mockResolvedValue(undefined);
+  deleteCheck.mockResolvedValue(undefined);
+  deleteChecksNotIn.mockResolvedValue(undefined);
   listChecks.mockResolvedValue([]);
   listPostedParentMonths.mockResolvedValue([]);
   listPostedEomHeaderIds.mockResolvedValue([]);
@@ -137,6 +145,40 @@ describe('runEomDiff', () => {
     expect(finishRun).toHaveBeenCalledWith(expect.any(Number), false, '2026-03: QuickBooks disconnected: MedRock TN');
   });
 
+  it('a posted header that cannot be loaded records an error row for that month/entity; the run continues (deferred d)', async () => {
+    listPostedParentMonths.mockResolvedValueOnce(['2026-03']);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 10, 'Wages'), L('Credit', 10, 'Due to TN')] }));
+    listPostedEomHeaderIds.mockImplementation(async (_m: Month, e: Entity) => (e === 'MedRock FL' ? [1] : e === 'MedRock TN' ? [2] : []));
+    loadDraft.mockImplementation(async (id: number) => (id === 1 ? null : { header: hdr(id), lines: [L('Debit', 5, 'Wages'), L('Credit', 5, 'Due to FL')] }));
+    const r = await runEomDiff('manual');
+    const calls = upsertCheck.mock.calls.map((c) => c[0] as { entity: Entity; error: string | null; deltaDebits: number });
+    expect(calls.find((c) => c.entity === 'MedRock FL')?.error).toContain('#1');
+    expect(calls.find((c) => c.entity === 'MedRock TN')).toMatchObject({ error: null, deltaDebits: 5 });
+    expect(r).toMatchObject({ skipped: false, ok: false });
+  });
+
+  it('a posted header with zero lines is an error row, not a silent skip (deferred d)', async () => {
+    listPostedParentMonths.mockResolvedValueOnce(['2026-03']);
+    computeEomTarget.mockResolvedValueOnce(targetWith({}));
+    listPostedEomHeaderIds.mockImplementation(async (_m: Month, e: Entity) => (e === 'MedRock FL' ? [1] : []));
+    loadDraft.mockResolvedValue({ header: hdr(1), lines: [] });
+    await runEomDiff('manual');
+    const fl = upsertCheck.mock.calls.map((c) => c[0] as { entity: Entity; error: string | null }).find((c) => c.entity === 'MedRock FL');
+    expect(fl?.error).toContain('no stored lines');
+  });
+
+  it('clears the check row of an entity with no posted set, and rows for months outside the run (I4)', async () => {
+    listPostedParentMonths.mockResolvedValueOnce(['2026-03']);
+    computeEomTarget.mockResolvedValueOnce(targetWith({}));
+    listPostedEomHeaderIds.mockImplementation(async (_m: Month, e: Entity) => (e === 'MedRock FL' ? [1] : []));
+    loadDraft.mockResolvedValue({ header: hdr(1), lines: [L('Debit', 5, 'Wages'), L('Credit', 5, 'Due to TN')] });
+    await runEomDiff('manual');
+    expect(deleteCheck).toHaveBeenCalledWith('2026-03', 'MedRock TN');
+    expect(deleteCheck).toHaveBeenCalledWith('2026-03', 'MedRock TX');
+    expect(deleteCheck).not.toHaveBeenCalledWith('2026-03', 'MedRock FL');
+    expect(deleteChecksNotIn).toHaveBeenCalledWith(['2026-03']);
+  });
+
   it('a thrown error mid-run still finishes the run', async () => {
     listPostedParentMonths.mockRejectedValueOnce(new Error('db down'));
     await expect(runEomDiff('manual')).rejects.toThrow('db down');
@@ -153,6 +195,15 @@ describe('buildEomDiffStatus', () => {
       { month: '2026-04', entities: [{ entity: 'MedRock FL', deltaDebits: 3 }] },
     ]);
     expect(buildEomDiffStatus({ threshold: 5, enabled: true, checkFromMonth: '2026-03' }, null, checks).flagged).toEqual([]);
+  });
+
+  it('an unfinished run older than 10 minutes counts as failed (timed out)', () => {
+    const settings = { threshold: 1, enabled: true, checkFromMonth: '2026-03' };
+    const run: EomDiffRun = { id: 1, trigger: 'cron', startedAt: '2026-09-25T10:00:00Z', finishedAt: null, ok: null, error: null };
+    const now = Date.parse('2026-09-25T10:11:00Z');
+    expect(buildEomDiffStatus(settings, run, [], now).lastRun).toMatchObject({ ok: false, error: 'check did not finish (timed out)' });
+    const recent = Date.parse('2026-09-25T10:05:00Z');
+    expect(buildEomDiffStatus(settings, run, [], recent).lastRun).toEqual(run);
   });
 
   it('a check row with an error is never flagged', () => {

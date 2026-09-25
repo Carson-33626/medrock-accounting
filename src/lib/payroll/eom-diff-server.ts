@@ -6,7 +6,7 @@ import { EOM_ENTITIES } from './revenue-rule';
 import { computeEomTarget } from './eom-target';
 import { remainderLines, deltaDebits, isFlagged, DELTA_MEMO, type EomDiffSettings } from './eom-correction';
 import {
-  getSettings, startRun, finishRun, latestRun, upsertCheck, listChecks,
+  getSettings, startRun, finishRun, latestRun, upsertCheck, deleteCheck, deleteChecksNotIn, listChecks,
   listPostedParentMonths, listPostedEomHeaderIds, type EomDiffRun, type EomDiffCheck,
 } from './eom-diff-store';
 import { loadDraft } from './store';
@@ -27,23 +27,42 @@ export async function runEomDiff(
     for (const month of months) {
       const m = toMonth(month);
       const target = await computeEomTarget(m);
+      if (!target.ok && firstError === null) firstError = `${month}: ${target.error}`;
       for (const entity of EOM_ENTITIES) {
+        const ids = await listPostedEomHeaderIds(m, entity);
+        if (ids.length === 0) {
+          // This entity has no posted set for the month (never posted, or pulled back): any
+          // stored check row is stale — clear it (final review I4).
+          await deleteCheck(month, entity);
+          continue;
+        }
         if (!target.ok) {
           await upsertCheck({ month, entity, runId, deltaLines: [], deltaDebits: 0, error: target.error });
           continue;
         }
         const postedSets: JournalLine[][] = [];
-        for (const id of await listPostedEomHeaderIds(m, entity)) {
+        let loadError: string | null = null;
+        for (const id of ids) {
           const loaded = await loadDraft(id);
-          if (loaded) postedSets.push(loaded.lines);
+          // Never silently skip a posted header — netting without it would misstate the delta.
+          if (!loaded || loaded.lines.length === 0) {
+            loadError = `posted entry #${id} has no stored lines — cannot compute the difference`;
+            break;
+          }
+          postedSets.push(loaded.lines);
         }
-        if (postedSets.length === 0) continue; // this entity never posted for the month
+        if (loadError !== null) {
+          await upsertCheck({ month, entity, runId, deltaLines: [], deltaDebits: 0, error: loadError });
+          if (firstError === null) firstError = `${month} ${entity}: ${loadError}`;
+          continue;
+        }
         const targetLines = target.drafts.find((d) => d.entity === entity)?.lines ?? [];
         const delta = remainderLines(targetLines, postedSets, DELTA_MEMO);
         await upsertCheck({ month, entity, runId, deltaLines: delta, deltaDebits: deltaDebits(delta), error: null });
       }
-      if (!target.ok && firstError === null) firstError = `${month}: ${target.error}`;
     }
+    // Months no longer in the run (parent pulled back, or before checkFromMonth) keep no rows.
+    await deleteChecksNotIn(months);
     await finishRun(runId, firstError === null, firstError);
     return { skipped: false, runId, ok: firstError === null, months };
   } catch (error) {
@@ -59,9 +78,15 @@ export interface EomDiffStatus {
   flagged: Array<{ month: string; entities: Array<{ entity: Entity; deltaDebits: number }> }>;
 }
 
+/** A run still unfinished after this long died mid-flight (timeout / crash). */
+const RUN_TIMEOUT_MS = 10 * 60 * 1000;
+
 export function buildEomDiffStatus(
-  settings: EomDiffSettings, lastRun: EomDiffRun | null, checks: readonly EomDiffCheck[],
+  settings: EomDiffSettings, lastRun: EomDiffRun | null, checks: readonly EomDiffCheck[], nowMs: number = Date.now(),
 ): EomDiffStatus {
+  const run = lastRun !== null && lastRun.finishedAt === null && Date.parse(lastRun.startedAt) < nowMs - RUN_TIMEOUT_MS
+    ? { ...lastRun, ok: false, error: 'check did not finish (timed out)' }
+    : lastRun;
   const withFlag = checks.map((c) => ({ ...c, flagged: c.error === null && isFlagged(c.deltaDebits, settings.threshold) }));
   const byMonth = new Map<string, Array<{ entity: Entity; deltaDebits: number }>>();
   for (const c of withFlag) {
@@ -73,7 +98,7 @@ export function buildEomDiffStatus(
   const flagged = [...byMonth.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, entities]) => ({ month, entities: entities.sort((x, y) => x.entity.localeCompare(y.entity)) }));
-  return { settings, lastRun, checks: withFlag, flagged };
+  return { settings, lastRun: run, checks: withFlag, flagged };
 }
 
 export async function getEomDiffStatus(): Promise<EomDiffStatus> {

@@ -56,7 +56,7 @@ export async function listEomCorrectionHeaders(m: Month): Promise<PayrollHeader[
             qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
      WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1 AND period_segment LIKE 'C%'
-     ORDER BY entity, period_segment`,
+     ORDER BY entity, substring(period_segment from 2)::int`,
     [monthEndAdp(m)],
   );
   return rows.map(toHeader);

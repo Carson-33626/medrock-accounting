@@ -63,4 +63,9 @@ describe('eom-store', () => {
     expect(sql).toContain("period_segment LIKE 'C%'");
     expect(params[0]).toBe('03/31/2026');
   });
+  it('listEomCorrectionHeaders sorts corrections numerically by index (C2 before C10)', async () => {
+    await listEomCorrectionHeaders({ year: 2026, month: 3 });
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain('ORDER BY entity, substring(period_segment from 2)::int');
+  });
 });

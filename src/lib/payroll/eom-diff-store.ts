@@ -169,6 +169,22 @@ export async function upsertCheck(c: {
   );
 }
 
+/** Drop one stale (month, entity) check row — the entity no longer has a posted set. */
+export async function deleteCheck(month: string, entity: Entity): Promise<void> {
+  await getRdsPool().query(
+    `DELETE FROM accounting.eom_diff_checks WHERE month = $1 AND entity = $2`,
+    [month, entity],
+  );
+}
+
+/** Drop every check row whose month is not in this run's months (an empty list clears all). */
+export async function deleteChecksNotIn(months: readonly string[]): Promise<void> {
+  await getRdsPool().query(
+    `DELETE FROM accounting.eom_diff_checks WHERE NOT (month = ANY($1::text[]))`,
+    [[...months]],
+  );
+}
+
 export async function listChecks(): Promise<EomDiffCheck[]> {
   const { rows } = await getRdsPool().query<CheckRow>(
     `SELECT month, entity, run_id, to_char(checked_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS checked_at,
