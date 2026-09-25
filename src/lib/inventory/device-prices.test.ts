@@ -143,11 +143,9 @@ describe("the lab's 2026-09-25 packaging reference", () => {
     expect(priced('Wart Pen', '10g').pricePerUnit).toBe(1.23);
   });
 
-  it('keeps the bio-adhesive tube at its own billed price inside the Wart Pen device', () => {
-    // One device per the sheet, two billed items: 11 mL U.S. Plastic tube vs the
-    // InterestPACK twist pen.
-    expect(priced('Wart Pen', 'tube').pricePerUnit).toBe(1.13);
-    expect(priced('Wart Pen', '').pricePerUnit).toBe(1.23);
+  it('prices every wart fill as a 10g pen — no pen/tube split (sheet v1.5)', () => {
+    expect(DEVICE_UNIT_PRICES.filter((p) => p.device === 'Wart Pen')).toHaveLength(1);
+    expect(priced('Wart Pen', '10g').pricePerUnit).toBe(1.23);
   });
 
   it('discloses the two new devices as unpriced', () => {

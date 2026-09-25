@@ -268,19 +268,11 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'matching quantities (7851279: 300+300; 7917435: 800+800; 7958320: 800+800). Do not ' +
       '"correct" this down to either component alone.',
   },
-  {
-    // Formerly 'Lip Gloss Tube'. The ruling sheet makes the bio-adhesive tube part of
-    // the Wart Pen device ("anything that goes in a pen"), but it is a DIFFERENT
-    // billed item from the twist pen, so it keeps its own price under sku 'tube'.
-    // If the loader does not split pen from tube, every Wart Pen unit prices at the
-    // pen row below via the '' fallback.
-    device: 'Wart Pen', sku: 'tube', pricePerUnit: 1.13, confidence: 'high',
-    provenance:
-      'U.S. Plastic item 68167 "11ML LIP GLOSS TUBE W/BLK APLCTR": 4,350 units in 2026 for ' +
-      '$4,608.28 = 1.0594 (list 1.23-1.25 less 15%). 1.13 = invoice + ~7% freight.',
-  },
-
-  /* ── the pen ── */
+  /* ── the pen ──
+   * Carson 2026-09-25 (ruling sheet v1.5): NO pen/tube split. Wart medications
+   * including the bio-adhesives go out in 10g pens only, emitted as sku '10g' and
+   * priced here via the '' fallback. The retired 'Lip Gloss Tube' row is gone.
+   */
   {
     device: 'Wart Pen', sku: '', pricePerUnit: 1.23, confidence: 'high',
     provenance:
