@@ -43,9 +43,9 @@ describe('which months a close month is responsible for', () => {
 describe('valuing usage', () => {
   it('multiplies units by the standard price', () => {
     const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [usage({ units: 1_000 })]);
-    expect(r.total).toBe(2040); // 1,000 x 2.04
+    expect(r.total).toBe(1970); // 1,000 x 1.97
     expect(r.lines).toHaveLength(1);
-    expect(r.lines[0].pricePerUnit).toBe(2.04);
+    expect(r.lines[0].pricePerUnit).toBe(1.97);
   });
 
   it('sums the covered months into one figure in the true-up month', () => {
@@ -55,7 +55,7 @@ describe('valuing usage', () => {
       usage({ asOfMonth: '2026-03', units: 100 }),
       usage({ asOfMonth: '2026-04', units: 999 }), // outside the window
     ]);
-    expect(r.total).toBe(612); // 300 x 2.04, April excluded
+    expect(r.total).toBe(591); // 300 x 1.97, April excluded
   });
 
   it('ignores other entities entirely', () => {
@@ -63,7 +63,7 @@ describe('valuing usage', () => {
       usage({ units: 100 }),
       usage({ units: 500, location: 'MedRock Florida' }),
     ]);
-    expect(r.total).toBe(204);
+    expect(r.total).toBe(197);
   });
 
   it('values units that depleted NO lot — that is the whole point', () => {
@@ -152,6 +152,18 @@ describe('the journal lines', () => {
     expect(text).toContain('RETIRED');
   });
 
+  it('discloses an unpriced SIZE under "device size", not as the whole family', () => {
+    // A 60g silver pump has no box on the lab sheets; the 30g beside it is priced.
+    const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
+      usage({ device: 'Rosacea Pump', sku: '60g', units: 40 }),
+      usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
+    ]);
+    const text = c.warnings.join(' ');
+    expect(text).toContain('40 Rosacea Pump 60g units consumed but NOT valued');
+    expect(text).toContain('NO BOX');
+    expect(c.lines[0].amount).toBe(197); // the 30g only
+  });
+
   it('always states that it is not driving 1220.15 to a target', () => {
     // Carson, 2026-09-04, on counting packaging on hand: "Not possible to know".
     // So the balance keeps its pre-2026 accumulation and the reviewer is told.
@@ -191,7 +203,7 @@ describe('eye pads — measured, shown, and deliberately not relieved here', () 
       usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
       usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
     ]);
-    expect(r.total).toBe(204); // the pump only
+    expect(r.total).toBe(197); // the pump only
     expect(r.lines.find((l) => l.device === 'Eye Pad Pack')?.notRelieved).toContain('1220.10');
   });
 

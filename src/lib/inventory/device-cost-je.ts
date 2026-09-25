@@ -34,7 +34,7 @@
 import type { JournalLine } from '@/lib/payroll/types';
 import type { JeContribution } from './je-pool';
 import { accountsForCategory } from './category-accounts';
-import { priceFor, unpricedReason } from './device-prices';
+import { isWhollyUnpriced, priceFor, unpricedReason } from './device-prices';
 
 /** The RDS category whose accounts this contributor posts to. */
 export const PACKAGING_CATEGORY = 'Lab Compound Packaging Inventory';
@@ -119,8 +119,13 @@ export interface DeviceCostResult {
   readonly monthsCovered: readonly string[];
   readonly lines: readonly DeviceCostLine[];
   readonly total: number;
-  /** Devices with units but no price — disclosed, never valued at zero silently. */
+  /**
+   * Devices with units but no price — disclosed, never valued at zero silently.
+   * Keyed by device name, or "device size" when only that size is unpriced.
+   */
   readonly unpricedUnits: ReadonlyMap<string, number>;
+  /** Why each `unpricedUnits` key has no price; null when nothing says why. */
+  readonly unpricedReasons: ReadonlyMap<string, string | null>;
 }
 
 /** Round half-up to cents, so two groupings cannot land a cent apart. */
@@ -184,13 +189,17 @@ export function valueDeviceUsage(
 
   const lines: DeviceCostLine[] = [];
   const unpricedUnits = new Map<string, number>();
+  const unpricedReasons = new Map<string, string | null>();
   let total = 0;
 
   for (const slot of byDevice.values()) {
     const price = priceFor(slot.device, slot.sku);
     if (price === null) {
       if (slot.units > 0) {
-        unpricedUnits.set(slot.device, (unpricedUnits.get(slot.device) ?? 0) + slot.units);
+        const label =
+          slot.sku === '' || isWhollyUnpriced(slot.device) ? slot.device : `${slot.device} ${slot.sku}`;
+        unpricedUnits.set(label, (unpricedUnits.get(label) ?? 0) + slot.units);
+        unpricedReasons.set(label, unpricedReason(slot.device, slot.sku));
       }
       continue;
     }
@@ -214,7 +223,7 @@ export function valueDeviceUsage(
   // Biggest dollars first — the reviewer's eye should land on the pumps.
   lines.sort((a, b) => b.value - a.value || a.device.localeCompare(b.device));
 
-  return { location, monthsCovered, lines, total, unpricedUnits };
+  return { location, monthsCovered, lines, total, unpricedUnits, unpricedReasons };
 }
 
 /** The memo both halves of the pair carry, so the entry explains itself on its face. */
@@ -305,7 +314,7 @@ export function deviceCostContribution(
   }
 
   for (const [device, units] of [...result.unpricedUnits].sort((a, b) => b[1] - a[1])) {
-    const reason = unpricedReason(device);
+    const reason = result.unpricedReasons.get(device) ?? null;
     warnings.push(
       `${units.toLocaleString()} ${device} units consumed but NOT valued` +
         (reason ? ` — ${reason}` : ' — no price in the standard-cost table.'),

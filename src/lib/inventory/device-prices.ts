@@ -52,52 +52,95 @@ export interface DevicePrice {
  * `provenance` so the next reader can check it rather than re-derive it.
  */
 export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
-  /* ── airless pumps: the bulk of the model, ~78% of modelled units ── */
+  /* ── airless pumps: the bulk of the model, ~78% of modelled units ──
+   *
+   * PRICED BY BOX CODE, one row per size. The lab's 2026-09-25 packaging reference
+   * (MRPBI docs/Packaging references updated 2026/packaging-reference-2026-09-25.md)
+   * names the Cosmetic Packaging Now box for every pump size, which settles two
+   * things the 09-04 table had to guess:
+   *
+   *  - Frosted (= Rosacea) and Melasma are DIFFERENT boxes at different prices —
+   *    Frosted is the Luxe *FS line, Melasma the Luxe *WS line. They were priced as
+   *    one "silver" class before, and the Rosacea 45g row was in fact Melasma's box.
+   *  - AK size -> box is now STATED, not inferred from size order.
+   *
+   * Every row is the quantity-weighted net across the 15 distinct CPN invoices in
+   * `receipt-enrichment/cache/cosmeticpackaging/*.ocr.txt` (33378..34918, Jan-Apr
+   * 2026; duplicates cached from several emails counted once), landed at +15.24% —
+   * CPN shipping as a share of goods, measured over 19 invoices in
+   * `ds-device-standard-cost-2026-09-03.md` §14.5 (this pull's 15 give 15.15%).
+   * Bottlemate also sells 15/30 ml airless (landed 1.463 / 2.167) but is ~8% of pump
+   * spend and not a box the lab names, so it corroborates rather than sets a row.
+   *
+   * A 60g silver fill is its own size line (Carson, 2026-09-25: devices broken out
+   * FULLY by size, never collapsed into 2 x 30g). No Frosted or Melasma 60g box
+   * exists on the lab sheets, so those two lines are UNPRICED below, not guessed.
+   */
   {
-    device: 'Rosacea Pump', sku: '30g', pricePerUnit: 2.04, confidence: 'high',
+    device: 'Rosacea Pump', sku: '15g', pricePerUnit: 1.84, confidence: 'high',
     provenance:
-      'Bottlemate 53734/53758/53859 + Cosmetic Packaging Now 33587/34918. 30ml airless ' +
-      'assembly (bottle+pump+overcap) 1,620 units at 1.21-1.30 goods; landed with tariff, ' +
-      'freight and pallet = 2.167. CPN Luxe 30ML nets 1.43-1.63 before shipping. 2.04 sits mid-band.',
+      'Lab box 01LUX15FS (Luxe 15 ML Matte Silver / Frosted). CPN invoices: 1,250 units for ' +
+      '$1,997.50 = 1.5980 net (1.52-1.65); x 1.1524 landed = 1.8415.',
   },
   {
-    device: 'Rosacea Pump', sku: '15g', pricePerUnit: 1.51, confidence: 'high',
+    device: 'Rosacea Pump', sku: '30g', pricePerUnit: 1.97, confidence: 'high',
     provenance:
-      'Bottlemate 53741/53860 + CPN 34918 (01-LUX-15FS). 15ml airless 2,940 units at ' +
-      '0.95-0.97 goods; landed with 40% China tariff + freight = 1.463. CPN Luxe 15ML nets 1.52-1.53.',
+      'Lab box 02LUX30FS (Luxe 30 ML Matte Silver / Frosted). CPN invoices: 5,320 units for ' +
+      '$9,116.20 = 1.7136 net (1.63-1.76); x 1.1524 landed = 1.9748.',
   },
   {
-    device: 'Rosacea Pump', sku: '45g', pricePerUnit: 1.84, confidence: 'high',
-    provenance: 'CPN 33587/34918, SKU 15-LUX-50WS nets 1.81 on BOTH invoices; 1.84 with shipping.',
-  },
-  // Melasma is the same physical airless line as Rosacea — same sizes, same anchors.
-  {
-    device: 'Melasma Pump', sku: '30g', pricePerUnit: 2.04, confidence: 'high',
-    provenance: 'Same 30ml airless class as Rosacea Pump 30g — see that row.',
-  },
-  {
-    device: 'Melasma Pump', sku: '15g', pricePerUnit: 1.51, confidence: 'high',
-    provenance: 'Same 15ml airless class as Rosacea Pump 15g — see that row.',
-  },
-  {
-    device: 'Melasma Pump', sku: '45g', pricePerUnit: 1.84, confidence: 'high',
-    provenance: 'Same 50ML Luxe SKU as Rosacea Pump 45g — see that row.',
-  },
-  {
-    device: 'AK Pump', sku: '15G', pricePerUnit: 0.79, confidence: 'medium',
+    device: 'Rosacea Pump', sku: '45g', pricePerUnit: 2.12, confidence: 'high',
     provenance:
-      'CPN Pure white-PP airless 58-PUR-30WF nets exactly 0.79 on invoice 34918 and 0.83 on 33587. ' +
-      'Which CPN SKU maps to which AK size is INFERRED from size order, not stated on the invoice.',
+      'Lab box 03LUX50FS (Luxe 50 ML Matte Silver / Frosted). CPN 33662/34114: 420 units at ' +
+      '1.84 net; x 1.1524 landed = 2.1204. The 09-04 row (1.84) was 15-LUX-50WS — the Melasma box.',
   },
   {
-    device: 'AK Pump', sku: '30/45G', pricePerUnit: 1.51, confidence: 'medium',
+    device: 'Melasma Pump', sku: '15g', pricePerUnit: 1.76, confidence: 'high',
     provenance:
-      'CPN 33587/34918 Pure PP airless line (58/59/72-PUR): 0.79 (30ML) / 1.38 (50ML) / ' +
-      '1.53 (75ML) / 1.73 (100ML) before shipping. 1.51 sits in band. SKU-to-size mapping inferred.',
+      'Lab box 13LUX15WS (Luxe 15 ML Matte Silver / White). CPN invoices: 1,000 units at 1.53 ' +
+      'net; x 1.1524 landed = 1.7632.',
   },
   {
-    device: 'AK Pump', sku: '60G', pricePerUnit: 1.86, confidence: 'medium',
-    provenance: 'CPN Pure 100 ML (60-PUR-100WF) nets 1.73 before shipping, 1.86 with. SKU-to-size mapping inferred.',
+    device: 'Melasma Pump', sku: '30g', pricePerUnit: 1.65, confidence: 'high',
+    provenance:
+      'Lab box 14LUX30WS (Luxe 30 ML Matte Silver / White). CPN invoices: 10,640 units at 1.43 ' +
+      'net, the same on every invoice; x 1.1524 landed = 1.6479. Cheaper than the 15 ml at CPN.',
+  },
+  {
+    device: 'Melasma Pump', sku: '45g', pricePerUnit: 2.09, confidence: 'high',
+    provenance:
+      'Lab box 15LUX50WS (Luxe 50 ML Matte Silver / White). CPN invoices: 1,400 units at 1.81 ' +
+      'net; x 1.1524 landed = 2.0858.',
+  },
+  {
+    // ⚠ The lab sheet gives 58PUR30WF for BOTH 15g and 30g (question 1 in the
+    // reference). CPN does sell a separate 15 ML Pure box, 57-PUR-15WF, at 0.80 net
+    // (300 units, invoice 34575), so the 15g code may be a typo for it. Either way
+    // the price is within 3 cents; the row follows the sheet as written.
+    device: 'AK Pump', sku: '15g', pricePerUnit: 0.96, confidence: 'medium',
+    provenance:
+      'Lab box 58PUR30WF as printed for 15g (duplicate of 30g, awaiting lab). CPN invoices: ' +
+      '11,712 units for $9,713.28 = 0.8293 net (0.79-0.83); x 1.1524 landed = 0.9557. ' +
+      'Alternative 57-PUR-15WF nets 0.80 (landed 0.92).',
+  },
+  {
+    device: 'AK Pump', sku: '30g', pricePerUnit: 0.96, confidence: 'high',
+    provenance:
+      'Lab box 58PUR30WF (Pure 30 ML White PP / Frosted cap). CPN invoices: 11,712 units for ' +
+      '$9,713.28 = 0.8293 net (0.79-0.83); x 1.1524 landed = 0.9557.',
+  },
+  {
+    device: 'AK Pump', sku: '45g', pricePerUnit: 1.62, confidence: 'high',
+    provenance:
+      'Lab box 59PUR50WF (Pure 50 ML White PP). CPN invoices: 2,880 units for $4,043.52 = ' +
+      '1.4040 net (1.38-1.41); x 1.1524 landed = 1.6180.',
+  },
+  {
+    device: 'AK Pump', sku: '60g', pricePerUnit: 1.87, confidence: 'high',
+    provenance:
+      'Lab box 72PUR75WF (Pure 75 ML White PP). CPN invoices: 1,200 units for $1,944.00 = ' +
+      '1.6200 net (1.53-1.65); x 1.1524 landed = 1.8669. The 09-04 row (1.86) used the 100 ML ' +
+      'box 60-PUR-100WF, which is on no lab sheet.',
   },
   {
     // CARSON, 2026-09-04, on the $1.90-vs-measured question: "Screenshot for the
@@ -184,7 +227,10 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'price on three independent 2026 orders (Ramp 0b54790a / 493bd884 / c21953ac).',
   },
   {
-    device: 'White & Silver Jar', sku: '', pricePerUnit: 1.87, confidence: 'medium',
+    // Renamed from 'White & Silver Jar' per the lab's 2026-09-25 reference, which
+    // calls the Kiss Me Goodnight container the Orbit Jar. That the Orbit Jar IS the
+    // Echo airless jar below is carried over from the old row, not stated by the lab.
+    device: 'Orbit Jar', sku: '', pricePerUnit: 1.87, confidence: 'medium',
     provenance:
       'CPN 23-ECH-30CW "Echo 30 ML Airless Jar with Shiny Silver Collar": 168 units at 1.93 ' +
       '(33587) + 252 at 1.83 (34918) = 420 for $785.40 = 1.8700; ~2.13 with shipping allocated. ' +
@@ -262,10 +308,36 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
  */
 export interface UnpricedDevice {
   readonly device: string;
+  /** Set when only ONE size of an otherwise-priced device is unpriced. */
+  readonly sku?: string;
   readonly reason: string;
 }
 
 export const UNPRICED: readonly UnpricedDevice[] = [
+  {
+    device: 'Rosacea Pump', sku: '60g',
+    reason:
+      'NO BOX. Fills over 45g are their own size line (Carson 2026-09-25: never 2 x 30g), but the ' +
+      "lab's 2026-09-25 Frosted sheet lists only 15/30/45g boxes. Awaiting the lab.",
+  },
+  {
+    device: 'Melasma Pump', sku: '60g',
+    reason:
+      'NO BOX. Fills over 45g are their own size line (Carson 2026-09-25: never 2 x 30g), but the ' +
+      "lab's 2026-09-25 Melasma sheet lists only 15/30/45g boxes. Awaiting the lab.",
+  },
+  {
+    device: 'Lip Balm',
+    reason:
+      "NEW DEVICE in the lab's 2026-09-25 reference (all lip balms). No purchase priced yet — " +
+      'find the tube in the Ramp receipt OCR cache before guessing.',
+  },
+  {
+    device: 'Perioral Lip Ointment',
+    reason:
+      "NEW DEVICE in the lab's 2026-09-25 reference: a small clear jar of its own, no longer the " +
+      'ULINE ointment jar. Vendor and price not yet found.',
+  },
   {
     // CARSON, 2026-09-04: "Topiclick was for hormones that we no longer use so
     // that can be written off."
@@ -295,8 +367,8 @@ const BY_KEY: ReadonlyMap<string, DevicePrice> = new Map(
   DEVICE_UNIT_PRICES.map((p): readonly [string, DevicePrice] => [`${p.device}||${p.sku}`, p]),
 );
 
-const UNPRICED_BY_DEVICE: ReadonlyMap<string, UnpricedDevice> = new Map(
-  UNPRICED.map((u): readonly [string, UnpricedDevice] => [u.device, u]),
+const UNPRICED_BY_KEY: ReadonlyMap<string, UnpricedDevice> = new Map(
+  UNPRICED.map((u): readonly [string, UnpricedDevice] => [`${u.device}||${u.sku ?? ''}`, u]),
 );
 
 /**
@@ -310,7 +382,24 @@ export function priceFor(device: string, sku: string): DevicePrice | null {
   return BY_KEY.get(`${device}||${sku}`) ?? BY_KEY.get(`${device}||`) ?? null;
 }
 
-/** Why a device carries no price, or `null` if it is priced or simply unknown. */
-export function unpricedReason(device: string): string | null {
-  return UNPRICED_BY_DEVICE.get(device)?.reason ?? null;
+/**
+ * Why a device (or one size of it) carries no price, or `null` if it is priced or
+ * simply unknown. A size-level entry wins over a device-wide one.
+ */
+export function unpricedReason(device: string, sku = ''): string | null {
+  return (
+    UNPRICED_BY_KEY.get(`${device}||${sku}`)?.reason ??
+    UNPRICED_BY_KEY.get(`${device}||`)?.reason ??
+    null
+  );
+}
+
+/**
+ * Whether EVERY size of a device is unpriced (Topi-Click, Syringes...), as opposed
+ * to one size of a priced device (a 60g silver pump). Callers disclose the first
+ * under the device name and the second under "device size", so a missing 60g box
+ * does not read as the whole pump family being unvalued.
+ */
+export function isWhollyUnpriced(device: string): boolean {
+  return UNPRICED_BY_KEY.has(`${device}||`);
 }

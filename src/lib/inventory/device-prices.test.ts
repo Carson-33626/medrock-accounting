@@ -92,6 +92,46 @@ describe("Carson's 2026-09-04 rulings", () => {
   });
 });
 
+describe("the lab's 2026-09-25 packaging reference", () => {
+  it('prices Frosted (Rosacea) and Melasma as DIFFERENT boxes, not one silver class', () => {
+    // Frosted = Luxe *FS, Melasma = Luxe *WS. Same sizes, different invoices.
+    for (const size of ['15g', '30g', '45g']) {
+      expect(priced('Rosacea Pump', size).pricePerUnit, size).not.toBe(
+        priced('Melasma Pump', size).pricePerUnit,
+      );
+      expect(priced('Rosacea Pump', size).provenance, size).toMatch(/LUX\d{2}FS/);
+      expect(priced('Melasma Pump', size).provenance, size).toMatch(/LUX\d{2}WS/);
+    }
+  });
+
+  it('breaks the AK pump out fully by size — no more grouped 30/45G band', () => {
+    for (const size of ['15g', '30g', '45g', '60g']) expect(priceFor('AK Pump', size), size).not.toBeNull();
+    expect(priceFor('AK Pump', '30/45G')).toBeNull();
+    expect(priced('AK Pump', '45g').provenance).toContain('59PUR50WF');
+    expect(priced('AK Pump', '60g').provenance).toContain('72PUR75WF');
+  });
+
+  it('leaves the 60g silver pumps UNPRICED rather than pricing them as 2 x 30g', () => {
+    // Carson: fully by size, never collapsed into multiples. No 60g box on the sheets.
+    expect(priceFor('Rosacea Pump', '60g')).toBeNull();
+    expect(priceFor('Melasma Pump', '60g')).toBeNull();
+    expect(unpricedReason('Rosacea Pump', '60g')).toContain('NO BOX');
+    expect(unpricedReason('Rosacea Pump', '30g')).toBeNull();
+  });
+
+  it('renames the Kiss Me Goodnight jar to the Orbit Jar, keeping its price', () => {
+    expect(priced('Orbit Jar', '').pricePerUnit).toBe(1.87);
+    expect(priceFor('White & Silver Jar', '')).toBeNull();
+  });
+
+  it('discloses the two new devices as unpriced', () => {
+    expect(priceFor('Lip Balm', '')).toBeNull();
+    expect(unpricedReason('Lip Balm')).toContain('NEW DEVICE');
+    expect(priceFor('Perioral Lip Ointment', '')).toBeNull();
+    expect(unpricedReason('Perioral Lip Ointment')).toContain('NEW DEVICE');
+  });
+});
+
 describe('the corrections that moved the most money', () => {
   it('holds the amber dropper at the corrected 0.68, not the 28%-low 0.49', () => {
     // 71,072 units x +0.19 = ~+$13.7k of COGS — the single largest price correction.
@@ -133,7 +173,7 @@ describe('lookup behaviour', () => {
 
   it('gives a reason for every unpriced device', () => {
     for (const u of UNPRICED) {
-      expect(unpricedReason(u.device), u.device).toBeTruthy();
+      expect(unpricedReason(u.device, u.sku), u.device).toBeTruthy();
     }
   });
 
