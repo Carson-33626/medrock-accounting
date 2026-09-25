@@ -473,6 +473,8 @@ export function EndOfMonthTab() {
         const body = (await res.json()) as PostResult & ApiErrorBody;
         if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
         await load(month);
+        // The posted set changed — recheck so the difference card and banner flag clear.
+        void handleDiffRecheck();
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to post journal entry';
         setError(message);
@@ -480,7 +482,7 @@ export function EndOfMonthTab() {
         setBusyHeaderId(null);
       }
     },
-    [month, load],
+    [month, load, handleDiffRecheck],
   );
 
   // Pull a posted CS Allo back out of QuickBooks so the month can be re-done.
@@ -509,13 +511,15 @@ export function EndOfMonthTab() {
           setError(`Entry deleted, but ${body.detachFailed.length} attachment(s) could not be removed from QuickBooks — see the audit log.`);
         }
         await load(month);
+        // The posted set changed — recheck so the difference card and banner reflect it.
+        void handleDiffRecheck();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to pull the entry back from QuickBooks');
       } finally {
         setBusyHeaderId(null);
       }
     },
-    [month, load],
+    [month, load, handleDiffRecheck],
   );
 
   const headers = data?.headers ?? [];
@@ -761,7 +765,8 @@ export function EndOfMonthTab() {
                   onDryRun={() => void handleDryRun(activeHeader.id)}
                   onPostLive={() => void handlePostLive(activeHeader.id, activeHeader.entity)}
                   onUnpost={
-                    activeHeader.status === 'posted'
+                    // A period-complete parent cannot be reposted — never offer to pull it back (I5).
+                    activeHeader.status === 'posted' && !isEomMonthComplete(month)
                       ? () =>
                           void handleUnpost(
                             activeHeader.id,
@@ -790,7 +795,7 @@ export function EndOfMonthTab() {
               <p className={`text-xs font-semibold uppercase tracking-wider ${subText}`}>Corrections</p>
               {data.corrections.headers
                 .slice()
-                .sort((a, b) => a.entity.localeCompare(b.entity) || a.period_segment.localeCompare(b.period_segment))
+                .sort((a, b) => a.entity.localeCompare(b.entity) || Number(a.period_segment.slice(1)) - Number(b.period_segment.slice(1)))
                 .map((h) => {
                   const index = Number(h.period_segment.slice(1));
                   const docNumberOverride = h.status !== 'posted' ? `${draftDocNumber(h.entity, month)}-${index + 1}` : undefined;

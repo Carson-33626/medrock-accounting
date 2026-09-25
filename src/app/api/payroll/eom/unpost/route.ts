@@ -3,6 +3,7 @@ import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit } from '@/lib/payroll/store';
 import { unpostJournalEntry } from '@/lib/payroll/je-unpost';
 import { listEomCorrectionHeaders } from '@/lib/payroll/eom-store';
+import { isEomMonthComplete } from '@/lib/payroll/period-locks';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,6 +15,10 @@ interface UnpostRequestBody {
   /** Free text from the reviewer — lands in the audit row so the undo explains itself. */
   reason?: string;
 }
+
+/** Shown when a period-complete month-end parent is asked to come back out of QuickBooks. */
+const PERIOD_COMPLETE_UNPOST_MESSAGE =
+  'This period is complete — accounting already booked it. Its month-end allocation cannot be pulled back here; post a correction instead.';
 
 /** The pay groups this route may pull back: the month-end pool entries and the
  *  CS-only catch-up entries (plus their top-ups, 'CS ALLO 2', ...). */
@@ -61,6 +66,13 @@ export async function POST(request: NextRequest) {
     // against this entry — pulling the parent alone would leave an orphaned true-up in QB.
     if (header.pay_group === 'EOM' && header.period_segment === '') {
       const [mo, , y] = header.pay_date.split('/');
+      // A parent in a period-complete month could never be reposted (the post route's
+      // closed-period gate) — pulling it back would just delete booked money (final review I5).
+      // Corrections (period_segment 'C<n>') stay pullable.
+      if (isEomMonthComplete(`${y}-${mo}`)) {
+        await insertAudit({ headerId, mode: 'live', entity: header.entity, outcome: 'blocked', reason: 'unpost: period complete — pull-back locked' });
+        return NextResponse.json({ error: PERIOD_COMPLETE_UNPOST_MESSAGE }, { status: 409 });
+      }
       const corrections = (await listEomCorrectionHeaders({ year: Number(y), month: Number(mo) }))
         .filter((h) => h.entity === header.entity && h.status === 'posted');
       if (corrections.length > 0) {

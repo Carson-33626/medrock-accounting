@@ -135,4 +135,19 @@ describe('POST /api/payroll/eom/unpost', () => {
     const res = await POST(request({ headerId: base.id }));
     expect(res.status).toBe(200);
   });
+  it('refuses (409, audited) to pull back an EOM parent in a period-complete month (I5)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...base, pay_group: 'EOM', pay_date: '03/31/2026', qb_doc_number: 'FL % Allo 2026.03' }, lines: [] });
+    const res = await POST(request({ headerId: base.id }));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('period is complete');
+    expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ headerId: base.id, outcome: 'blocked', reason: expect.stringContaining('period complete') }));
+    expect(unpostJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('a correction in a period-complete month stays pullable (I5)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...base, pay_group: 'EOM', pay_date: '03/31/2026', period_segment: 'C1' }, lines: [] });
+    const res = await POST(request({ headerId: base.id }));
+    expect(res.status).toBe(200);
+    expect(unpostJournalEntry).toHaveBeenCalled();
+  });
 });
