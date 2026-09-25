@@ -72,9 +72,10 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
    * Bottlemate also sells 15/30 ml airless (landed 1.463 / 2.167) but is ~8% of pump
    * spend and not a box the lab names, so it corroborates rather than sets a row.
    *
-   * A 60g silver fill is its own size line (Carson, 2026-09-25: devices broken out
-   * FULLY by size, never collapsed into 2 x 30g). No Frosted or Melasma 60g box
-   * exists on the lab sheets, so those two lines are UNPRICED below, not guessed.
+   * No Frosted or Melasma box exists above 45g, so a larger silver fill is counted
+   * by the loader as N x the 30g box (Carson, 2026-09-25) and prices at the 30g row.
+   * If one of the unsheeted CPN codes turns out to be a real 60g pump, that becomes
+   * its own size line here and in the loader together.
    */
   {
     device: 'Rosacea Pump', sku: '15g', pricePerUnit: 1.84, confidence: 'high',
@@ -308,24 +309,10 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
  */
 export interface UnpricedDevice {
   readonly device: string;
-  /** Set when only ONE size of an otherwise-priced device is unpriced. */
-  readonly sku?: string;
   readonly reason: string;
 }
 
 export const UNPRICED: readonly UnpricedDevice[] = [
-  {
-    device: 'Rosacea Pump', sku: '60g',
-    reason:
-      'NO BOX. Fills over 45g are their own size line (Carson 2026-09-25: never 2 x 30g), but the ' +
-      "lab's 2026-09-25 Frosted sheet lists only 15/30/45g boxes. Awaiting the lab.",
-  },
-  {
-    device: 'Melasma Pump', sku: '60g',
-    reason:
-      'NO BOX. Fills over 45g are their own size line (Carson 2026-09-25: never 2 x 30g), but the ' +
-      "lab's 2026-09-25 Melasma sheet lists only 15/30/45g boxes. Awaiting the lab.",
-  },
   {
     device: 'Lip Balm',
     reason:
@@ -367,8 +354,8 @@ const BY_KEY: ReadonlyMap<string, DevicePrice> = new Map(
   DEVICE_UNIT_PRICES.map((p): readonly [string, DevicePrice] => [`${p.device}||${p.sku}`, p]),
 );
 
-const UNPRICED_BY_KEY: ReadonlyMap<string, UnpricedDevice> = new Map(
-  UNPRICED.map((u): readonly [string, UnpricedDevice] => [`${u.device}||${u.sku ?? ''}`, u]),
+const UNPRICED_BY_DEVICE: ReadonlyMap<string, UnpricedDevice> = new Map(
+  UNPRICED.map((u): readonly [string, UnpricedDevice] => [u.device, u]),
 );
 
 /**
@@ -382,24 +369,7 @@ export function priceFor(device: string, sku: string): DevicePrice | null {
   return BY_KEY.get(`${device}||${sku}`) ?? BY_KEY.get(`${device}||`) ?? null;
 }
 
-/**
- * Why a device (or one size of it) carries no price, or `null` if it is priced or
- * simply unknown. A size-level entry wins over a device-wide one.
- */
-export function unpricedReason(device: string, sku = ''): string | null {
-  return (
-    UNPRICED_BY_KEY.get(`${device}||${sku}`)?.reason ??
-    UNPRICED_BY_KEY.get(`${device}||`)?.reason ??
-    null
-  );
-}
-
-/**
- * Whether EVERY size of a device is unpriced (Topi-Click, Syringes...), as opposed
- * to one size of a priced device (a 60g silver pump). Callers disclose the first
- * under the device name and the second under "device size", so a missing 60g box
- * does not read as the whole pump family being unvalued.
- */
-export function isWhollyUnpriced(device: string): boolean {
-  return UNPRICED_BY_KEY.has(`${device}||`);
+/** Why a device carries no price, or `null` if it is priced or simply unknown. */
+export function unpricedReason(device: string): string | null {
+  return UNPRICED_BY_DEVICE.get(device)?.reason ?? null;
 }

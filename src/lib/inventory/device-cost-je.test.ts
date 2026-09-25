@@ -152,18 +152,6 @@ describe('the journal lines', () => {
     expect(text).toContain('RETIRED');
   });
 
-  it('discloses an unpriced SIZE under "device size", not as the whole family', () => {
-    // A 60g silver pump has no box on the lab sheets; the 30g beside it is priced.
-    const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
-      usage({ device: 'Rosacea Pump', sku: '60g', units: 40 }),
-      usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
-    ]);
-    const text = c.warnings.join(' ');
-    expect(text).toContain('40 Rosacea Pump 60g units consumed but NOT valued');
-    expect(text).toContain('NO BOX');
-    expect(c.lines[0].amount).toBe(197); // the 30g only
-  });
-
   it('always states that it is not driving 1220.15 to a target', () => {
     // Carson, 2026-09-04, on counting packaging on hand: "Not possible to know".
     // So the balance keeps its pre-2026 accumulation and the reviewer is told.

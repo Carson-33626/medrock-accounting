@@ -111,12 +111,11 @@ describe("the lab's 2026-09-25 packaging reference", () => {
     expect(priced('AK Pump', '60g').provenance).toContain('72PUR75WF');
   });
 
-  it('leaves the 60g silver pumps UNPRICED rather than pricing them as 2 x 30g', () => {
-    // Carson: fully by size, never collapsed into multiples. No 60g box on the sheets.
-    expect(priceFor('Rosacea Pump', '60g')).toBeNull();
-    expect(priceFor('Melasma Pump', '60g')).toBeNull();
-    expect(unpricedReason('Rosacea Pump', '60g')).toContain('NO BOX');
-    expect(unpricedReason('Rosacea Pump', '30g')).toBeNull();
+  it('carries no 60g silver row — a large silver fill is N x the 30g box', () => {
+    // Carson, 2026-09-25: over 45g counts as N x 30g at the 30g box, because no
+    // Frosted or Melasma box exists above 45g. The loader emits sku '30g' for it.
+    expect(DEVICE_UNIT_PRICES.some((p) => p.device === 'Rosacea Pump' && p.sku === '60g')).toBe(false);
+    expect(DEVICE_UNIT_PRICES.some((p) => p.device === 'Melasma Pump' && p.sku === '60g')).toBe(false);
   });
 
   it('renames the Kiss Me Goodnight jar to the Orbit Jar, keeping its price', () => {
@@ -173,7 +172,7 @@ describe('lookup behaviour', () => {
 
   it('gives a reason for every unpriced device', () => {
     for (const u of UNPRICED) {
-      expect(unpricedReason(u.device, u.sku), u.device).toBeTruthy();
+      expect(unpricedReason(u.device), u.device).toBeTruthy();
     }
   });
 
