@@ -92,10 +92,15 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       '$1,997.50 = 1.5980 net (1.52-1.65); x 1.1524 landed = 1.8415.',
   },
   {
-    device: 'Rosacea Pump (Frosted)', sku: '30g', pricePerUnit: 1.97, confidence: 'high',
+    // Blends in the Glossy Black backup box: Carson 2026-09-25, "these were ordered as
+    // backup because the silver got backordered, so treat these as backup to the
+    // mainline stock." Same body and size, different collar — and in 2026 the backup
+    // outsold the mainline, so leaving it out would understate what a unit costs.
+    device: 'Rosacea Pump (Frosted)', sku: '30g', pricePerUnit: 2.00, confidence: 'high',
     provenance:
-      'Lab box 02LUX30FS (Luxe 30 ML Matte Silver / Frosted). CPN invoices: 5,320 units for ' +
-      '$9,116.20 = 1.7136 net (1.63-1.76); x 1.1524 landed = 1.9748.',
+      'Lab box 02LUX30FS (Luxe 30 ML Matte Silver / Frosted): 5,320 units for $9,116.20, plus ' +
+      'backup 05-LUX-30FB (Glossy Black / Frosted): 6,460 units for $11,369.60 = 11,780 for ' +
+      '$20,485.80 = 1.7390 net; x 1.1524 landed = 2.0040.',
   },
   {
     device: 'Rosacea Pump (Frosted)', sku: '45g', pricePerUnit: 2.12, confidence: 'high',
@@ -106,14 +111,16 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
   {
     device: 'Melasma Pump', sku: '15g', pricePerUnit: 1.76, confidence: 'high',
     provenance:
-      'Lab box 13LUX15WS (Luxe 15 ML Matte Silver / White). CPN invoices: 1,000 units at 1.53 ' +
-      'net; x 1.1524 landed = 1.7632.',
+      'Lab box 13LUX15WS (Luxe 15 ML Matte Silver / White): 1,000 units at 1.53, plus backup ' +
+      '16-LUX-15WB (Glossy Black / White, Carson 2026-09-25: backorder substitute): 2,750 units ' +
+      'at 1.53 = 1.53 net either way; x 1.1524 landed = 1.7632.',
   },
   {
-    device: 'Melasma Pump', sku: '30g', pricePerUnit: 1.65, confidence: 'high',
+    device: 'Melasma Pump', sku: '30g', pricePerUnit: 1.66, confidence: 'high',
     provenance:
-      'Lab box 14LUX30WS (Luxe 30 ML Matte Silver / White). CPN invoices: 10,640 units at 1.43 ' +
-      'net, the same on every invoice; x 1.1524 landed = 1.6479. Cheaper than the 15 ml at CPN.',
+      'Lab box 14LUX30WS (Luxe 30 ML Matte Silver / White): 10,640 units at 1.43, plus backup ' +
+      '17-LUX-30WB (Glossy Black / White, Carson 2026-09-25: backorder substitute): 380 units at ' +
+      '1.62 = 11,020 for $15,830.80 = 1.4365 net; x 1.1524 landed = 1.6554.',
   },
   {
     device: 'Melasma Pump', sku: '45g', pricePerUnit: 2.09, confidence: 'high',
