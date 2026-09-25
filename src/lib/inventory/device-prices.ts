@@ -164,35 +164,29 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'net, the same on every invoice; x 1.1524 landed = 1.9937.',
   },
   {
-    // CARSON, 2026-09-04, on the $1.90-vs-measured question: "Screenshot for the
-    // website listing. Otherwise go from the agent's invoice ruling."
+    // THE TRET PUMP IS CPN'S ECHO AIRLESS JAR. The lab sheet gives it no box code;
+    // the bills do. TN's LifeFile receiving logged lot `24ECH50CW` (Echo 50 ML) under
+    // the product "Tret Pump (45g)", and 2026 Echo buying (~3,200 jars across all
+    // three entities, FL/TN/TX, QuickBooks 1220.15) matches the ~3,000 Tret Pumps
+    // modelled. Echo 30 ML -> 20g, Echo 50 ML -> 45g. Shiny (23/24-ECH-..CW) and
+    // matte (53/54-ECH-..CW-M) collars are the same body at the same price.
     //
-    // So: the measured invoices win. $1.90 was NEVER an invoice — it was $189.64
-    // divided by an ASSUMED 100-count case, and the assumption was the whole basis.
-    // Cosmetic Packaging receipts that state their quantities give 2.42/2.47 (2022,
-    // 250 units each) and 2.26/2.30 (2023). Most recent pair is 2026's best evidence.
-    //
-    // The screenshot corroborates the line rather than this exact SKU. Tret Pump 45g
-    // carries LifeFile lot `24ECH50CW` — CPN's ECHO 50 ML — and the listing Carson
-    // sent prices ECHO 15 ML at $2.69 (low as $1.80) and ECHO 30 ML at $2.73 (low as
-    // $1.83). Two things follow. The Echo line is priced almost FLAT across sizes
-    // (4c between 15 and 30 ML), which is why 20g and 45g take the same number here
-    // instead of a size ladder. And $2.28 sits between the volume tier and list,
-    // which is where a real invoice should sit.
-    device: 'Tret Pump', sku: '20g', pricePerUnit: 2.28, confidence: 'medium',
+    // Carson, 2026-09-25, approved re-pricing off these bills. They replace the $2.28
+    // midpoint of 2022-23 invoices, which was the best evidence before the Echo
+    // connection was made.
+    device: 'Tret Pump', sku: '20g', pricePerUnit: 2.17, confidence: 'high',
     provenance:
-      'Cosmetic Packaging invoices with STATED quantities: 2.26/2.30 (2023) and 2.42/2.47 ' +
-      '(2022, 250 units each); 2.28 is the midpoint of the most recent pair. Corroborated by ' +
-      'the CPN listing for the same ECHO line (15 ML $2.69 list / $1.80 volume, 30 ML $2.73 / ' +
-      '$1.83) and by the LifeFile sibling median of $2.77 for lot 24ECH50CW. REPLACES the ' +
-      '$1.90 assumed-100-count-case figure, which was never an invoice price.',
+      'CPN Echo 30 ML Airless Jar (23-ECH-30CW shiny / 53-ECH-30CW-M matte), 2026 QB bills with ' +
+      'stated quantity or unit price: 33587, 33684, 33736, 34757, 34876, 34918, 35226, 35475, ' +
+      '35955 = 2,016 units for $3,798.48 = 1.8842 net (1.83-1.93); x 1.1524 landed = 2.1714. ' +
+      'docs/tech-spend-recon/qb-lines.csv.',
   },
   {
-    device: 'Tret Pump', sku: '45g', pricePerUnit: 2.28, confidence: 'medium',
+    device: 'Tret Pump', sku: '45g', pricePerUnit: 2.14, confidence: 'high',
     provenance:
-      'Same ECHO line as Tret Pump 20g and priced flat across sizes — see that row. LifeFile ' +
-      'lot 24ECH50CW (ECHO 50 ML) sibling median $2.77; price-outliers row 11 corrects the ' +
-      'keyed $156.31 to $2.77 on the same evidence.',
+      'CPN Echo 50 ML Airless Jar (24-ECH-50CW shiny / 54-ECH-50CW-M matte) — the LifeFile ' +
+      'Tret Pump (45g) lot 24ECH50CW. 2026 QB bills 33684, 33736, 34757, 35473 = 720 units at ' +
+      '1.86 net on every one; x 1.1524 landed = 2.1435.',
   },
   {
     device: 'Foam Bottle', sku: '', pricePerUnit: 1.40, confidence: 'high',
@@ -248,15 +242,14 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'price on three independent 2026 orders (Ramp 0b54790a / 493bd884 / c21953ac).',
   },
   {
-    // Renamed from 'White & Silver Jar' per the lab's 2026-09-25 reference, which
-    // calls the Kiss Me Goodnight container the Orbit Jar. That the Orbit Jar IS the
-    // Echo airless jar below is carried over from the old row, not stated by the lab.
-    device: 'Orbit Jar', sku: '', pricePerUnit: 1.87, confidence: 'medium',
+    // The Kiss Me Goodnight container. The inventory app's device code 32ORB30CW is
+    // CPN's Orbit 30 ML Acrylic Double Wall Jar. The old 'White & Silver Jar' row was
+    // priced off the Echo airless jar, which turned out to be the Tret Pump.
+    // Bought only twice: TN 2025-08-11 (#31490, $740.00) and FL 2026-07-20 (#36007).
+    device: 'Orbit Jar', sku: '', pricePerUnit: 1.69, confidence: 'high',
     provenance:
-      'CPN 23-ECH-30CW "Echo 30 ML Airless Jar with Shiny Silver Collar": 168 units at 1.93 ' +
-      '(33587) + 252 at 1.83 (34918) = 420 for $785.40 = 1.8700; ~2.13 with shipping allocated. ' +
-      "Carson's 2026-09-04 listing screenshot prices this exact item at $2.73 list / $1.83 at " +
-      'volume, so our invoice sits at the volume tier. Name match to the dispensed product is inferred.',
+      'CPN #36007 (QB FL bill 2026-07-20) "Orbit 30 ML Acrylic Double Wall Jar" x 250 for ' +
+      '$367.50 = 1.47 net; x 1.1524 landed = 1.6940. CPN lists it at $2.20, $1.47 at volume.',
   },
   {
     device: 'Nail Bottle', sku: '', pricePerUnit: 0.64, confidence: 'high',

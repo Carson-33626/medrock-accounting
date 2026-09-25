@@ -53,21 +53,14 @@ describe('the price table itself', () => {
 });
 
 describe("Carson's 2026-09-04 rulings", () => {
-  it('prices the Tret Pump off measured invoices, NOT the assumed 100-count case', () => {
-    // "Screenshot for the website listing. Otherwise go from the agent's invoice
-    // ruling." $1.90 was $189.64 / an ASSUMED case of 100 — the assumption was
-    // the whole basis. 2.28 is the midpoint of the most recent stated-quantity
-    // invoice pair (2.26 / 2.30, 2023).
-    expect(priced('Tret Pump', '20g').pricePerUnit).toBe(2.28);
-    expect(priced('Tret Pump', '45g').pricePerUnit).toBe(2.28);
-    expect(priced('Tret Pump', '20g').pricePerUnit).not.toBe(1.9);
-  });
-
-  it('prices the Tret Pump flat across sizes, because the ECHO line is priced flat', () => {
-    // The listing Carson sent prices ECHO 15 ML at $2.69 and ECHO 30 ML at $2.73 —
-    // four cents apart. A size ladder would be inventing a spread the vendor does
-    // not charge.
-    expect(priced('Tret Pump', '20g').pricePerUnit).toBe(priced('Tret Pump', '45g').pricePerUnit);
+  it('prices the Tret Pump off the 2026 Echo jar bills, NOT the assumed 100-count case', () => {
+    // The Tret Pump is CPN's Echo airless jar (LifeFile lot 24ECH50CW = "Tret Pump
+    // (45g)"). Echo 30 ML -> 20g, Echo 50 ML -> 45g. $1.90 was $189.64 / an ASSUMED
+    // case of 100, and the 2022-23 midpoint 2.28 is superseded by 2026 bills.
+    expect(priced('Tret Pump', '20g').pricePerUnit).toBe(2.17);
+    expect(priced('Tret Pump', '45g').pricePerUnit).toBe(2.14);
+    expect(priced('Tret Pump', '20g').provenance).toContain('Echo 30 ML');
+    expect(priced('Tret Pump', '45g').provenance).toContain('24ECH50CW');
   });
 
   it('prices a scar sheet per SQUARE broken off the roll, not per roll', () => {
@@ -122,7 +115,9 @@ describe("the lab's 2026-09-25 packaging reference", () => {
   });
 
   it('renames the Kiss Me Goodnight jar to the Orbit Jar, keeping its price', () => {
-    expect(priced('Orbit Jar', '').pricePerUnit).toBe(1.87);
+    // Priced off the Orbit 30 ML acrylic jar (32ORB30CW), not the Echo airless jar.
+    expect(priced('Orbit Jar', '').pricePerUnit).toBe(1.69);
+    expect(priced('Orbit Jar', '').provenance).toContain('Orbit 30 ML');
     expect(priceFor('White & Silver Jar', '')).toBeNull();
   });
 
