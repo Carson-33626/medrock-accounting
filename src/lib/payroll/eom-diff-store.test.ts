@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-type Row = Record<string, unknown>;
-type QueryFn = (sql: string, params?: ReadonlyArray<string | number | null>) => Promise<{ rows: Row[]; rowCount: number }>;
+type QueryFn = (sql: string, params?: ReadonlyArray<string | number | null>) => Promise<{ rows: never[]; rowCount: number }>;
 
 const query = vi.fn<QueryFn>();
 
@@ -25,13 +24,13 @@ describe('eom-diff-store settings', () => {
   });
 
   it('getSettings coerces numeric strings', async () => {
-    query.mockResolvedValueOnce({ rows: [{ threshold: '2.50', enabled: false, check_from_month: '2026-04' }] as Row[], rowCount: 1 });
+    query.mockResolvedValueOnce({ rows: [{ threshold: '2.50', enabled: false, check_from_month: '2026-04' }] as never[], rowCount: 1 });
     expect(await getSettings()).toEqual({ threshold: 2.5, enabled: false, checkFromMonth: '2026-04' });
   });
 
   it('updateSettings builds SET from only the provided keys and stamps updated_by', async () => {
     query.mockResolvedValueOnce({
-      rows: [{ threshold: '5.00', enabled: true, check_from_month: '2026-05' }] as Row[],
+      rows: [{ threshold: '5.00', enabled: true, check_from_month: '2026-05' }] as never[],
       rowCount: 1,
     });
     const result = await updateSettings({ threshold: 5 }, 'd.carson@medrockpharmacy.com');
@@ -47,7 +46,7 @@ describe('eom-diff-store settings', () => {
 
   it('updateSettings includes every provided key in the SET clause', async () => {
     query.mockResolvedValueOnce({
-      rows: [{ threshold: '2.00', enabled: false, check_from_month: '2026-06' }] as Row[],
+      rows: [{ threshold: '2.00', enabled: false, check_from_month: '2026-06' }] as never[],
       rowCount: 1,
     });
     await updateSettings({ threshold: 2, enabled: false, checkFromMonth: '2026-06' }, null);
@@ -62,7 +61,7 @@ describe('eom-diff-store settings', () => {
 
 describe('eom-diff-store runs', () => {
   it('startRun inserts the trigger and returns the new id', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 7 }] as Row[], rowCount: 1 });
+    query.mockResolvedValueOnce({ rows: [{ id: 7 }] as never[], rowCount: 1 });
     expect(await startRun('manual')).toBe(7);
     const [sql, params] = query.mock.calls[0] as [string, string[]];
     expect(sql).toContain('INSERT');
@@ -85,7 +84,7 @@ describe('eom-diff-store runs', () => {
       rows: [{
         id: 3, trigger: 'cron', started_at: '2026-09-25T00:00:00Z', finished_at: '2026-09-25T00:01:00Z',
         ok: true, error: null,
-      }] as Row[],
+      }] as never[],
       rowCount: 1,
     });
     expect(await latestRun()).toEqual({
@@ -108,7 +107,7 @@ describe('eom-diff-store checks', () => {
         month: '2026-03', entity: 'MedRock FL', run_id: 4, checked_at: '2026-09-25T00:00:00Z',
         delta_lines: [{ postingType: 'Debit', amount: 5, accountName: 'Wages', memo: 'm' }],
         delta_debits: '5.00', error: null,
-      }] as Row[],
+      }] as never[],
       rowCount: 1,
     });
     const [check] = await listChecks();
@@ -138,7 +137,7 @@ describe('eom-diff-store checks', () => {
           'nope',
         ],
         delta_debits: '5.00', error: null,
-      }] as Row[],
+      }] as never[],
       rowCount: 1,
     });
     const [check] = await listChecks();
@@ -159,7 +158,7 @@ describe('eom-diff-store posted lookups', () => {
   });
 
   it('listPostedEomHeaderIds queries posted parent + corrections for the month/entity, ordered by segment', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] as Row[], rowCount: 2 });
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] as never[], rowCount: 2 });
     const ids = await listPostedEomHeaderIds({ year: 2026, month: 3 }, 'MedRock FL');
     expect(ids).toEqual([1, 2]);
     const [sql, params] = query.mock.calls[0] as [string, string[]];

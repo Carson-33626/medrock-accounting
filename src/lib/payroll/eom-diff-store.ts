@@ -6,6 +6,7 @@
 import { getRdsPool } from '../rds';
 import { monthEndAdp, type Month } from './month';
 import type { EomDiffSettings } from './eom-correction';
+import type { JsonValue } from './store';
 import type { Entity, JournalLine, PostingType } from './types';
 
 const DEFAULT_SETTINGS: EomDiffSettings = { threshold: 1, enabled: true, checkFromMonth: '2026-03' };
@@ -100,7 +101,7 @@ interface CheckRow {
   entity: Entity;
   run_id: number;
   checked_at: string;
-  delta_lines: unknown;
+  delta_lines: JsonValue;
   delta_debits: string;
   error: string | null;
 }
@@ -109,9 +110,9 @@ const POSTING_TYPES: readonly PostingType[] = ['Debit', 'Credit'];
 
 /** Narrow one jsonb array item to a JournalLine, filling the fields the check never stored
  *  (they carry no meaning for a delta; see the brief). Malformed items are dropped. */
-function toJournalLine(item: unknown): JournalLine | null {
-  if (typeof item !== 'object' || item === null) return null;
-  const r = item as Record<string, unknown>;
+function toJournalLine(item: JsonValue): JournalLine | null {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
+  const r: { [key: string]: JsonValue } = item;
   const postingType = r.postingType;
   const amount = r.amount;
   const accountName = r.accountName;
@@ -133,7 +134,7 @@ function toJournalLine(item: unknown): JournalLine | null {
   };
 }
 
-function toDeltaLines(value: unknown): JournalLine[] {
+function toDeltaLines(value: JsonValue): JournalLine[] {
   if (!Array.isArray(value)) return [];
   const out: JournalLine[] = [];
   for (const item of value) {
