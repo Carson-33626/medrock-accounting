@@ -129,15 +129,13 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'net; x 1.1524 landed = 2.0858.',
   },
   {
-    // ⚠ The lab sheet gives 58PUR30WF for BOTH 15g and 30g (question 1 in the
-    // reference). CPN does sell a separate 15 ML Pure box, 57-PUR-15WF, at 0.80 net
-    // (300 units, invoice 34575), so the 15g code may be a typo for it. Either way
-    // the price is within 3 cents; the row follows the sheet as written.
-    device: 'AK Pump', sku: '15g', pricePerUnit: 0.96, confidence: 'medium',
+    // The lab sheet gives 58PUR30WF for BOTH 15g and 30g, and Carson confirmed it
+    // 2026-09-25 (ruling sheet v1.3): a 15g AK fill goes in the 30 mL body. The
+    // 57-PUR-15WF billed once on 34575 is not the AK 15g box.
+    device: 'AK Pump', sku: '15g', pricePerUnit: 0.96, confidence: 'high',
     provenance:
-      'Lab box 58PUR30WF as printed for 15g (duplicate of 30g, awaiting lab). CPN invoices: ' +
-      '11,712 units for $9,713.28 = 0.8293 net (0.79-0.83); x 1.1524 landed = 0.9557. ' +
-      'Alternative 57-PUR-15WF nets 0.80 (landed 0.92).',
+      'Lab box 58PUR30WF, the same body as 30g (confirmed, ruling sheet v1.3). CPN invoices: ' +
+      '11,712 units for $9,713.28 = 0.8293 net (0.79-0.83); x 1.1524 landed = 0.9557.',
   },
   {
     device: 'AK Pump', sku: '30g', pricePerUnit: 0.96, confidence: 'high',
@@ -156,7 +154,14 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
     provenance:
       'Lab box 72PUR75WF (Pure 75 ML White PP). CPN invoices: 1,200 units for $1,944.00 = ' +
       '1.6200 net (1.53-1.65); x 1.1524 landed = 1.8669. The 09-04 row (1.86) used the 100 ML ' +
-      'box 60-PUR-100WF, which is on no lab sheet.',
+      'box 60-PUR-100WF, which is now its own 100g size below.',
+  },
+  {
+    device: 'AK Pump', sku: '100g', pricePerUnit: 1.99, confidence: 'high',
+    provenance:
+      'Box 60PUR100WF (Pure 100 ML White PP), added as the AK 100g size by ruling sheet v1.3 ' +
+      '(Carson 2026-09-25) for 61-100g fills. CPN invoices: 2,176 units for $3,764.48 = 1.7300 ' +
+      'net, the same on every invoice; x 1.1524 landed = 1.9937.',
   },
   {
     // CARSON, 2026-09-04, on the $1.90-vs-measured question: "Screenshot for the

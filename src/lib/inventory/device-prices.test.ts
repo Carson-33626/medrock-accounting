@@ -105,7 +105,10 @@ describe("the lab's 2026-09-25 packaging reference", () => {
   });
 
   it('breaks the AK pump out fully by size — no more grouped 30/45G band', () => {
-    for (const size of ['15g', '30g', '45g', '60g']) expect(priceFor('AK Pump', size), size).not.toBeNull();
+    for (const size of ['15g', '30g', '45g', '60g', '100g']) expect(priceFor('AK Pump', size), size).not.toBeNull();
+    // Ruling sheet v1.3: 15g and 30g are the SAME box, so the same price.
+    expect(priced('AK Pump', '15g').pricePerUnit).toBe(priced('AK Pump', '30g').pricePerUnit);
+    expect(priced('AK Pump', '100g').provenance).toContain('60PUR100WF');
     expect(priceFor('AK Pump', '30/45G')).toBeNull();
     expect(priced('AK Pump', '45g').provenance).toContain('59PUR50WF');
     expect(priced('AK Pump', '60g').provenance).toContain('72PUR75WF');
