@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { requireManager } from '@/lib/auth';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '@/lib/payroll/revenue-rule';
-import { fetchAllocationPool, type PoolLine } from '@/lib/payroll/qb-pool';
-import { buildMonthEndAllocation } from '@/lib/payroll/month-end';
-import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
-import { excludeCsLines } from '@/lib/payroll/cs-catchup';
+import type { PoolLine } from '@/lib/payroll/qb-pool';
+import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders } from '@/lib/payroll/eom-store';
+import { computeEomTarget } from '@/lib/payroll/eom-target';
 import { saveDraft, loadDraft, type JsonValue } from '@/lib/payroll/store';
 import { isEomMonthComplete, PERIOD_COMPLETE_MESSAGE } from '@/lib/payroll/period-locks';
 import { fetchDimensions } from '@/lib/payroll/qb-journal';
@@ -73,43 +71,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let revenueTest: RevenueTest;
-    let pool: PoolLine[];
-    let attention: PoolLine[];
-    try {
-      revenueTest = await fetchRevenuePresence(m);
-      const poolResult = await fetchAllocationPool(m);
-      pool = poolResult.pool;
-      attention = poolResult.attention;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch QuickBooks data';
-      return NextResponse.json({ error: message }, { status: 502 });
-    }
-
-    // HARD RULE (Carson, 2026-08-25): a month whose Customer Service was already allocated
-    // by posted standalone CS Allo entries must NOT re-allocate it — the full month-end
-    // covers everything else and its private note names the CS docs. Without this, running
-    // the automation for April–August 2026 would move CS twice.
-    const csHeaders = await listPostedCsAlloHeaders(m);
-    const csAlloDocs = csHeaders.map((h) => h.qb_doc_number ?? `#${h.id}`);
-    let csExcludedCount = 0;
-    if (csHeaders.length > 0) {
-      const { kept, cs } = excludeCsLines(pool);
-      pool = kept;
-      csExcludedCount = cs.length;
-    }
-
-    let shares = sharesFromRevenue(revenueTest);
-    if (shares === null) {
-      if (pool.some((l) => l.rule === 'revenue')) {
-        return NextResponse.json({ error: `no location has revenue for ${month}` }, { status: 422 });
-      }
-      // thirds/fifty groups never read the shares record — an all-zero placeholder keeps
-      // buildMonthEndAllocation's signature (Record<EomEntity, number>) satisfied.
-      shares = Object.fromEntries(EOM_ENTITIES.map((e) => [e, 0])) as Record<EomEntity, number>;
-    }
-
-    const drafts = buildMonthEndAllocation(pool, shares, m, { csAlloDocs });
+    const target = await computeEomTarget(m);
+    if (!target.ok) return NextResponse.json({ error: target.error }, { status: target.status });
+    const { drafts, pool, attention, revenueTest, shares, csAlloDocs, csExcludedCount } = target;
 
     // Pre-flight account check: warnings only — generation still saves; posting would fail
     // loudly on an unresolved account anyway (see qb-journal.buildJePayload).

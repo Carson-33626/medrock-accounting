@@ -41,8 +41,22 @@ export async function listEomHeaders(m: Month): Promise<PayrollHeader[]> {
             total_debits, total_credits, variance, row_count, source_snapshot_hash,
             qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
      FROM accounting.payroll_journal_headers
-     WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1
+     WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1 AND period_segment = ''
      ORDER BY entity`,
+    [monthEndAdp(m)],
+  );
+  return rows.map(toHeader);
+}
+
+/** Correction rows (period_segment 'C1', 'C2', …) for the month — DS 2026-09-25 §4.2. */
+export async function listEomCorrectionHeaders(m: Month): Promise<PayrollHeader[]> {
+  const { rows } = await getRdsPool().query<HeaderRow>(
+    `SELECT id, entity, pay_date, pay_group, period_start, period_end, status,
+            total_debits, total_credits, variance, row_count, source_snapshot_hash,
+            qb_entry_id, qb_doc_number, kind, period_segment, to_char(txn_date,'YYYY-MM-DD') AS txn_date
+     FROM accounting.payroll_journal_headers
+     WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1 AND period_segment LIKE 'C%'
+     ORDER BY entity, period_segment`,
     [monthEndAdp(m)],
   );
   return rows.map(toHeader);
@@ -70,7 +84,7 @@ export async function listPostedCsAlloHeaders(m: Month): Promise<PayrollHeader[]
 export async function deleteUnpostedEomHeaders(m: Month, keepEntities: Entity[]): Promise<number> {
   const { rowCount } = await getRdsPool().query(
     `DELETE FROM accounting.payroll_journal_headers
-     WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1
+     WHERE pay_group = 'EOM' AND kind = 'allocation' AND pay_date = $1 AND period_segment = ''
        AND status <> 'posted' AND NOT (entity = ANY($2::text[]))`,
     [monthEndAdp(m), keepEntities],
   );

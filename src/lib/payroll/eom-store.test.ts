@@ -8,7 +8,7 @@ vi.mock('../rds', () => ({
   getRdsPool: () => ({ query }),
 }));
 
-import { saveEomRun, getEomRun, listEomHeaders, deleteUnpostedEomHeaders } from './eom-store';
+import { saveEomRun, getEomRun, listEomHeaders, deleteUnpostedEomHeaders, listEomCorrectionHeaders } from './eom-store';
 
 beforeEach(() => {
   query.mockReset();
@@ -43,5 +43,24 @@ describe('eom-store', () => {
     expect(result).toBeNull();
     const [, params] = query.mock.calls[0] as [string, [string]];
     expect(params[0]).toBe('2026-03');
+  });
+
+  it('listEomHeaders returns only the parent rows (period_segment empty)', async () => {
+    await listEomHeaders({ year: 2026, month: 3 });
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain("period_segment = ''");
+  });
+
+  it('deleteUnpostedEomHeaders never deletes correction rows', async () => {
+    await deleteUnpostedEomHeaders({ year: 2026, month: 3 }, ['MedRock FL']);
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain("period_segment = ''");
+  });
+
+  it('listEomCorrectionHeaders returns only C-rows for the month', async () => {
+    await listEomCorrectionHeaders({ year: 2026, month: 3 });
+    const [sql, params] = query.mock.calls[0] as [string, string[]];
+    expect(sql).toContain("period_segment LIKE 'C%'");
+    expect(params[0]).toBe('03/31/2026');
   });
 });
