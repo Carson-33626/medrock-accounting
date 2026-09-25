@@ -50,6 +50,14 @@ export interface DevicePrice {
  * eye pads are bought by the bag, the vials by the box of 190, the V-Line masks
  * by the case of 25. Where a row divides a case, the division is written out in
  * `provenance` so the next reader can check it rather than re-derive it.
+ *
+ * DEVICE NAMES FOLLOW THE ONE RULING SHEET (Carson, 2026-09-25: every system
+ * converges on MRPBI `docs/device-usage/DEVICE-RULINGS.md` §1). Retired names:
+ * Rosacea Pump -> Rosacea Pump (Frosted), Amber Drop Bottle -> Solution Bottle,
+ * Nail Brush Bottle -> Nail Bottle, Foam Pump -> Foam Bottle, Roller Bottle ->
+ * Sweatless Roller, Lip Gloss Tube -> Wart Pen, V-Line Mask Pack -> Neck Wrap Pack,
+ * Perioral Lip Ointment -> Perioral Lip Ointment Jar. Single-size devices are keyed
+ * on sku '' so whatever size label the loader emits ('55mL', '10g') falls back to it.
  */
 export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
   /* ── airless pumps: the bulk of the model, ~78% of modelled units ──
@@ -78,19 +86,19 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
    * its own size line here and in the loader together.
    */
   {
-    device: 'Rosacea Pump', sku: '15g', pricePerUnit: 1.84, confidence: 'high',
+    device: 'Rosacea Pump (Frosted)', sku: '15g', pricePerUnit: 1.84, confidence: 'high',
     provenance:
       'Lab box 01LUX15FS (Luxe 15 ML Matte Silver / Frosted). CPN invoices: 1,250 units for ' +
       '$1,997.50 = 1.5980 net (1.52-1.65); x 1.1524 landed = 1.8415.',
   },
   {
-    device: 'Rosacea Pump', sku: '30g', pricePerUnit: 1.97, confidence: 'high',
+    device: 'Rosacea Pump (Frosted)', sku: '30g', pricePerUnit: 1.97, confidence: 'high',
     provenance:
       'Lab box 02LUX30FS (Luxe 30 ML Matte Silver / Frosted). CPN invoices: 5,320 units for ' +
       '$9,116.20 = 1.7136 net (1.63-1.76); x 1.1524 landed = 1.9748.',
   },
   {
-    device: 'Rosacea Pump', sku: '45g', pricePerUnit: 2.12, confidence: 'high',
+    device: 'Rosacea Pump (Frosted)', sku: '45g', pricePerUnit: 2.12, confidence: 'high',
     provenance:
       'Lab box 03LUX50FS (Luxe 50 ML Matte Silver / Frosted). CPN 33662/34114: 420 units at ' +
       '1.84 net; x 1.1524 landed = 2.1204. The 09-04 row (1.84) was 15-LUX-50WS — the Melasma box.',
@@ -175,7 +183,7 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'keyed $156.31 to $2.77 on the same evidence.',
   },
   {
-    device: 'Foam Pump', sku: '', pricePerUnit: 1.40, confidence: 'high',
+    device: 'Foam Bottle', sku: '', pricePerUnit: 1.40, confidence: 'high',
     provenance:
       'U.S. Plastic Corp 7886277/7901857 item 62484 "50 ML PET BOTTLE / PP FOAMER CLEAR-WHITE" ' +
       'at 1.4060 discounted, 1.4800 list.',
@@ -183,7 +191,7 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
 
   /* ── bottles, jars and vials ── */
   {
-    device: 'Amber Drop Bottle', sku: '1oz dropper', pricePerUnit: 0.68, confidence: 'high',
+    device: 'Solution Bottle', sku: '1oz dropper', pricePerUnit: 0.68, confidence: 'high',
     provenance:
       'ULINE S-24309A across 35 invoices: 33,792 units bought in 2026 for $23,078.40 = 0.6830 ' +
       'invoice price, freight excluded (~5%). Largest single dollar correction in the sheet — ' +
@@ -222,7 +230,7 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       '(120 units on the same orders) — add it if every suspension ships with one.',
   },
   {
-    device: 'Roller Bottle', sku: '', pricePerUnit: 1.19, confidence: 'medium',
+    device: 'Sweatless Roller', sku: '', pricePerUnit: 1.19, confidence: 'medium',
     provenance:
       'Amazon (Mirrline) — CASE PRICING: $14.24 per 12-piece pack = 1.1867/bottle, the same ' +
       'price on three independent 2026 orders (Ramp 0b54790a / 493bd884 / c21953ac).',
@@ -239,7 +247,7 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       'volume, so our invoice sits at the volume tier. Name match to the dispensed product is inferred.',
   },
   {
-    device: 'Nail Brush Bottle', sku: '', pricePerUnit: 0.64, confidence: 'high',
+    device: 'Nail Bottle', sku: '', pricePerUnit: 0.64, confidence: 'high',
     provenance:
       'A SUMMED ASSEMBLY, not an average of two alternatives — one dispensed nail-brush bottle ' +
       'is one brush cap SCREWED ONTO one amber glass bottle, so the components ADD. U.S. Plastic ' +
@@ -249,7 +257,12 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       '"correct" this down to either component alone.',
   },
   {
-    device: 'Lip Gloss Tube', sku: '', pricePerUnit: 1.13, confidence: 'high',
+    // Formerly 'Lip Gloss Tube'. The ruling sheet makes the bio-adhesive tube part of
+    // the Wart Pen device ("anything that goes in a pen"), but it is a DIFFERENT
+    // billed item from the twist pen, so it keeps its own price under sku 'tube'.
+    // If the loader does not split pen from tube, every Wart Pen unit prices at the
+    // pen row below via the '' fallback.
+    device: 'Wart Pen', sku: 'tube', pricePerUnit: 1.13, confidence: 'high',
     provenance:
       'U.S. Plastic item 68167 "11ML LIP GLOSS TUBE W/BLK APLCTR": 4,350 units in 2026 for ' +
       '$4,608.28 = 1.0594 (list 1.23-1.25 less 15%). 1.13 = invoice + ~7% freight.',
@@ -293,7 +306,7 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
     // CARSON, 2026-09-04: "V-line mask pack is 25 per case, an order will get 2 of
     // those for 15, 4 for 30gm." The 2/4 is a UNITS correction owned by the loader
     // (the companion currently reads 4/8, i.e. double). This row is only the price.
-    device: 'V-Line Mask Pack', sku: '', pricePerUnit: 1.56, confidence: 'medium',
+    device: 'Neck Wrap Pack', sku: '', pricePerUnit: 1.56, confidence: 'medium',
     provenance:
       'Amazon (Ramp 04979907) "V Shaped Contouring Face Mask Line Shaping Lifting Belt" at ' +
       '$38.99 — CASE PRICING: Carson 2026-09-04 states 25 per case, so 38.99/25 = 1.5596. The ' +
@@ -320,7 +333,7 @@ export const UNPRICED: readonly UnpricedDevice[] = [
       'find the tube in the Ramp receipt OCR cache before guessing.',
   },
   {
-    device: 'Perioral Lip Ointment',
+    device: 'Perioral Lip Ointment Jar',
     reason:
       "NEW DEVICE in the lab's 2026-09-25 reference: a small clear jar of its own, no longer the " +
       'ULINE ointment jar. Vendor and price not yet found.',

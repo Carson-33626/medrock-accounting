@@ -11,7 +11,7 @@ import {
 const usage = (over: Partial<DeviceUsageRow> = {}): DeviceUsageRow => ({
   asOfMonth: '2026-04',
   location: 'MedRock Tennessee',
-  device: 'Rosacea Pump',
+  device: 'Rosacea Pump (Frosted)',
   sku: '30g',
   fills: 100,
   units: 100,
@@ -90,9 +90,9 @@ describe('valuing usage', () => {
   it('puts the biggest dollars first', () => {
     const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [
       usage({ device: 'Ointment Jar', sku: '2oz', units: 100 }),
-      usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
+      usage({ device: 'Rosacea Pump (Frosted)', sku: '30g', units: 100 }),
     ]);
-    expect(r.lines[0].device).toBe('Rosacea Pump');
+    expect(r.lines[0].device).toBe('Rosacea Pump (Frosted)');
   });
 });
 
@@ -189,7 +189,7 @@ describe('eye pads — measured, shown, and deliberately not relieved here', () 
   it('keeps their value OUT of the posted total', () => {
     const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [
       usage({ device: 'Eye Pad Pack', sku: '', units: 1_000 }),
-      usage({ device: 'Rosacea Pump', sku: '30g', units: 100 }),
+      usage({ device: 'Rosacea Pump (Frosted)', sku: '30g', units: 100 }),
     ]);
     expect(r.total).toBe(197); // the pump only
     expect(r.lines.find((l) => l.device === 'Eye Pad Pack')?.notRelieved).toContain('1220.10');

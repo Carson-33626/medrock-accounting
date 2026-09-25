@@ -81,8 +81,8 @@ describe("Carson's 2026-09-04 rulings", () => {
   it('prices a V-Line mask at the case of 25 Carson stated', () => {
     // "V-line mask pack is 25 per case". $38.99 / 25. The listing does not state
     // a pack count, so the 25 is his and the price is only as good as it.
-    expect(priced('V-Line Mask Pack', '').pricePerUnit).toBe(1.56);
-    expect(priced('V-Line Mask Pack', '').pricePerUnit * 25).toBeCloseTo(38.99, 1);
+    expect(priced('Neck Wrap Pack', '').pricePerUnit).toBe(1.56);
+    expect(priced('Neck Wrap Pack', '').pricePerUnit * 25).toBeCloseTo(38.99, 1);
   });
 
   it('retires the Topi-Click rather than pricing it', () => {
@@ -96,10 +96,10 @@ describe("the lab's 2026-09-25 packaging reference", () => {
   it('prices Frosted (Rosacea) and Melasma as DIFFERENT boxes, not one silver class', () => {
     // Frosted = Luxe *FS, Melasma = Luxe *WS. Same sizes, different invoices.
     for (const size of ['15g', '30g', '45g']) {
-      expect(priced('Rosacea Pump', size).pricePerUnit, size).not.toBe(
+      expect(priced('Rosacea Pump (Frosted)', size).pricePerUnit, size).not.toBe(
         priced('Melasma Pump', size).pricePerUnit,
       );
-      expect(priced('Rosacea Pump', size).provenance, size).toMatch(/LUX\d{2}FS/);
+      expect(priced('Rosacea Pump (Frosted)', size).provenance, size).toMatch(/LUX\d{2}FS/);
       expect(priced('Melasma Pump', size).provenance, size).toMatch(/LUX\d{2}WS/);
     }
   });
@@ -114,7 +114,7 @@ describe("the lab's 2026-09-25 packaging reference", () => {
   it('carries no 60g silver row — a large silver fill is N x the 30g box', () => {
     // Carson, 2026-09-25: over 45g counts as N x 30g at the 30g box, because no
     // Frosted or Melasma box exists above 45g. The loader emits sku '30g' for it.
-    expect(DEVICE_UNIT_PRICES.some((p) => p.device === 'Rosacea Pump' && p.sku === '60g')).toBe(false);
+    expect(DEVICE_UNIT_PRICES.some((p) => p.device === 'Rosacea Pump (Frosted)' && p.sku === '60g')).toBe(false);
     expect(DEVICE_UNIT_PRICES.some((p) => p.device === 'Melasma Pump' && p.sku === '60g')).toBe(false);
   });
 
@@ -123,18 +123,42 @@ describe("the lab's 2026-09-25 packaging reference", () => {
     expect(priceFor('White & Silver Jar', '')).toBeNull();
   });
 
+  it('uses only the ruling-sheet device names — no retired name can price', () => {
+    // Carson 2026-09-25: every system converges on DEVICE-RULINGS.md §1.
+    const retired = [
+      'Rosacea Pump', 'Amber Drop Bottle', 'Nail Brush Bottle', 'Foam Pump', 'Roller Bottle',
+      'Lip Gloss Tube', 'V-Line Mask Pack', 'Perioral Lip Ointment', 'White & Silver Jar',
+    ];
+    for (const name of retired) {
+      expect(DEVICE_UNIT_PRICES.some((p) => p.device === name), name).toBe(false);
+    }
+  });
+
+  it('prices the loader-emitted size labels of single-size devices via the fallback', () => {
+    expect(priced('Foam Bottle', '55mL').pricePerUnit).toBe(1.4);
+    expect(priced('Solution Bottle', '1oz dropper').pricePerUnit).toBe(0.68);
+    expect(priced('Wart Pen', '10g').pricePerUnit).toBe(1.23);
+  });
+
+  it('keeps the bio-adhesive tube at its own billed price inside the Wart Pen device', () => {
+    // One device per the sheet, two billed items: 11 mL U.S. Plastic tube vs the
+    // InterestPACK twist pen.
+    expect(priced('Wart Pen', 'tube').pricePerUnit).toBe(1.13);
+    expect(priced('Wart Pen', '').pricePerUnit).toBe(1.23);
+  });
+
   it('discloses the two new devices as unpriced', () => {
     expect(priceFor('Lip Balm', '')).toBeNull();
     expect(unpricedReason('Lip Balm')).toContain('NEW DEVICE');
-    expect(priceFor('Perioral Lip Ointment', '')).toBeNull();
-    expect(unpricedReason('Perioral Lip Ointment')).toContain('NEW DEVICE');
+    expect(priceFor('Perioral Lip Ointment Jar', '')).toBeNull();
+    expect(unpricedReason('Perioral Lip Ointment Jar')).toContain('NEW DEVICE');
   });
 });
 
 describe('the corrections that moved the most money', () => {
   it('holds the amber dropper at the corrected 0.68, not the 28%-low 0.49', () => {
     // 71,072 units x +0.19 = ~+$13.7k of COGS — the single largest price correction.
-    expect(priced('Amber Drop Bottle', '1oz dropper').pricePerUnit).toBe(0.68);
+    expect(priced('Solution Bottle', '1oz dropper').pricePerUnit).toBe(0.68);
   });
 
   it('keeps the 4 oz jar cheaper than the 10 oz', () => {
@@ -151,7 +175,7 @@ describe('the corrections that moved the most money', () => {
   it('keeps the nail brush bottle as the SUM of its two components', () => {
     // 0.4310 cap + 0.2097 bottle. Someone will eventually try to "correct" this
     // down to one component; this is the note that stops them.
-    expect(priced('Nail Brush Bottle', '').pricePerUnit).toBeCloseTo(0.431 + 0.2097, 2);
+    expect(priced('Nail Bottle', '').pricePerUnit).toBeCloseTo(0.431 + 0.2097, 2);
   });
 
   it('prices the wart pen at its LANDED floor, ocean freight excluded', () => {
@@ -163,7 +187,7 @@ describe('the corrections that moved the most money', () => {
 describe('lookup behaviour', () => {
   it('falls back to a device single-SKU row when the exact SKU is absent', () => {
     // A loader-side SKU band that splits later must not silently drop to zero.
-    expect(priceFor('Foam Pump', 'some-new-band')?.pricePerUnit).toBe(1.4);
+    expect(priceFor('Foam Bottle', 'some-new-band')?.pricePerUnit).toBe(1.4);
   });
 
   it('returns null for an unknown device rather than a zero', () => {
