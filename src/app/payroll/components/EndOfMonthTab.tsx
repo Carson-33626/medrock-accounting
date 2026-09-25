@@ -1026,6 +1026,12 @@ function DifferencesCard({
   const currentChecks = status?.checks.filter((c) => c.month === month) ?? [];
   const otherFlagged = status?.flagged.filter((f) => f.month !== month) ?? [];
 
+  // Client-side guard mirroring the server's validateSettings (eom-correction.ts): a blank,
+  // NaN or negative threshold must never reach the Save button.
+  const thresholdNumber = Number(thresholdInput);
+  const thresholdInvalid = thresholdInput.trim() === '' || !Number.isFinite(thresholdNumber) || thresholdNumber < 0;
+  const thresholdErrorMessage = 'Threshold must be a number ≥ 0';
+
   return (
     <div className={`rounded-xl shadow-sm ${cardBg} border ${border} p-4 space-y-3`}>
       <div className="flex flex-wrap items-center gap-3">
@@ -1111,15 +1117,28 @@ function DifferencesCard({
                         </button>
                       </td>
                       <td className="py-2 pl-3 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => onGenerateCorrection(c.entity)}
-                          disabled={busyKey}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
-                            darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {busyKey ? 'Generating…' : 'Generate correction'}
-                        </button>
+                        {(() => {
+                          // DS 2026-09-25 §4.5: enabled when flagged or size > 0 and the month
+                          // has a posted parent (a check row only exists for such months).
+                          const canGenerate = c.error === null && c.deltaDebits > 0;
+                          const title = !canGenerate
+                            ? c.error !== null
+                              ? 'Check failed — Recheck first'
+                              : 'Books already match'
+                            : undefined;
+                          return (
+                            <button
+                              onClick={() => onGenerateCorrection(c.entity)}
+                              disabled={busyKey || !canGenerate}
+                              title={title}
+                              className={`px-2.5 py-1 text-xs font-medium rounded-lg border disabled:opacity-50 ${
+                                darkMode ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              {busyKey ? 'Generating…' : 'Generate correction'}
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                     {open && (
@@ -1211,17 +1230,21 @@ function DifferencesCard({
           </label>
           <button
             onClick={() => {
-              const threshold = Number(thresholdInput);
-              onSaveSettings({ threshold, enabled: enabledInput, checkFromMonth: checkFromInput });
+              onSaveSettings({ threshold: Number(thresholdInput), enabled: enabledInput, checkFromMonth: checkFromInput });
             }}
-            disabled={settingsSaving}
+            disabled={settingsSaving || thresholdInvalid}
+            title={thresholdInvalid ? thresholdErrorMessage : undefined}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
             Save
           </button>
         </div>
-        {settingsError && <p className={`text-xs mt-1 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>{settingsError}</p>}
+        {(thresholdInvalid || settingsError) && (
+          <p className={`text-xs mt-1 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+            {thresholdInvalid ? thresholdErrorMessage : settingsError}
+          </p>
+        )}
       </details>
     </div>
   );
