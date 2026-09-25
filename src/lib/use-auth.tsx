@@ -3,8 +3,9 @@
  *
  * Wrap your app with AuthProvider, then use useAuth() in components.
  *
- * MedRock Auth Integration Package 1.8.0 — canonical (direct) flow.
- * (Hook logic unchanged since 1.3.0; version bumped to track the vendored package.)
+ * MedRock Auth Integration Package 1.8.1 — canonical (direct) flow.
+ * (1.8.1: the timeout modal counts down to the real `expires_at` and tries a
+ * silent /api/me revive at 0 before logging out.)
  * Calls the auth host directly with `credentials: 'include'`; the shared
  * `.medrockpharmacy.com` session cookie travels cross-origin, so no local
  * proxy routes are needed. (This app previously forked to a /api/auth/* proxy
@@ -183,6 +184,9 @@ export function AuthProvider({
       return;
     }
 
+    // A fresh expiry past the warning window (extend, silent revive, sibling-tab
+    // refresh) closes an open modal.
+    setShowTimeoutWarning(false);
     const timer = setTimeout(() => {
       setShowTimeoutWarning(true);
     }, msUntilWarning);
@@ -269,6 +273,24 @@ export function AuthProvider({
     logout();
   }, [logout]);
 
+  // Countdown reached the real expiry. /api/me silently refreshes while the refresh
+  // token lives: if that works, the new expires_at reschedules past the warning
+  // window and the effect above closes the modal. Otherwise the session is gone.
+  const handleExpireFromModal = useCallback(async () => {
+    const ok = await checkSession();
+    if (!ok) await logout();
+  }, [checkSession, logout]);
+
+  // Legacy cookies (no expires_at) only reach the modal after /api/me already
+  // failed, so they get the old grace window from when the modal opens.
+  const [legacyDeadlineMs, setLegacyDeadlineMs] = useState<number | null>(null);
+  useEffect(() => {
+    setLegacyDeadlineMs(
+      showTimeoutWarning && !expiresAt ? Date.now() + timeoutWarningSeconds * 1000 : null
+    );
+  }, [showTimeoutWarning, expiresAt, timeoutWarningSeconds]);
+  const deadlineMs = expiresAt ? expiresAt * 1000 : legacyDeadlineMs;
+
   return (
     <AuthContext.Provider
       value={{
@@ -285,10 +307,12 @@ export function AuthProvider({
     >
       {children}
 
-      {showTimeoutWarning && (
+      {showTimeoutWarning && deadlineMs !== null && (
         <SessionTimeoutModal
-          timeoutSeconds={timeoutWarningSeconds}
+          key={deadlineMs}
+          deadlineMs={deadlineMs}
           onExtend={handleExtendFromModal}
+          onExpire={() => void handleExpireFromModal()}
           onLogout={handleLogoutFromModal}
           onDismiss={handleDismissModal}
         />

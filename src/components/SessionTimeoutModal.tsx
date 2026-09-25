@@ -1,40 +1,61 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface SessionTimeoutModalProps {
-  /** Seconds until auto-logout (default: 60) */
-  timeoutSeconds?: number;
+  /** Wall-clock deadline (ms since epoch) — the access token's real expiry. */
+  deadlineMs: number;
   /** Called when user clicks "Stay Signed In" */
   onExtend: () => Promise<boolean>;
-  /** Called when user clicks "Log Out" or countdown expires */
+  /** Deadline reached (page visible): try a silent revive, else log out. Called at most once. */
+  onExpire: () => void;
+  /** Called when user clicks "Log Out" */
   onLogout: () => void;
   /** Called when modal should be dismissed (after successful extend) */
   onDismiss: () => void;
 }
 
+function secondsLeft(deadlineMs: number): number {
+  return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+}
+
 export function SessionTimeoutModal({
-  timeoutSeconds = 60,
+  deadlineMs,
   onExtend,
+  onExpire,
   onLogout,
   onDismiss,
 }: SessionTimeoutModalProps) {
-  const [countdown, setCountdown] = useState(timeoutSeconds);
+  // Derived from the real expiry, never a private counter: a counter pauses/throttles
+  // while the tab is hidden, so after time away it showed time the session no longer had.
+  const [countdown, setCountdown] = useState(() => secondsLeft(deadlineMs));
   const [extending, setExtending] = useState(false);
-
-  // Countdown timer
+  const expiredRef = useRef(false);
+  const onExpireRef = useRef(onExpire);
   useEffect(() => {
-    if (countdown <= 0) {
-      onLogout();
-      return;
-    }
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
-    const timer = setInterval(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [countdown, onLogout]);
+  useEffect(() => {
+    const tick = () => {
+      const left = secondsLeft(deadlineMs);
+      setCountdown(left);
+      // Only act on expiry while the user can see the page — a hidden tab waits
+      // until it's shown (the visibilitychange tick), then onExpire revives or logs out.
+      if (left === 0 && !expiredRef.current && document.visibilityState === 'visible') {
+        expiredRef.current = true;
+        onExpireRef.current();
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    // Background tabs throttle intervals; resync the moment the tab is shown.
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [deadlineMs]);
 
   const handleExtend = useCallback(async () => {
     setExtending(true);
