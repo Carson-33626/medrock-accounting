@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { isAuthOnlyRoute } from './middleware';
+import { isAuthOnlyRoute, isSelfAuthRoute } from './middleware';
 
 describe('isAuthOnlyRoute', () => {
   const exemptCases: Array<{ label: string; pathname: string }> = [
@@ -44,6 +44,23 @@ describe('isAuthOnlyRoute', () => {
   for (const { label, pathname } of gatedCases) {
     it(`treats "${pathname}" (${label}) as gated by the accounting entitlement`, () => {
       expect(isAuthOnlyRoute(pathname)).toBe(false);
+    });
+  }
+});
+
+describe('isSelfAuthRoute', () => {
+  const exempt = ['/api/coupons', '/api/coupons/', '/api/coupons/anything', '/api/cron', '/api/cron/eom-diff'];
+  for (const pathname of exempt) {
+    it(`"${pathname}" self-authenticates (skips the session gate)`, () => {
+      expect(isSelfAuthRoute(pathname)).toBe(true);
+    });
+  }
+
+  // A lookalike sibling must NOT inherit the exemption — it would skip every auth check.
+  const gated = ['/api/cronjobs', '/api/cron-secret', '/api/couponsX', '/api/coupons-admin', '/api/payroll/eom/diff', '/'];
+  for (const pathname of gated) {
+    it(`"${pathname}" is NOT exempt`, () => {
+      expect(isSelfAuthRoute(pathname)).toBe(false);
     });
   }
 });

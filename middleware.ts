@@ -24,6 +24,11 @@ const SELF_AUTH_ROUTES = [
   '/api/cron', // Vercel cron — bearer CRON_SECRET checked in each route
 ];
 
+/** Exact route or one of its sub-paths — never a lookalike sibling ('/api/cronjobs'). */
+export function isSelfAuthRoute(pathname: string): boolean {
+  return SELF_AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'));
+}
+
 // Routes that require a valid session but NOT the `accounting` app entitlement.
 // The deposit portal is for all staff; granting them the accounting slug would
 // also expose payroll, sales tax, and AP. See spec §6.
@@ -108,7 +113,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Allow self-authenticating API routes
-  if (SELF_AUTH_ROUTES.some(route => pathname.startsWith(route))) {
+  if (isSelfAuthRoute(pathname)) {
     return NextResponse.next();
   }
 
