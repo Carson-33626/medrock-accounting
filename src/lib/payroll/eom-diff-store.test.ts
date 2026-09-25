@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-type QueryFn = (sql: string, params?: ReadonlyArray<string | number | null>) => Promise<{ rows: never[]; rowCount: number }>;
+type QueryFn = (sql: string, params?: ReadonlyArray<string | number | null | string[]>) => Promise<{ rows: never[]; rowCount: number }>;
 
 const query = vi.fn<QueryFn>();
 
