@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
 import { loadDraft, insertAudit } from '@/lib/payroll/store';
 import { unpostJournalEntry } from '@/lib/payroll/je-unpost';
+import { listEomCorrectionHeaders } from '@/lib/payroll/eom-store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -54,6 +55,20 @@ export async function POST(request: NextRequest) {
     if (header.status !== 'posted' || !header.qb_entry_id) {
       await insertAudit({ headerId, mode: 'live', entity: header.entity, outcome: 'blocked', reason: 'unpost: not posted' });
       return NextResponse.json({ error: 'entry is not posted — nothing to pull back' }, { status: 409 });
+    }
+
+    // A month-end parent with a posted correction (DS 2026-09-25): the correction is a delta
+    // against this entry — pulling the parent alone would leave an orphaned true-up in QB.
+    if (header.pay_group === 'EOM' && header.period_segment === '') {
+      const [mo, , y] = header.pay_date.split('/');
+      const corrections = (await listEomCorrectionHeaders({ year: Number(y), month: Number(mo) }))
+        .filter((h) => h.entity === header.entity && h.status === 'posted');
+      if (corrections.length > 0) {
+        const docs = corrections.map((h) => h.qb_doc_number ?? `#${h.id}`).join(', ');
+        const reason = `pull back ${docs} first — it corrects this entry`;
+        await insertAudit({ headerId, mode: 'live', entity: header.entity, outcome: 'blocked', reason: `unpost: ${reason}` });
+        return NextResponse.json({ error: reason }, { status: 409 });
+      }
     }
 
     const reason =

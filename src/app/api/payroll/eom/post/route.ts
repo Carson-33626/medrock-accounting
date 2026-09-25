@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
-import { loadDraft, insertAudit, setHeaderStatus } from '@/lib/payroll/store';
-import { getEomRun, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
+import { loadDraft, insertAudit, setHeaderStatus, latestAuditAt } from '@/lib/payroll/store';
+import {
+  getEomRun, listPostedCsAlloHeaders, listEomHeaders, listEomCorrectionHeaders,
+} from '@/lib/payroll/eom-store';
+import { eomCorrectionIndex, eomCorrectionDocNumber, eomCorrectionNote } from '@/lib/payroll/eom-correction';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
@@ -75,6 +78,10 @@ function readCsAlloDocs(revenue: JsonValue): string[] {
  *   3. status !== 'approved' -> 409 'must be approved before posting'.
  *   4. variance !== 0 -> 409 'draft unbalanced' (belt-and-suspenders; the builder
  *      already guarantees a balanced draft — see month-end.buildMonthEndAllocation).
+ *   5. CS double-move (EOM pay group): stale draft still carrying Customer Service lines.
+ *   6. corrections (period_segment 'C<n>', DS 2026-09-25): parent must be posted, and no
+ *      same-entity sibling may have posted after the correction was generated. Corrections
+ *      are exempt from the closed-period gate (2a) and post as `<parent doc>-<n+1>`.
  * Every attempt (dry_run and live; blocked, preview, posted, error) is audited.
  */
 export async function POST(request: NextRequest) {
@@ -110,11 +117,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'header is not a month-end allocation draft' }, { status: 400 });
     }
 
+    // A correction entry (period_segment 'C1', 'C2', …) to a posted month-end — DS 2026-09-25.
+    const corrIndex = eomCorrectionIndex(header.period_segment);
+
     if (mode === 'live') {
       // GATE 2a (closed period): month-end allocations through March 2026 are complete —
-      // accounting booked them; a post from here would duplicate the close.
+      // accounting booked them; a post from here would duplicate the close. Corrections are
+      // exempt (DS D2): they exist precisely to true up a month that is already booked.
       const lockMonth = monthFromPayDate(header.pay_date);
-      if (isEomMonthComplete(`${lockMonth.year}-${pad2(lockMonth.month)}`)) {
+      if (corrIndex === null && isEomMonthComplete(`${lockMonth.year}-${pad2(lockMonth.month)}`)) {
         await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason: 'period complete — posting locked' });
         return NextResponse.json({ error: PERIOD_COMPLETE_MESSAGE }, { status: 409 });
       }
@@ -153,16 +164,48 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: reason }, { status: 409 });
         }
       }
+
+      // GATE 6 (corrections only): a correction is the remainder against what was posted
+      // when it was generated. Its parent must still be posted, and nothing else for the
+      // month/entity may have posted since — otherwise the delta double-counts.
+      if (corrIndex !== null) {
+        const parent = (await listEomHeaders(lockMonth)).find((h) => h.entity === header.entity);
+        if (!parent || parent.status !== 'posted') {
+          const reason = `correction's parent ${parent?.qb_doc_number ?? eomDocNumber(header.entity, lockMonth)} is not posted`;
+          await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
+          return NextResponse.json({ error: reason }, { status: 409 });
+        }
+        const generatedAt = await latestAuditAt(header.id, 'generated');
+        const siblings = [parent, ...(await listEomCorrectionHeaders(lockMonth))].filter(
+          (h) => h.entity === header.entity && h.id !== header.id && h.status === 'posted',
+        );
+        for (const h of siblings) {
+          const postedAt = await latestAuditAt(h.id, 'posted');
+          if (generatedAt !== null && postedAt !== null && postedAt > generatedAt) {
+            const doc = h.qb_doc_number ?? `#${h.id}`;
+            const reason = `stale correction: ${doc} posted after it was generated — regenerate the correction before posting`;
+            await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
+            return NextResponse.json({ error: reason }, { status: 409 });
+          }
+        }
+      }
     }
 
     const m = monthFromPayDate(header.pay_date);
     const month = `${m.year}-${pad2(m.month)}`;
 
     let privateNote = `Month-end allocation — ${month}`;
-    const run = await getEomRun(month);
-    if (run) {
-      const shares = readShares(run.revenue);
-      if (shares) privateNote = eomPrivateNote(shares, m, readCsAlloDocs(run.revenue));
+    if (corrIndex !== null) {
+      const generatedAt = await latestAuditAt(header.id, 'generated');
+      privateNote = eomCorrectionNote(
+        header.entity, m, corrIndex, generatedAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+      );
+    } else {
+      const run = await getEomRun(month);
+      if (run) {
+        const shares = readShares(run.revenue);
+        if (shares) privateNote = eomPrivateNote(shares, m, readCsAlloDocs(run.revenue));
+      }
     }
 
     const draft: JournalDraft = {
@@ -173,7 +216,7 @@ export async function POST(request: NextRequest) {
       periodStart: header.period_start ?? '',
       periodEnd: header.period_end ?? '',
       periodSegment: header.period_segment,
-      docNumber: eomDocNumber(header.entity, m),
+      docNumber: corrIndex !== null ? eomCorrectionDocNumber(header.entity, m, corrIndex) : eomDocNumber(header.entity, m),
       txnDate: header.txn_date ?? undefined,
       privateNote,
       lines,

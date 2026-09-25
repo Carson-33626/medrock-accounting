@@ -751,6 +751,22 @@ export async function getSourceSnapshot(
 }
 
 /**
+ * When a header last got an audit row with this outcome, as UTC ISO `YYYY-MM-DDTHH:MM:SSZ`
+ * (null if never). Month-end correction gates (DS 2026-09-25): 'generated' stamps when a
+ * correction was computed, 'posted' when an entry reached QuickBooks — a correction generated
+ * before a sibling posted is stale. Fixed-width ISO strings compare correctly as strings.
+ */
+export async function latestAuditAt(headerId: number, outcome: 'generated' | 'posted'): Promise<string | null> {
+  const { rows } = await getRdsPool().query<{ at: string | null }>(
+    `SELECT to_char(max(created_at) AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS at
+       FROM accounting.payroll_post_audit
+      WHERE header_id = $1 AND outcome = $2`,
+    [headerId, outcome],
+  );
+  return rows[0]?.at ?? null;
+}
+
+/**
  * Pin the DocNumber this header will post under, without touching its status.
  *
  * The DocNumber-conflict rename (see doc-number-conflict.ts): the derived number is taken in

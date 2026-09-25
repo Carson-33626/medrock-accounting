@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireManager } from '@/lib/auth';
-import { getEomRun, listEomHeaders, listPostedCsAlloHeaders } from '@/lib/payroll/eom-store';
+import {
+  getEomRun, listEomHeaders, listPostedCsAlloHeaders, listEomCorrectionHeaders,
+} from '@/lib/payroll/eom-store';
 import { loadDraft } from '@/lib/payroll/store';
 import type { JournalLine } from '@/lib/payroll/types';
 import type { Month } from '@/lib/payroll/month';
@@ -32,8 +34,8 @@ export async function GET(request: NextRequest) {
     }
     const { month, m } = parsed;
 
-    const [run, headers, csAlloHeaders] = await Promise.all([
-      getEomRun(month), listEomHeaders(m), listPostedCsAlloHeaders(m),
+    const [run, headers, csAlloHeaders, correctionHeaders] = await Promise.all([
+      getEomRun(month), listEomHeaders(m), listPostedCsAlloHeaders(m), listEomCorrectionHeaders(m),
     ]);
 
     const lines: Record<string, JournalLine[]> = {};
@@ -51,7 +53,18 @@ export async function GET(request: NextRequest) {
       csAlloLines[String(header.id)] = loaded ? loaded.lines : [];
     }
 
-    return NextResponse.json({ run, headers, lines, csAllo: { headers: csAlloHeaders, lines: csAlloLines } });
+    // Correction entries (period_segment 'C1', …) to a posted month-end — DS 2026-09-25.
+    const correctionLines: Record<string, JournalLine[]> = {};
+    for (const header of correctionHeaders) {
+      const loaded = await loadDraft(header.id);
+      correctionLines[String(header.id)] = loaded ? loaded.lines : [];
+    }
+
+    return NextResponse.json({
+      run, headers, lines,
+      csAllo: { headers: csAlloHeaders, lines: csAlloLines },
+      corrections: { headers: correctionHeaders, lines: correctionLines },
+    });
   } catch (error) {
     console.error('[payroll/eom GET]', error);
     const message = error instanceof Error ? error.message : 'Failed to load month-end allocation run';

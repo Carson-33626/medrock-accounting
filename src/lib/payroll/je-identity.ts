@@ -26,6 +26,7 @@ import type { Entity } from './types';
 import { docNumber as payDocNumber, txnDate as payTxnDate } from './qb-journal';
 import { pieceDocNumber } from './split';
 import { eomDocNumber } from './month-end';
+import { eomCorrectionIndex, eomCorrectionDocNumber } from './eom-correction';
 import { longMonthName, type Month } from './month';
 import {
   invCloseDocNumber,
@@ -75,8 +76,14 @@ export function deriveJeIdentity(header: JeIdentityHeader, segIndex: number, seg
 
   if (header.kind === 'allocation') {
     const m = monthFromIso(txnDateIso);
+    // A correction to a posted month-end (period_segment 'C1', …) — DS 2026-09-25: `<parent>-<n+1>`.
+    const corrIndex = eomCorrectionIndex(header.period_segment);
     return {
-      docNumber: header.qb_doc_number ?? eomDocNumber(header.entity as Entity, m),
+      docNumber:
+        header.qb_doc_number ??
+        (corrIndex !== null
+          ? eomCorrectionDocNumber(header.entity as Entity, m, corrIndex)
+          : eomDocNumber(header.entity as Entity, m)),
       txnDateIso,
       privateNote: `Month-end allocation — ${longMonthName(m)} ${m.year}`,
     };

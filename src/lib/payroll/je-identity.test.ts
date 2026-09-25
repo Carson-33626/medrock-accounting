@@ -156,3 +156,13 @@ describe('deriveJeIdentity', () => {
     expect(id.docNumber).toBe('PR 2026.08.31');
   });
 });
+
+describe('deriveJeIdentity — month-end allocation corrections (DS 2026-09-25)', () => {
+  it('derives the -N doc number for a C<n> segment when qb_doc_number is null', () => {
+    const fix = header({ entity: 'MedRock FL', kind: 'allocation', pay_group: 'EOM', pay_date: '03/31/2026', txn_date: '2026-03-31', period_segment: 'C1' });
+    const id = deriveJeIdentity(fix, 0, 1);
+    expect(id.docNumber).toBe('FL % Allo 2026.03-2');
+    expect(deriveJeIdentity({ ...fix, qb_doc_number: 'FL % Allo 2026.03-2b' }, 0, 1).docNumber).toBe('FL % Allo 2026.03-2b');
+    expect(deriveJeIdentity({ ...fix, period_segment: '' }, 0, 1).docNumber).toBe('FL % Allo 2026.03');
+  });
+});

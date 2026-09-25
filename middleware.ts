@@ -21,6 +21,7 @@ const PUBLIC_ROUTES = [
 // Routes that handle their own auth (API routes that use Basic Auth, etc.)
 const SELF_AUTH_ROUTES = [
   '/api/coupons', // Uses internal data, no user auth needed
+  '/api/cron', // Vercel cron — bearer CRON_SECRET checked in each route
 ];
 
 // Routes that require a valid session but NOT the `accounting` app entitlement.

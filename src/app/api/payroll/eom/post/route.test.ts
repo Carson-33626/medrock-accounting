@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PayrollHeader } from '@/lib/payroll/store';
-import type { JournalLine } from '@/lib/payroll/types';
+import type { JournalDraft, JournalLine } from '@/lib/payroll/types';
 import type { PostResult } from '@/lib/payroll/qb-journal';
 import type { EomRun } from '@/lib/payroll/eom-store';
 
@@ -9,17 +9,23 @@ vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 const loadDraft = vi.fn(async (..._a: unknown[]) => null as { header: PayrollHeader; lines: JournalLine[] } | null);
 const insertAudit = vi.fn(async (..._a: unknown[]) => undefined);
 const setHeaderStatus = vi.fn(async (..._a: unknown[]) => undefined);
+const latestAuditAt = vi.fn(async (..._a: unknown[]) => null as string | null);
 vi.mock('@/lib/payroll/store', () => ({
   loadDraft: (...a: unknown[]) => loadDraft(...a),
   insertAudit: (...a: unknown[]) => insertAudit(...a),
   setHeaderStatus: (...a: unknown[]) => setHeaderStatus(...a),
+  latestAuditAt: (...a: unknown[]) => latestAuditAt(...a),
 }));
 
 const getEomRun = vi.fn(async (..._a: unknown[]) => null as EomRun | null);
 const listPostedCsAlloHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
+const listEomHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
+const listEomCorrectionHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 vi.mock('@/lib/payroll/eom-store', () => ({
   getEomRun: (...a: unknown[]) => getEomRun(...a),
   listPostedCsAlloHeaders: (...a: unknown[]) => listPostedCsAlloHeaders(...a),
+  listEomHeaders: (...a: unknown[]) => listEomHeaders(...a),
+  listEomCorrectionHeaders: (...a: unknown[]) => listEomCorrectionHeaders(...a),
 }));
 
 const postJournalEntry = vi.fn(async (..._a: unknown[]) => ({ mode: 'dry_run', payload: {} }) as PostResult);
@@ -62,6 +68,9 @@ beforeEach(() => {
   setHeaderStatus.mockReset();
   getEomRun.mockReset();
   listPostedCsAlloHeaders.mockReset();
+  listEomHeaders.mockReset();
+  listEomCorrectionHeaders.mockReset();
+  latestAuditAt.mockReset();
   postJournalEntry.mockReset();
 
   loadDraft.mockResolvedValue({ header, lines });
@@ -69,6 +78,9 @@ beforeEach(() => {
   setHeaderStatus.mockResolvedValue(undefined);
   getEomRun.mockResolvedValue(null);
   listPostedCsAlloHeaders.mockResolvedValue([]);
+  listEomHeaders.mockResolvedValue([]);
+  listEomCorrectionHeaders.mockResolvedValue([]);
+  latestAuditAt.mockResolvedValue(null);
   postJournalEntry.mockResolvedValue({ mode: 'dry_run', payload: {} } as PostResult);
 });
 
@@ -213,5 +225,53 @@ describe('POST /api/payroll/eom/post', () => {
     expect(draftArg.docNumber).toBe('FL % Allo 2026.07');
     expect(draftArg.privateNote).toBe('Month-end allocation — 2026-07');
     expect(draftArg.kind).toBe('allocation');
+  });
+});
+
+describe('correction entries (DS 2026-09-25)', () => {
+  const correction: PayrollHeader = { ...header, period_segment: 'C1', pay_date: '03/31/2026', txn_date: '2026-03-31' };
+
+  it('a correction in a locked month may post (lock exemption)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: correction, lines });
+    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'posted' }]);
+    latestAuditAt.mockResolvedValue(null);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).not.toBe(409);
+  });
+
+  it('the parent in a locked month is still refused', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: '' }, lines });
+    expect((await POST(req({ headerId: 5, mode: 'live' }))).status).toBe(409);
+  });
+
+  it('a correction whose parent is not posted is refused', async () => {
+    loadDraft.mockResolvedValueOnce({ header: correction, lines });
+    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'approved' }]);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(409);
+    expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'blocked' }));
+    expect(postJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('a stale correction is refused (something posted for the month/entity after it was generated)', async () => {
+    loadDraft.mockResolvedValueOnce({ header: correction, lines });
+    listEomHeaders.mockResolvedValueOnce([{ ...correction, id: 1, period_segment: '', status: 'posted' }]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([{ ...correction, id: 6, period_segment: 'C2', status: 'posted' }]);
+    latestAuditAt.mockImplementation(async (...a: unknown[]) => {
+      const [id, outcome] = a as [number, string];
+      return id === 5 && outcome === 'generated' ? '2026-09-26T10:00:00Z' : id === 6 && outcome === 'posted' ? '2026-09-26T11:00:00Z' : null;
+    });
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('regenerate the correction');
+    expect(postJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('a correction posts with its -N doc and correction note', async () => {
+    loadDraft.mockResolvedValueOnce({ header: correction, lines });
+    await POST(req({ headerId: 5, mode: 'dry_run' }));
+    const draft = postJournalEntry.mock.calls[0][1] as JournalDraft;
+    expect(draft.docNumber).toBe('FL % Allo 2026.03-2');
+    expect(draft.privateNote).toContain('Month-end allocation correction 1 to FL % Allo 2026.03');
   });
 });

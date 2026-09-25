@@ -8,7 +8,9 @@ vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 const getEomRun = vi.fn(async (..._a: unknown[]) => null as EomRun | null);
 const listEomHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 const listPostedCsAlloHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
+const listEomCorrectionHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
 vi.mock('@/lib/payroll/eom-store', () => ({
+  listEomCorrectionHeaders: (...a: unknown[]) => listEomCorrectionHeaders(...a),
   getEomRun: (...a: unknown[]) => getEomRun(...a),
   listEomHeaders: (...a: unknown[]) => listEomHeaders(...a),
   listPostedCsAlloHeaders: (...a: unknown[]) => listPostedCsAlloHeaders(...a),
@@ -36,6 +38,8 @@ beforeEach(() => {
   loadDraft.mockReset();
   getEomRun.mockResolvedValue(null);
   listEomHeaders.mockResolvedValue([]);
+  listEomCorrectionHeaders.mockReset();
+  listEomCorrectionHeaders.mockResolvedValue([]);
   loadDraft.mockResolvedValue(null);
 });
 
@@ -53,7 +57,7 @@ describe('GET /api/payroll/eom', () => {
     const res = await GET(req('?month=2026-03'));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { run: unknown; headers: unknown[]; lines: Record<string, unknown> };
-    expect(body).toEqual({ run: null, headers: [], lines: {}, csAllo: { headers: [], lines: {} } });
+    expect(body).toEqual({ run: null, headers: [], lines: {}, csAllo: { headers: [], lines: {} }, corrections: { headers: [], lines: {} } });
   });
 
   it('maps headers to their persisted lines by header id', async () => {
@@ -65,5 +69,21 @@ describe('GET /api/payroll/eom', () => {
     expect(body.headers).toEqual([header]);
     expect(body.lines).toEqual({ '101': [] });
     expect(loadDraft).toHaveBeenCalledWith(101);
+  });
+
+  it('returns the month\'s correction entries with their lines', async () => {
+    const correction: PayrollHeader = { ...header, id: 202, period_segment: 'C1' };
+    const line: JournalDraft['lines'][number] = {
+      postingType: 'Debit', amount: 12.5, accountName: 'Due From MedRock TN', departmentName: null, className: null,
+      memo: 'Month-end allocation correction', creditBucket: null, origin: 'inter_entity', sourceRowKeys: [],
+    };
+    listEomCorrectionHeaders.mockResolvedValueOnce([correction]);
+    loadDraft.mockImplementation(async (...a: unknown[]) => (a[0] === 202 ? { header: correction, lines: [line] } : null));
+    const res = await GET(req('?month=2026-03'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { corrections: { headers: PayrollHeader[]; lines: Record<string, unknown[]> } };
+    expect(body.corrections.headers).toEqual([correction]);
+    expect(body.corrections.lines).toEqual({ '202': [line] });
+    expect(listEomCorrectionHeaders).toHaveBeenCalledWith({ year: 2026, month: 3 });
   });
 });

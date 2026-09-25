@@ -12,6 +12,11 @@ vi.mock('@/lib/payroll/store', () => ({
   insertAudit: (...a: unknown[]) => insertAudit(...a),
 }));
 
+const listEomCorrectionHeaders = vi.fn(async (..._a: unknown[]) => [] as PayrollHeader[]);
+vi.mock('@/lib/payroll/eom-store', () => ({
+  listEomCorrectionHeaders: (...a: unknown[]) => listEomCorrectionHeaders(...a),
+}));
+
 const unpostJournalEntry = vi.fn(async (..._a: unknown[]): Promise<UnpostOutcome> => ({
   qbEntryId: '53419',
   qbDocNumber: 'FL CS Allo 2026.08',
@@ -46,6 +51,8 @@ beforeEach(() => {
   insertAudit.mockReset();
   unpostJournalEntry.mockClear();
   loadDraft.mockResolvedValue(null);
+  listEomCorrectionHeaders.mockReset();
+  listEomCorrectionHeaders.mockResolvedValue([]);
 });
 
 describe('isAllocationPayGroup', () => {
@@ -104,5 +111,28 @@ describe('POST /api/payroll/eom/unpost', () => {
       expect.objectContaining({ id: base.id }),
       'Pulled back from QuickBooks from the End of Month tab to regenerate and repost',
     );
+  });
+
+  it('refuses to pull back a parent that has a posted correction', async () => {
+    const postedHeader: PayrollHeader = { ...base, id: 9, pay_date: '07/31/2026', qb_doc_number: 'FL % Allo 2026.07' };
+    loadDraft.mockResolvedValueOnce({ header: { ...postedHeader, pay_group: 'EOM', period_segment: '' }, lines: [] });
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...postedHeader, pay_group: 'EOM', id: 11, period_segment: 'C1', qb_doc_number: 'FL % Allo 2026.07-2' },
+    ]);
+    const res = await POST(request({ headerId: 9 }));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain('pull back FL % Allo 2026.07-2 first');
+    expect(listEomCorrectionHeaders).toHaveBeenCalledWith({ year: 2026, month: 7 });
+    expect(insertAudit).toHaveBeenCalledWith(expect.objectContaining({ headerId: 9, outcome: 'blocked' }));
+    expect(unpostJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('pulls back a parent whose corrections are not posted', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...base, pay_group: 'EOM' }, lines: [] });
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...base, pay_group: 'EOM', id: 11, period_segment: 'C1', status: 'approved', qb_entry_id: null },
+    ]);
+    const res = await POST(request({ headerId: base.id }));
+    expect(res.status).toBe(200);
   });
 });
