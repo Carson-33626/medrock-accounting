@@ -9,7 +9,12 @@ import type { EomDiffSettings } from './eom-correction';
 import type { JsonValue } from './store';
 import type { Entity, JournalLine, PostingType } from './types';
 
-const DEFAULT_SETTINGS: EomDiffSettings = { threshold: 1, enabled: true, checkFromMonth: '2026-03' };
+// March 2026 is skipped (Carson, 2026-09-28: "in practice you were right to skip it").
+// March is the locked correction period (EOM_LOCKED_THROUGH = 2026-03) that the opening
+// true-ups land in, so re-deriving its allocation flags intended differences, not drift.
+// April is the first month the check watches. The live value is the settings row; this
+// is only the fallback when that row is missing.
+const DEFAULT_SETTINGS: EomDiffSettings = { threshold: 1, enabled: true, checkFromMonth: '2026-04' };
 
 interface SettingsRow { threshold: string; enabled: boolean; check_from_month: string }
 

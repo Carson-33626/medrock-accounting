@@ -19,8 +19,8 @@ beforeEach(() => {
 });
 
 describe('eom-diff-store settings', () => {
-  it('getSettings falls back to defaults when the row is missing', async () => {
-    expect(await getSettings()).toEqual({ threshold: 1, enabled: true, checkFromMonth: '2026-03' });
+  it('getSettings falls back to defaults when the row is missing — March skipped', async () => {
+    expect(await getSettings()).toEqual({ threshold: 1, enabled: true, checkFromMonth: '2026-04' });
   });
 
   it('getSettings coerces numeric strings', async () => {
