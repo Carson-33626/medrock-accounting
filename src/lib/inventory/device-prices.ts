@@ -252,6 +252,15 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       '$367.50 = 1.47 net; x 1.1524 landed = 1.6940. CPN lists it at $2.20, $1.47 at volume.',
   },
   {
+    // Carson, 2026-09-28: the Orbit 50 ML jar IS the lab's "Perioral Lip Ointment" small
+    // clear jar — not trial sizing, as first thought. Bought by the factory case of 64.
+    device: 'Perioral Lip Ointment Jar', sku: '', pricePerUnit: 2.28, confidence: 'high',
+    provenance:
+      'CPN "Orbit 50 ML Acrylic Double Wall Jar" 33-ORB-50CW (64 per case): FL #36007 ' +
+      '(QB bill 2026-07-20) 192 for $380.16 = 1.98 net; x 1.1524 landed = 2.2818. Earlier TN ' +
+      '#31490 (2025-08-11) one case of 64 for $120.96 = 1.89.',
+  },
+  {
     device: 'Nail Bottle', sku: '', pricePerUnit: 0.64, confidence: 'high',
     provenance:
       'A SUMMED ASSEMBLY, not an average of two alternatives — one dispensed nail-brush bottle ' +
@@ -328,12 +337,6 @@ export const UNPRICED: readonly UnpricedDevice[] = [
     reason:
       "NEW DEVICE in the lab's 2026-09-25 reference (all lip balms). No purchase priced yet — " +
       'find the tube in the Ramp receipt OCR cache before guessing.',
-  },
-  {
-    device: 'Perioral Lip Ointment Jar',
-    reason:
-      "NEW DEVICE in the lab's 2026-09-25 reference: a small clear jar of its own, no longer the " +
-      'ULINE ointment jar. Vendor and price not yet found.',
   },
   {
     // CARSON, 2026-09-04: "Topiclick was for hormones that we no longer use so

@@ -143,11 +143,14 @@ describe("the lab's 2026-09-25 packaging reference", () => {
     expect(priced('Wart Pen', '10g').pricePerUnit).toBe(1.23);
   });
 
-  it('discloses the two new devices as unpriced', () => {
-    expect(priceFor('Lip Balm', '')).toBeNull();
+  it('discloses Lip Balm as unpriced (no bill)', () => {
+    expect(priceFor('Lip Balm', '5g')).toBeNull();
     expect(unpricedReason('Lip Balm')).toContain('NEW DEVICE');
-    expect(priceFor('Perioral Lip Ointment Jar', '')).toBeNull();
-    expect(unpricedReason('Perioral Lip Ointment Jar')).toContain('NEW DEVICE');
+  });
+
+  it('prices the Perioral jar as the Orbit 50 ML (Carson 2026-09-28)', () => {
+    expect(priced('Perioral Lip Ointment Jar', '').pricePerUnit).toBe(2.28);
+    expect(priced('Perioral Lip Ointment Jar', '50g').provenance).toContain('33-ORB-50CW');
   });
 });
 
