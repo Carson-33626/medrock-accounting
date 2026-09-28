@@ -10,6 +10,7 @@ import {
   listPostedParentMonths, listPostedEomHeaderIds, type EomDiffRun, type EomDiffCheck,
 } from './eom-diff-store';
 import { loadDraft } from './store';
+import { listManualEomAdjustments } from './eom-manual';
 import type { Entity, JournalLine } from './types';
 import type { Month } from './month';
 
@@ -50,6 +51,15 @@ export async function runEomDiff(
             break;
           }
           postedSets.push(loaded.lines);
+        }
+        if (loadError === null) {
+          // Adjustments keyed straight into QuickBooks net too (eom-manual.ts). If QuickBooks
+          // cannot be read, say so — netting without them would re-flag a fixed month.
+          try {
+            for (const adj of await listManualEomAdjustments(m, entity)) postedSets.push(adj.lines);
+          } catch (e) {
+            loadError = `could not read QuickBooks for hand-keyed adjustments: ${e instanceof Error ? e.message : 'unknown error'}`;
+          }
         }
         if (loadError !== null) {
           await upsertCheck({ month, entity, runId, deltaLines: [], deltaDebits: 0, error: loadError });

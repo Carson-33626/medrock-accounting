@@ -10,6 +10,10 @@ const loadDraft = vi.fn(async (..._a: unknown[]) => null as { header: PayrollHea
 const insertAudit = vi.fn(async (..._a: unknown[]) => undefined);
 const setHeaderStatus = vi.fn(async (..._a: unknown[]) => undefined);
 const latestAuditAt = vi.fn(async (..._a: unknown[]) => null as string | null);
+const listManualEomAdjustments = vi.fn(async (..._a: unknown[]) => [] as Array<{ qbEntryId: string; docNumber: string; lines: JournalLine[] }>);
+vi.mock('@/lib/payroll/eom-manual', () => ({
+  listManualEomAdjustments: (...a: unknown[]) => listManualEomAdjustments(...a),
+}));
 vi.mock('@/lib/payroll/store', () => ({
   loadDraft: (...a: unknown[]) => loadDraft(...a),
   insertAudit: (...a: unknown[]) => insertAudit(...a),
@@ -72,6 +76,8 @@ beforeEach(() => {
   listEomCorrectionHeaders.mockReset();
   latestAuditAt.mockReset();
   postJournalEntry.mockReset();
+  listManualEomAdjustments.mockReset();
+  listManualEomAdjustments.mockResolvedValue([]);
 
   loadDraft.mockResolvedValue({ header, lines });
   insertAudit.mockResolvedValue(undefined);
@@ -307,6 +313,33 @@ describe('correction entries (DS 2026-09-25)', () => {
     const res = await POST(req({ headerId: 5, mode: 'live' }));
     expect(res.status).toBe(200);
     expect(setHeaderStatus).toHaveBeenCalledWith(5, 'posted', { entryId: 'qb-99', docNumber: 'FL % Allo 2026.03-2' });
+  });
+
+  it('refused when an adjustment was keyed straight into QuickBooks after generation', async () => {
+    // Generated against parent + C1 only; Barbara then hand-keyed % Allo 2026.03B in QuickBooks.
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: 'C2', source_snapshot_hash: 'eom-posted:1:qb-1,6:qb-6' }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...correction, id: 6, period_segment: 'C1', status: 'posted', qb_entry_id: 'qb-6' },
+      { ...correction, period_segment: 'C2' },
+    ]);
+    listManualEomAdjustments.mockResolvedValueOnce([{ qbEntryId: '54056', docNumber: '% Allo 2026.03B', lines: [] }]);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(409);
+    expect(postJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it('passes when the hand-keyed adjustment was already netted at generation', async () => {
+    loadDraft.mockResolvedValueOnce({ header: { ...correction, period_segment: 'C2', source_snapshot_hash: 'eom-posted:1:qb-1,6:qb-6|qb-manual:54056' }, lines });
+    listEomHeaders.mockResolvedValueOnce([parent]);
+    listEomCorrectionHeaders.mockResolvedValueOnce([
+      { ...correction, id: 6, period_segment: 'C1', status: 'posted', qb_entry_id: 'qb-6' },
+      { ...correction, period_segment: 'C2' },
+    ]);
+    listManualEomAdjustments.mockResolvedValueOnce([{ qbEntryId: '54056', docNumber: '% Allo 2026.03B', lines: [] }]);
+    postJournalEntry.mockResolvedValueOnce(livePost);
+    const res = await POST(req({ headerId: 5, mode: 'live' }));
+    expect(res.status).toBe(200);
   });
 
   it('a correction posts with its -N doc and correction note', async () => {

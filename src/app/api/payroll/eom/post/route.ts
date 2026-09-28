@@ -8,6 +8,7 @@ import {
   eomCorrectionIndex, eomCorrectionDocNumber, eomCorrectionNote, eomPostedSetFingerprint,
 } from '@/lib/payroll/eom-correction';
 import { postJournalEntry } from '@/lib/payroll/qb-journal';
+import { listManualEomAdjustments } from '@/lib/payroll/eom-manual';
 import { attachJeWorkbook } from '@/lib/payroll/je-attach';
 import { eomDocNumber, eomPrivateNote } from '@/lib/payroll/month-end';
 import { EOM_ENTITIES, type EomEntity } from '@/lib/payroll/revenue-rule';
@@ -184,7 +185,17 @@ export async function POST(request: NextRequest) {
         const netted = [parent, ...(await listEomCorrectionHeaders(lockMonth))].filter(
           (h) => h.entity === header.entity && h.id !== header.id && h.status === 'posted',
         );
-        if (!header.source_snapshot_hash || header.source_snapshot_hash !== eomPostedSetFingerprint(netted)) {
+        // Hand-keyed QuickBooks adjustments are part of the netted set too (eom-manual.ts):
+        // one keyed after this correction was generated makes it stale.
+        let manualIds: string[];
+        try {
+          manualIds = (await listManualEomAdjustments(lockMonth, header.entity)).map((a) => a.qbEntryId);
+        } catch (e) {
+          const reason = `could not read QuickBooks for hand-keyed adjustments — ${e instanceof Error ? e.message : 'unknown error'}`;
+          await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });
+          return NextResponse.json({ error: reason }, { status: 502 });
+        }
+        if (!header.source_snapshot_hash || header.source_snapshot_hash !== eomPostedSetFingerprint(netted, manualIds)) {
           const why = header.source_snapshot_hash ? 'the posted entries for the month changed since it was generated' : 'no posted-set fingerprint recorded';
           const reason = `stale correction: ${why} — regenerate the correction before posting`;
           await insertAudit({ headerId, mode, entity, outcome: 'blocked', reason });

@@ -1,6 +1,7 @@
 /**
  * Draft a month-end allocation CORRECTION for one entity (DS 2026-09-25 §4.2): the month's
- * allocation as generated now, minus everything posted (parent + posted corrections).
+ * allocation as generated now, minus everything posted (parent + posted corrections + any
+ * allocation adjustment keyed straight into QuickBooks — eom-manual.ts).
  * Always recomputed fresh — never from the stored daily check.
  */
 import { getRdsPool } from '../rds';
@@ -11,6 +12,7 @@ import {
   eomPostedSetFingerprint, DELTA_MEMO,
 } from './eom-correction';
 import { saveDraft, insertAudit, loadDraft } from './store';
+import { listManualEomAdjustments, type ManualEomAdjustment } from './eom-manual';
 import { fetchDimensions } from './qb-journal';
 import { monthEndAdp, monthEndIso, type Month } from './month';
 import type { EomEntity } from './revenue-rule';
@@ -49,6 +51,15 @@ export async function generateEomCorrection(
     }
     postedSets.push(loaded.lines);
   }
+  // Adjustments keyed straight into QuickBooks net too (eom-manual.ts, Barbara 2026-09-28) —
+  // otherwise the correction re-books what she already fixed by hand.
+  let manual: ManualEomAdjustment[];
+  try {
+    manual = await listManualEomAdjustments(m, entity);
+  } catch (e) {
+    return { locked: `${entity}: could not read QuickBooks for hand-keyed adjustments — ${e instanceof Error ? e.message : 'unknown error'}`, status: 502 };
+  }
+  for (const adj of manual) postedSets.push(adj.lines);
   const targetLines = target.drafts.find((d) => d.entity === entity)?.lines ?? [];
   const lines = remainderLines(targetLines, postedSets, DELTA_MEMO);
 
@@ -69,7 +80,7 @@ export async function generateEomCorrection(
   };
   // The header's source_snapshot_hash holds the fingerprint of the posted set this correction
   // was netted against; the post route refuses a live post when it no longer matches (I1).
-  const headerId = await saveDraft(draft, eomPostedSetFingerprint([parent, ...posted]));
+  const headerId = await saveDraft(draft, eomPostedSetFingerprint([parent, ...posted], manual.map((a) => a.qbEntryId)));
   if (headerId === parent.id || posted.some((h) => h.id === headerId)) {
     throw new Error(`${entity}: correction C${index} collided with posted entry #${headerId} — nothing was saved`);
   }

@@ -19,6 +19,7 @@ vi.mock('./eom-store', () => ({
 const saveDraft = vi.fn(async (..._a: unknown[]) => 1);
 const insertAudit = vi.fn(async (..._a: unknown[]) => undefined);
 const loadDraft = vi.fn(async (_id: number) => null as { header: PayrollHeader; lines: JournalLine[] } | null);
+vi.mock('./eom-manual', () => ({ listManualEomAdjustments: vi.fn(async () => []) }));
 vi.mock('./store', () => ({
   saveDraft: (...a: unknown[]) => saveDraft(...a),
   insertAudit: (...a: unknown[]) => insertAudit(...a),

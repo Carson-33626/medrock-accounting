@@ -102,4 +102,13 @@ describe('eomPostedSetFingerprint', () => {
   it('sorts ids numerically, not as text', () => {
     expect(eomPostedSetFingerprint([{ id: 10, qb_entry_id: 'a' }, { id: 9, qb_entry_id: 'b' }])).toBe('eom-posted:9:b,10:a');
   });
+  it('is unchanged when there are no hand-keyed QuickBooks adjustments (old drafts stay valid)', () => {
+    expect(eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-1' }], [])).toBe('eom-posted:1:qb-1');
+  });
+  it('changes when a hand-keyed QuickBooks adjustment appears, order-independent', () => {
+    const none = eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-1' }]);
+    const one = eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'qb-1' }], ['54056']);
+    expect(one).not.toBe(none);
+    expect(eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'a' }], ['9', '10'])).toBe(eomPostedSetFingerprint([{ id: 1, qb_entry_id: 'a' }], ['10', '9']));
+  });
 });

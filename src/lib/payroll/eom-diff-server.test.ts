@@ -37,6 +37,10 @@ vi.mock('./eom-target', () => ({
 
 // Typed (not `unknown[]`) because a test below needs mockImplementation((id: number) => …).
 const loadDraft = vi.fn(async (_id: number) => null as { header: PayrollHeader; lines: JournalLine[] } | null);
+const listManualEomAdjustments = vi.fn(async (_m: Month, _e: Entity) => [] as Array<{ qbEntryId: string; docNumber: string; lines: JournalLine[] }>);
+vi.mock('./eom-manual', () => ({
+  listManualEomAdjustments: (m: Month, e: Entity) => listManualEomAdjustments(m, e),
+}));
 vi.mock('./store', () => ({
   loadDraft: (id: number) => loadDraft(id),
 }));
@@ -92,6 +96,8 @@ beforeEach(() => {
   listPostedEomHeaderIds.mockReset();
   computeEomTarget.mockReset();
   loadDraft.mockReset();
+  listManualEomAdjustments.mockReset();
+  listManualEomAdjustments.mockResolvedValue([]);
 
   getSettings.mockResolvedValue({ threshold: 1, enabled: true, checkFromMonth: '2026-03' });
   startRun.mockResolvedValue(1);
@@ -124,6 +130,31 @@ describe('runEomDiff', () => {
     const fl = upsertCheck.mock.calls.map((c) => c[0] as { entity: Entity; deltaDebits: number; deltaLines: JournalLine[] }).find((c) => c.entity === 'MedRock FL');
     expect(fl?.deltaDebits).toBe(5);
     expect(fl?.deltaLines).toEqual([L('Debit', 5, 'Wages'), L('Credit', 5, 'Due to TN')]);
+  });
+
+  it("nets an adjustment keyed straight into QuickBooks — Barbara's % Allo 2026.04B (2026-09-28)", async () => {
+    listPostedParentMonths.mockResolvedValueOnce(['2026-03']);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 110, 'Wages'), L('Credit', 110, 'Due to TN')] }));
+    listPostedEomHeaderIds.mockImplementation(async (_m: Month, e: Entity) => (e === 'MedRock FL' ? [1] : []));
+    loadDraft.mockResolvedValue({ header: hdr(1), lines: [L('Debit', 100, 'Wages'), L('Credit', 100, 'Due to TN')] });
+    listManualEomAdjustments.mockImplementation(async (_m: Month, e: Entity) =>
+      e === 'MedRock FL' ? [{ qbEntryId: '54056', docNumber: '% Allo 2026.03B', lines: [L('Debit', 10, 'Wages'), L('Credit', 10, 'Due to TN')] }] : []);
+    await runEomDiff('manual');
+    const fl = upsertCheck.mock.calls.map((c) => c[0] as { entity: Entity; deltaDebits: number; error: string | null }).find((c) => c.entity === 'MedRock FL');
+    expect(fl?.error).toBeNull();
+    expect(fl?.deltaDebits).toBe(0);
+  });
+
+  it('records an error rather than netting without QuickBooks when the hand-keyed read fails', async () => {
+    listPostedParentMonths.mockResolvedValueOnce(['2026-03']);
+    computeEomTarget.mockResolvedValueOnce(targetWith({ 'MedRock FL': [L('Debit', 110, 'Wages'), L('Credit', 110, 'Due to TN')] }));
+    listPostedEomHeaderIds.mockImplementation(async (_m: Month, e: Entity) => (e === 'MedRock FL' ? [1] : []));
+    loadDraft.mockResolvedValue({ header: hdr(1), lines: [L('Debit', 100, 'Wages'), L('Credit', 100, 'Due to TN')] });
+    listManualEomAdjustments.mockRejectedValue(new Error('QuickBooks 503'));
+    const run = await runEomDiff('manual');
+    const fl = upsertCheck.mock.calls.map((c) => c[0] as { entity: Entity; error: string | null }).find((c) => c.entity === 'MedRock FL');
+    expect(fl?.error).toContain('QuickBooks 503');
+    expect(run.skipped === false && run.ok).toBe(false);
   });
 
   it('target missing for an entity fully reverses its posted lines', async () => {

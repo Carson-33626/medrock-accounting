@@ -67,10 +67,18 @@ export function eomCorrectionNote(entity: Entity, m: Month, index: number, found
  * for one month/entity): the sorted `"<id>:<qb_entry_id>"` list. Stored as the correction's
  * `source_snapshot_hash` at generation and recomputed at live post — any post, pull-back or
  * repost (new QuickBooks id) since generation changes it (final review I1).
+ *
+ * `manualQbIds` are allocation adjustments keyed straight into QuickBooks (eom-manual.ts):
+ * netted too, so one appearing after generation must also invalidate the draft. Appended only
+ * when present, so fingerprints of drafts made before manual netting existed stay identical.
  */
-export function eomPostedSetFingerprint(headers: ReadonlyArray<{ id: number; qb_entry_id: string | null }>): string {
+export function eomPostedSetFingerprint(
+  headers: ReadonlyArray<{ id: number; qb_entry_id: string | null }>, manualQbIds: readonly string[] = [],
+): string {
   const parts = [...headers].sort((a, b) => a.id - b.id).map((h) => `${h.id}:${h.qb_entry_id ?? ''}`);
-  return `eom-posted:${parts.join(',')}`;
+  const base = `eom-posted:${parts.join(',')}`;
+  if (manualQbIds.length === 0) return base;
+  return `${base}|qb-manual:${[...manualQbIds].sort((a, b) => Number(a) - Number(b)).join(',')}`;
 }
 
 export interface EomDiffSettings { threshold: number; enabled: boolean; checkFromMonth: string }
