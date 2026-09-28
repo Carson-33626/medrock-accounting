@@ -21,6 +21,7 @@
  *
  *   npx tsx scripts/payroll/cs-catchup-allocation.ts               (dry-run, prints all JEs)
  *   npx tsx scripts/payroll/cs-catchup-allocation.ts --live        (saves headers + posts to QB)
+ *   npx tsx scripts/payroll/cs-catchup-allocation.ts 2026-08 --live   (one month only)
  */
 import './load-env-vercel-first';
 import { EOM_ENTITIES, sharesFromRevenue, type EomEntity } from '../../src/lib/payroll/revenue-rule';
@@ -35,7 +36,10 @@ import { attachJeWorkbook } from '../../src/lib/payroll/je-attach';
 import { insertAudit, loadDraft, saveDraft, setHeaderStatus, type JsonValue } from '../../src/lib/payroll/store';
 import type { Entity, JournalDraft, JournalLine } from '../../src/lib/payroll/types';
 
-const MONTHS: Month[] = [4, 5, 6, 7, 8].map((month) => ({ year: 2026, month }));
+// Optional YYYY-MM args narrow the run (e.g. `2026-08 --live` posts August only, leaving the
+// other months' top-ups for a separate decision). No args = the full April..August sweep.
+const ONLY = process.argv.slice(2).filter((a) => /^2026-0[4-8]$/.test(a)).map((a) => Number(a.slice(5)));
+const MONTHS: Month[] = [4, 5, 6, 7, 8].filter((month) => ONLY.length === 0 || ONLY.includes(month)).map((month) => ({ year: 2026, month }));
 const SHORT: Partial<Record<Entity, string>> = { 'MedRock FL': 'FL', 'MedRock TN': 'TN', 'MedRock TX': 'TX' };
 const live = process.argv.includes('--live');
 const money = (n: number): string => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
