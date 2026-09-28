@@ -7,12 +7,15 @@ import type { Refs } from '@/lib/payroll/qb-journal';
 
 vi.mock('@/lib/auth', () => ({ requireManager: vi.fn(async () => undefined) }));
 
-const fetchRevenuePresence = vi.fn(async (..._a: unknown[]) => ({}) as RevenueTest);
+const fetchRevenueBasis = vi.fn(async (..._a: unknown[]) => ({}) as RevenueTest);
 const sharesFromRevenue = vi.fn((..._a: unknown[]) => ({}) as Record<string, number> | null);
 vi.mock('@/lib/payroll/revenue-rule', () => ({
   EOM_ENTITIES: ['MedRock FL', 'MedRock TN', 'MedRock TX'],
-  fetchRevenuePresence: (...a: unknown[]) => fetchRevenuePresence(...a),
   sharesFromRevenue: (...a: unknown[]) => sharesFromRevenue(...a),
+}));
+
+vi.mock('@/lib/payroll/revenue-basis', () => ({
+  fetchRevenueBasis: (...a: unknown[]) => fetchRevenueBasis(...a),
 }));
 
 const fetchAllocationPool = vi.fn(async (..._a: unknown[]) => ({ pool: [] as PoolLine[], attention: [] as PoolLine[] }));
@@ -116,7 +119,7 @@ function req(body: unknown): NextRequest {
 }
 
 beforeEach(() => {
-  fetchRevenuePresence.mockReset();
+  fetchRevenueBasis.mockReset();
   sharesFromRevenue.mockReset();
   fetchAllocationPool.mockReset();
   buildMonthEndAllocation.mockReset();
@@ -128,7 +131,7 @@ beforeEach(() => {
   loadDraft.mockReset();
   fetchDimensions.mockReset();
 
-  fetchRevenuePresence.mockResolvedValue(revenueTestFixture);
+  fetchRevenueBasis.mockResolvedValue(revenueTestFixture);
   sharesFromRevenue.mockReturnValue(sharesFixture);
   fetchAllocationPool.mockResolvedValue({ pool: [], attention: [] });
   buildMonthEndAllocation.mockReturnValue([]);
@@ -153,12 +156,12 @@ describe('POST /api/payroll/eom/generate', () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/regeneration locked/);
     expect(body.error).toContain('FL % Allo 2026.07');
-    expect(fetchRevenuePresence).not.toHaveBeenCalled();
+    expect(fetchRevenueBasis).not.toHaveBeenCalled();
     expect(fetchAllocationPool).not.toHaveBeenCalled();
   });
 
   it('502s when QuickBooks is unreachable', async () => {
-    fetchRevenuePresence.mockRejectedValueOnce(new Error('QuickBooks not connected for location: MedRock TX'));
+    fetchRevenueBasis.mockRejectedValueOnce(new Error('QuickBooks not connected for location: MedRock TX'));
     const res = await POST(req({ month: '2026-07' }));
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error: string };

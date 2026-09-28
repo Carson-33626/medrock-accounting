@@ -13,6 +13,11 @@ export const EOM_ENTITIES: EomEntity[] = ['MedRock FL', 'MedRock TN', 'MedRock T
 export interface RevenueTest {
   month: string; // 'YYYY-MM'
   income: Record<EomEntity, number>;
+  /** Raw P&L income before the earned-revenue adjustment (revenue-basis.ts). Absent on
+   *  runs stored before 2026-09-28, when `income` WAS the raw P&L. */
+  plIncome?: Record<EomEntity, number>;
+  /** Income already moved by posted `% Allo` family entries (credit-positive). */
+  allocationIncome?: Record<EomEntity, number>;
 }
 
 /**
@@ -46,7 +51,9 @@ export function sharesFromRevenue(test: RevenueTest): Record<EomEntity, number> 
 
 /** One Accrual P&L call per company (books of record — deliberately NOT the Cash default
  *  used by location analytics). Throws if any company is disconnected or returns no data:
- *  a partial revenue test could silently mis-split. */
+ *  a partial revenue test could silently mis-split.
+ *  RAW P&L ONLY — not the split basis. Month-end uses revenue-basis.fetchRevenueBasis, which
+ *  corrects for classed deposit revenue that hasn't moved yet (2026-09-28). */
 export async function fetchRevenuePresence(m: Month): Promise<RevenueTest> {
   const month = `${m.year}-${String(m.month).padStart(2, '0')}`;
   const startDate = `${month}-01`;

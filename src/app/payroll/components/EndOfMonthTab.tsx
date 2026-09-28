@@ -76,6 +76,7 @@ interface PoolLine {
 interface RevenueTest {
   month: string;
   income: Record<EomEntity, number>;
+  plIncome?: Record<EomEntity, number>;
 }
 
 interface RevenueSnapshot {
@@ -1273,11 +1274,9 @@ function RevenueCard({
   const headline =
     withRevenue.length === 0
       ? 'No location has revenue this month — allocation cannot run.'
-      : withRevenue.length === ENTITIES.length
-        ? `All ${ENTITIES.length} locations have revenue → 1/${ENTITIES.length} each`
-        : withRevenue.length === 1
-          ? '1 location has revenue → 100%'
-          : `${withRevenue.length} locations have revenue → 1/${withRevenue.length} each`;
+      : test.plIncome
+        ? 'Split by earned revenue (P&L corrected for classed deposit revenue)'
+        : 'Split by P&L revenue (stored before the earned-revenue fix — regenerate to refresh)';
 
   return (
     <div className={`rounded-xl shadow-sm p-4 ${cardBg} border ${border} space-y-3`}>
@@ -1293,7 +1292,10 @@ function RevenueCard({
         {ENTITIES.map((e) => (
           <div key={e} className={`rounded-lg border p-3 ${border}`}>
             <p className="text-sm font-semibold">{SHORT_ENT[e]}</p>
-            <p className={`text-xs ${subText}`}>{fmtMoney(test.income[e])} income</p>
+            <p className={`text-xs ${subText}`}>{fmtMoney(test.income[e])} earned</p>
+            {test.plIncome && Math.abs(test.plIncome[e] - test.income[e]) >= 0.01 && (
+              <p className={`text-xs ${subText}`}>{fmtMoney(test.plIncome[e])} on the P&amp;L</p>
+            )}
             <p className="text-lg font-bold tabular-nums">{shares ? `${shares[e].toFixed(2)}%` : '—'}</p>
           </div>
         ))}

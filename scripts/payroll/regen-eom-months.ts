@@ -10,7 +10,8 @@
 // constants, and tsx hoists imports above inline statements.
 import './load-env-vercel-first';
 import { createHash } from 'node:crypto';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from '../../src/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, sharesFromRevenue, type EomEntity, type RevenueTest } from '../../src/lib/payroll/revenue-rule';
+import { fetchRevenueBasis } from '../../src/lib/payroll/revenue-basis';
 import { fetchAllocationPool, type PoolLine } from '../../src/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
 import { saveEomRun, listEomHeaders, deleteUnpostedEomHeaders, listPostedCsAlloHeaders } from '../../src/lib/payroll/eom-store';
@@ -37,7 +38,7 @@ async function runMonth(month: string): Promise<void> {
     return;
   }
 
-  const revenueTest: RevenueTest = await fetchRevenuePresence(m);
+  const revenueTest: RevenueTest = await fetchRevenueBasis(m);
   const poolResult = await fetchAllocationPool(m);
   let pool = poolResult.pool;
   const attention = poolResult.attention;

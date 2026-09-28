@@ -3,7 +3,8 @@
  * CS Allo already posted, revenue shares, drafts. One function so Generate and the daily
  * difference check can never disagree (DS 2026-09-25 §3.1). No gates, no writes.
  */
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity, type RevenueTest } from './revenue-rule';
+import { EOM_ENTITIES, sharesFromRevenue, type EomEntity, type RevenueTest } from './revenue-rule';
+import { fetchRevenueBasis } from './revenue-basis';
 import { fetchAllocationPool, type PoolLine } from './qb-pool';
 import { buildMonthEndAllocation } from './month-end';
 import { listPostedCsAlloHeaders } from './eom-store';
@@ -29,7 +30,7 @@ export async function computeEomTarget(m: Month): Promise<EomTargetResult> {
   let pool: PoolLine[];
   let attention: PoolLine[];
   try {
-    revenueTest = await fetchRevenuePresence(m);
+    revenueTest = await fetchRevenueBasis(m);
     const r = await fetchAllocationPool(m);
     pool = r.pool;
     attention = r.attention;

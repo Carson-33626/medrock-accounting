@@ -23,7 +23,8 @@
  *   npx tsx scripts/payroll/cs-catchup-allocation.ts --live        (saves headers + posts to QB)
  */
 import './load-env-vercel-first';
-import { EOM_ENTITIES, fetchRevenuePresence, sharesFromRevenue, type EomEntity } from '../../src/lib/payroll/revenue-rule';
+import { EOM_ENTITIES, sharesFromRevenue, type EomEntity } from '../../src/lib/payroll/revenue-rule';
+import { fetchRevenueBasis } from '../../src/lib/payroll/revenue-basis';
 import { fetchAllocationPool, isCsPoolLine } from '../../src/lib/payroll/qb-pool';
 import { buildMonthEndAllocation } from '../../src/lib/payroll/month-end';
 import { csRemainderLines } from '../../src/lib/payroll/cs-catchup';
@@ -55,7 +56,7 @@ async function runMonth(m: Month): Promise<void> {
   for (const [e, amt] of [...byEntity].sort()) console.log(`    ${e}: ${money(amt)}`);
   if (cs.length === 0) { console.log('  nothing to allocate'); return; }
 
-  const shares = sharesFromRevenue(await fetchRevenuePresence(m));
+  const shares = sharesFromRevenue(await fetchRevenueBasis(m));
   if (shares === null) throw new Error(`${tag}: no location has revenue — cannot run the revenue rule`);
   const shareTxt = EOM_ENTITIES.map((e: EomEntity) => `${SHORT[e]} ${shares[e].toFixed(2)}%`).join(' / ');
   console.log(`  revenue shares: ${shareTxt}`);
