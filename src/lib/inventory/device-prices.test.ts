@@ -46,7 +46,17 @@ describe('the price table itself', () => {
     // outside this band and both turned out to be case prices. A ceiling of $3.00
     // leaves headroom for a genuine premium item while still catching that class
     // of error on the way in.
+    //
+    // Named exceptions only, each a proven per-unit price rather than a case price:
+    // the Topi-Click is a metered Medisca applicator at 4.66, the same on two invoices
+    // stating a pack of 25.
+    const ABOVE_BAND: Readonly<Record<string, number>> = { 'Topi-Click': 4.66 };
     for (const p of DEVICE_UNIT_PRICES) {
+      const allowed = ABOVE_BAND[p.device];
+      if (allowed !== undefined) {
+        expect(p.pricePerUnit, p.device).toBe(allowed);
+        continue;
+      }
       expect(p.pricePerUnit, `${p.device} ${p.sku}`).toBeLessThan(3.0);
     }
   });
@@ -78,10 +88,11 @@ describe("Carson's 2026-09-04 rulings", () => {
     expect(priced('Neck Wrap Pack', '').pricePerUnit * 25).toBeCloseTo(38.99, 1);
   });
 
-  it('retires the Topi-Click rather than pricing it', () => {
-    // "Topiclick was for hormones that we no longer use so that can be written off."
-    expect(priceFor('Topi-Click', '')).toBeNull();
-    expect(unpricedReason('Topi-Click')).toContain('RETIRED');
+  it('prices the Topi-Click again — Dryness V goes in it (Carson 2026-09-28)', () => {
+    // Retired 09-04 with the hormone line, back in use 09-28: "dryness V goes into a
+    // different container. Topiclick".
+    expect(priced('Topi-Click', '').pricePerUnit).toBe(4.66);
+    expect(unpricedReason('Topi-Click')).toBeNull();
   });
 });
 

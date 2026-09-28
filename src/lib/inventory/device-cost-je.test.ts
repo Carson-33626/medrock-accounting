@@ -78,11 +78,11 @@ describe('valuing usage', () => {
 
   it('discloses unpriced units instead of valuing them at zero', () => {
     const r = valueDeviceUsage('MedRock Tennessee', '2026-04', [
-      usage({ device: 'Topi-Click', sku: '', units: 300 }),
+      usage({ device: 'Lip Balm', sku: '5g', units: 300 }),
       usage({ device: 'Syringes', sku: '10mL airless', units: 80 }),
     ]);
     expect(r.total).toBe(0);
-    expect(r.unpricedUnits.get('Topi-Click')).toBe(300);
+    expect(r.unpricedUnits.get('Lip Balm')).toBe(300);
     expect(r.unpricedUnits.get('Syringes')).toBe(80);
     expect(r.lines).toHaveLength(0);
   });
@@ -145,11 +145,11 @@ describe('the journal lines', () => {
 
   it('warns loudly about every device it could not price', () => {
     const c = deviceCostContribution('MedRock Tennessee', '2026-04', [
-      usage({ device: 'Topi-Click', sku: '', units: 300 }),
+      usage({ device: 'Lip Balm', sku: '5g', units: 300 }),
     ]);
     const text = c.warnings.join(' ');
-    expect(text).toContain('300 Topi-Click units consumed but NOT valued');
-    expect(text).toContain('RETIRED');
+    expect(text).toContain('300 Lip Balm units consumed but NOT valued');
+    expect(text).toContain('NEW DEVICE');
   });
 
   it('always states that it is not driving 1220.15 to a target', () => {

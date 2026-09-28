@@ -252,6 +252,17 @@ export const DEVICE_UNIT_PRICES: readonly DevicePrice[] = [
       '$367.50 = 1.47 net; x 1.1524 landed = 1.6940. CPN lists it at $2.20, $1.47 at volume.',
   },
   {
+    // Back in use, not retired. Carson 2026-09-04 retired it with the hormone line
+    // (Estriol), but on 2026-09-28 ruled "dryness V goes into a different container.
+    // Topiclick" (ruling sheet v2.0), so every Dryness V fill is one Topi-Click.
+    // Last bought July 2025; no 2026 bill yet.
+    device: 'Topi-Click', sku: '', pricePerUnit: 4.66, confidence: 'medium',
+    provenance:
+      'Medisca "Applicator, Topi-Click Micro, 9 mL, 0.05 mL/Click", pack of 25: TN #03880274 ' +
+      '(2025-07-08) 1 pack for $116.50 = 4.66; FL #03874808 (2025-07-01) $1,165.00 = 10 packs ' +
+      'at the same 4.66. Invoice price, freight not allocated.',
+  },
+  {
     // Carson, 2026-09-28: the Orbit 50 ML jar IS the lab's "Perioral Lip Ointment" small
     // clear jar — not trial sizing, as first thought. Bought by the factory case of 64.
     device: 'Perioral Lip Ointment Jar', sku: '', pricePerUnit: 2.28, confidence: 'high',
@@ -337,16 +348,6 @@ export const UNPRICED: readonly UnpricedDevice[] = [
     reason:
       "NEW DEVICE in the lab's 2026-09-25 reference (all lip balms). No purchase priced yet — " +
       'find the tube in the Ramp receipt OCR cache before guessing.',
-  },
-  {
-    // CARSON, 2026-09-04: "Topiclick was for hormones that we no longer use so
-    // that can be written off."
-    device: 'Topi-Click',
-    reason:
-      'RETIRED — the hormone line it dispensed is discontinued (Carson 2026-09-04), so its ' +
-      'balance is a write-off rather than a priced consumption. 1,104 units still modelled in ' +
-      '2026 though, so the discontinuation date has to be established before the retirement ' +
-      'posts; the loader is measuring rule 8/10 fills by month.',
   },
   {
     device: 'Syringes',
