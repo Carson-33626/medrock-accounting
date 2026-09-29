@@ -170,8 +170,30 @@ describe('poolLinesFromJournalEntry', () => {
   it('keeps flagged lines with signed amounts, drops unflagged', () => {
     const lines = poolLinesFromJournalEntry(je, 'MedRock TN');
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ entity: 'MedRock TN', txnType: 'JournalEntry', accountName: 'Payroll Expense -:Administrative Wages', amount: 7615.4, rule: 'revenue' });
+    expect(lines[0]).toMatchObject({ entity: 'MedRock TN', txnType: 'JournalEntry', accountName: 'Payroll Expense -:Administrative Wages', amount: 7615.4 });
     expect(lines[1].amount).toBe(-100);
+  });
+
+  // Barbara 2026-09-28: the hand-posted `PR 2026.07.01` (6/30) tagged admin/accounting
+  // `Allocate - %` and June split them by revenue. Only CS payroll follows revenue.
+  it('splits hand-posted non-CS payroll tagged Allocate - % at thirds; CS stays revenue', () => {
+    const pr: RawJournalEntry = {
+      Id: '53000', DocNumber: 'PR 2026.07.01', TxnDate: '2026-06-30',
+      Line: [
+        { Id: '1', Amount: 13855.64, Description: 'Admin Wages',
+          JournalEntryLineDetail: { PostingType: 'Debit', AccountRef: { name: 'Payroll Expense -:Administrative Wages' }, DepartmentRef: { name: '% Allocation' }, ClassRef: { name: 'Allocate - %' } } },
+        { Id: '2', Amount: 124.85, Description: 'ER Medical - Accounting',
+          JournalEntryLineDetail: { PostingType: 'Debit', AccountRef: { name: 'Accrued Payroll Liability' }, DepartmentRef: { name: '% Allocation' }, ClassRef: { name: 'Allocate - %' } } },
+        { Id: '3', Amount: 2000, Description: 'CS Wages',
+          JournalEntryLineDetail: { PostingType: 'Debit', AccountRef: { name: 'Payroll Expense -:Customer Service Wages' }, ClassRef: { name: 'Allocate - %' } } },
+        { Id: '4', Amount: 150, Description: 'ER Taxes - Customer Service',
+          JournalEntryLineDetail: { PostingType: 'Debit', AccountRef: { name: 'Payroll Expense -:Employer Taxes' }, ClassRef: { name: 'Allocate - %' } } },
+        { Id: '5', Amount: 500, Description: 'SaaS',
+          JournalEntryLineDetail: { PostingType: 'Debit', AccountRef: { name: 'General & Administrative -:Dues & Subscriptions' }, ClassRef: { name: 'Allocate - %' } } },
+      ],
+    };
+    expect(poolLinesFromJournalEntry(pr, 'MedRock FL').map((l) => l.rule))
+      .toEqual(['thirds', 'thirds', 'revenue', 'revenue', 'revenue']);
   });
 });
 

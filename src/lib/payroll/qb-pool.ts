@@ -124,13 +124,27 @@ export interface RawExpenseTxn {
   DepartmentRef?: QbRef; Line: RawExpenseLine[];
 }
 
+/** Payroll accounts — the lines Ash's rules govern by cost center (CS → revenue, the rest
+ *  → thirds). Non-payroll `Allocate - %` bills/JEs keep their class rule. */
+const PAYROLL_ACCOUNT_RE = /^(Payroll Expense\b|Accrued Payroll Liability$)/;
+
+/** A hand-posted QB payroll JE carries the accountant's tag-everything-'%' class, so its
+ *  `Allocate - %` can't be trusted as "Customer Service". Only CS (by account or by the
+ *  `<Label> - Customer Service` memo) follows revenue; admin/accounting/HR go to thirds.
+ *  Barbara 2026-09-28: `PR 2026.07.01` (6/30) split admin by revenue this way. */
+export function externalPayrollRule(rule: PoolRule, accountName: string, memo: string | null): PoolRule {
+  if (rule !== 'revenue' || !PAYROLL_ACCOUNT_RE.test(accountName)) return rule;
+  return /customer service/i.test(accountName) || /customer service/i.test(memo ?? '') ? 'revenue' : 'thirds';
+}
+
 export function poolLinesFromJournalEntry(je: RawJournalEntry, entity: Entity): PoolLine[] {
   const out: PoolLine[] = [];
   for (const l of je.Line ?? []) {
     const d = l.JournalEntryLineDetail;
     if (!d?.AccountRef?.name) continue;
-    const cls = classifyAllocateFlag(d.ClassRef?.name ?? null, d.DepartmentRef?.name ?? null, entity);
-    if (!cls) continue;
+    const flag = classifyAllocateFlag(d.ClassRef?.name ?? null, d.DepartmentRef?.name ?? null, entity);
+    if (!flag) continue;
+    const cls = { ...flag, rule: externalPayrollRule(flag.rule, normalizeAccountName(d.AccountRef.name), l.Description ?? null) };
     const sign = d.PostingType === 'Credit' ? -1 : 1;
     out.push({
       entity, txnType: 'JournalEntry', txnId: je.Id, txnDate: je.TxnDate ?? '', docNumber: je.DocNumber ?? null,
