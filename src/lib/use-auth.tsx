@@ -3,25 +3,20 @@
  *
  * Wrap your app with AuthProvider, then use useAuth() in components.
  *
- * MedRock Auth Integration Package 1.8.1 — canonical (direct) flow.
- * (1.8.1: the timeout modal counts down to the real `expires_at` and tries a
- * silent /api/me revive at 0 before logging out.)
- * Calls the auth host directly with `credentials: 'include'`; the shared
- * `.medrockpharmacy.com` session cookie travels cross-origin, so no local
- * proxy routes are needed. (This app previously forked to a /api/auth/* proxy
- * to work around cross-origin cookies; the auth host now supports CORS +
- * /api/extend-session directly, so we're back on the canonical package.)
+ * Session rules (1.9.0, enforced by the auth host):
+ * - 15 minutes without user activity ends the session; 12 hours ends it regardless.
+ * - Activity = real input (pointer, keys, touch, scroll), page navigation, "Stay Signed In".
+ *   This provider reports input with a throttled POST /api/activity (at most once a minute).
+ * - /api/me is read-only for the idle clock, so tab-visible re-checks and the modal's
+ *   countdown-0 check can never keep an unattended session alive.
+ * - The warning modal is scheduled against the server's `idle_expires_at`, which activity in
+ *   ANY tab or MedRock app moves. Before showing it we re-read /api/me to catch that.
+ * - Access tokens refresh silently while the session is active (a /api/me shortly before
+ *   `expires_at`); token expiry is never shown to the user.
  *
- * Features:
- * - Initial user fetch via /api/me
- * - Proactive session timeout modal scheduled against the server-reported
- *   `expires_at` (no polling/heartbeat for the primary trigger)
- * - "Stay Signed In" calls /api/extend-session, which cookie-refreshes server-side
- * - Tab visibility handling: when a tab becomes visible we re-fetch /api/me to
- *   pick up any expiry advance done by another tab (and to schedule the timer
- *   in this tab)
- * - Safety-net heartbeat that fires only if expires_at was unavailable (e.g.,
- *   older cookies that didn't include it)
+ * Backward compatible with an auth host that predates idle enforcement: if /api/me returns
+ * no `idle_expires_at`, the modal falls back to the 1.8.1 token-expiry schedule, and a 404
+ * from /api/activity switches pings off for the page.
  */
 
 'use client';
@@ -33,8 +28,16 @@ import type { User } from '@/lib/auth-client';
 const AUTH_SERVICE_URL = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'https://auth.medrockpharmacy.com';
 
 // Configuration
-const FALLBACK_HEARTBEAT_INTERVAL_MS = 60 * 1000; // Only used when expires_at is unknown
-const TIMEOUT_WARNING_SECONDS = 60; // Show the modal this many seconds before token expiry
+const FALLBACK_HEARTBEAT_INTERVAL_MS = 60 * 1000; // Legacy only: expires_at unknown
+const TIMEOUT_WARNING_SECONDS = 60; // Show the modal this many seconds before the deadline
+const ACTIVITY_PING_INTERVAL_MS = 60 * 1000; // At most one activity ping per minute
+const TOKEN_REFRESH_LEAD_SECONDS = 120; // Silent /api/me this long before the token expires
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'mousemove'] as const;
+
+export type SessionEndReason = 'idle' | 'ceiling';
+
+/** active = signed in; ended = idle/ceiling (401 SESSION_*); invalid = other 401; error = network */
+type SessionCheck = 'active' | 'ended' | 'invalid' | 'error';
 
 interface AuthContextType {
   user: User | null;
@@ -43,8 +46,10 @@ interface AuthContextType {
   sessionExpired: boolean;
   /** Unix timestamp (seconds) of current access token expiry, or null if unknown */
   expiresAt: number | null;
+  /** Unix timestamp (seconds) the idle window closes, or null on an older auth host */
+  idleExpiresAt: number | null;
   login: (redirectUrl?: string) => void;
-  logout: () => Promise<void>;
+  logout: (reason?: SessionEndReason) => Promise<void>;
   refreshUser: () => Promise<void>;
   extendSession: () => Promise<boolean>;
 }
@@ -53,21 +58,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
-  /** Disable session heartbeat / scheduling (for testing) */
+  /** Disable session heartbeat / scheduling / activity pings (for testing) */
   disableHeartbeat?: boolean;
-  /** Show the warning modal this many seconds before token expiry (default: 60) */
+  /** Show the warning modal this many seconds before the deadline (default: 60) */
   timeoutWarningSeconds?: number;
 }
 
-interface MeResponse {
-  success?: boolean;
-  user?: User;
+interface SessionInfo {
   expires_at?: number | null;
+  idle_expires_at?: number | null;
 }
 
-interface ExtendResponse {
+interface MeResponse extends SessionInfo {
   success?: boolean;
-  expires_at?: number | null;
+  user?: User;
+}
+
+interface ErrorResponse {
+  error?: { code?: string };
+}
+
+async function readEndReason(response: Response): Promise<SessionEndReason | null> {
+  try {
+    const body = (await response.json()) as ErrorResponse;
+    if (body.error?.code === 'SESSION_IDLE') return 'idle';
+    if (body.error?.code === 'SESSION_CEILING') return 'ceiling';
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({
@@ -81,159 +100,28 @@ export function AuthProvider({
   const [sessionExpired, setSessionExpired] = useState(false);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [idleExpiresAt, setIdleExpiresAt] = useState<number | null>(null);
 
-  // Check session by calling /api/me. Returns true if session is valid.
-  // Also captures expires_at so the warning modal can be scheduled proactively.
-  const checkSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = (await response.json()) as MeResponse;
-        if (data.user) setUser(data.user);
-        if (typeof data.expires_at === 'number') {
-          setExpiresAt(data.expires_at);
-        } else {
-          setExpiresAt(null);
-        }
-        setSessionExpired(false);
-        return true;
-      } else {
-        return false;
-      }
-    } catch (err) {
-      console.error('Session check failed:', err);
-      return false;
-    }
-  }, []);
-
-  // Try to refresh/extend the session via the auth host's cookie-based refresh endpoint.
-  const extendSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const refreshResp = await fetch(`${AUTH_SERVICE_URL}/api/extend-session`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (refreshResp.ok) {
-        const data = (await refreshResp.json()) as ExtendResponse;
-        if (typeof data.expires_at === 'number') {
-          setExpiresAt(data.expires_at);
-        }
-        // Re-fetch the user so AuthProvider state is fully consistent.
-        const valid = await checkSession();
-        return valid;
-      }
-
-      // Refresh truly failed. Try one more /api/me in case the underlying issue
-      // was a transient network blip rather than a dead refresh token.
-      const stillValid = await checkSession();
-      return stillValid;
-    } catch (err) {
-      console.error('Session extend failed:', err);
-      return false;
-    }
-  }, [checkSession]);
-
-  // Initial user fetch
-  const fetchUser = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = (await response.json()) as MeResponse;
-        if (data.user) setUser(data.user);
-        if (typeof data.expires_at === 'number') {
-          setExpiresAt(data.expires_at);
-        }
-      } else {
-        setUser(null);
-        setExpiresAt(null);
-      }
-    } catch (err) {
-      console.error('Failed to fetch user:', err);
-      setError('Failed to check authentication');
-      setUser(null);
-      setExpiresAt(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  // Primary modal trigger: schedule it to fire `timeoutWarningSeconds` before token expiry.
-  // This avoids the old failure-driven model where the modal only appeared *after* /api/me
-  // had already 401'd — by which point refresh was usually also dead.
-  useEffect(() => {
-    if (disableHeartbeat) return;
-    if (!user || !expiresAt) return;
-
-    const warningAtMs = expiresAt * 1000 - timeoutWarningSeconds * 1000;
-    const msUntilWarning = warningAtMs - Date.now();
-
-    if (msUntilWarning <= 0) {
-      setShowTimeoutWarning(true);
-      return;
-    }
-
-    // A fresh expiry past the warning window (extend, silent revive, sibling-tab
-    // refresh) closes an open modal.
-    setShowTimeoutWarning(false);
-    const timer = setTimeout(() => {
-      setShowTimeoutWarning(true);
-    }, msUntilWarning);
-
-    return () => clearTimeout(timer);
-  }, [user, expiresAt, timeoutWarningSeconds, disableHeartbeat]);
-
-  // Safety-net heartbeat: ONLY active when expires_at is unknown (older auth host or
-  // legacy cookie format). With expires_at the scheduled timeout above handles things.
-  // Tab visibility re-check always runs so multi-tab refreshes stay in sync.
   const expiresAtRef = useRef(expiresAt);
+  const idleExpiresAtRef = useRef(idleExpiresAt);
+  const showWarningRef = useRef(showTimeoutWarning);
   useEffect(() => {
     expiresAtRef.current = expiresAt;
-  }, [expiresAt]);
+    idleExpiresAtRef.current = idleExpiresAt;
+    showWarningRef.current = showTimeoutWarning;
+  }, [expiresAt, idleExpiresAt, showTimeoutWarning]);
 
-  useEffect(() => {
-    if (disableHeartbeat || !user) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // A sibling tab may have refreshed the cookie — pick up the new expires_at.
-        checkSession();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (expiresAtRef.current == null) {
-      // Legacy / unknown-expiry fallback: poll periodically and pop the modal on 401.
-      interval = setInterval(async () => {
-        const isValid = await checkSession();
-        if (!isValid) setShowTimeoutWarning(true);
-      }, FALLBACK_HEARTBEAT_INTERVAL_MS);
-    }
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (interval) clearInterval(interval);
-    };
-  }, [user, disableHeartbeat, checkSession]);
-
-  const login = useCallback((redirectUrl?: string) => {
-    const redirect = redirectUrl || window.location.href;
-    window.location.href = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(redirect)}`;
+  const applySessionInfo = useCallback((data: SessionInfo) => {
+    const nextExpires = typeof data.expires_at === 'number' ? data.expires_at : null;
+    const nextIdle = typeof data.idle_expires_at === 'number' ? data.idle_expires_at : null;
+    // Update the refs synchronously so callers can compare right after an await.
+    expiresAtRef.current = nextExpires;
+    idleExpiresAtRef.current = nextIdle;
+    setExpiresAt(nextExpires);
+    setIdleExpiresAt(nextIdle);
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (reason?: SessionEndReason) => {
     try {
       await fetch(`${AUTH_SERVICE_URL}/api/logout`, {
         method: 'POST',
@@ -251,9 +139,240 @@ export function AuthProvider({
 
     setUser(null);
     setExpiresAt(null);
+    setIdleExpiresAt(null);
     setSessionExpired(true);
     setShowTimeoutWarning(false);
-    window.location.href = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(window.location.origin)}`;
+    const reasonParam = reason ? `&reason=${reason}` : '';
+    window.location.href = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(window.location.origin)}${reasonParam}`;
+  }, []);
+
+  // Read /api/me. Never extends the idle window; refreshes the token while active.
+  const checkSession = useCallback(async (): Promise<SessionCheck> => {
+    try {
+      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as MeResponse;
+        if (data.user) setUser(data.user);
+        applySessionInfo(data);
+        setSessionExpired(false);
+        return 'active';
+      }
+      return (await readEndReason(response)) ? 'ended' : 'invalid';
+    } catch (err) {
+      console.error('Session check failed:', err);
+      return 'error';
+    }
+  }, [applySessionInfo]);
+
+  // "Stay Signed In": records activity and rotates the tokens.
+  const extendSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const refreshResp = await fetch(`${AUTH_SERVICE_URL}/api/extend-session`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (refreshResp.ok) {
+        // Re-fetch so user, expires_at and idle_expires_at are all consistent.
+        return (await checkSession()) === 'active';
+      }
+      if (await readEndReason(refreshResp)) return false;
+
+      // Refresh failed for another reason. One more /api/me in case it was a blip.
+      return (await checkSession()) === 'active';
+    } catch (err) {
+      console.error('Session extend failed:', err);
+      return false;
+    }
+  }, [checkSession]);
+
+  // Initial user fetch
+  const fetchUser = useCallback(async () => {
+    try {
+      setError(null);
+      const response = await fetch(`${AUTH_SERVICE_URL}/api/me`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as MeResponse;
+        if (data.user) setUser(data.user);
+        applySessionInfo(data);
+      } else {
+        setUser(null);
+        applySessionInfo({});
+      }
+    } catch (err) {
+      console.error('Failed to fetch user:', err);
+      setError('Failed to check authentication');
+      setUser(null);
+      applySessionInfo({});
+    } finally {
+      setLoading(false);
+    }
+  }, [applySessionInfo]);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  // ── Activity pings ─────────────────────────────────────────────────────────
+  // Real input → POST /api/activity, at most once a minute. Suppressed while the modal is
+  // open: only "Stay Signed In" may dismiss it. Input the throttle held back is flushed on
+  // pagehide with sendBeacon, so leaving a page doesn't lose the last minute.
+  useEffect(() => {
+    if (disableHeartbeat || !user) return;
+
+    let supported = true;
+    let lastPingMs = 0;
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    let unsentInput = false;
+
+    const ping = async () => {
+      pending = null;
+      unsentInput = false;
+      lastPingMs = Date.now();
+      try {
+        const response = await fetch(`${AUTH_SERVICE_URL}/api/activity`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          applySessionInfo((await response.json()) as SessionInfo);
+        } else if (response.status === 404 || response.status === 405) {
+          supported = false; // auth host predates idle enforcement
+        } else if (response.status === 401) {
+          const reason = await readEndReason(response);
+          if (reason) await logout(reason);
+        }
+      } catch {
+        // Network blip: the next input pings again.
+      }
+    };
+
+    const onInput = () => {
+      if (!supported || showWarningRef.current) return;
+      const sinceLast = Date.now() - lastPingMs;
+      if (sinceLast >= ACTIVITY_PING_INTERVAL_MS) {
+        void ping();
+      } else {
+        unsentInput = true;
+        if (!pending) pending = setTimeout(() => void ping(), ACTIVITY_PING_INTERVAL_MS - sinceLast);
+      }
+    };
+
+    const onPageHide = () => {
+      if (unsentInput && supported && typeof navigator.sendBeacon === 'function') {
+        navigator.sendBeacon(`${AUTH_SERVICE_URL}/api/activity`);
+      }
+    };
+
+    for (const event of ACTIVITY_EVENTS) {
+      window.addEventListener(event, onInput, { passive: true, capture: true });
+    }
+    window.addEventListener('pagehide', onPageHide);
+
+    return () => {
+      for (const event of ACTIVITY_EVENTS) {
+        window.removeEventListener(event, onInput, { capture: true });
+      }
+      window.removeEventListener('pagehide', onPageHide);
+      if (pending) clearTimeout(pending);
+    };
+  }, [user, disableHeartbeat, applySessionInfo, logout]);
+
+  // ── Idle warning (auth host with idle enforcement) ─────────────────────────
+  // Fires `timeoutWarningSeconds` before idle_expires_at. Another tab or app may have
+  // recorded activity since, so re-read /api/me first: a moved deadline re-runs this effect
+  // and reschedules; an unchanged one opens the modal.
+  useEffect(() => {
+    if (disableHeartbeat || !user || idleExpiresAt === null) return;
+
+    const msUntilWarning = idleExpiresAt * 1000 - timeoutWarningSeconds * 1000 - Date.now();
+    if (msUntilWarning <= 0) {
+      setShowTimeoutWarning(true);
+      return;
+    }
+
+    setShowTimeoutWarning(false);
+    const timer = setTimeout(async () => {
+      const before = idleExpiresAtRef.current;
+      const result = await checkSession();
+      if (result === 'ended' || result === 'invalid') {
+        await logout('idle');
+      } else if (idleExpiresAtRef.current === before) {
+        setShowTimeoutWarning(true);
+      }
+    }, msUntilWarning);
+    return () => clearTimeout(timer);
+  }, [user, idleExpiresAt, timeoutWarningSeconds, disableHeartbeat, checkSession, logout]);
+
+  // Silent token refresh while active: /api/me shortly before the access token expires.
+  // The server refuses it once the session is idle, so this cannot keep anyone signed in.
+  useEffect(() => {
+    if (disableHeartbeat || !user || idleExpiresAt === null || expiresAt === null) return;
+
+    const msUntilRefresh = (expiresAt - TOKEN_REFRESH_LEAD_SECONDS) * 1000 - Date.now();
+    const timer = setTimeout(async () => {
+      const result = await checkSession();
+      if (result === 'ended') await logout('idle');
+    }, Math.max(msUntilRefresh, 0));
+    return () => clearTimeout(timer);
+  }, [user, expiresAt, idleExpiresAt, disableHeartbeat, checkSession, logout]);
+
+  // ── Legacy schedule (auth host without idle enforcement) ───────────────────
+  // Unchanged from 1.8.1: modal `timeoutWarningSeconds` before token expiry.
+  useEffect(() => {
+    if (disableHeartbeat) return;
+    if (!user || !expiresAt || idleExpiresAt !== null) return;
+
+    const msUntilWarning = expiresAt * 1000 - timeoutWarningSeconds * 1000 - Date.now();
+    if (msUntilWarning <= 0) {
+      setShowTimeoutWarning(true);
+      return;
+    }
+
+    setShowTimeoutWarning(false);
+    const timer = setTimeout(() => {
+      setShowTimeoutWarning(true);
+    }, msUntilWarning);
+
+    return () => clearTimeout(timer);
+  }, [user, expiresAt, idleExpiresAt, timeoutWarningSeconds, disableHeartbeat]);
+
+  // Tab re-focus: re-read /api/me (read-only) to pick up activity from other tabs/apps — or
+  // to find the session already ended while the tab was hidden. Plus a legacy poll-on-401
+  // fallback only when neither deadline is known.
+  useEffect(() => {
+    if (disableHeartbeat || !user) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const result = await checkSession();
+      if (result === 'ended') await logout('idle');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (expiresAtRef.current === null && idleExpiresAtRef.current === null) {
+      interval = setInterval(async () => {
+        const result = await checkSession();
+        if (result !== 'active') setShowTimeoutWarning(true);
+      }, FALLBACK_HEARTBEAT_INTERVAL_MS);
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (interval) clearInterval(interval);
+    };
+  }, [user, disableHeartbeat, checkSession, logout]);
+
+  const login = useCallback((redirectUrl?: string) => {
+    const redirect = redirectUrl || window.location.href;
+    window.location.href = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(redirect)}`;
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -270,15 +389,22 @@ export function AuthProvider({
   }, []);
 
   const handleLogoutFromModal = useCallback(() => {
-    logout();
+    void logout();
   }, [logout]);
 
-  // Countdown reached the real expiry. /api/me silently refreshes while the refresh
-  // token lives: if that works, the new expires_at reschedules past the warning
-  // window and the effect above closes the modal. Otherwise the session is gone.
+  // Countdown reached the deadline. In idle mode /api/me cannot revive the session; it only
+  // reflects activity that really happened elsewhere (another tab or app), in which case
+  // the moved idle_expires_at reschedules and closes the modal. Legacy mode: /api/me may
+  // still refresh, exactly as in 1.8.1.
   const handleExpireFromModal = useCallback(async () => {
-    const ok = await checkSession();
-    if (!ok) await logout();
+    const idleMode = idleExpiresAtRef.current !== null;
+    const result = await checkSession();
+    const idleNow = idleExpiresAtRef.current;
+    if (result !== 'active') {
+      await logout(idleMode ? 'idle' : undefined);
+    } else if (idleNow !== null && idleNow * 1000 <= Date.now()) {
+      await logout('idle');
+    }
   }, [checkSession, logout]);
 
   // Legacy cookies (no expires_at) only reach the modal after /api/me already
@@ -286,10 +412,10 @@ export function AuthProvider({
   const [legacyDeadlineMs, setLegacyDeadlineMs] = useState<number | null>(null);
   useEffect(() => {
     setLegacyDeadlineMs(
-      showTimeoutWarning && !expiresAt ? Date.now() + timeoutWarningSeconds * 1000 : null
+      showTimeoutWarning && !expiresAt && !idleExpiresAt ? Date.now() + timeoutWarningSeconds * 1000 : null
     );
-  }, [showTimeoutWarning, expiresAt, timeoutWarningSeconds]);
-  const deadlineMs = expiresAt ? expiresAt * 1000 : legacyDeadlineMs;
+  }, [showTimeoutWarning, expiresAt, idleExpiresAt, timeoutWarningSeconds]);
+  const deadlineMs = idleExpiresAt ? idleExpiresAt * 1000 : expiresAt ? expiresAt * 1000 : legacyDeadlineMs;
 
   return (
     <AuthContext.Provider
@@ -299,6 +425,7 @@ export function AuthProvider({
         error,
         sessionExpired,
         expiresAt,
+        idleExpiresAt,
         login,
         logout,
         refreshUser,

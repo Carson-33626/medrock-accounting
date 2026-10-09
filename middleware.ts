@@ -158,6 +158,9 @@ export async function middleware(request: NextRequest) {
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
+          // A real document navigation is user activity: it extends the 15-minute idle
+          // window. Prefetches, RSC fetches and API calls are not, so they don't send it.
+          ...(isDocumentNavigation(request) ? { 'X-MedRock-Activity': 'navigation' } : {}),
         },
       }
     );
@@ -208,8 +211,10 @@ export async function middleware(request: NextRequest) {
 
     // Handle auth errors (invalid/expired token)
     if (accessCheck.status === 401) {
+      const data = (await accessCheck.json().catch(() => ({}))) as { error?: { code?: string } };
+      const idle = data.error?.code === 'SESSION_IDLE' || data.error?.code === 'SESSION_CEILING';
       const currentUrl = request.url;
-      const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}`;
+      const loginUrl = `${AUTH_SERVICE_URL}/login?redirect=${encodeURIComponent(currentUrl)}${idle ? '&reason=idle' : ''}`;
       return NextResponse.redirect(loginUrl);
     }
 
@@ -229,6 +234,13 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
   response.headers.set('x-url', request.url);
   return response;
+}
+
+/** True for a top-level page load (not a prefetch, RSC fetch or API call). */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.headers.get('sec-fetch-mode') !== 'navigate') return false;
+  if (request.headers.get('next-router-prefetch') || request.headers.get('purpose') === 'prefetch') return false;
+  return true;
 }
 
 export const config = {
