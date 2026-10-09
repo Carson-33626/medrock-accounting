@@ -239,6 +239,8 @@ export async function middleware(request: NextRequest) {
 /** True for a top-level page load (not a prefetch, RSC fetch or API call). */
 function isDocumentNavigation(request: NextRequest): boolean {
   if (request.headers.get('sec-fetch-mode') !== 'navigate') return false;
+  // Top-level page only: not an iframe load (frames can reload on a timer with nobody there).
+  if (request.headers.get('sec-fetch-dest') !== 'document') return false;
   if (request.headers.get('next-router-prefetch') || request.headers.get('purpose') === 'prefetch') return false;
   return true;
 }
