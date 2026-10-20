@@ -60,6 +60,11 @@ export function Sidebar() {
   }, [pathname]);
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { user, loading, logout } = useAuth();
+  // Framed by the task system (a sales-tax calculator on a filing item): that page is the nav.
+  const [framed, setFramed] = useState(false);
+  useEffect(() => {
+    setFramed(window.self !== window.top);
+  }, []);
 
   // Derive user display info
   const userEmail = user?.email || null;
@@ -73,7 +78,7 @@ export function Sidebar() {
   const isAdmin = devBypass || user?.role === 'admin' || user?.role === 'super_admin';
 
   // Hide sidebar on auth and public pages
-  if (pathname?.startsWith('/auth') || pathname === '/terms' || pathname === '/privacy') {
+  if (framed || pathname?.startsWith('/auth') || pathname === '/terms' || pathname === '/privacy') {
     return null;
   }
 

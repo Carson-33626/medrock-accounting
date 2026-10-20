@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// The task system (Company Admin filing items) frames the sales-tax calculators, so those pages
+// may be framed by it and nothing else; every other page stays unframeable.
+const TASKS_ORIGIN = 'https://tasks.medrockpharmacy.com';
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -12,10 +16,6 @@ const nextConfig: NextConfig = {
             value: 'max-age=63072000; includeSubDomains; preload'
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY'
-          },
-          {
             key: 'X-Content-Type-Options',
             value: 'nosniff'
           },
@@ -26,6 +26,24 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()'
+          }
+        ],
+      },
+      {
+        source: '/((?!sales-tax(?:/|$)).*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          }
+        ],
+      },
+      {
+        source: '/sales-tax/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: `frame-ancestors 'self' ${TASKS_ORIGIN}`
           }
         ],
       },
