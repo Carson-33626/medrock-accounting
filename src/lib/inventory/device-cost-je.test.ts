@@ -4,9 +4,11 @@ import {
   valueDeviceUsage,
   deviceCostMemo,
   deviceCostContribution,
-  DEVICE_COST_TRUEUP_MONTH,
+  fifoRelievesPackaging,
+  PACKAGING_CATEGORY,
   type DeviceUsageRow,
 } from './device-cost-je';
+import type { CategoryJE } from '@/types/inventory';
 
 const usage = (over: Partial<DeviceUsageRow> = {}): DeviceUsageRow => ({
   asOfMonth: '2026-04',
@@ -20,23 +22,67 @@ const usage = (over: Partial<DeviceUsageRow> = {}): DeviceUsageRow => ({
   ...over,
 });
 
-describe('which months a close month is responsible for', () => {
-  it('carries only itself in an ordinary month', () => {
-    expect(monthsCoveredBy('2026-04')).toEqual(['2026-04']);
-    expect(monthsCoveredBy('2026-08')).toEqual(['2026-08']);
+describe('which months a close entry is responsible for', () => {
+  it('carries only itself once the previous month has been relieved', () => {
+    expect(monthsCoveredBy('2026-04', '2026-03')).toEqual(['2026-04']);
+    expect(monthsCoveredBy('2026-08', '2026-07')).toEqual(['2026-08']);
   });
 
-  it('carries January and February into the March true-up', () => {
-    // Carson, 2026-09-03: "Can't we fill backwards and do a large true-up in
-    // March like we planned for inventory".
-    expect(monthsCoveredBy(DEVICE_COST_TRUEUP_MONTH)).toEqual(['2026-01', '2026-02', '2026-03']);
+  it('catches up every month from 2026-01 when nothing has been relieved yet', () => {
+    // Carson, 2026-09-03: "Can't we fill backwards and do a large true-up". The March back-fill
+    // never posted for Texas, so the first open month (May) carries Jan to May.
+    expect(monthsCoveredBy('2026-03')).toEqual(['2026-01', '2026-02', '2026-03']);
+    expect(monthsCoveredBy('2026-05')).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']);
+  });
+
+  it('carries only the months after the last relieved one', () => {
+    expect(monthsCoveredBy('2026-06', '2026-03')).toEqual(['2026-04', '2026-05', '2026-06']);
+  });
+
+  it('carries nothing when the month is already relieved — a second correction adds no device line', () => {
+    expect(monthsCoveredBy('2026-05', '2026-05')).toEqual([]);
+    expect(monthsCoveredBy('2026-04', '2026-05')).toEqual([]);
+    const c = deviceCostContribution('MedRock Texas', '2026-05', [usage({ asOfMonth: '2026-05', location: 'MedRock Texas', units: 100 })], '2026-05');
+    expect(c.available).toBe(true);
+    expect(c.lines).toHaveLength(0);
   });
 
   it('reaches back no further than 2026-01, whatever is asked of it', () => {
-    // The scope ruling is 2026 forward. 2025 is not restated; it discharges
-    // through the same March figure.
+    // The scope ruling is 2026 forward. 2025 is not restated.
     expect(monthsCoveredBy('2025-12')).toEqual([]);
-    expect(monthsCoveredBy(DEVICE_COST_TRUEUP_MONTH)[0]).toBe('2026-01');
+    expect(monthsCoveredBy('2026-03')[0]).toBe('2026-01');
+  });
+});
+
+describe('fifoRelievesPackaging — the no-double-count gate', () => {
+  const row = (qbCategory: string, mapped = true): CategoryJE['lines'][number] => ({
+    qbCategory,
+    inventoryAccount: 'x',
+    cogsAccount: 'y',
+    mapped,
+    fifoTarget: 0,
+    qbBookBalance: 0,
+    adjustment: 0,
+    direction: 'none',
+    receiptIds: [],
+    lotCount: 0,
+  });
+  const je = (lines: CategoryJE['lines']): CategoryJE => ({
+    location: 'MedRock Texas',
+    lines,
+    fifoTarget: 0,
+    adjustment: 0,
+    bookAvailable: true,
+    unmappedCategories: [],
+    residualBookBalance: 0,
+  });
+
+  it('is true when the FIFO close carries a packaging row — even one that ties this month', () => {
+    expect(fifoRelievesPackaging(je([row('Compound Ingredient'), row(PACKAGING_CATEGORY)]))).toBe(true);
+  });
+
+  it('is false when FIFO has no packaging row at all (Texas)', () => {
+    expect(fifoRelievesPackaging(je([row('Compound Ingredient'), row('Commercial Rx'), row('Lab Supplies')]))).toBe(false);
   });
 });
 
@@ -48,8 +94,8 @@ describe('valuing usage', () => {
     expect(r.lines[0].pricePerUnit).toBe(2);
   });
 
-  it('sums the covered months into one figure in the true-up month', () => {
-    const r = valueDeviceUsage('MedRock Tennessee', DEVICE_COST_TRUEUP_MONTH, [
+  it('sums every month up to the first entry into one figure', () => {
+    const r = valueDeviceUsage('MedRock Tennessee', '2026-03', [
       usage({ asOfMonth: '2026-01', units: 100 }),
       usage({ asOfMonth: '2026-02', units: 100 }),
       usage({ asOfMonth: '2026-03', units: 100 }),
@@ -123,12 +169,12 @@ describe('the journal lines', () => {
     expect(c.warnings.join(' ')).toContain('could not be read');
   });
 
-  it('says on the entry itself that March is a catch-up', () => {
+  it('says on the entry itself that the first entry is a catch-up', () => {
     // A three-month figure that reads as one month of packaging consumption is
     // exactly the misreading this is here to prevent.
     const c = deviceCostContribution(
       'MedRock Tennessee',
-      DEVICE_COST_TRUEUP_MONTH,
+      '2026-03',
       [usage({ asOfMonth: '2026-01', units: 100 })],
     );
     expect(c.lines[0].memo).toContain('CATCH-UP');
@@ -136,11 +182,14 @@ describe('the journal lines', () => {
   });
 
   it('does not label an ordinary month as a catch-up', () => {
-    const c = deviceCostContribution('MedRock Tennessee', '2026-05', [
-      usage({ asOfMonth: '2026-05', units: 100 }),
-    ]);
+    const c = deviceCostContribution(
+      'MedRock Tennessee',
+      '2026-05',
+      [usage({ asOfMonth: '2026-05', units: 100 })],
+      '2026-04',
+    );
     expect(c.lines[0].memo).not.toContain('CATCH-UP');
-    expect(deviceCostMemo(valueDeviceUsage('MedRock Tennessee', '2026-05', []))).toContain('2026-05');
+    expect(deviceCostMemo(valueDeviceUsage('MedRock Tennessee', '2026-05', [], '2026-04'))).toContain('2026-05');
   });
 
   it('warns loudly about every device it could not price', () => {

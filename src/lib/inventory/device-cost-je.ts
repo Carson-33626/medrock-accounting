@@ -13,12 +13,14 @@
  * took it back off. So `Dr Cost of Goods Sold:Compound Packaging /
  * Cr Inventory Asset:Compound Packaging Inventory`, and it stays posted.
  *
- * THE MARCH BACK-FILL. Carson, 2026-09-03, on how the catch-up should work:
- * *"Can't we fill backwards and do a large true-up in March like we planned for
- * inventory"*. So the March entry carries January and February as well as March,
- * and from April each month carries only itself. `monthsCovered` says which, and
- * the memo says so on the face of the entry — a three-month catch-up must not
- * read as one month of packaging consumption.
+ * THE CATCH-UP. Carson, 2026-09-03: *"Can't we fill backwards and do a large true-up in March
+ * like we planned for inventory"*. The first entry that carries device cost for an entity
+ * therefore carries EVERY month from 2026-01 up to its own, and each later entry only the
+ * months after the last one relieved (`relievedThrough`). The March back-fill never posted for
+ * Texas (the only entity whose FIFO close emits no 1220.15 line), so the catch-up now lands in
+ * the first open month instead — 2026-05, Jan to May, per the 2026-10-27 close map. The memo
+ * says so on the face of the entry — a multi-month catch-up must not read as one month of
+ * packaging consumption.
  *
  * WHAT IT DELIBERATELY DOES NOT DO. It does not drive 1220.15 to a target balance.
  * Carson, 2026-09-04, on whether packaging on hand can be counted: *"Not possible
@@ -32,6 +34,7 @@
  * out; this is what happens while we wait for it.
  */
 import type { JournalLine } from '@/lib/payroll/types';
+import type { CategoryJE } from '@/types/inventory';
 import type { JeContribution } from './je-pool';
 import { accountsForCategory } from './category-accounts';
 import { priceFor, unpricedReason } from './device-prices';
@@ -42,8 +45,24 @@ export const PACKAGING_CATEGORY = 'Lab Compound Packaging Inventory';
 /** First month of the standard-cost model. Per the 2026-forward scope ruling. */
 export const DEVICE_COST_FIRST_MONTH = '2026-01';
 
-/** The month the back-fill lands in — the correction period. */
-export const DEVICE_COST_TRUEUP_MONTH = '2026-03';
+/**
+ * Stamped (as `device|<device>|<sku>`) into `sourceRowKeys` on every device line, so the months an
+ * entity's POSTED entries have already relieved can be queried back out of
+ * `payroll_journal_lines` without parsing memos. See `device-cost-server.ts`.
+ */
+export const DEVICE_SOURCE_KEY_PREFIX = 'device|';
+
+/**
+ * Whether this entity's FIFO close already relieves 1220.15: its category JE carries a packaging
+ * row (lots in the ledger for 'Lab Compound Packaging Inventory'), whether or not it adjusts this
+ * month. FL and TN do; TX has no packaging ledger rows, so only its 1220.15 is untouched. Device
+ * standard cost must join the pool ONLY when this is false — FIFO already sweeps FL/TN packaging
+ * (FIFO target − book), and a device line on the same account would relieve it twice.
+ * Decided by the data, not by entity name.
+ */
+export function fifoRelievesPackaging(je: CategoryJE): boolean {
+  return je.lines.some((l) => l.qbCategory === PACKAGING_CATEGORY && l.mapped);
+}
 
 /** One `(location, month, device, sku)` cell of modelled usage, as the loader emits it. */
 export interface DeviceUsageRow {
@@ -129,21 +148,18 @@ function cents(n: number): number {
 }
 
 /**
- * Which months one close month is responsible for.
- *
- * March carries January and February with it; every other month carries itself.
- * A month before the model starts carries nothing at all rather than reaching
- * back into 2025 — the scope ruling is 2026 forward, corrections in March/April.
+ * Which months one close entry is responsible for: every month after `relievedThrough` (the last
+ * month an already-POSTED device line covered; null when none has) up to and including
+ * `closeMonth`, never before the model starts. Nothing to relieve → [].
  */
-export function monthsCoveredBy(closeMonth: string): readonly string[] {
+export function monthsCoveredBy(closeMonth: string, relievedThrough: string | null = null): readonly string[] {
   if (closeMonth < DEVICE_COST_FIRST_MONTH) return [];
-  if (closeMonth !== DEVICE_COST_TRUEUP_MONTH) return [closeMonth];
   const months: string[] = [];
   const [y, m] = DEVICE_COST_FIRST_MONTH.split('-').map(Number);
   for (let cursor = new Date(Date.UTC(y, m - 1, 1)); ; cursor.setUTCMonth(cursor.getUTCMonth() + 1)) {
     const label = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`;
-    months.push(label);
-    if (label === DEVICE_COST_TRUEUP_MONTH) break;
+    if (label > closeMonth) break;
+    if (relievedThrough === null || label > relievedThrough) months.push(label);
   }
   return months;
 }
@@ -158,8 +174,9 @@ export function valueDeviceUsage(
   location: string,
   closeMonth: string,
   usage: readonly DeviceUsageRow[],
+  relievedThrough: string | null = null,
 ): DeviceCostResult {
-  const monthsCovered = monthsCoveredBy(closeMonth);
+  const monthsCovered = monthsCoveredBy(closeMonth, relievedThrough);
   const inScope = new Set(monthsCovered);
 
   // (device, sku) -> accumulated units and fills across every covered month.
@@ -242,6 +259,7 @@ export function deviceCostContribution(
   location: string,
   closeMonth: string,
   usage: readonly DeviceUsageRow[] | null,
+  relievedThrough: string | null = null,
 ): JeContribution {
   const accounts = accountsForCategory(PACKAGING_CATEGORY);
   const warnings: string[] = [];
@@ -256,12 +274,12 @@ export function deviceCostContribution(
     };
   }
 
-  const result = valueDeviceUsage(location, closeMonth, usage);
+  const result = valueDeviceUsage(location, closeMonth, usage, relievedThrough);
   const memo = deviceCostMemo(result);
   const lines: JournalLine[] = [];
 
   if (result.total > 0) {
-    const sourceRowKeys = result.lines.map((l) => `device|${l.device}|${l.sku}`);
+    const sourceRowKeys = result.lines.map((l) => `${DEVICE_SOURCE_KEY_PREFIX}${l.device}|${l.sku}`);
     lines.push(
       {
         postingType: 'Debit',

@@ -172,14 +172,20 @@ export async function fetchLabSuppliesAccrual(monthCount = 6): Promise<LabSuppli
 // ---------------------------------------------------------------------------
 
 /**
- * Σ of our own POSTED lab-supplies lines for one entity, to date: credits to
+ * Σ of our own POSTED lab-supplies lines for one entity, THROUGH `throughMonthEnd`: credits to
  * `2011 Accrued Expenses` less debits. Two populations, both ours:
  *   - close entries (INV CLOSE) carrying lines tagged `src:lab-supplies`
  *   - the retired LAB ACCRUAL pairs, should any ever have posted (none had on
  *     2026-09-14; kept so a posted pair could never be double-counted)
  * Only `status = 'posted'` counts: a draft is not on the books.
+ *
+ * THE BOUND IS REQUIRED. The target this is subtracted from covers months up to the close month
+ * only (`m.month <= input.month`), so an unbounded sum would subtract LATER months' accruals
+ * from it. Correcting a non-latest month would then reverse every later month's accrual (2026-10-27:
+ * a May correction would have booked FL 8,207.10 instead of 763.26). A correction (segment C1+)
+ * shares its month's `period_end`, so it is included in its own month's bound.
  */
-export async function fetchPostedLabSuppliesToDate(entity: Entity): Promise<number> {
+export async function fetchPostedLabSuppliesToDate(entity: Entity, throughMonthEnd: string): Promise<number> {
   const { rows } = await getRdsPool().query<{ net: string | null }>(
     `SELECT sum(CASE WHEN l.posting_type = 'Credit' THEN l.amount ELSE -l.amount END)::text AS net
        FROM accounting.payroll_journal_lines l
@@ -187,11 +193,12 @@ export async function fetchPostedLabSuppliesToDate(entity: Entity): Promise<numb
       WHERE h.entity = $1
         AND h.status = 'posted'
         AND l.account_name = $2
+        AND h.period_end::date <= $6::date
         AND (
           (h.pay_group = $3 AND $4 = ANY(l.source_row_keys))
           OR h.pay_group = $5
         )`,
-    [entity, ACCRUED_EXPENSES_ACCOUNT, INV_CLOSE_PAY_GROUP, LAB_SUPPLIES_SOURCE_KEY, LAB_ACCRUAL_PAY_GROUP],
+    [entity, ACCRUED_EXPENSES_ACCOUNT, INV_CLOSE_PAY_GROUP, LAB_SUPPLIES_SOURCE_KEY, LAB_ACCRUAL_PAY_GROUP, throughMonthEnd],
   );
   return Math.round(Number(rows[0]?.net ?? 0) * 100) / 100;
 }
@@ -203,6 +210,13 @@ function monthSpan(from: string, to: string): number {
   return (ty - fy) * 12 + (tm - fm) + 1;
 }
 
+/** The lab contributor plus the basis to retain on the header. */
+export interface LabSuppliesPoolPart {
+  contribution: LabSuppliesContribution;
+  /** The retained basis; null while the month is running or the read failed. */
+  snapshot: LabSuppliesPoolSnapshot | null;
+}
+
 /**
  * The lab-supplies contribution to one entity's close entry for `month`, plus the
  * basis to retain on the header so the workbook can explain it later.
@@ -211,10 +225,7 @@ function monthSpan(from: string, to: string): number {
  * — the pool then refuses the whole entry rather than posting one that is quietly
  * missing a piece.
  */
-export async function labSuppliesContributionFor(
-  entity: Entity,
-  month: string,
-): Promise<{ contribution: LabSuppliesContribution; snapshot: LabSuppliesPoolSnapshot | null }> {
+export async function labSuppliesContributionFor(entity: Entity, month: string): Promise<LabSuppliesPoolPart> {
   const asOf = new Date().toISOString().slice(0, 10);
   const monthEnded = monthEndOf(month) < asOf;
   // Reach back to the earliest month that could still carry an unkeyed estimate
@@ -222,7 +233,7 @@ export async function labSuppliesContributionFor(
   const span = Math.max(monthSpan(month, asOf.slice(0, 7)), 9);
   const [read, postedToDate] = await Promise.all([
     fetchLabSuppliesAccrual(span),
-    fetchPostedLabSuppliesToDate(entity),
+    fetchPostedLabSuppliesToDate(entity, monthEndOf(month)),
   ]);
   const available = !read.unavailable.some((u) => u.startsWith(entity));
   const contribution = buildLabSuppliesContribution({

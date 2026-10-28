@@ -81,6 +81,19 @@ export function postOrderReason(target: CloseHeaderRef, all: readonly CloseHeade
   return null;
 }
 
+/**
+ * Whether `month` ('YYYY-MM') sits inside QuickBooks' closed period: its last day is on or
+ * before the company's BookCloseDate ('YYYY-MM-DD', null when the books are not closed).
+ * QuickBooks refuses entries dated on or before that date, so such a month can never take a
+ * correction, and its gap can never be booked twice by a later month's correction.
+ */
+export function isMonthClosed(month: string, bookCloseDate: string | null): boolean {
+  if (bookCloseDate === null) return false;
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  return lastDay <= bookCloseDate;
+}
+
 /** One posted month's current gap, as the drift check measured it. */
 export interface MonthGap {
   month: string;
@@ -90,22 +103,30 @@ export interface MonthGap {
 
 /**
  * Why a correction for (entity, month) must not be generated yet, or null when it may.
- * `earlierGaps` are the entity's posted months before `month`.
+ * `earlierGaps` are the entity's posted months before `month`. Months inside QuickBooks'
+ * closed period (`bookCloseDate`) are skipped entirely: they can never take a correction,
+ * so neither an open draft nor a gap there may block a later, open month.
  */
 export function correctionOrderReason(
   entity: string,
   month: string,
   headers: readonly CloseHeaderRef[],
   earlierGaps: readonly MonthGap[],
+  bookCloseDate: string | null = null,
 ): string | null {
   const openEarlier = headers.filter(
-    (h) => h.entity === entity && h.month < month && isCorrection(h) && h.status !== 'posted',
+    (h) =>
+      h.entity === entity &&
+      h.month < month &&
+      !isMonthClosed(h.month, bookCloseDate) &&
+      isCorrection(h) &&
+      h.status !== 'posted',
   );
   if (openEarlier.length > 0) {
     return `${entity}: post or discard ${openEarlier.map(label).join(', ')} before correcting ${month}.`;
   }
   const gapped = [...earlierGaps]
-    .filter((g) => g.month < month && Math.abs(g.gap) >= DRIFT_TOLERANCE)
+    .filter((g) => g.month < month && !isMonthClosed(g.month, bookCloseDate) && Math.abs(g.gap) >= DRIFT_TOLERANCE)
     .sort((a, b) => a.month.localeCompare(b.month));
   if (gapped.length > 0) {
     const g = gapped[0];
@@ -117,20 +138,24 @@ export function correctionOrderReason(
   return null;
 }
 
-export type DriftStatus = 'ties' | 'correct' | 'after' | 'open';
+/** `closed`: inside QuickBooks' closed period — can never be corrected and blocks nothing. */
+export type DriftStatus = 'ties' | 'correct' | 'after' | 'open' | 'closed';
 
 /**
  * Status per posted month for one entity, oldest first. Only the EARLIEST gapped month gets
  * `correct`; every later gapped month waits (`after`), because correcting the earlier one
- * changes its balance too.
+ * changes its balance too. Months inside the closed period are `closed` and skipped by that rule.
  */
 export function driftStatuses(
   months: ReadonlyArray<{ month: string; gap: number; openCorrection: boolean }>,
+  bookCloseDate: string | null = null,
 ): Map<string, DriftStatus> {
   const out = new Map<string, DriftStatus>();
   let blocked = false;
   for (const m of [...months].sort((a, b) => a.month.localeCompare(b.month))) {
-    if (m.openCorrection) {
+    if (isMonthClosed(m.month, bookCloseDate)) {
+      out.set(m.month, 'closed');
+    } else if (m.openCorrection) {
       out.set(m.month, 'open');
       blocked = true;
     } else if (Math.abs(m.gap) < DRIFT_TOLERANCE) {

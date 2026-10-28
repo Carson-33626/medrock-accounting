@@ -437,7 +437,7 @@ describe('buildCategoryJE', () => {
       null,
     );
     const je = buildCategoryJE('MedRock FL', rows, bsAccounts, accountNums, true);
-    expect(je.lines).toHaveLength(1);
+    expect(je.lines.filter((l) => l.qbCategory !== 'Lab Supplies')).toHaveLength(1);
     expect(je.lines[0].inventoryAccount).toBe('Inventory Asset:Commercial Rx Inventory');
     expect(je.lines[0].cogsAccount).toBe('Cost of Goods Sold:Commercial RX');
     expect(je.lines[0].qbBookBalance).toBe(900);
@@ -523,9 +523,80 @@ describe('buildCategoryJE', () => {
       null,
     );
     const tnJe = buildCategoryJE('MedRock TN', rows, bsAccounts, accountNums, true);
-    expect(tnJe.lines).toHaveLength(1);
-    expect(tnJe.lines.every((l) => l.qbCategory === 'Commercial Rx')).toBe(true);
+    const ledgerLines = tnJe.lines.filter((l) => l.qbCategory !== 'Lab Supplies');
+    expect(ledgerLines).toHaveLength(1);
+    expect(ledgerLines.every((l) => l.qbCategory === 'Commercial Rx')).toBe(true);
     expect(tnJe.fifoTarget).toBe(2000);
+  });
+
+  describe('1220.20 Lab Supplies — book-only, relieved to zero at every close', () => {
+    const labNums: Record<string, string> = {
+      ...accountNums,
+      'Inventory Asset:Lab Supplies Inventory': '1220.20',
+    };
+    const labBs = [...bsAccounts, { name: '1220.20 Lab Supplies Inventory', value: 7324.71 }];
+    const fl = () =>
+      buildCategoryRollForward(
+        [clv({ location: 'MedRock FL', qbCategory: 'Commercial Rx', endingValue: 1000, lotCount: 3 })],
+        null,
+      );
+
+    it('adds a mapped row with FIFO target 0 even though the ledger has no Lab Supplies rows', () => {
+      const je = buildCategoryJE('MedRock FL', fl(), labBs, labNums, true);
+      const lab = je.lines.find((l) => l.qbCategory === 'Lab Supplies');
+      expect(lab).toMatchObject({
+        inventoryAccount: 'Inventory Asset:Lab Supplies Inventory',
+        cogsAccount: 'Cost of Goods Sold:Lab Supplies',
+        mapped: true,
+        fifoTarget: 0,
+        qbBookBalance: 7324.71,
+        adjustment: -7324.71,
+        direction: 'credit-inventory',
+        lotCount: 0,
+      });
+      expect(je.fifoTarget).toBe(1000); // the relief adds no FIFO value
+    });
+
+    it('posts Dr 5000.25 Cost of Goods Sold:Lab Supplies / Cr 1220.20 for the whole book balance', () => {
+      const je = buildCategoryJE('MedRock FL', fl(), labBs, labNums, true);
+      const lines = categoryJournalEntryLinesWithSources(je, '2026-05-31').filter((l) => l.qbCategory === 'Lab Supplies');
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatchObject({ account: 'Cost of Goods Sold:Lab Supplies', debit: 7324.71, credit: null });
+      expect(lines[1]).toMatchObject({ account: 'Inventory Asset:Lab Supplies Inventory', debit: null, credit: 7324.71 });
+      expect(lines[0].memo).toContain('Relieve Lab Supplies inventory to zero');
+      expect(lines[0].mapped).toBe(true);
+    });
+
+    it('emits nothing for it once the account already sits at zero (or has no balance-sheet row)', () => {
+      const zero = [...bsAccounts, { name: '1220.20 Lab Supplies Inventory', value: 0 }];
+      for (const bs of [zero, bsAccounts]) {
+        const je = buildCategoryJE('MedRock FL', fl(), bs, labNums, true);
+        expect(categoryJournalEntryLinesWithSources(je, '2026-05-31').some((l) => l.qbCategory === 'Lab Supplies')).toBe(false);
+      }
+    });
+
+    it('is unknown, not zero, when the realm gave no balance sheet', () => {
+      const je = buildCategoryJE('MedRock FL', fl(), [], labNums, false);
+      const lab = je.lines.find((l) => l.qbCategory === 'Lab Supplies');
+      expect(lab?.qbBookBalance).toBeNull();
+      expect(lab?.adjustment).toBeNull();
+      expect(categoryJournalEntryLinesWithSources(je, '2026-05-31')).toEqual([]);
+    });
+
+    it('leaves a Lab Supplies category the ledger DOES carry to its own FIFO target', () => {
+      const rows = buildCategoryRollForward(
+        [clv({ location: 'MedRock FL', qbCategory: 'Lab Supplies', endingValue: 700, lotCount: 2 })],
+        null,
+      );
+      const je = buildCategoryJE('MedRock FL', rows, labBs, labNums, true);
+      expect(je.lines.filter((l) => l.qbCategory === 'Lab Supplies')).toHaveLength(1);
+      expect(je.lines[0].adjustment).toBe(-6624.71); // 700 − 7,324.71
+    });
+
+    it('does not touch packaging: 1220.15 is never driven to zero', () => {
+      const je = buildCategoryJE('MedRock FL', fl(), labBs, labNums, true);
+      expect(je.lines.some((l) => l.qbCategory === 'Lab Compound Packaging Inventory')).toBe(false);
+    });
   });
 });
 

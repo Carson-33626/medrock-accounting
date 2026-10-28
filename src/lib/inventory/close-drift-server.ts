@@ -22,6 +22,7 @@ import {
 import {
   correctionOrderReason,
   driftStatuses,
+  isMonthClosed,
   postOrderReason,
   DRIFT_TOLERANCE,
   type CloseHeaderRef,
@@ -35,6 +36,26 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 function monthEndOf(month: string): string {
   const [y, m] = month.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+interface QbPreferences {
+  AccountingInfoPrefs?: { BookCloseDate?: string };
+}
+
+/**
+ * QuickBooks' book-close date for one company ('YYYY-MM-DD'), or null when the books are not
+ * closed or the Preferences read failed. null is the CONSERVATIVE answer: it treats every month
+ * as open, so the oldest-first guard blocks more, never less.
+ */
+export async function fetchBookCloseDate(entity: Entity): Promise<string | null> {
+  try {
+    const prefs = await qbQueryAll<QbPreferences>(entity as Location, 'Preferences', '');
+    const date = prefs[0]?.AccountingInfoPrefs?.BookCloseDate;
+    return date !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  } catch (error) {
+    console.warn(`[close-drift] ${entity} book close date unreadable — treating every month as open:`, error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 /** Every stored INV CLOSE / INV OPEN header with its generate and post stamps. */
@@ -325,6 +346,7 @@ export async function fetchCloseDrift(): Promise<DriftReport> {
       });
     }
 
+    const bookCloseDate = await fetchBookCloseDate(entity);
     const statuses = driftStatuses(
       rows
         .filter((r) => !r.unavailable)
@@ -333,6 +355,7 @@ export async function fetchCloseDrift(): Promise<DriftReport> {
           gap: r.gap,
           openCorrection: own.some((h) => h.month === r.month && /^C\d+$/.test(h.segment) && h.status !== 'posted'),
         })),
+      bookCloseDate,
     );
     let first: DriftMonthRow | null = null;
     for (const r of rows) {
@@ -353,18 +376,29 @@ export async function fetchCloseDrift(): Promise<DriftReport> {
 // Gates used by the correction generator and the post route.
 // ---------------------------------------------------------------------------
 
-/** Why a correction for (entity, month) must wait, or null. Reads earlier months' gaps live. */
+/**
+ * Why a correction for (entity, month) must wait, or null. Reads earlier months' gaps live.
+ * Months inside QuickBooks' closed period are skipped: no correction can ever post there, so
+ * they cannot be settled first and must not block a later month.
+ */
 export async function correctionOrderLock(entity: Entity, month: string): Promise<string | null> {
-  const headers = await listCloseHeaderRefs(entity);
+  const [headers, bookCloseDate] = await Promise.all([listCloseHeaderRefs(entity), fetchBookCloseDate(entity)]);
   const earlierPosted = [
     ...new Set(
       headers
-        .filter((h) => h.month >= CUTOVER_MONTH && h.month < month && h.segment === '' && h.status === 'posted')
+        .filter(
+          (h) =>
+            h.month >= CUTOVER_MONTH &&
+            h.month < month &&
+            h.segment === '' &&
+            h.status === 'posted' &&
+            !isMonthClosed(h.month, bookCloseDate),
+        )
         .map((h) => h.month),
     ),
   ].sort();
   // Cheap check first: an open earlier correction blocks without reading any balance sheet.
-  const cheap = correctionOrderReason(entity, month, headers, []);
+  const cheap = correctionOrderReason(entity, month, headers, [], bookCloseDate);
   if (cheap !== null) return cheap;
   const pool = getRdsPool();
   const cache = new Map<string, CategoryLedgerValue[]>();
@@ -377,7 +411,7 @@ export async function correctionOrderLock(entity: Entity, month: string): Promis
     // Oldest first: the first gapped month is the answer, no need to read further.
     if (Math.abs(gap) >= DRIFT_TOLERANCE) break;
   }
-  return correctionOrderReason(entity, month, headers, gaps);
+  return correctionOrderReason(entity, month, headers, gaps, bookCloseDate);
 }
 
 /** Why header `headerId` must not post live, or null. */

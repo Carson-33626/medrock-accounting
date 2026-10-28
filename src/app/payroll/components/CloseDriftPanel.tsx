@@ -12,6 +12,7 @@ const STATUS_LABEL: Record<DriftStatus, string> = {
   correct: 'Correct this month next',
   after: 'Waits for an earlier month',
   open: 'Correction draft open',
+  closed: 'Closed in QuickBooks',
 };
 
 /**

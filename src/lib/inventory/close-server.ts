@@ -40,8 +40,10 @@ import {
   invCloseCorrectionDocNumber,
   invCloseCorrectionNote,
 } from './monthly-close';
-import { labSuppliesContributionFor } from './lab-supplies-server';
+import { labSuppliesContributionFor, type LabSuppliesPoolPart } from './lab-supplies-server';
 import { shippingReliefContributionFor } from './shipping-relief-server';
+import type { ShippingReliefContribution } from './shipping-relief';
+import { deviceCostContributionFor } from './device-cost-server';
 import { correctionOrderLock } from './close-drift-server';
 import { SHIPPING_SNAPSHOT_OUTCOME } from './je-detail-shipping-pool';
 import { saveSourceSnapshot } from '../payroll/store';
@@ -398,11 +400,8 @@ export async function generateInvCloseCorrection(
   const warnings: string[] = [];
   const jeLines = categoryJournalEntryLinesWithSources(je, monthEnd);
   if (jeLines.find((l) => !l.mapped)) warnings.push(residualWarning(je.location, je.unmappedCategories));
-  const [lab, ship] = await Promise.all([
-    labSuppliesContributionFor(entity, month),
-    shippingReliefContributionFor(entity, month, invCloseDocNumber(je.location, month)),
-  ]);
-  const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution, ship]);
+  const { lab, ship, device, contributions } = await closePoolContributions(entity, je, month, monthEnd);
+  const pool = assemblePool(contributions);
   for (const w of pool.warnings) warnings.push(w);
   if (pool.unavailable.length > 0) {
     return { locked: `${entity}: ${pool.unavailable.join(', ')} could not compute — no correction generated` };
@@ -426,7 +425,7 @@ export async function generateInvCloseCorrection(
   }
 
   const entityHash = createHash('sha256')
-    .update(JSON.stringify({ basis, correctionOf: parent.qb_doc_number, index, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot }))
+    .update(JSON.stringify({ basis, correctionOf: parent.qb_doc_number, index, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot, ...deviceHashPart(device) }))
     .digest('hex');
   const docNumber = invCloseCorrectionDocNumber(je.location, month, index);
   const draft: JournalDraft = {
@@ -559,6 +558,39 @@ export function fifoCategoryContribution(je: CategoryJE, monthEnd: string): JeCo
   };
 }
 
+/**
+ * Every contributor to one entity's close/correction entry for `month`: FIFO category (which now
+ * includes the 1220.20 relieve-to-zero row), lab-supplies accrual, shipping relief, and — ONLY
+ * when this entity's FIFO close emits no packaging line — device standard cost. Generate and
+ * correction share this so the two can never assemble different pools.
+ */
+export async function closePoolContributions(
+  entity: Entity,
+  je: CategoryJE,
+  month: string,
+  monthEnd: string,
+): Promise<{
+  lab: LabSuppliesPoolPart;
+  ship: ShippingReliefContribution;
+  device: JeContribution | null;
+  contributions: JeContribution[];
+}> {
+  const [lab, ship, device] = await Promise.all([
+    labSuppliesContributionFor(entity, month),
+    shippingReliefContributionFor(entity, month, invCloseDocNumber(je.location, month)),
+    deviceCostContributionFor(entity, je, month),
+  ]);
+  const contributions: JeContribution[] = [fifoCategoryContribution(je, monthEnd), lab.contribution, ship];
+  if (device !== null) contributions.push(device);
+  return { lab, ship, device, contributions };
+}
+
+/** The device lines' share of a draft's source hash. Omitted when the contributor does not apply,
+ *  so FL/TN hashes — and the drafts already stored against them — are unchanged. */
+function deviceHashPart(device: JeContribution | null): { device?: JournalLine[] } {
+  return device === null ? {} : { device: device.lines };
+}
+
 export function residualWarning(location: string, categories: readonly string[]): string {
   const listed = categories.length > 0 ? categories.join(', ') : 'one or more categories';
   const advice: string[] = [];
@@ -648,11 +680,8 @@ export async function generateInvCloseDrafts(
     // and no second entry. See docs/fifo-monthly-close/ds-one-inventory-je-2026-09-03.md.
     // Shipping packaging relief joins the same entry (Carson, 2026-09-18: "get it going with
     // inventory journals") — Barbara's postage-ratio method, see ds-shipping-relief-2026-09-18.
-    const [lab, ship] = await Promise.all([
-      labSuppliesContributionFor(entity, month),
-      shippingReliefContributionFor(entity, month, invCloseDocNumber(je.location, month)),
-    ]);
-    const pool = assemblePool([fifoCategoryContribution(je, monthEnd), lab.contribution, ship]);
+    const { lab, ship, device, contributions } = await closePoolContributions(entity, je, month, monthEnd);
+    const pool = assemblePool(contributions);
     for (const w of pool.warnings) warnings.push(w);
     if (pool.unavailable.length > 0) {
       // A partial read must never become a posted number — the whole entry waits.
@@ -673,7 +702,7 @@ export async function generateInvCloseDrafts(
     // Per entity, and including the lab basis: a moved estimate must invalidate
     // the draft exactly as a moved category value does.
     const entityHash = createHash('sha256')
-      .update(JSON.stringify({ basis, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot }))
+      .update(JSON.stringify({ basis, categoryJournalEntry: je, lab: lab.snapshot, shipping: ship.snapshot, ...deviceHashPart(device) }))
       .digest('hex');
     const draft: JournalDraft = {
       entity,

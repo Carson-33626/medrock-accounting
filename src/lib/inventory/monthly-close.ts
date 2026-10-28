@@ -42,6 +42,21 @@ export interface RollbackMonthValue {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+/**
+ * Categories the lot ledger NEVER carries, whose inventory account is nonetheless taken to ZERO at
+ * every close (Carson, 2026-10-27: relieve 1220.20 to zero each close). `buildCategoryJE` emits a
+ * book-only row for each — FIFO target 0, so the whole book balance moves to the paired COGS
+ * account (Dr 5000.25 Cost of Goods Sold:Lab Supplies / Cr 1220.20 Inventory Asset:Lab Supplies
+ * Inventory). Packaging is deliberately NOT here: 1220.15 has a pre-2026 accumulation that is
+ * only relieved by measured consumption (see device-cost-je.ts), never driven to zero.
+ *
+ * DOUBLE-COUNT CHECK against the lab-supplies accrual (lab-supplies-contribution.ts): the accrual
+ * (Dr 5000.25 / Cr 2011) covers spend that has NOT been keyed yet; this relief expenses spend that
+ * HAS been keyed to 1220.20. Disjoint populations, and when a bill finally lands the accrual's
+ * target falls while this relief picks the bill up — each dollar reaches 5000.25 once.
+ */
+export const RELIEVED_TO_ZERO_CATEGORIES: readonly string[] = ['Lab Supplies'];
+
 function pickValue(row: RollbackMonthValue, basis: CloseBasis): number {
   const v = basis === 'floor' ? row.valueFloor : row.valueFull;
   return v ?? 0;
@@ -609,6 +624,32 @@ export function buildCategoryJE(
       };
     });
 
+  // BOOK-ONLY, RELIEVED TO ZERO. Categories the lot ledger never carries but whose inventory
+  // account must still be taken to zero at every close (see RELIEVED_TO_ZERO_CATEGORIES): the
+  // same treatment `buildOpeningCorrectionRows` gives a book-only account — FIFO target 0, so the
+  // whole book balance relieves to the paired COGS account. A category the ledger DOES carry is
+  // already in `lines` above and is left to its own FIFO target.
+  for (const qbCategory of RELIEVED_TO_ZERO_CATEGORIES) {
+    if (lines.some((l) => l.qbCategory === qbCategory)) continue;
+    const accounts = accountsForCategory(qbCategory);
+    const qbBookBalance = bookAvailable
+      ? round2(matchBalanceSheetAccount(accounts.inventory, accountNums, bsAccounts) ?? 0)
+      : null;
+    const adjustment = qbBookBalance === null ? null : round2(0 - qbBookBalance);
+    lines.push({
+      qbCategory,
+      inventoryAccount: accounts.inventory,
+      cogsAccount: accounts.cogs,
+      mapped: true,
+      fifoTarget: 0,
+      qbBookBalance,
+      adjustment,
+      direction: directionOf(adjustment),
+      receiptIds: [],
+      lotCount: 0,
+    });
+  }
+
   return {
     location,
     lines,
@@ -679,7 +720,10 @@ export function categoryJournalEntryLinesWithSources(je: CategoryJE, monthEnd: s
   for (const line of je.lines) {
     if (!line.mapped) continue;
     if (line.adjustment === null || line.adjustment === 0) continue;
-    const memo = `Adjust ${line.qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}`;
+    const relieved = line.lotCount === 0 && RELIEVED_TO_ZERO_CATEGORIES.includes(line.qbCategory);
+    const memo = relieved
+      ? `Relieve ${line.qbCategory} inventory to zero as of ${monthEnd} (book-only account, expensed at each close)`
+      : `Adjust ${line.qbCategory} inventory to FIFO (lot-level) as of ${monthEnd}`;
     out.push(
       ...drCrPair(
         line.adjustment,

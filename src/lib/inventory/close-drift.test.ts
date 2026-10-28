@@ -4,6 +4,7 @@ import {
   daysSinceMonthEnd,
   driftStatuses,
   earlyPostWarning,
+  isMonthClosed,
   postOrderReason,
   type CloseHeaderRef,
 } from './close-drift';
@@ -85,6 +86,49 @@ describe('correctionOrderReason', () => {
     const open = h({ id: 9, month: '2026-06', entity: 'MedRock TN', segment: 'C1', status: 'draft', postedAt: null, docNumber: 'TN Inv Adj 2026.06-2' });
     expect(correctionOrderReason('MedRock TN', '2026-07', [open], [])).toContain('TN Inv Adj 2026.06-2');
   });
+
+  describe('QuickBooks book-close date', () => {
+    // 2026-05-18 state: FL Jan..Apr all gapped >= 250, all inside the 4/30 lock.
+    const gaps = [
+      { month: '2026-01', gap: 3685.31 },
+      { month: '2026-02', gap: 3270.48 },
+      { month: '2026-03', gap: 6353.3 },
+      { month: '2026-04', gap: 4843.7 },
+    ];
+
+    it('without a close date the earlier gapped months still block May (the old deadlock)', () => {
+      expect(correctionOrderReason('MedRock FL', '2026-05', [], gaps)).toContain('correct 2026-01 first');
+      expect(correctionOrderReason('MedRock FL', '2026-05', [], gaps, null)).toContain('correct 2026-01 first');
+    });
+
+    it('locked months are ignored: May is correctable when Jan to Apr are all closed', () => {
+      expect(correctionOrderReason('MedRock FL', '2026-05', [], gaps, '2026-04-30')).toBeNull();
+    });
+
+    it('a month ending ON the close date counts as locked; the month after does not', () => {
+      expect(isMonthClosed('2026-04', '2026-04-30')).toBe(true);
+      expect(isMonthClosed('2026-05', '2026-04-30')).toBe(false);
+      expect(isMonthClosed('2026-04', '2026-04-29')).toBe(false);
+      expect(isMonthClosed('2026-04', null)).toBe(false);
+    });
+
+    it('open earlier months still block: a gapped open month wins over locked ones', () => {
+      const june = [...gaps, { month: '2026-05', gap: 600 }];
+      expect(correctionOrderReason('MedRock FL', '2026-06', [], june, '2026-04-30')).toContain('correct 2026-05 first');
+    });
+
+    it('an open month under the bar does not block', () => {
+      const june = [...gaps, { month: '2026-05', gap: 41.8 }];
+      expect(correctionOrderReason('MedRock FL', '2026-06', [], june, '2026-04-30')).toBeNull();
+    });
+
+    it('an open correction draft in a locked month is ignored, in an open month still blocks', () => {
+      const lockedDraft = h({ id: 9, month: '2026-04', entity: 'MedRock FL', segment: 'C1', status: 'draft', postedAt: null, docNumber: 'FL Inv Adj 2026.04-2' });
+      expect(correctionOrderReason('MedRock FL', '2026-06', [lockedDraft], [], '2026-04-30')).toBeNull();
+      const openDraft = h({ id: 10, month: '2026-05', entity: 'MedRock FL', segment: 'C1', status: 'draft', postedAt: null, docNumber: 'FL Inv Adj 2026.05-2' });
+      expect(correctionOrderReason('MedRock FL', '2026-06', [lockedDraft, openDraft], [], '2026-04-30')).toContain('FL Inv Adj 2026.05-2');
+    });
+  });
 });
 
 describe('driftStatuses', () => {
@@ -106,6 +150,34 @@ describe('driftStatuses', () => {
     ]);
     expect(s.get('2026-06')).toBe('open');
     expect(s.get('2026-07')).toBe('after');
+  });
+
+  it('marks months inside the QuickBooks closed period `closed`; they neither block nor claim `correct`', () => {
+    const s = driftStatuses(
+      [
+        { month: '2026-03', gap: 6353.3, openCorrection: false },
+        { month: '2026-04', gap: 4843.7, openCorrection: false },
+        { month: '2026-05', gap: -2208.22, openCorrection: false },
+        { month: '2026-06', gap: -900, openCorrection: false },
+      ],
+      '2026-04-30',
+    );
+    expect(s.get('2026-03')).toBe('closed');
+    expect(s.get('2026-04')).toBe('closed');
+    expect(s.get('2026-05')).toBe('correct');
+    expect(s.get('2026-06')).toBe('after');
+  });
+
+  it('an open correction draft in a closed month does not hold later months', () => {
+    const s = driftStatuses(
+      [
+        { month: '2026-04', gap: 0, openCorrection: true },
+        { month: '2026-05', gap: 900, openCorrection: false },
+      ],
+      '2026-04-30',
+    );
+    expect(s.get('2026-04')).toBe('closed');
+    expect(s.get('2026-05')).toBe('correct');
   });
 });
 

@@ -10,11 +10,12 @@
  *
  * The COGS tab originally described this as `Dr 5000.25 / Cr 1220.20 Lab Supplies
  * Inventory`. That is the right pair for RELIEVING stranded inventory, and the
- * FIFO close already emits it — Tennessee's 2026-03 close carries
- * `Dr COGS:Lab Supplies 1,696.52 / Cr Inventory Asset:Lab Supplies Inventory
- * 1,696.52` against a FIFO target of zero, because the category was excluded from
- * the ledger and the whole book balance now writes off. That happens on its own,
- * every month, for whatever has actually been entered.
+ * close now emits it itself: `RELIEVED_TO_ZERO_CATEGORIES` in monthly-close.ts puts a
+ * book-only 'Lab Supplies' row (FIFO target 0) in every category entry, so each close
+ * takes whatever has actually been keyed to 1220.20 to zero. (Earlier versions of this
+ * comment said the FIFO close did that on its own. It never did: the category is not
+ * in the lot ledger, so no row existed and 1220.20 was never relieved before the
+ * 2026-10-27 change, which is why it had built up to 21,122.06 across FL/TN/TX by 5/31.)
  *
  * It is the WRONG pair for an accrual. An accrual covers supplies received where
  * no bill has been keyed at all — nothing has landed in 1220.20 for it, so there
@@ -29,7 +30,9 @@
  * 2026-09-03 (FL −33,039.04, TN −22,502.06, TX −14,641.13). FOCAS carries neither
  * 5000.25 nor 1220.20 and is excluded — it buys no lab supplies.
  *
- * WHY IT REVERSES RATHER THAN NETTING
+ * WHY IT REVERSES RATHER THAN NETTING (the retired pair; the live pool contributor in
+ * lab-supplies-contribution.ts books target − posted instead, which reaches the same place
+ * without a second entry)
  *
  * The accrual estimates the part of a month nobody has keyed yet. Once those bills
  * arrive they are coded to 1220.20 and the close expenses them — so an accrual
