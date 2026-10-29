@@ -13,7 +13,7 @@ export interface RegionRow {
   jobTitle: string | null;
   /** ADP status — "Active", "Leave", "Terminated". Null when the region is open. */
   status: string | null;
-  /** Pharmacy the rep services — FL / TN / TX from ADP home_location. Null when open. */
+  /** Pharmacy the rep services — region override (regions/page.tsx) else FL / TN / TX from ADP home_location. Null when open. */
   location: string | null;
   email: string | null;
   phone: string | null;

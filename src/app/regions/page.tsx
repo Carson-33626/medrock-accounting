@@ -33,9 +33,11 @@ interface EmployeeRow {
 /**
  * Regions whose serviced pharmacy is NOT the rep's ADP home_location (Carson, 2026-09-21).
  * Keyed by display name (suffix stripped). ADP is the default for everything else.
+ * Colorado: serviced by TX on Ash's order (2026-10-29); the rep stays employed by MedRock TN.
  */
 const SERVICED_LOCATION_OVERRIDES: Record<string, string> = {
   'South Georgia': 'TN',
+  'Colorado Region': 'TX',
   Remote: 'All',
 };
 
