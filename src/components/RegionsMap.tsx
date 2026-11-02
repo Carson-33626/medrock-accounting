@@ -1,8 +1,12 @@
 'use client';
 
+// Same map as Auth Host's Territories tab (src/app/admin/territories-map.tsx) — keep the two in
+// step. Placement comes from each row's `states` / `metro` columns on
+// `marketer_automation_marketers`, edited in Auth, so this page never needs a code change when a
+// region is added, renamed or moved.
+
 import { useMemo, useState } from 'react';
 import { METRO_POINTS, US_MAP_VIEWBOX, US_STATE_PATHS } from '@/lib/us-map-paths';
-import { REGION_GEO } from '@/lib/region-geo';
 
 export type MapFilter = { kind: 'state'; code: string } | { kind: 'region'; id: string } | null;
 
@@ -10,6 +14,10 @@ export interface MapRegion {
   id: string;
   region: string;
   holder: string | null;
+  /** Postal codes this region covers. Empty = not on the map. */
+  states: string[];
+  /** Key into METRO_POINTS when the region is a metro rather than a whole state. */
+  metro: string | null;
 }
 
 interface RegionsMapProps {
@@ -34,7 +42,7 @@ export default function RegionsMap({ regions, filter, onFilter, darkMode }: Regi
   const byState = useMemo(() => {
     const m = new Map<string, MapRegion[]>();
     for (const r of regions) {
-      for (const code of REGION_GEO[r.region]?.states ?? []) {
+      for (const code of r.states) {
         const list = m.get(code) ?? [];
         list.push(r);
         m.set(code, list);
@@ -46,8 +54,7 @@ export default function RegionsMap({ regions, filter, onFilter, darkMode }: Regi
   const dots = useMemo(() => {
     const out: MetroDot[] = [];
     for (const r of regions) {
-      const metro = REGION_GEO[r.region]?.metro;
-      const p = metro ? METRO_POINTS[metro] : undefined;
+      const p = r.metro ? METRO_POINTS[r.metro] : undefined;
       if (p) out.push({ id: r.id, region: r.region, holder: r.holder, x: p.x, y: p.y });
     }
     return out;
@@ -58,7 +65,7 @@ export default function RegionsMap({ regions, filter, onFilter, darkMode }: Regi
     if (!filter) return new Set<string>();
     if (filter.kind === 'state') return new Set([filter.code]);
     const r = regions.find((x) => x.id === filter.id);
-    return new Set(r ? REGION_GEO[r.region]?.states ?? [] : []);
+    return new Set(r ? r.states : []);
   }, [filter, regions]);
 
   const fill = (code: string): string => {

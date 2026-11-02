@@ -4,8 +4,10 @@ import { requireAuth } from '@/lib/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 
 // Read-only mirror of Auth Host's Territories tab (/admin → Territories). Auth owns the list —
-// adds, renames and assignments happen there. Same Supabase project, so this reads the tables
-// directly: `marketer_automation_marketers` joined to `adp_employees` on adp_employee_id.
+// adds, renames, assignments and map placement happen there. Same Supabase project, so this
+// reads the tables directly: `marketer_automation_marketers` joined to `adp_employees` on
+// adp_employee_id. Map placement and the serviced-pharmacy override are the row's `states`,
+// `metro` and `serviced_location` columns (Auth migration 060).
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
@@ -17,6 +19,10 @@ interface TerritoryRow {
   id: string;
   name: string;
   adp_employee_id: string | null;
+  states: string[];
+  metro: string | null;
+  /** Pharmacy override set on Auth's Territories tab; null = use the holder's ADP home_location. */
+  serviced_location: string | null;
 }
 
 interface EmployeeRow {
@@ -28,22 +34,6 @@ interface EmployeeRow {
   phone: string | null;
   work_email: string | null;
   home_location: string | null;
-}
-
-/**
- * Regions whose serviced pharmacy is NOT the rep's ADP home_location (Carson, 2026-09-21).
- * Keyed by display name (suffix stripped). ADP is the default for everything else.
- * Colorado: serviced by TX on Ash's order (2026-10-29); the rep stays employed by MedRock TN.
- */
-const SERVICED_LOCATION_OVERRIDES: Record<string, string> = {
-  'South Georgia': 'TN',
-  'Colorado Region': 'TX',
-  Remote: 'All',
-};
-
-/** The pharmacy a region's rep services: override first, else FL / TN / TX from ADP home_location. */
-function servicedLocation(region: string, homeLocation: string | null): string | null {
-  return SERVICED_LOCATION_OVERRIDES[region] ?? locationCode(homeLocation);
 }
 
 /** ADP home_location ("MedRock TN") → FL / TN / TX. */
@@ -84,7 +74,7 @@ export default async function RegionsPage() {
     const supabase = getAdminClient();
     const { data, error } = await supabase
       .from('marketer_automation_marketers')
-      .select('id, name, adp_employee_id')
+      .select('id, name, adp_employee_id, states, metro, serviced_location')
       .order('name');
     if (error) throw new Error(error.message);
 
@@ -109,10 +99,12 @@ export default async function RegionsPage() {
       return {
         id: t.id,
         region,
+        states: t.states,
+        metro: t.metro,
         holder: e ? `${e.first_name} ${e.last_name}`.trim() : null,
         jobTitle: e ? clean(e.job_title) : null,
         status: e ? e.status : null,
-        location: e ? servicedLocation(region, e.home_location) : null,
+        location: e ? t.serviced_location ?? locationCode(e.home_location) : null,
         email: e ? clean(e.work_email)?.toLowerCase() ?? null : null,
         phone: e ? clean(e.phone) : null,
       };

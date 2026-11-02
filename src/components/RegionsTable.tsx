@@ -3,17 +3,20 @@
 import { useMemo, useState } from 'react';
 import { useDarkMode } from '@/contexts/DarkModeContext';
 import RegionsMap, { type MapFilter } from '@/components/RegionsMap';
-import { REGION_GEO } from '@/lib/region-geo';
 import { US_STATE_PATHS } from '@/lib/us-map-paths';
 
 export interface RegionRow {
   id: string;
   region: string;
+  /** Postal codes the region covers on the map (Auth's Territories tab). Empty = off the map. */
+  states: string[];
+  /** METRO_POINTS key for a metro region's dot; null for whole-state regions. */
+  metro: string | null;
   holder: string | null;
   jobTitle: string | null;
   /** ADP status — "Active", "Leave", "Terminated". Null when the region is open. */
   status: string | null;
-  /** Pharmacy the rep services — region override (regions/page.tsx) else FL / TN / TX from ADP home_location. Null when open. */
+  /** Pharmacy the rep services — the row's serviced_location override (set in Auth) else FL / TN / TX from ADP home_location. Null when open. */
   location: string | null;
   email: string | null;
   phone: string | null;
@@ -36,14 +39,14 @@ export default function RegionsTable({ rows, loadError = null }: RegionsTablePro
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (mapFilter?.kind === 'region' && r.id !== mapFilter.id) return false;
-      if (mapFilter?.kind === 'state' && !(REGION_GEO[r.region]?.states ?? []).includes(mapFilter.code)) return false;
+      if (mapFilter?.kind === 'state' && !r.states.includes(mapFilter.code)) return false;
       if (!q) return true;
       return [r.region, r.holder, r.location, r.email, r.phone].some((v) => (v ?? '').toLowerCase().includes(q));
     });
   }, [rows, search, mapFilter]);
 
   // Regions with no spot on the map (e.g. Remote) — named under the map so they aren't missed.
-  const offMap = rows.filter((r) => REGION_GEO[r.region] === undefined).map((r) => r.region);
+  const offMap = rows.filter((r) => r.states.length === 0).map((r) => r.region);
 
   const filterLabel =
     mapFilter === null
