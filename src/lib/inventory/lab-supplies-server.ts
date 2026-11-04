@@ -184,8 +184,22 @@ export async function fetchLabSuppliesAccrual(monthCount = 6): Promise<LabSuppli
  * from it. Correcting a non-latest month would then reverse every later month's accrual (2026-10-27:
  * a May correction would have booked FL 8,207.10 instead of 763.26). A correction (segment C1+)
  * shares its month's `period_end`, so it is included in its own month's bound.
+ *
+ * NET OF BARBARA'S REVERSALS (2026-11-04, MP2): since 11/02 she hand-posts `Lab Accr Rev YY.MM`
+ * reversing JEs (Dr 2011 / Cr 5000.25) on the 1st of each month. Those sit on the same 2011 balance
+ * the lab line is measured against, so the value returned is QuickBooks' actual lab balance: app lines
+ * through the bound LESS her reversals dated on or before it. QuickBooks unreachable → this throws.
  */
 export async function fetchPostedLabSuppliesToDate(entity: Entity, throughMonthEnd: string): Promise<number> {
+  const [appNet, reversals] = await Promise.all([
+    fetchAppPostedLabSuppliesToDate(entity, throughMonthEnd),
+    fetchLabAccrualReversalsToDate(entity, throughMonthEnd),
+  ]);
+  return Math.round((appNet - reversals) * 100) / 100;
+}
+
+/** The app's own posted lab lines on 2011, from RDS (see `fetchPostedLabSuppliesToDate`). */
+async function fetchAppPostedLabSuppliesToDate(entity: Entity, throughMonthEnd: string): Promise<number> {
   const { rows } = await getRdsPool().query<{ net: string | null }>(
     `SELECT sum(CASE WHEN l.posting_type = 'Credit' THEN l.amount ELSE -l.amount END)::text AS net
        FROM accounting.payroll_journal_lines l
@@ -201,6 +215,55 @@ export async function fetchPostedLabSuppliesToDate(entity: Entity, throughMonthE
     [entity, ACCRUED_EXPENSES_ACCOUNT, INV_CLOSE_PAY_GROUP, LAB_SUPPLIES_SOURCE_KEY, LAB_ACCRUAL_PAY_GROUP, throughMonthEnd],
   );
   return Math.round(Number(rows[0]?.net ?? 0) * 100) / 100;
+}
+
+/** Barbara's hand-posted reversing JEs: DocNumber `FL Lab Accr Rev 26.05` (entity prefix), dated the 1st of the month. */
+const LAB_ACCR_REV_PREFIX = 'Lab Accr Rev';
+
+interface ReversalJeLine {
+  Amount?: number;
+  JournalEntryLineDetail?: { PostingType?: 'Debit' | 'Credit'; AccountRef?: { name?: string } };
+}
+interface ReversalJe {
+  Id: string;
+  TxnDate?: string;
+  DocNumber?: string;
+  Line?: ReversalJeLine[];
+}
+
+/**
+ * Net of the 2011 lines on `Lab Accr Rev` entries, signed as a REDUCTION of the accrual:
+ * debits to 2011 positive, credits negative. Dated on or before `throughMonthEnd`, so the 06-01
+ * reversal of May's balance is not netted out of May. Throws if QuickBooks cannot be read —
+ * the caller reports that as unavailable rather than falling back to the RDS-only number.
+ */
+export async function fetchLabAccrualReversalsToDate(entity: Entity, throughMonthEnd: string): Promise<number> {
+  const entries = await qbQueryAll<ReversalJe>(
+    entity as Location,
+    'JournalEntry',
+    `WHERE DocNumber LIKE '%${LAB_ACCR_REV_PREFIX}%' AND TxnDate <= '${throughMonthEnd}'`,
+  );
+  return netLabReversals(entries, throughMonthEnd);
+}
+
+/** Pure core of the above, exported for tests. */
+export function netLabReversals(entries: readonly ReversalJe[], throughMonthEnd: string): number {
+  let net = 0;
+  for (const je of entries) {
+    if (!(je.DocNumber ?? '').includes(LAB_ACCR_REV_PREFIX)) continue;
+    if ((je.TxnDate ?? '') > throughMonthEnd) continue;
+    for (const l of je.Line ?? []) {
+      const d = l.JournalEntryLineDetail;
+      if (d === undefined || !isAccruedExpenses(d.AccountRef?.name)) continue;
+      net += d.PostingType === 'Debit' ? (l.Amount ?? 0) : -(l.Amount ?? 0);
+    }
+  }
+  return Math.round(net * 100) / 100;
+}
+
+/** QBO may show the name with its number or a parent prefix ('2011 Accrued Expenses'). */
+function isAccruedExpenses(name: string | undefined): boolean {
+  return name !== undefined && (name === ACCRUED_EXPENSES_ACCOUNT || name.endsWith(` ${ACCRUED_EXPENSES_ACCOUNT}`) || name.endsWith(`:${ACCRUED_EXPENSES_ACCOUNT}`));
 }
 
 /** Months between two 'YYYY-MM's, inclusive, for sizing the QuickBooks read. */
@@ -231,11 +294,16 @@ export async function labSuppliesContributionFor(entity: Entity, month: string):
   // Reach back to the earliest month that could still carry an unkeyed estimate
   // (the FL curve's p99 lag is ~8 months) or to the requested month, whichever is older.
   const span = Math.max(monthSpan(month, asOf.slice(0, 7)), 9);
+  let postedFailed = false;
   const [read, postedToDate] = await Promise.all([
     fetchLabSuppliesAccrual(span),
-    fetchPostedLabSuppliesToDate(entity, monthEndOf(month)),
+    fetchPostedLabSuppliesToDate(entity, monthEndOf(month)).catch((error: Error) => {
+      console.warn(`[lab-supplies] ${entity} posted-to-date unavailable:`, error);
+      postedFailed = true;
+      return 0;
+    }),
   ]);
-  const available = !read.unavailable.some((u) => u.startsWith(entity));
+  const available = !postedFailed && !read.unavailable.some((u) => u.startsWith(entity));
   const contribution = buildLabSuppliesContribution({
     location: entity,
     month,
